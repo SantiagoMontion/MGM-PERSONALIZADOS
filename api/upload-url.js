@@ -1,8 +1,11 @@
+
+import { supa } from '../lib/supa.js';
+import { cors } from '../lib/cors.js';
+
 // /api/upload-url.js
 // Requiere: "type": "module" en package.json
 import { z } from 'zod';
-import { supa } from '../lib/supa.js';
-import { cors } from '../lib/cors.js';
+
 import { customAlphabet } from 'nanoid';
 
 const nano = customAlphabet('abcdef0123456789', 8);
@@ -88,4 +91,6 @@ export default async function handler(req, res) {
     console.error(e);
     return res.status(500).json({ error: 'internal_error' });
   }
+}
+
 }
