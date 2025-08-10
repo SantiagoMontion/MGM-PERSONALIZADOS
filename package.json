@@ -14,8 +14,13 @@
     "zod": "^3.23.8"
   },
   "functions": {
-    "api/**.js": { "runtime": "nodejs20.x" },
-    "api/worker-process.js": { "runtime": "nodejs20.x", "memory": 1536, "maxDuration": 60 }
+    "api/**.js": {
+      "runtime": "nodejs20.x"
+    },
+    "api/worker-process.js": {
+      "runtime": "nodejs20.x",
+      "memory": 1536,
+      "maxDuration": 60
+    }
   }
-  
 }
