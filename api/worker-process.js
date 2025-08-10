@@ -103,6 +103,27 @@ export default async function handler(req, res) {
       preview_url: prevUrl,
       status: 'READY_FOR_PRODUCTION'
     }).eq('id', job.id);
+
+      // 10) Disparar creación de enlaces (sin bloquear la respuesta)
+// a) Checkout (Draft Order) SI aún no existe
+try {
+  await fetch(`${process.env.API_BASE_URL}/api/create-checkout`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ job_id: job.job_id })
+  });
+} catch (_) {}
+
+// b) Producto público SI el cliente marcó publicar
+if (job.is_public) {
+  try {
+    await fetch(`${process.env.API_BASE_URL}/api/publish-product`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ job_id: job.job_id })
+    });
+  } catch (_) {}
+}
     if (upDb.error) return res.status(500).json({ step: step.name, error: upDb.error.message || String(upDb.error) });
 
     return res.status(200).json({ ok:true, step:'done', job_id: job.job_id, print_jpg_url: printUrl, pdf_url: pdfUrl, preview_url: prevUrl });
@@ -110,4 +131,9 @@ export default async function handler(req, res) {
   } catch (e) {
     return res.status(500).json({ step: 'crash_'+(e?.message?.split(':')[0]||'unknown'), error: String(e?.message || e) });
   }
+
+
+
+  
+
 }
