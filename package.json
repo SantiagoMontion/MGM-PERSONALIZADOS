@@ -1,0 +1,7 @@
+{
+  "dependencies": {
+    "@supabase/supabase-js": "^2.54.0",
+    "nanoid": "^5.1.5",
+    "zod": "^4.0.17"
+  }
+}
