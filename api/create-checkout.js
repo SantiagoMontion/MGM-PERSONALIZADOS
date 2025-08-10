@@ -1,5 +1,12 @@
+// /api/create-checkout.js
 import { supa } from '../lib/supa.js';
 import { shopifyAdmin } from '../lib/shopify.js';
+
+async function getInvoiceUrl(draftId) {
+  // lee el draft y devuelve invoice_url si existe
+  const { draft_order } = await shopifyAdmin(`/draft_orders/${draftId}.json`, { method: 'GET' });
+  return draft_order?.invoice_url || null;
+}
 
 export default async function handler(req, res) {
   try {
@@ -7,11 +14,13 @@ export default async function handler(req, res) {
     const { job_id } = req.body || {};
     if (!job_id) return res.status(400).json({ error: 'missing_job_id' });
 
+    // 1) Traer job
     const { data: job, error } = await supa.from('jobs').select('*').eq('job_id', job_id).single();
     if (error || !job) return res.status(404).json({ error: 'job_not_found' });
     if (!job.print_jpg_url || !job.pdf_url) return res.status(409).json({ error: 'assets_not_ready' });
     if (!job.price_amount || job.price_amount <= 0) return res.status(400).json({ error: 'invalid_price' });
 
+    // 2) Crear Draft Order
     const lineItemTitle = `Mousepad Personalizado — ${job.material} ${Number(job.w_cm)}x${Number(job.h_cm)} cm`;
     const properties = [
       { name: 'jobId', value: job.job_id },
@@ -34,18 +43,53 @@ export default async function handler(req, res) {
       }
     };
 
-    const { draft_order } = await shopifyAdmin(`/draft_orders.json`, { method: 'POST', body: JSON.stringify(payload) });
-    if (!draft_order?.invoice_url) throw new Error('no_invoice_url');
+    const { draft_order } = await shopifyAdmin(`/draft_orders.json`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
 
+    const draftId = draft_order?.id;
+    if (!draftId) throw new Error('draft_create_failed');
+
+    // 3) Obtener invoice_url (reintento corto)
+    let invoiceUrl = await getInvoiceUrl(draftId);
+
+    // 4) Si no hay invoice_url, forzar con send_invoice y reintentar
+    if (!invoiceUrl) {
+      const toEmail = job.customer_email || 'orders@' + (process.env.SHOPIFY_STORE_DOMAIN || 'example.com');
+      await shopifyAdmin(`/draft_orders/${draftId}/send_invoice.json`, {
+        method: 'POST',
+        body: JSON.stringify({
+          draft_order_invoice: {
+            to: toEmail,
+            custom_message: 'Link de pago de tu personalizado'
+          }
+        })
+      });
+      // pequeño polling 2x
+      for (let i = 0; i < 2 && !invoiceUrl; i++) {
+        await new Promise(r => setTimeout(r, 800));
+        invoiceUrl = await getInvoiceUrl(draftId);
+      }
+    }
+
+    if (!invoiceUrl) throw new Error('no_invoice_url');
+
+    // 5) Guardar en DB
     await supa.from('jobs').update({
-      checkout_url: draft_order.invoice_url,
-      shopify_draft_id: String(draft_order.id),
+      checkout_url: invoiceUrl,
+      shopify_draft_id: String(draftId),
       status: 'SHOPIFY_CREATED'
     }).eq('id', job.id);
 
-    res.status(200).json({ ok: true, job_id: job.job_id, checkout_url: draft_order.invoice_url });
+    return res.status(200).json({ ok: true, job_id: job.job_id, checkout_url: invoiceUrl });
+
   } catch (e) {
     console.error('create_checkout_error', e);
-    res.status(500).json({ error: 'create_checkout_failed', detail: String(e?.message || e) });
+    return res.status(500).json({
+      error: 'create_checkout_failed',
+      detail: String(e?.message || e),
+      domain: process.env.SHOPIFY_STORE_DOMAIN || null
+    });
   }
 }
