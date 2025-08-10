@@ -1,8 +1,14 @@
 {
+  "name": "mgm-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node api/upload-url.js"
+  },
   "dependencies": {
     "@supabase/supabase-js": "^2.54.0",
     "nanoid": "^5.1.5",
-    "zod": "^4.0.17",
-    "type": "module"
+    "zod": "^3.23.8"
   }
 }
