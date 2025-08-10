@@ -147,6 +147,17 @@ export default async function handler(req, res) {
     if (evErr) console.error('insert_event_error', evErr);
 
     // Listo: el worker tomará este job y generará JPG/PDF/preview y (si is_public) producto/checkout
+    try {
+  await fetch(`${process.env.API_BASE_URL}/api/worker-process`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.WORKER_TOKEN}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ job_id_uuid: jobIns.id })
+  });
+} catch (_) { /* no bloqueamos la respuesta */ }
+
     return res.status(202).json({
       job_id: jobIns.job_id,
       status: 'PROCESSING',
