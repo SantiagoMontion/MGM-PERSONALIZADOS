@@ -11,9 +11,11 @@ const BLEED_MM_DEFAULT = Number(process.env.DEFAULT_BLEED_MM || 3);
 export default async function handler(req, res) {
   try {
     if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed' });
-    if (req.headers['authorization'] !== `Bearer ${process.env.WORKER_TOKEN}`) {
-      return res.status(401).json({ error: 'unauthorized' });
-    }
+
+const auth = req.headers['authorization'] || '';
+if (auth !== `Bearer ${process.env.WORKER_TOKEN}`) {
+  return res.status(401).json({ error: 'unauthorized', hint: 'Use WORKER_TOKEN, no el token de Supabase' });
+}
     const { job_id_uuid } = await readJson(req); // uuid interno (no el job_id legible)
 
     if (!job_id_uuid) return res.status(400).json({ error: 'missing_job_id_uuid' });
