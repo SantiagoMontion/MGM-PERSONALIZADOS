@@ -55,30 +55,13 @@ export default async function handler(req, res) {
 
     // Crear URL firmada de SUBIDA (Supabase Storage)
     // Nota: 'uploads' es el bucket privado que creaste.
-    const { data, error } = await supa
-      .storage
-      .from('uploads')
-      .createSignedUploadUrl(objectKey, 60); // expira en 60s
-
-    if (error) {
-      console.error(error);
-      return res.status(500).json({ error: 'sign_upload_failed' });
-    }
-
-    // Para subir desde el frontend con supabase-js:
-    // storage.from('uploads').uploadToSignedUrl(objectKey, data.token, file)
-
+    
     return res.status(200).json({
-      job_hint: jobHint,
-      bucket: 'uploads',
-      object_key: objectKey,
-      upload: {
-        provider: 'supabase',
-        signed_url: data.signedUrl,
-        token: data.token,
-        expires_in: 60
-      }
-    });
+  job_hint: jobHint,
+  bucket: 'uploads',
+  object_key: objectKey,
+  upload: { provider: 'supabase', signed_url: 'TEST', token: 'TEST', expires_in: 60 }
+});
   } catch (e) {
     if (e instanceof z.ZodError) {
       return res.status(400).json({ error: 'invalid_body', details: e.issues });
