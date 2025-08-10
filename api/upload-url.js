@@ -25,34 +25,49 @@ const LIMITS = { Classic: { maxW: 140, maxH: 100 }, PRO: { maxW: 120, maxH: 60 }
 
 export default async function handler(req, res) {
   try {
-    // Permitir ver por GET mientras diagnosticamos
+    // Permitir ver por GET mientras debug
     const info = {
       method: req.method,
       hasEnv: {
         SUPABASE_URL: !!process.env.SUPABASE_URL,
         SUPABASE_SERVICE_ROLE: !!process.env.SUPABASE_SERVICE_ROLE
-      },
-      contentType: req.headers['content-type'] || null,
-      bodyType: typeof req.body
+      }
     };
-
     if (req.method === 'GET') return res.status(200).json({ diag: info });
     if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed', diag: info });
     if (!info.hasEnv.SUPABASE_URL || !info.hasEnv.SUPABASE_SERVICE_ROLE) {
-      return res.status(500).json({ error: 'missing_env', diag: info });
+      return res.status(500).json({ step: 'env', message: 'missing_env', diag: info });
     }
 
-    // Ping simple a Supabase para ver si crashea antes del parse
-    const { data, error } = await supa.storage.listBuckets();
-    if (error) return res.status(500).json({ step: 'listBuckets', message: String(error.message || error), diag: info });
+    // 1) Ping: listar buckets
+    const lb = await supa.storage.listBuckets();
+    if (lb.error) {
+      return res.status(500).json({ step: 'listBuckets', message: lb.error.message || String(lb.error) });
+    }
 
-    // Intenta parsear el body básico para detectar JSON mal
-    let body;
-    try { body = JSON.parse(typeof req.body === 'string' ? req.body : JSON.stringify(req.body || {})); }
-    catch (e) { return res.status(400).json({ error: 'invalid_json', message: String(e?.message||e), diag: info }); }
+    // 2) Firmar subida en bucket 'uploads' con una key simple de prueba
+    const now = new Date();
+    const y = now.getFullYear(), m = String(now.getMonth()+1).padStart(2,'0');
+    const objectKey = `original/${y}/${m}/diag/test.jpg`; // ojo: sin "/" al inicio
 
-    return res.status(200).json({ ok: true, buckets: (data||[]).map(b=>b.name), diag: info });
+    const signed = await supa.storage.from('uploads').createSignedUploadUrl(objectKey, 60);
+    if (signed.error) {
+      return res.status(500).json({
+        step: 'createSignedUploadUrl',
+        message: signed.error.message || String(signed.error),
+        bucketTried: 'uploads',
+        objectKey
+      });
+    }
+
+    return res.status(200).json({
+      ok: true,
+      buckets: (lb.data || []).map(b => b.name),
+      signed_ok: !!signed.data?.signedUrl,
+      objectKey
+    });
   } catch (e) {
-    return res.status(500).json({ step: 'catch', message: String(e?.message || e) });
+    return res.status(500).json({ step: 'catch', message: e?.message || String(e) });
   }
 }
+
