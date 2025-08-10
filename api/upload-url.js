@@ -21,6 +21,13 @@ const LIMITS = {
   PRO:     { maxW: 120, maxH: 60 },
 };
 
+if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE) {
+  return res.status(500).json({ error: 'missing_env', have: {
+    SUPABASE_URL: !!process.env.SUPABASE_URL,
+    SUPABASE_SERVICE_ROLE: !!process.env.SUPABASE_SERVICE_ROLE
+  }});
+}
+
 export default async function handler(req, res) {
   if (cors(req, res)) return;
   if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed' });
