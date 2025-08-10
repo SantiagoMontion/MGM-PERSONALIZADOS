@@ -24,73 +24,35 @@ const MAX_MB = Number(process.env.MAX_UPLOAD_MB || 40);
 const LIMITS = { Classic: { maxW: 140, maxH: 100 }, PRO: { maxW: 120, maxH: 60 } };
 
 export default async function handler(req, res) {
-  // CORS + preflight
-  if (cors(req, res)) return;
-
-  // Solo POST
-  if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed' });
-
-  // Env requeridas
-  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE) {
-    return res.status(500).json({ error: 'missing_env' });
-  }
-
   try {
-    const body = BodySchema.parse(req.body);
+    // Permitir ver por GET mientras diagnosticamos
+    const info = {
+      method: req.method,
+      hasEnv: {
+        SUPABASE_URL: !!process.env.SUPABASE_URL,
+        SUPABASE_SERVICE_ROLE: !!process.env.SUPABASE_SERVICE_ROLE
+      },
+      contentType: req.headers['content-type'] || null,
+      bodyType: typeof req.body
+    };
 
-    // Límites de archivo
-    if (body.size_bytes > MAX_MB * 1024 * 1024) {
-      return res.status(400).json({ error: 'file_too_large', max_mb: MAX_MB });
+    if (req.method === 'GET') return res.status(200).json({ diag: info });
+    if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed', diag: info });
+    if (!info.hasEnv.SUPABASE_URL || !info.hasEnv.SUPABASE_SERVICE_ROLE) {
+      return res.status(500).json({ error: 'missing_env', diag: info });
     }
 
-    // Límites por material
-    const lim = LIMITS[body.material];
-    if (body.w_cm > lim.maxW || body.h_cm > lim.maxH) {
-      return res.status(400).json({ error: 'size_out_of_bounds', limits: lim });
-    }
+    // Ping simple a Supabase para ver si crashea antes del parse
+    const { data, error } = await supa.storage.listBuckets();
+    if (error) return res.status(500).json({ step: 'listBuckets', message: String(error.message || error), diag: info });
 
-    // IDs y ruta destino
-    const now = new Date();
-    const ymd = now.toISOString().slice(0,10).replace(/-/g,'');   // YYYYMMDD
-    const job_hint = `job_${ymd}_${nano()}`;
-    const year = now.getFullYear();
-    const mm = String(now.getMonth()+1).padStart(2,'0');
-    const hash16 = body.sha256.slice(0,16);
+    // Intenta parsear el body básico para detectar JSON mal
+    let body;
+    try { body = JSON.parse(typeof req.body === 'string' ? req.body : JSON.stringify(req.body || {})); }
+    catch (e) { return res.status(400).json({ error: 'invalid_json', message: String(e?.message||e), diag: info }); }
 
-    // Guardamos solo bajo 'original/'. El bucket es 'uploads' (privado)
-    const object_key = `original/${year}/${mm}/${job_hint}/${hash16}.${body.ext}`;
-
-    // Firmar subida: expira en 60s
-    const { data, error } = await supa
-      .storage
-      .from('uploads')
-      .createSignedUploadUrl(object_key, 60);
-
-    if (error) {
-      console.error('sign_upload_failed', error);
-      return res.status(500).json({ error: 'sign_upload_failed' });
-    }
-
-    // Respuesta para que el front suba el archivo con supabase-js v2:
-    // storage.from('uploads').uploadToSignedUrl(object_key, data.token, file)
-    return res.status(200).json({
-      job_hint,
-      bucket: 'uploads',
-      object_key,
-      upload: {
-        provider: 'supabase',
-        signed_url: data.signedUrl,
-        token: data.token,
-        expires_in: 60
-      }
-    });
+    return res.status(200).json({ ok: true, buckets: (data||[]).map(b=>b.name), diag: info });
   } catch (e) {
-    if (e?.issues) {
-      return res.status(400).json({ error: 'invalid_body', details: e.issues });
-    }
-    console.error(e);
-    return res.status(500).json({ error: 'internal_error' });
+    return res.status(500).json({ step: 'catch', message: String(e?.message || e) });
   }
-}
-
 }
