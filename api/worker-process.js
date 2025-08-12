@@ -107,13 +107,12 @@ export default async function handler(req, res) {
       // 10) Disparar creación de enlaces (sin bloquear la respuesta)
 // a) Checkout (Draft Order) SI aún no existe
 try {
-  await fetch(`${process.env.API_BASE_URL}/api/create-checkout`, {
+  await fetch(`${process.env.API_BASE_URL}/api/create-cart-link`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ job_id: job.job_id })
   });
-} catch (_) {}
-
+} catch(_) {}
 // b) Producto público SI el cliente marcó publicar
 if (job.is_public) {
   try {
