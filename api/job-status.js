@@ -1,6 +1,8 @@
 import { supa } from '../lib/supa.js';
+import { cors } from '../lib/cors.js';
 
 export default async function handler(req, res) {
+  if (cors(req, res)) return;
   const id = req.query.id; // puede ser job_id legible o el uuid con un flag
   if (!id) return res.status(400).json({ error: 'missing_id' });
 
