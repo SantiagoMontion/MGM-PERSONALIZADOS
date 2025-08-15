@@ -21,7 +21,7 @@ export default async function handler(req, res) {
     if (!job.price_amount || job.price_amount <= 0) return res.status(400).json({ error: 'invalid_price' });
 
     // 2) Crear Draft Order
-    const lineItemTitle = `Mousepad Personalizado — ${job.material} ${Number(job.w_cm)}x${Number(job.h_cm)} cm`;
+    const lineItemTitle = `Mousepad "${job.design_name || 'Diseño'}" Medida ${Number(job.w_cm)}x${Number(job.h_cm)} cm ${job.material} | PERSONALIZADO`;
     const properties = [
       { name: 'jobId', value: job.job_id },
       { name: 'material', value: job.material },

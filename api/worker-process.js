@@ -104,7 +104,7 @@ export default async function handler(req, res) {
     const scale = Math.min(1, maxPreview / Math.max(targetW, targetH));
     const prevW = Math.max(1, Math.round(targetW*scale));
     const prevH = Math.max(1, Math.round(targetH*scale));
-    const preview = await sharp(fitted).resize(prevW, prevH).webp({ quality:82 }).toBuffer();
+    const preview = await sharp(fitted).resize(prevW, prevH).png().toBuffer();
 
     // 8) Subir a outputs
     step.name='upload';
@@ -112,13 +112,13 @@ export default async function handler(req, res) {
     const base='outputs';
     const printKey = `print/${job.job_id}/print_${Number(job.w_cm)}x${Number(job.h_cm)}_${hash8}.jpg`;
     const pdfKey   = `pdf/${job.job_id}/print_${Number(job.w_cm)}x${Number(job.h_cm)}_${hash8}.pdf`;
-    const prevKey  = `mockup/${job.job_id}/preview_${hash8}.webp`;
+    const prevKey  = `mockup/${job.job_id}/preview_${hash8}.png`;
 
     const up1 = await supa.storage.from(base).upload(printKey, fitted, { contentType:'image/jpeg', upsert:true });
     if (up1.error) return res.status(500).json({ step: step.name, error: up1.error.message || String(up1.error) });
     const up2 = await supa.storage.from(base).upload(pdfKey, Buffer.from(pdfBytes), { contentType:'application/pdf', upsert:true });
     if (up2.error) return res.status(500).json({ step: step.name, error: up2.error.message || String(up2.error) });
-    const up3 = await supa.storage.from(base).upload(prevKey, preview, { contentType:'image/webp', upsert:true });
+    const up3 = await supa.storage.from(base).upload(prevKey, preview, { contentType:'image/png', upsert:true });
     if (up3.error) return res.status(500).json({ step: step.name, error: up3.error.message || String(up3.error) });
 
     const publicBase = `${process.env.SUPABASE_URL}/storage/v1/object/public/${base}`;
@@ -138,6 +138,13 @@ export default async function handler(req, res) {
 
     // 10) Disparar creación de enlaces (sin bloquear la respuesta)
     fetch(`${process.env.API_BASE_URL}/api/create-cart-link`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ job_id: job.job_id })
+    }).catch(() => {});
+
+    // Crear checkout automáticamente
+    fetch(`${process.env.API_BASE_URL}/api/create-checkout`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ job_id: job.job_id })

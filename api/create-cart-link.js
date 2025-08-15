@@ -38,9 +38,10 @@ export default async function handler(req, res) {
         // Si es público y no hay product: crear uno sencillo con 1 variante
         const hash8 = (job.file_hash || '').slice(0,8) || 'custom';
         const handle = `${slugify(job.design_name || job.notes || 'diseno')}-${hash8}`;
+        const title = `Mousepad "${job.design_name || 'Diseño'}" Medida ${optSize} ${optMaterial} | PERSONALIZADO`;
         const payload = {
           product: {
-            title: `Diseño personalizado — ${optMaterial} ${optSize}`,
+            title,
             body_html: `<p>Diseño personalizado subido por un cliente.</p>`,
             handle,
             tags: `custom-upload,hash:${hash8},material:${optMaterial},size:${optSize}`,
@@ -86,9 +87,10 @@ export default async function handler(req, res) {
       // Si no teníamos producto (privado): crear producto “oculto” con 1 variante (visible pero sin enlazar)
       if (!productId) {
         const handle = `personalizado-${slugify(job.job_id)}`;
+        const title = `Mousepad "${job.design_name || 'Personalizado'}" Medida ${optSize} ${optMaterial} | PERSONALIZADO`;
         const payload = {
           product: {
-            title: `Personalizado — ${optMaterial} ${optSize}`,
+            title,
             body_html: `<p>Diseño personalizado.</p>`,
             handle,
             tags: `custom-upload,job:${job.job_id},material:${optMaterial},size:${optSize}`,
