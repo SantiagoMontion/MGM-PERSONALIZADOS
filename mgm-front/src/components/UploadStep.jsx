@@ -24,6 +24,11 @@ export default function UploadStep({ onUploaded }) {
       const ext = lower.endsWith('.png') ? 'png' : 'jpg';
       const mime = ext === 'png' ? 'image/png' : 'image/jpeg';
 
+      // hash SHA-256 para dedupe
+      const buf = await file.arrayBuffer();
+      const hashArr = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', buf)));
+      const file_hash = hashArr.map(b => b.toString(16).padStart(2, '0')).join('');
+
       // 1) pedir URL firmada
       const sig = await api('/api/upload-url', {
         method: 'POST',
@@ -32,7 +37,7 @@ export default function UploadStep({ onUploaded }) {
           size_bytes: file.size,
           // placeholders mínimos
           material: 'Classic', w_cm: 90, h_cm: 40,
-          sha256: '0'.repeat(64)
+          sha256: file_hash
         })
       });
 
@@ -52,7 +57,7 @@ export default function UploadStep({ onUploaded }) {
         file,
         file_original_url,
         object_key: sig.object_key,
-        file_hash: '0'.repeat(64)
+        file_hash
       });
     } catch (e) {
       setErr(String(e?.body?.error || e?.message || e));
