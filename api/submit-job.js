@@ -22,6 +22,22 @@ const Body = z.object({
   }),
   fit_mode: z.enum(['cover','contain']),
   bg: z.string().optional(),
+  layout: z.object({
+    dpi: z.number(),
+    bleed_mm: z.number(),
+    size_cm: z.object({ w: z.number(), h: z.number() }),
+    image: z.object({ natural_px: z.object({ w: z.number(), h: z.number() }) }).nullable(),
+    transform: z.object({
+      x_cm: z.number(),
+      y_cm: z.number(),
+      scaleX: z.number(),
+      scaleY: z.number(),
+      rotation_deg: z.number(),
+    }),
+    mode: z.enum(['cover','contain']),
+    background: z.string(),
+    corner_radius_cm: z.number(),
+  }).optional(),
 
   file_original_url: z.string().url(),
   file_hash: z.string().regex(/^[a-f0-9]{64}$/),
@@ -118,6 +134,7 @@ export default async function handler(req, res) {
 
       file_original_url: body.file_original_url,
       file_hash: body.file_hash,
+      layout_json: body.layout || null,
 
       price_amount: body.price.amount,
       price_currency: body.price.currency || 'ARS',
