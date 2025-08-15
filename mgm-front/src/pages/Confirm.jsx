@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { api } from '../lib/api';
 
 export default function Confirm() {
   const [sp] = useSearchParams();
@@ -11,16 +12,14 @@ export default function Confirm() {
     let t;
     async function tick() {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_BASE}/api/job-summary?id=${encodeURIComponent(jobId)}`);
-        const json = await res.json();
-        if (!res.ok) throw new Error(json?.error || 'fetch_failed');
+        const json = await api(`/api/job-summary?id=${encodeURIComponent(jobId)}`);
         setData(json);
         // si falta cart_url o status no listo, repoll
         if (!json.cart_url || (json.status !== 'READY_FOR_PRODUCTION' && json.status !== 'SHOPIFY_CREATED')) {
           t = setTimeout(tick, 2000);
         }
       } catch (e) {
-        setErr(String(e?.message || e));
+        setErr(String(e?.body?.error || e?.message || e));
         t = setTimeout(tick, 3000);
       }
     }
@@ -42,15 +41,15 @@ export default function Confirm() {
 
       <div style={{display:'flex', gap:12, marginTop:12}}>
         {data.cart_url && (
-          <a className="btn" href={data.cart_url}>Ir al carrito</a>
+          <a className="btn" href={data.cart_url}>Agregar al carrito</a>
         )}
         {data.shopify_product_url && (
           <a className="btn" href={data.shopify_product_url} target="_blank">Ver producto</a>
         )}
-        {/* opcional: si mantenés invoice */}
         {data.checkout_url && (
           <a className="btn" href={data.checkout_url} target="_blank" rel="noreferrer">Pagar ahora</a>
         )}
+        <a className="btn" href="/">Cargar otro diseño</a>
       </div>
 
       {err && <p style={{color:'crimson'}}>{err}</p>}

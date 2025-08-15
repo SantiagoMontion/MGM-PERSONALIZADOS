@@ -34,31 +34,44 @@ export default function Home() {
 
   // layout del canvas
   const [layout, setLayout] = useState(null);
-
+  const [designName, setDesignName] = useState('');
+  const [ackLow, setAckLow] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
+  const effDpi = useMemo(() => {
+    if (!layout) return null;
+    return Math.round(
+      Math.min(
+        layout.dpi / Math.max(1e-6, layout.transform.scaleX),
+        layout.dpi / Math.max(1e-6, layout.transform.scaleY)
+      )
+    );
+  }, [layout]);
+  const level = useMemo(() => (effDpi ? dpiLevel(effDpi, 300, 100) : null), [effDpi]);
+
   async function handleContinue() {
     if (!uploaded || !layout) return;
+    if (!designName.trim()) {
+      setErr('Falta el nombre del modelo');
+      return;
+    }
     setBusy(true);
     setErr('');
     try {
-      const effDpi = Math.round(
-        Math.min(
-          layout.dpi / Math.max(1e-6, layout.transform.scaleX),
-          layout.dpi / Math.max(1e-6, layout.transform.scaleY)
-        )
-      );
-      const level = dpiLevel(effDpi, 300, 100);
+      if (level === 'bad' && !ackLow) {
+        throw new Error('low_dpi');
+      }
 
       const body = {
+        design_name: designName,
         material,
         size_cm: { w: sizeCm.w, h: sizeCm.h, bleed_mm: 3 },
         fit_mode: layout.mode,
         bg: layout.background,
         file_original_url: uploaded.file_original_url,
         file_hash: uploaded.file_hash,
-        dpi_report: { dpi: effDpi, level, customer_ack: false },
+        dpi_report: { dpi: effDpi, level, customer_ack: ackLow },
         notes: '',
         price: { currency: 'ARS', amount: 0 },
         source: 'web',
@@ -73,7 +86,11 @@ export default function Home() {
 
       navigate(`/confirm?job_id=${res.job_id}`);
     } catch (e) {
-      setErr(String(e?.body?.error || e?.message || e));
+      if (e.message === 'low_dpi') {
+        setErr('Debes aceptar la baja calidad de la imagen');
+      } else {
+        setErr(String(e?.body?.error || e?.message || e));
+      }
     } finally {
       setBusy(false);
     }
@@ -84,10 +101,18 @@ export default function Home() {
     <div>
       <h1>Mousepad Personalizado</h1>
 
-      <UploadStep onUploaded={setUploaded} />
+      <UploadStep onUploaded={file => { setUploaded(file); setAckLow(false); }} />
 
       {uploaded && (
         <>
+          <div style={{ marginBottom: 12 }}>
+            <input
+              type="text"
+              placeholder="Nombre del modelo"
+              value={designName}
+              onChange={e => setDesignName(e.target.value)}
+            />
+          </div>
           {/* Form de medida/material */}
           <SizeControls
             material={material}
@@ -108,6 +133,17 @@ export default function Home() {
             dpi={300}
             onLayoutChange={setLayout}
           />
+
+          {level === 'bad' && (
+            <label style={{ display: 'block', marginTop: 12 }}>
+              <input
+                type="checkbox"
+                checked={ackLow}
+                onChange={e => setAckLow(e.target.checked)}
+              />{' '}
+              Acepto imprimir en baja calidad ({effDpi} DPI)
+            </label>
+          )}
 
           <button style={{ marginTop: 12 }} disabled={busy} onClick={handleContinue}>
             {busy ? 'Enviando…' : 'Continuar'}
