@@ -139,6 +139,7 @@ export default async function handler(req, res) {
       price_amount: body.price.amount,
       price_currency: body.price.currency || 'ARS',
       notes: body.notes || null,
+      design_name: body.design_name || null,
 
       source: body.source || 'web',
       is_public: !!body.publish_to_shopify
