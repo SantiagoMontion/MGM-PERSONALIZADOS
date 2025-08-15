@@ -39,20 +39,51 @@ export default async function handler(req, res) {
     const sharp = (await import('sharp')).default;
     const { PDFDocument } = await import('pdf-lib');
 
+    const layout = job.layout_json || null;
+
     // 4) Preparar dimensiones
     step.name='prepare_dims';
-    const dpi=300;
+    const dpi = Number(layout?.dpi || 300);
     const bleedPx = Math.max(0, Math.round(((Number(job.bleed_mm||3)/10)/2.54)*dpi));
     const targetW = Math.round((Number(job.w_cm)/2.54)*dpi) + bleedPx*2;
     const targetH = Math.round((Number(job.h_cm)/2.54)*dpi) + bleedPx*2;
 
-    // 5) Normalizar + fit
+    // 5) Normalizar + aplicar layout
     step.name='sharp_fit';
-    const norm = sharp(inputBuf, { failOn: 'none' }).rotate().withMetadata({ orientation:1 });
-    const fitted = await norm
-      .resize(targetW, targetH, { fit: (job.fit_mode==='contain'?'contain':'cover'), background: (job.bg||'#ffffff'), position:'centre' })
-      .jpeg({ quality:95, mozjpeg:true })
-      .toBuffer();
+    let fitted;
+    if (layout?.transform && layout?.image?.natural_px) {
+      const bg = layout.mode === 'contain' ? (layout.background || '#ffffff') : '#ffffff';
+      const base = sharp({
+        create: { width: targetW, height: targetH, channels: 3, background: bg }
+      });
+
+      const scaledW = Math.round(layout.image.natural_px.w * layout.transform.scaleX);
+      const scaledH = Math.round(layout.image.natural_px.h * layout.transform.scaleY);
+      const imgBuf = await sharp(inputBuf, { failOn: 'none' })
+        .rotate()
+        .resize(scaledW, scaledH)
+        .rotate(layout.transform.rotation_deg || 0, { background: bg })
+        .toBuffer();
+
+      const theta = (layout.transform.rotation_deg || 0) * Math.PI / 180;
+      const rotW = Math.abs(scaledW * Math.cos(theta)) + Math.abs(scaledH * Math.sin(theta));
+      const rotH = Math.abs(scaledW * Math.sin(theta)) + Math.abs(scaledH * Math.cos(theta));
+      const dx = (scaledW - rotW) / 2;
+      const dy = (scaledH - rotH) / 2;
+      const left = Math.round((layout.transform.x_cm / 2.54) * dpi + dx);
+      const top  = Math.round((layout.transform.y_cm / 2.54) * dpi + dy);
+
+      fitted = await base
+        .composite([{ input: imgBuf, left, top }])
+        .jpeg({ quality:95, mozjpeg:true })
+        .toBuffer();
+    } else {
+      const norm = sharp(inputBuf, { failOn: 'none' }).rotate().withMetadata({ orientation:1 });
+      fitted = await norm
+        .resize(targetW, targetH, { fit: (job.fit_mode==='contain'?'contain':'cover'), background: (job.bg||'#ffffff'), position:'centre' })
+        .jpeg({ quality:95, mozjpeg:true })
+        .toBuffer();
+    }
 
     // 6) PDF (sin sangrado visible)
     step.name='pdf_build';
@@ -103,27 +134,23 @@ export default async function handler(req, res) {
       preview_url: prevUrl,
       status: 'READY_FOR_PRODUCTION'
     }).eq('id', job.id);
+    if (upDb.error) return res.status(500).json({ step: step.name, error: upDb.error.message || String(upDb.error) });
 
-      // 10) Disparar creación de enlaces (sin bloquear la respuesta)
-// a) Checkout (Draft Order) SI aún no existe
-try {
-  await fetch(`${process.env.API_BASE_URL}/api/create-cart-link`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ job_id: job.job_id })
-  });
-} catch(_) {}
-// b) Producto público SI el cliente marcó publicar
-if (job.is_public) {
-  try {
-    await fetch(`${process.env.API_BASE_URL}/api/publish-product`, {
+    // 10) Disparar creación de enlaces (sin bloquear la respuesta)
+    fetch(`${process.env.API_BASE_URL}/api/create-cart-link`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ job_id: job.job_id })
-    });
-  } catch (_) {}
-}
-    if (upDb.error) return res.status(500).json({ step: step.name, error: upDb.error.message || String(upDb.error) });
+    }).catch(() => {});
+
+    // b) Producto público SI el cliente marcó publicar
+    if (job.is_public) {
+      fetch(`${process.env.API_BASE_URL}/api/publish-product`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: job.job_id })
+      }).catch(() => {});
+    }
 
     return res.status(200).json({ ok:true, step:'done', job_id: job.job_id, print_jpg_url: printUrl, pdf_url: pdfUrl, preview_url: prevUrl });
 

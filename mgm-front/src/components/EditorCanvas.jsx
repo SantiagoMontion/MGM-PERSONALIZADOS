@@ -51,7 +51,7 @@ function ColorPopover({ value, onChange, open, onClose }) {
         setHex(res.sRGBHex);
         onChange?.(res.sRGBHex);
       }
-    } catch {}
+    } catch { /* ignore */ }
   };
 
   const copyHex = async () => {
@@ -59,7 +59,7 @@ function ColorPopover({ value, onChange, open, onClose }) {
       await navigator.clipboard?.writeText(hex);
       setCopied(true);
       setTimeout(() => setCopied(false), 900);
-    } catch {}
+    } catch { /* ignore */ }
   };
 
   if (!open) return null;
@@ -244,6 +244,33 @@ export default function EditorCanvas({
   }, [imgEl, dpi]);
 
   const [imgTx, setImgTx] = useState({ x_cm: 0, y_cm: 0, scaleX: 1, scaleY: 1, rotation_deg: 0 });
+  const historyRef = useRef([]); // pila de estados para undo
+  const [histIndex, setHistIndex] = useState(-1);
+  const pushHistory = useCallback((tx) => {
+    historyRef.current = historyRef.current.slice(0, histIndex + 1);
+    historyRef.current.push(tx);
+    setHistIndex(historyRef.current.length - 1);
+  }, [histIndex]);
+  const undo = useCallback(() => {
+    setHistIndex((idx) => {
+      if (idx <= 0) return idx;
+      const nextIdx = idx - 1;
+      const prev = historyRef.current[nextIdx];
+      if (prev) setImgTx(prev);
+      return nextIdx;
+    });
+  }, []);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        e.preventDefault();
+        undo();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [undo]);
   const [freeScale, setFreeScale] = useState(false); // ⟵ NUEVO: “Estirar sin límites”
   const keepRatio = !freeScale;
   const [mode, setMode] = useState('cover'); // 'cover' | 'contain' | 'stretch'
@@ -255,7 +282,9 @@ export default function EditorCanvas({
     if (!imgBaseCm || didInitRef.current) return;
     const s = Math.max(workCm.w / imgBaseCm.w, workCm.h / imgBaseCm.h);
     const w = imgBaseCm.w * s, h = imgBaseCm.h * s;
-    setImgTx({ x_cm: (workCm.w - w)/2, y_cm: (workCm.h - h)/2, scaleX: s, scaleY: s, rotation_deg: 0 });
+    const initial = { x_cm: (workCm.w - w)/2, y_cm: (workCm.h - h)/2, scaleX: s, scaleY: s, rotation_deg: 0 };
+    setImgTx(initial);
+    pushHistory(initial);
     setMode('cover');
     didInitRef.current = true;
   }, [imgBaseCm, workCm.w, workCm.h]);
@@ -274,6 +303,7 @@ export default function EditorCanvas({
   const stickRef = useRef({ x: null, y: null, activeX: false, activeY: false });
   const onImgDragStart = () => {
     stickRef.current = { x: null, y: null, activeX: false, activeY: false };
+    pushHistory(imgTx);
   };
   const dragBoundFunc = useCallback((pos) => {
     if (!imgBaseCm) return pos;
@@ -373,6 +403,7 @@ export default function EditorCanvas({
   // fin de resize por esquinas
   const onTransformEnd = () => {
     if (!imgRef.current || !imgBaseCm) return;
+    pushHistory(imgTx);
     const n = imgRef.current;
     const sx = n.scaleX();
     const sy = n.scaleY();
@@ -412,6 +443,7 @@ export default function EditorCanvas({
     const denomH = w * s + h * c;
     const sCover = Math.max(workCm.w / denomW, workCm.h / denomH);
     const newW = w * sCover, newH = h * sCover;
+    pushHistory(imgTx);
     setImgTx((prev) => ({
       x_cm: cx - newW/2, y_cm: cy - newH/2,
       scaleX: sCover, scaleY: sCover,
@@ -430,6 +462,7 @@ export default function EditorCanvas({
     const denomH = w * s + h * c;
     const sContain = Math.min(workCm.w / denomW, workCm.h / denomH);
     const newW = w * sContain, newH = h * sContain;
+    pushHistory(imgTx);
     setImgTx((prev) => ({
       x_cm: cx - newW/2, y_cm: cy - newH/2,
       scaleX: sContain, scaleY: sContain,
@@ -465,6 +498,7 @@ export default function EditorCanvas({
     sy = Math.max(sy, 0.02);
 
     const newW = w * sx, newH = h * sy;
+    pushHistory(imgTx);
     setImgTx((prev) => ({
       x_cm: cx - newW/2, y_cm: cy - newH/2,
       scaleX: sx, scaleY: sy,
@@ -474,12 +508,14 @@ export default function EditorCanvas({
   }, [imgBaseCm?.w, imgBaseCm?.h, workCm.w, workCm.h, theta, imgTx.x_cm, imgTx.y_cm, imgTx.scaleX, imgTx.scaleY]);
 
   // estirar libre (ignora rotación para el cálculo)
+  // eslint-disable-next-line no-unused-vars
   const fitStretchFree = useCallback(() => {
     if (!imgBaseCm) return;
     const { cx, cy } = currentCenter();
     const sx = workCm.w / imgBaseCm.w;
     const sy = workCm.h / imgBaseCm.h;
     const newW = imgBaseCm.w * sx, newH = imgBaseCm.h * sy;
+    pushHistory(imgTx);
     setImgTx((prev) => ({
       x_cm: cx - newW/2, y_cm: cy - newH/2,
       scaleX: sx, scaleY: sy,
@@ -491,6 +527,7 @@ export default function EditorCanvas({
   const centerImage = useCallback(() => {
     if (!imgBaseCm) return;
     const w = imgBaseCm.w * imgTx.scaleX, h = imgBaseCm.h * imgTx.scaleY;
+    pushHistory(imgTx);
     setImgTx((tx) => ({ ...tx, x_cm: (workCm.w - w)/2, y_cm: (workCm.h - h)/2 }));
   }, [imgBaseCm?.w, imgBaseCm?.h, workCm.w, workCm.h, imgTx.scaleX, imgTx.scaleY]);
 
@@ -508,14 +545,18 @@ export default function EditorCanvas({
     if (edge === 'top')    cy = halfH;
     if (edge === 'bottom') cy = workCm.h - halfH;
 
+    pushHistory(imgTx);
     setImgTx((tx) => ({
       ...tx,
       x_cm: cx - (imgBaseCm.w * tx.scaleX)/2,
       y_cm: cy - (imgBaseCm.h * tx.scaleY)/2,
     }));
   };
-
-  const rotate = (deg) => setImgTx((tx) => ({ ...tx, rotation_deg: (tx.rotation_deg + deg) % 360 }));
+  
+  const rotate = (deg) => {
+    pushHistory(imgTx);
+    setImgTx((tx) => ({ ...tx, rotation_deg: (tx.rotation_deg + deg) % 360 }));
+  };
 
 
   // calidad
@@ -605,9 +646,20 @@ export default function EditorCanvas({
           width:'100%', height:'70vh',
           border:'1px solid #ddd', borderRadius:8, overflow:'hidden',
           cursor: isPanningRef.current ? 'grabbing' : 'default',
-          background:'#f3f4f6' // ⟵ Fondo del wrapper para eliminar “cuadrito blanco”
+          background:'#f3f4f6', // ⟵ Fondo del wrapper para eliminar “cuadrito blanco”
+          position:'relative'
         }}
       >
+        <button
+          onClick={undo}
+          disabled={histIndex <= 0}
+          style={{
+            position:'absolute', top:8, left:8, zIndex:20,
+            padding:'4px 8px', borderRadius:6,
+            border:'1px solid #d1d5db', background:'#fff',
+            cursor: histIndex > 0 ? 'pointer' : 'not-allowed'
+          }}
+        >↺</button>
         <Stage
           width={wrapSize.w}
           height={wrapSize.h}

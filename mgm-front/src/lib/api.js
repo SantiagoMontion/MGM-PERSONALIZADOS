@@ -9,7 +9,7 @@ export async function api(path, init = {}) {
     }
   });
   const text = await res.text();
-  let json = null; try { json = text ? JSON.parse(text) : null; } catch {}
+  let json = null; try { json = text ? JSON.parse(text) : null; } catch { /* ignore */ }
   if (!res.ok) {
     const err = new Error(`API ${res.status}`);
     err.body = json || text;
