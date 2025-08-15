@@ -3,7 +3,6 @@ import { z } from 'zod';
 import { nanoid } from 'nanoid';
 import { STANDARD, LIMITS } from '../lib/sizes';
 import { dpiFor, dpiLevel } from '../lib/dpi';
-import { api } from '../lib/api';
 
 const Form = z.object({
   material: z.enum(['Classic','PRO']),
