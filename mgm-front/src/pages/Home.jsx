@@ -29,8 +29,6 @@ export default function Home() {
   const [size, setSize] = useState({ w: 90, h: 40 });
   const sizeCm = useMemo(() => ({ w: Number(size.w) || 90, h: Number(size.h) || 40 }), [size.w, size.h]);
 
-  // layout emitido por el canvas
-  const [layout, setLayout] = useState(null);
 
   return (
     <div>
@@ -54,12 +52,11 @@ export default function Home() {
 
           {/* Editor (solo canvas) */}
           <EditorCanvas
-  imageUrl={imageUrl}
-  sizeCm={sizeCm}       // 👈 que no falte
-  bleedMm={3}
-  dpi={300}
-  onLayoutChange={setLayout}
-/>
+            imageUrl={imageUrl}
+            sizeCm={sizeCm}       // 👈 que no falte
+            bleedMm={3}
+            dpi={300}
+          />
 
           {/* (Opcional) Botón para continuar usando tu submit existente con layout */}
           <button style={{marginTop:12}}

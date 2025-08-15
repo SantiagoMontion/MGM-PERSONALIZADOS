@@ -7,7 +7,6 @@ export default function UploadStep({ onUploaded }) {
   const inputRef = useRef(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
-  const [fileName, setFileName] = useState('');
 
   const openPicker = () => {
     setErr('');
@@ -17,7 +16,6 @@ export default function UploadStep({ onUploaded }) {
   async function handlePicked(e) {
     const file = e.target.files?.[0];
     if (!file) return;
-    setFileName(file.name);
     setBusy(true);
     setErr('');
     try {
