@@ -56,6 +56,8 @@ export default function Home() {
       setErr('Falta el nombre del modelo');
       return;
     }
+    if (!window.confirm('¿La imagen está editada completamente?')) return;
+    if (!window.confirm('¿No realizarás más cambios?')) return;
     setBusy(true);
     setErr('');
     try {

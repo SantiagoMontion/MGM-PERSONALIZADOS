@@ -98,13 +98,26 @@ export default async function handler(req, res) {
     page.drawImage(jpg, { x:0, y:0, width:pageWpt, height:pageHpt });
     const pdfBytes = await pdf.save();
 
-    // 7) Preview
+    // 7) Preview / mockup 1080x1080
     step.name='preview';
-    const maxPreview = 1600;
-    const scale = Math.min(1, maxPreview / Math.max(targetW, targetH));
-    const prevW = Math.max(1, Math.round(targetW*scale));
-    const prevH = Math.max(1, Math.round(targetH*scale));
-    const preview = await sharp(fitted).resize(prevW, prevH).png().toBuffer();
+    const mockSize = 1080;
+    const scale = Math.min(mockSize / targetW, mockSize / targetH);
+    const mockW = Math.max(1, Math.round(targetW * scale));
+    const mockH = Math.max(1, Math.round(targetH * scale));
+    const resized = await sharp(fitted).resize(mockW, mockH).png().toBuffer();
+    const left = Math.round((mockSize - mockW) / 2);
+    const top = Math.round((mockSize - mockH) / 2);
+    const preview = await sharp({
+      create: {
+        width: mockSize,
+        height: mockSize,
+        channels: 3,
+        background: job.bg || '#ffffff'
+      }
+    })
+      .composite([{ input: resized, left, top }])
+      .png()
+      .toBuffer();
 
     // 8) Subir a outputs
     step.name='upload';
