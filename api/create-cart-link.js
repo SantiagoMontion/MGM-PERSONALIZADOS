@@ -2,6 +2,7 @@
 // Crea (o reutiliza) un producto/variante y devuelve un link que agrega el ítem al carrito con properties.
 import { supa } from '../lib/supa.js';
 import { shopifyAdmin } from '../lib/shopify.js';
+import { cors } from '../lib/cors.js';
 
 function sizeLabel(w, h) {
   return `${Number(w)}x${Number(h)} cm`;
@@ -13,6 +14,7 @@ function qs(obj) {
 }
 
 export default async function handler(req, res) {
+  if (cors(req, res)) return;
   try {
     if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed' });
     const { job_id } = req.body || {};
