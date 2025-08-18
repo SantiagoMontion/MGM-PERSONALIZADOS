@@ -74,7 +74,8 @@ export default function Home() {
         file_hash: uploaded.file_hash,
         dpi_report: { dpi: effDpi, level, customer_ack: ackLow },
         notes: '',
-        price: { currency: 'ARS', amount: 0 },
+        // TODO: reemplazar con calculadora real
+        price: { currency: 'ARS', amount: 45900 },
         source: 'web',
         layout,
       };

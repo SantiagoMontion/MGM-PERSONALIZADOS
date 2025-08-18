@@ -51,7 +51,7 @@ const Body = z.object({
   notes: z.string().max(1000).optional(),
   price: z.object({
     currency: z.string().default('ARS'),
-    amount: z.number().nonnegative()
+    amount: z.number().positive()
   }),
   source: z.string().default('web')
 });
@@ -67,6 +67,10 @@ export default async function handler(req, res) {
 
   try {
     const body = Body.parse(req.body);
+
+    if (!body.price.amount || body.price.amount <= 0) {
+      return res.status(400).json({ error: 'invalid_price' });
+    }
 
     // Límites por material
     const lim = LIMITS[body.material];
