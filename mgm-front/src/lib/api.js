@@ -1,4 +1,6 @@
-const BASE = import.meta.env.VITE_API_BASE;
+const rawBase = import.meta.env.VITE_API_BASE;
+if (!rawBase) throw new Error('VITE_API_BASE missing');
+const BASE = rawBase.replace(/\/$/, '');
 
 export async function api(path, init = {}) {
   const res = await fetch(`${BASE}${path}`, {
