@@ -272,6 +272,11 @@ export default function EditorCanvas({
     return () => window.removeEventListener('keydown', handler);
   }, [undo]);
 
+  const moveBy = useCallback((dx, dy) => {
+    pushHistory(imgTx);
+    setImgTx((tx) => ({ ...tx, x_cm: tx.x_cm + dx, y_cm: tx.y_cm + dy }));
+  }, [imgTx]);
+
   useEffect(() => {
     const handler = (e) => {
       if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
@@ -551,11 +556,6 @@ export default function EditorCanvas({
     pushHistory(imgTx);
     setImgTx((tx) => ({ ...tx, y_cm: (workCm.h - h) / 2 }));
   }, [imgBaseCm?.h, workCm.h, imgTx.scaleY]);
-
-  const moveBy = useCallback((dx, dy) => {
-    pushHistory(imgTx);
-    setImgTx((tx) => ({ ...tx, x_cm: tx.x_cm + dx, y_cm: tx.y_cm + dy }));
-  }, [imgTx]);
 
   const alignEdge = (edge) => {
     if (!imgBaseCm) return;
