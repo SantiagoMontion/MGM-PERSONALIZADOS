@@ -56,8 +56,7 @@ export default function Home() {
       setErr('Falta el nombre del modelo');
       return;
     }
-    if (!window.confirm('¿La imagen está editada completamente?')) return;
-    if (!window.confirm('¿No realizarás más cambios?')) return;
+    if (!window.confirm('¿La imagen está editada completamente y no realizarás más cambios?')) return;
     setBusy(true);
     setErr('');
     try {
@@ -90,6 +89,8 @@ export default function Home() {
     } catch (e) {
       if (e.message === 'low_dpi') {
         setErr('Debes aceptar la baja calidad de la imagen');
+      } else if (e?.body?.error === 'insert_failed') {
+        setErr('No se pudo enviar el trabajo, intenta nuevamente.');
       } else {
         setErr(String(e?.body?.error || e?.message || e));
       }

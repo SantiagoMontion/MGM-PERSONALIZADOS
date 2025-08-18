@@ -271,6 +271,20 @@ export default function EditorCanvas({
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [undo]);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+      e.preventDefault();
+      const step = e.shiftKey ? 1 : 0.5;
+      if (e.key === 'ArrowUp') moveBy(0, -step);
+      if (e.key === 'ArrowDown') moveBy(0, step);
+      if (e.key === 'ArrowLeft') moveBy(-step, 0);
+      if (e.key === 'ArrowRight') moveBy(step, 0);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [moveBy]);
   const [freeScale, setFreeScale] = useState(false); // ⟵ NUEVO: “Estirar sin límites”
   const keepRatio = !freeScale;
   const [mode, setMode] = useState('cover'); // 'cover' | 'contain' | 'stretch'
@@ -524,12 +538,24 @@ export default function EditorCanvas({
     setMode('stretch');
   }, [imgBaseCm?.w, imgBaseCm?.h, workCm.w, workCm.h, imgTx.x_cm, imgTx.y_cm, imgTx.scaleX, imgTx.scaleY]);
 
-  const centerImage = useCallback(() => {
+  const centerHoriz = useCallback(() => {
     if (!imgBaseCm) return;
-    const w = imgBaseCm.w * imgTx.scaleX, h = imgBaseCm.h * imgTx.scaleY;
+    const w = imgBaseCm.w * imgTx.scaleX;
     pushHistory(imgTx);
-    setImgTx((tx) => ({ ...tx, x_cm: (workCm.w - w)/2, y_cm: (workCm.h - h)/2 }));
-  }, [imgBaseCm?.w, imgBaseCm?.h, workCm.w, workCm.h, imgTx.scaleX, imgTx.scaleY]);
+    setImgTx((tx) => ({ ...tx, x_cm: (workCm.w - w) / 2 }));
+  }, [imgBaseCm?.w, workCm.w, imgTx.scaleX]);
+
+  const centerVert = useCallback(() => {
+    if (!imgBaseCm) return;
+    const h = imgBaseCm.h * imgTx.scaleY;
+    pushHistory(imgTx);
+    setImgTx((tx) => ({ ...tx, y_cm: (workCm.h - h) / 2 }));
+  }, [imgBaseCm?.h, workCm.h, imgTx.scaleY]);
+
+  const moveBy = useCallback((dx, dy) => {
+    pushHistory(imgTx);
+    setImgTx((tx) => ({ ...tx, x_cm: tx.x_cm + dx, y_cm: tx.y_cm + dy }));
+  }, [imgTx]);
 
   const alignEdge = (edge) => {
     if (!imgBaseCm) return;
@@ -616,7 +642,8 @@ export default function EditorCanvas({
         <button onClick={fitStretchCentered}>Estirar</button>
         
 
-        <button onClick={centerImage}>Centrar</button>
+        <button onClick={centerHoriz}>Centrar H</button>
+        <button onClick={centerVert}>Centrar V</button>
         <button onClick={() => alignEdge('left')}>Izq</button>
         <button onClick={() => alignEdge('right')}>Der</button>
         <button onClick={() => alignEdge('top')}>Arriba</button>
