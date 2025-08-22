@@ -132,7 +132,9 @@ export default function EditorCanvas({
   useEffect(() => {
     const ro = new ResizeObserver(() => {
       const r = wrapRef.current?.getBoundingClientRect();
-      if (r) setWrapSize({ w: r.width, h: Math.max(360, r.height) });
+      if (!r) return;
+      const next = { w: r.width, h: Math.max(360, r.height) };
+      setWrapSize((prev) => (prev.w !== next.w || prev.h !== next.h ? next : prev));
     });
     if (wrapRef.current) ro.observe(wrapRef.current);
     return () => ro.disconnect();
