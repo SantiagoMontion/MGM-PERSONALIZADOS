@@ -234,7 +234,7 @@ export default function EditorCanvas({
   };
 
   // imagen
-  const [imgEl] = useImage(imageUrl || undefined);
+  const [imgEl, imgStatus] = useImage(imageUrl || undefined);
   const imgBaseCm = useMemo(() => {
     if (!imgEl) return null;
     return {
@@ -843,6 +843,17 @@ export default function EditorCanvas({
             />
           </Layer>
         </Stage>
+        {imageUrl && imgStatus !== 'loaded' && (
+          <div
+            className="spinner"
+            style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)'
+            }}
+          />
+        )}
       </div>
     </div>
   );
