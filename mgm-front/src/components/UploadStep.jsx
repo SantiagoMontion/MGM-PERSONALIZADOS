@@ -2,11 +2,13 @@
 import { useRef, useState } from 'react';
 import { supa } from '../lib/supa';
 import { api } from '../lib/api';
+import LoadingOverlay from './LoadingOverlay';
 
 export default function UploadStep({ onUploaded }) {
   const inputRef = useRef(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const phrases = ['Mejorando últimos ajustes', 'Cargando el último pixel'];
 
   const openPicker = () => {
     setErr('');
@@ -80,6 +82,8 @@ export default function UploadStep({ onUploaded }) {
       <button onClick={openPicker} disabled={busy}>
         {busy ? 'Subiendo…' : 'Subir imagen'}
       </button>
+
+      <LoadingOverlay show={busy} messages={phrases} />
       
       {err && <p style={{color:'crimson', marginTop:6}}>{err}</p>}
     </div>

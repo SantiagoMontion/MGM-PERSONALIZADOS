@@ -628,33 +628,33 @@ export default function EditorCanvas({
     <div>
       {/* Toolbar */}
       <div style={{display:'flex', gap:8, alignItems:'center', marginBottom:8, flexWrap:'wrap'}}>
-        <button onClick={fitCover}>Cubrir</button>
+        <button onClick={fitCover} disabled={!imgEl}>Cubrir</button>
 
         <div style={{position:'relative', display:'inline-flex', gap:8, alignItems:'center'}}>
-          <button onClick={toggleContain}>Contener</button>
-          {mode === 'contain' && (
+          <button onClick={toggleContain} disabled={!imgEl}>Contener</button>
+          {mode === 'contain' && imgEl && (
             <div style={{ position:'absolute', zIndex:20, top:'100%', left:0, marginTop:8 }}>
               <ColorPopover value={bgColor} onChange={setBgColor} open={colorOpen} onClose={closeColor} />
             </div>
           )}
         </div>
 
-        <button onClick={fitStretchCentered}>Estirar</button>
-        
+        <button onClick={fitStretchCentered} disabled={!imgEl}>Estirar</button>
 
-        <button onClick={centerHoriz}>Centrar H</button>
-        <button onClick={centerVert}>Centrar V</button>
-        <button onClick={() => alignEdge('left')}>Izq</button>
-        <button onClick={() => alignEdge('right')}>Der</button>
-        <button onClick={() => alignEdge('top')}>Arriba</button>
-        <button onClick={() => alignEdge('bottom')}>Abajo</button>
-        <button onClick={() => rotate(-90)}>⟲ -90°</button>
-        <button onClick={() => rotate(90)}>⟳ +90°</button>
-        
+
+        <button onClick={centerHoriz} disabled={!imgEl}>Centrar H</button>
+        <button onClick={centerVert} disabled={!imgEl}>Centrar V</button>
+        <button onClick={() => alignEdge('left')} disabled={!imgEl}>Izq</button>
+        <button onClick={() => alignEdge('right')} disabled={!imgEl}>Der</button>
+        <button onClick={() => alignEdge('top')} disabled={!imgEl}>Arriba</button>
+        <button onClick={() => alignEdge('bottom')} disabled={!imgEl}>Abajo</button>
+        <button onClick={() => rotate(-90)} disabled={!imgEl}>⟲ -90°</button>
+        <button onClick={() => rotate(90)} disabled={!imgEl}>⟳ +90°</button>
+
 
         {/* ⟵ NUEVO: checkbox para estirar sin límites desde las esquinas */}
         <label style={{marginLeft:'auto', display:'inline-flex', alignItems:'center', gap:6}}>
-          <input type="checkbox" checked={freeScale} onChange={(e)=>setFreeScale(e.target.checked)} />
+          <input type="checkbox" checked={freeScale} onChange={(e)=>setFreeScale(e.target.checked)} disabled={!imgEl} />
           Escalar libre
         </label>
 
