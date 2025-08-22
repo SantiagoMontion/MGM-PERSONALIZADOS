@@ -5,6 +5,8 @@ import { nanoid } from 'nanoid';
 import UploadStep from '../components/UploadStep';
 import EditorCanvas from '../components/EditorCanvas';
 import SizeControls from '../components/SizeControls';
+import LoadingOverlay from '../components/LoadingOverlay';
+import Modal from '../components/Modal';
 import { api } from '../lib/api';
 import { dpiLevel } from '../lib/dpi';
 
@@ -38,6 +40,7 @@ export default function Home() {
   const [ackLow, setAckLow] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const effDpi = useMemo(() => {
     if (!layout) return null;
@@ -50,13 +53,17 @@ export default function Home() {
   }, [layout]);
   const level = useMemo(() => (effDpi ? dpiLevel(effDpi, 300, 100) : null), [effDpi]);
 
-  async function handleContinue() {
+  function handleContinue() {
     if (!uploaded || !layout) return;
     if (!designName.trim()) {
       setErr('Falta el nombre del modelo');
       return;
     }
-    if (!window.confirm('¿La imagen está editada completamente y no realizarás más cambios?')) return;
+    setConfirmOpen(true);
+  }
+
+  async function submitJob() {
+    setConfirmOpen(false);
     setBusy(true);
     setErr('');
     try {
@@ -102,59 +109,76 @@ export default function Home() {
 
 
   return (
-    <div>
-      <h1>Mousepad Personalizado</h1>
-
-      <UploadStep onUploaded={file => { setUploaded(file); setAckLow(false); }} />
-
-      {uploaded && (
-        <>
-          <div style={{ marginBottom: 12 }}>
-            <input
-              type="text"
-              placeholder="Nombre del modelo"
-              value={designName}
-              onChange={e => setDesignName(e.target.value)}
-            />
-          </div>
-          {/* Form de medida/material */}
-          <SizeControls
-            material={material}
-            size={size}
-            mode={mode}
-            onChange={({ material: m, mode: md, w, h }) => {
-              setMaterial(m);
-              setMode(md);
-              setSize({ w, h });
-            }}
-          />
-
-          {/* Editor (solo canvas) */}
-          <EditorCanvas
-            imageUrl={imageUrl}
-            sizeCm={sizeCm}       // 👈 que no falte
-            bleedMm={3}
-            dpi={300}
-            onLayoutChange={setLayout}
-          />
-
-          {level === 'bad' && (
-            <label style={{ display: 'block', marginTop: 12 }}>
+    <div style={{ display: 'flex', gap: 16 }}>
+      <div style={{ width: 260, padding: 16, background: '#2b2b2b', borderRadius: 8 }}>
+        {uploaded && (
+          <>
+            <div style={{ marginBottom: 12 }}>
               <input
-                type="checkbox"
-                checked={ackLow}
-                onChange={e => setAckLow(e.target.checked)}
-              />{' '}
-              Acepto imprimir en baja calidad ({effDpi} DPI)
-            </label>
-          )}
+                type="text"
+                placeholder="Nombre del modelo"
+                value={designName}
+                onChange={e => setDesignName(e.target.value)}
+              />
+            </div>
+            <SizeControls
+              material={material}
+              size={size}
+              mode={mode}
+              onChange={({ material: m, mode: md, w, h }) => {
+                setMaterial(m);
+                setMode(md);
+                setSize({ w, h });
+              }}
+            />
+          </>
+        )}
+      </div>
 
+      <div style={{ flex: 1, padding: 16 }}>
+        <UploadStep onUploaded={file => { setUploaded(file); setAckLow(false); }} />
+
+        <EditorCanvas
+          imageUrl={imageUrl}
+          sizeCm={sizeCm}
+          bleedMm={3}
+          dpi={300}
+          onLayoutChange={setLayout}
+        />
+
+        {uploaded && level === 'bad' && (
+          <label style={{ display: 'block', marginTop: 12 }}>
+            <input
+              type="checkbox"
+              checked={ackLow}
+              onChange={e => setAckLow(e.target.checked)}
+            />{' '}
+            Acepto imprimir en baja calidad ({effDpi} DPI)
+          </label>
+        )}
+
+        {uploaded && (
           <button style={{ marginTop: 12 }} disabled={busy} onClick={handleContinue}>
-            {busy ? 'Enviando…' : 'Continuar'}
+            Continuar
           </button>
-          {err && <p style={{ color: 'crimson', marginTop: 6 }}>{err}</p>}
-        </>
-      )}
+        )}
+
+        {err && <p style={{ color: 'crimson', marginTop: 6 }}>{err}</p>}
+      </div>
+
+      <Modal
+        open={confirmOpen}
+        title="¿La imagen está editada completamente y no realizarás más cambios?"
+        actions={[
+          { label: 'Cancelar', onClick: () => setConfirmOpen(false) },
+          { label: 'Enviar', onClick: submitJob }
+        ]}
+      />
+
+      <LoadingOverlay
+        show={busy}
+        messages={['Llamando a la api por teléfono', 'Cargando el último pixel']}
+      />
     </div>
   );
 }
