@@ -1,5 +1,6 @@
 // src/components/SizeControls.jsx
 import { useMemo } from 'react';
+import styles from './SizeControls.module.css';
 
 const LIMITS = {
   Classic: { maxW: 140, maxH: 100 },
@@ -39,7 +40,7 @@ export default function SizeControls({ material, size, mode, onChange }) {
   );
 
   return (
-    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap: 8, marginBottom: 10 }}>
+    <div className={styles.container}>
       <label>Material
         <select
           value={material}
@@ -96,7 +97,7 @@ export default function SizeControls({ material, size, mode, onChange }) {
               }}
             />
           </label>
-          <small style={{gridColumn:'1 / -1', color:'#6b7280'}}>
+          <small className={styles.helper}>
             Máximo {limits.maxW}×{limits.maxH} cm para {material}
           </small>
         </>

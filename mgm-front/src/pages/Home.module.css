@@ -1,0 +1,33 @@
+.container {
+  display: flex;
+  gap: 16px;
+}
+
+.sidebar {
+  width: 260px;
+  padding: 16px;
+  background: #2b2b2b;
+  border-radius: 8px;
+}
+
+.field {
+  margin-bottom: 12px;
+}
+
+.main {
+  flex: 1;
+  padding: 16px;
+}
+
+.ackLabel {
+  display: block;
+  margin-top: 12px;
+}
+
+.continueButton {
+  margin-top: 12px;
+}
+
+.error {
+  margin-top: 6px;
+}

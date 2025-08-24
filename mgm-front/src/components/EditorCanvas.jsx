@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { Stage, Layer, Rect, Group, Image as KonvaImage, Transformer } from 'react-konva';
 import useImage from 'use-image';
 import { HexColorPicker, HexColorInput } from 'react-colorful';
+import styles from './EditorCanvas.module.css';
 
 const CM_PER_INCH = 2.54;
 const mmToCm = (mm) => mm / 10;
@@ -16,6 +17,7 @@ const RELEASE_CM   = 3.0;
 // ---------- Popover de color ----------
 function ColorPopover({ value, onChange, open, onClose }) {
   const boxRef = useRef(null);
+  const previewRef = useRef(null);
   const [hex, setHex] = useState(value || '#ffffff');
   const [copied, setCopied] = useState(false);
 
@@ -35,6 +37,10 @@ function ColorPopover({ value, onChange, open, onClose }) {
       document.removeEventListener('keydown', onKey);
     };
   }, [open, onClose]);
+
+  useEffect(() => {
+    if (previewRef.current) previewRef.current.style.background = hex;
+  }, [hex]);
 
   const swatches = [
     '#ffffff','#000000','#f3f4f6','#e5e7eb','#d1d5db',
@@ -68,53 +74,36 @@ function ColorPopover({ value, onChange, open, onClose }) {
   if (!open) return null;
 
   return (
-    <div
-      ref={boxRef}
-      style={{
-        display:'flex', flexDirection:'column', gap:10,
-        padding:12, background:'#fff', border:'1px solid #e5e7eb',
-        borderRadius:12, boxShadow:'0 8px 24px rgba(0,0,0,0.12)', width:260
-      }}
-    >
+    <div ref={boxRef} className={styles.colorPopover}>
       <HexColorPicker
         color={hex}
         onChange={(c)=>{ setHex(c); onChange?.(c); }}
-        style={{ width:'100%', borderRadius:12 }}
+        className={styles.colorPicker}
       />
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(10, 18px)', gap:6 }}>
-        {swatches.map((c)=>(
+      <div className={styles.swatches}>
+        {swatches.map((c,i)=>(
           <button
             key={c}
             title={c}
             onClick={()=>{ setHex(c); onChange?.(c); }}
-            style={{
-              width:18, height:18, borderRadius:6,
-              border: c==='#ffffff' ? '1px solid #e5e7eb' : 'none',
-              background:c, cursor:'pointer'
-            }}
+            className={`${styles.swatch} ${styles['swatch'+i]}`}
           />
         ))}
       </div>
-      <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-        <div style={{ width:18, height:18, borderRadius:6, border:'1px solid #e5e7eb', background:hex }} />
+      <div className={styles.colorControls}>
+        <div ref={previewRef} className={styles.colorPreview} />
         <HexColorInput
           color={hex}
           onChange={(c)=>{ const v = c.startsWith('#') ? c : `#${c}`; setHex(v); onChange?.(v); }}
           prefixed
-          style={{
-            flex:1, padding:'6px 8px', border:'1px solid #e5e7eb',
-            borderRadius:10, fontFamily:'ui-monospace, SFMono-Regular, Menlo, monospace'
-          }}
+          className={styles.hexInput}
         />
-        <button title="Cuentagotas" onClick={pickWithEyedropper}
-          style={{ border:'1px solid #e5e7eb', background:'#fff', color:'#111827', padding:'6px 10px', borderRadius:10, cursor:'pointer' }}>🧪</button>
-        <button title="Copiar" onClick={copyHex}
-          style={{ border:'1px solid #111827', background:'#111827', color:'#fff', padding:'6px 10px', borderRadius:10, cursor:'pointer' }}>{copied ? '✓' : 'Copiar'}</button>
+        <button title="Cuentagotas" onClick={pickWithEyedropper} className={styles.eyedropperButton}>🧪</button>
+        <button title="Copiar" onClick={copyHex} className={styles.copyButton}>{copied ? '✓' : 'Copiar'}</button>
       </div>
     </div>
   );
 }
-
 // ---------- Editor ----------
 export default function EditorCanvas({
   imageUrl,
@@ -642,13 +631,13 @@ export default function EditorCanvas({
   return (
     <div>
       {/* Toolbar */}
-      <div style={{display:'flex', gap:8, alignItems:'center', marginBottom:8, flexWrap:'wrap'}}>
+      <div className={styles.toolbar}>
         <button onClick={fitCover} disabled={!imgEl}>Cubrir</button>
 
-        <div style={{position:'relative', display:'inline-flex', gap:8, alignItems:'center'}}>
+        <div className={styles.colorWrapper}>
           <button onClick={toggleContain} disabled={!imgEl}>Contener</button>
           {mode === 'contain' && imgEl && (
-            <div style={{ position:'absolute', zIndex:20, top:'100%', left:0, marginTop:8 }}>
+            <div className={styles.colorPopoverWrap}>
               <ColorPopover value={bgColor} onChange={setBgColor} open={colorOpen} onClose={closeColor} />
             </div>
           )}
@@ -668,15 +657,17 @@ export default function EditorCanvas({
 
 
         {/* ⟵ NUEVO: checkbox para estirar sin límites desde las esquinas */}
-        <label style={{marginLeft:'auto', display:'inline-flex', alignItems:'center', gap:6}}>
+        <label className={styles.freeScale}>
           <input type="checkbox" checked={freeScale} onChange={(e)=>setFreeScale(e.target.checked)} disabled={!imgEl} />
           Escalar libre
         </label>
 
-        <span style={{
-          padding:'6px 10px', borderRadius:999,
-          background: `${quality.color}22`, color: quality.color, border: `1px solid ${quality.color}`
-        }}>
+                <span className={`${styles.qualityBadge} ${
+          quality.color === '#ef4444' ? styles.qualityBad :
+          quality.color === '#f59e0b' ? styles.qualityWarn :
+          quality.color === '#10b981' ? styles.qualityOk :
+          styles.qualityUnknown
+        }`}>
           Calidad: {quality.label}
         </span>
       </div>
@@ -684,23 +675,12 @@ export default function EditorCanvas({
       {/* Canvas */}
       <div
         ref={wrapRef}
-        style={{
-          width:'100%', height:'70vh',
-          border:'1px solid #ddd', borderRadius:8, overflow:'hidden',
-          cursor: isPanningRef.current ? 'grabbing' : 'default',
-          background:'#f3f4f6', // ⟵ Fondo del wrapper para eliminar “cuadrito blanco”
-          position:'relative'
-        }}
+        className={`${styles.canvasWrapper} ${isPanningRef.current ? styles.grabbing : ''}`}
       >
         <button
           onClick={undo}
           disabled={histIndex <= 0}
-          style={{
-            position:'absolute', top:8, left:8, zIndex:20,
-            padding:'4px 8px', borderRadius:6,
-            border:'1px solid #d1d5db', background:'#fff',
-            cursor: histIndex > 0 ? 'pointer' : 'not-allowed'
-          }}
+          className={styles.undoButton}
         >↺</button>
         <Stage
           width={wrapSize.w}
@@ -859,15 +839,7 @@ export default function EditorCanvas({
           </Layer>
         </Stage>
         {imageUrl && imgStatus !== 'loaded' && (
-          <div
-            className="spinner"
-            style={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)'
-            }}
-          />
+          <div className={`spinner ${styles.spinnerOverlay}`} />
         )}
       </div>
     </div>

@@ -1,5 +1,6 @@
 // src/components/UploadStep.jsx
 import { useRef, useState } from 'react';
+import styles from './UploadStep.module.css';
 import { supa } from '../lib/supa';
 import { api } from '../lib/api';
 import LoadingOverlay from './LoadingOverlay';
@@ -71,12 +72,12 @@ export default function UploadStep({ onUploaded }) {
   }
 
   return (
-    <div style={{marginBottom: 12}}>
+    <div className={styles.container}>
       <input
         ref={inputRef}
         type="file"
         accept="image/png, image/jpeg"
-        style={{ display: 'none' }}
+        className={styles.hiddenInput}
         onChange={handlePicked}
       />
       <button onClick={openPicker} disabled={busy}>
@@ -84,8 +85,8 @@ export default function UploadStep({ onUploaded }) {
       </button>
 
       <LoadingOverlay show={busy} messages={phrases} />
-      
-      {err && <p style={{color:'crimson', marginTop:6}}>{err}</p>}
+
+      {err && <p className={`errorText ${styles.error}`}>{err}</p>}
     </div>
   );
 }
