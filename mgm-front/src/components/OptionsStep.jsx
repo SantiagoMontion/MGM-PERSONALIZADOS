@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { z } from 'zod';
-import { nanoid } from 'nanoid';
+// import { nanoid } from 'nanoid'; // ya no lo usamos
 import { STANDARD, LIMITS } from '../lib/sizes';
 import { dpiFor, dpiLevel } from '../lib/dpi';
 import styles from './OptionsStep.module.css';
+import { buildSubmitJobBody, prevalidateSubmitBody } from '../lib/jobPayload';
+import { submitJob } from '../lib/submitJob';
 
 const Form = z.object({
   material: z.enum(['Classic','PRO']),
@@ -13,6 +15,22 @@ const Form = z.object({
   fit: z.enum(['cover','contain']),
   bg: z.string().optional()
 });
+
+// --- Helpers locales (sin tocar tu estructura de carpetas) ---
+function canonicalizeSupabaseUploadsUrl(input) {
+  if (!input) return input;
+  try {
+    const u = new URL(input);
+    // normaliza rutas firmadas a canónica /uploads/
+    let p = u.pathname
+      .replace('/storage/v1/object/upload/sign/uploads/', '/storage/v1/object/uploads/')
+      .replace('/storage/v1/object/sign/uploads/', '/storage/v1/object/uploads/');
+    // quita query (?token=...)
+    return `${u.origin}${p}`;
+  } catch {
+    return input;
+  }
+}
 
 export default function OptionsStep({ uploaded, onSubmitted }) {
   const [material, setMaterial] = useState('Classic');
@@ -43,68 +61,68 @@ export default function OptionsStep({ uploaded, onSubmitted }) {
 
   // DPI estimado
   const dpiVal = useMemo(() => dpiFor(size.w, size.h, imgPx.w, imgPx.h), [size, imgPx]);
-const level = useMemo(() => dpiLevel(dpiVal, 300, 100), [dpiVal]);
+  const level = useMemo(() => dpiLevel(dpiVal, 300, 100), [dpiVal]);
 
   function clamp(val, min, max) { return Math.max(min, Math.min(max, val)); }
 
-  async function submit() {
-    setErr('');
-    setBusy(true);
-    try {
-      // validar y clamp
-      const w = clamp(Number(size.w), 1, limits.maxW);
-      const h = clamp(Number(size.h), 1, limits.maxH);
+ async function submit() {
+  setErr('');
+  setBusy(true);
+  try {
+    // validar y clamp
+    const wNum = clamp(Number(size.w), 1, limits.maxW);
+    const hNum = clamp(Number(size.h), 1, limits.maxH);
 
-      const form = Form.parse({
-        material, sizeMode, w, h, fit, bg
-      });
+    const form = Form.parse({
+      material, sizeMode, w: wNum, h: hNum, fit, bg
+    });
 
-      if (level === 'bad' && !ackLow) {
-        setErr('La calidad parece baja. Confirmá que aceptás continuar.');
-        setBusy(false);
-        return;
-      }
-
-      // precio (MVP: placeholder; luego conectamos tu calculadora)
-      const price_amount = 45900; // TODO: reemplazar con tu calculadora
-
-      const body = {
-        customer: undefined,
-        design_name: undefined,
-        publish_to_shopify: true, // o dejar en false si no querés publicar
-        material: form.material,
-        size_cm: { w: form.w, h: form.h, bleed_mm: 3 },
-        fit_mode: form.fit,
-        bg: form.bg || '#ffffff',
-        file_original_url: uploaded.file_original_url,
-        file_hash: uploaded.file_hash,
-        dpi_report: { dpi: Math.round(dpiVal), level, customer_ack: ackLow },
-        notes: '',
-        price: { currency: 'ARS', amount: price_amount },
-        source: 'web'
-      };
-
-      const idem = nanoid();
-      const res = await fetch(`${import.meta.env.VITE_API_BASE}/api/submit-job`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idem },
-        body: JSON.stringify(body)
-      });
-      const out = await res.json();
-      if (!res.ok) throw new Error(out?.error || 'submit_failed');
-
-      // listo: pasamos job_id al padre para ir a confirm
-      onSubmitted({ job_id: out.job_id });
-    } catch (e) {
-      setErr(String(e?.message || e));
-    } finally {
+    if (level === 'bad' && !ackLow) {
+      setErr('La calidad parece baja. Confirmá que aceptás continuar.');
       setBusy(false);
+      return;
     }
-  }
 
+    const submitBody = buildSubmitJobBody({
+      material: form.material,
+      size: { w: form.w, h: form.h, bleed_mm: 3 },
+      fit_mode: form.fit, // 'cover'|'contain'
+      bg: form.bg || '#ffffff',
+      dpi: Math.round(dpiVal),
+      uploads: {
+        // tomamos lo que haya en uploaded:
+        signed_url: uploaded?.upload?.signed_url || uploaded?.signed_url,
+        object_key: uploaded?.object_key,
+        canonical: uploaded?.file_original_url,
+      },
+      file_hash: uploaded?.file_hash,
+      price: { amount: 45900, currency: 'ARS' },
+      customer: { email: uploaded?.customer_email, name: uploaded?.customer_name },
+      notes: '',
+      source: 'web',
+    });
+
+    const pre = prevalidateSubmitBody(submitBody);
+    console.log('[PREVALIDATE OptionsStep]', pre, submitBody);
+    if (!pre.ok) {
+      setErr('Corregí antes de enviar: ' + pre.problems.join(' | '));
+      setBusy(false);
+      return;
+    }
+
+    const apiBase = import.meta.env.VITE_API_BASE || 'https://mgm-api.vercel.app';
+    const job = await submitJob(apiBase, submitBody);
+
+    onSubmitted({ job_id: job?.job_id || submitBody.job_id });
+  } catch (e) {
+    setErr(String(e?.message || e));
+  } finally {
+    setBusy(false);
+  }
+}
   return (
     <div className={styles.container}>
-      <h2>2) Ajustes</h2>
+      <h2>2 Ajustes</h2>
 
       <div className={styles.twoColGrid}>
         <label>Material

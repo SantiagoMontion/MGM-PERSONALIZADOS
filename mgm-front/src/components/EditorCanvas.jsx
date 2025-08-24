@@ -3,9 +3,9 @@ import { Stage, Layer, Rect, Group, Image as KonvaImage, Transformer } from 'rea
 import useImage from 'use-image';
 import { HexColorPicker, HexColorInput } from 'react-colorful';
 import styles from './EditorCanvas.module.css';
-import { cmToPx, blobToSHA256Hex, renderToCanvas } from '../lib/editor-export';
-import { buildUploadsUrlFromObjectKey, canonicalizeSupabaseUploadsUrl } from '@/lib/supabaseUrl';
-import { normalizeSubmitPayload, postSubmitJob } from '@/lib/submitJob';
+
+import { buildSubmitJobBody, prevalidateSubmitBody } from '../lib/jobPayload';
+import { submitJob } from '../lib/submitJob';
 
 const CM_PER_INCH = 2.54;
 const mmToCm = (mm) => mm / 10;
@@ -636,119 +636,42 @@ export default function EditorCanvas({
   }, [dpi, bleedMm, wCm, hCm, imgEl, imgTx, mode, bgColor, cornerRadiusCm]);
 
   // Confirmar y crear job
-  async function onConfirmSubmit() {
-    if (!imageFile) return;
-    try {
-      setBusy(true);
-      setLastDiag(null);
+async function onConfirmSubmit() {
+  try {
+    const submitBody = buildSubmitJobBody({
+      material: materialSelected,
+      size: { w: sizeCm?.w, h: sizeCm?.h, bleed_mm: 3 },
+      fit_mode: transform?.fitMode, // 'cover'|'contain'|'stretch'
+      bg: bgColor || '#ffffff',
+      dpi: Math.round(currentDpi || 300),
+      uploads: {
+        signed_url: uploadUrlResponse?.upload?.signed_url,
+        object_key: uploadUrlResponse?.object_key,
+        canonical: uploaded?.file_original_url,
+      },
+      file_hash: fileSha256,
+      price: { amount: 45900, currency: 'ARS' },
+      customer: { email: customerEmail, name: customerName },
+      notes: '',
+      source: 'web',
+    });
 
-      const bitmap = await createImageBitmap(imageFile);
-      const widthPx = cmToPx(workCm.w, dpi);
-      const heightPx = cmToPx(workCm.h, dpi);
-      const bg = mode === 'contain' ? bgColor : '#ffffff';
-      const canvas = await renderToCanvas({
-        image: bitmap,
-        widthPx,
-        heightPx,
-        bg,
-        transform: {
-          x: cmToPx(imgTx.x_cm, dpi),
-          y: cmToPx(imgTx.y_cm, dpi),
-          scale: imgTx.scaleX,
-          rotateDeg: imgTx.rotation_deg,
-          fitMode: mode,
-        },
-      });
-      const mime = imageFile.type === 'image/jpeg' ? 'image/jpeg' : 'image/png';
-      const ext = mime === 'image/png' ? 'png' : 'jpg';
-      const blob = await new Promise((resolve) => canvas.toBlob(resolve, mime));
-      if (!blob) throw new Error('blob_fail');
-      const sha256 = await blobToSHA256Hex(blob);
-      const size_bytes = blob.size;
-
-      const upRes = await fetch(`${API_BASE.replace(/\/$/, '')}/api/upload-url`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ext, mime, size_bytes, material: 'Classic', w_cm: wCm, h_cm: hCm, sha256 }),
-      });
-      const upDiag = upRes.headers.get('X-Diag-Id');
-      console.log('upload-url diag', upDiag);
-      if (!upRes.ok) {
-        const body = await upRes.json().catch(() => null);
-        setLastDiag(`upload-url ${upRes.status}${body?.stage ? ` ${body.stage}` : ''}${body?.hints ? ` ${body.hints}` : ''} diag:${upDiag}`);
-        return;
-      }
-      const sig = await upRes.json();
-
-      const putRes = await fetch(sig.upload.signed_url, {
-        method: 'PUT',
-        headers: { 'Content-Type': mime },
-        body: blob,
-      });
-      const putDiag = putRes.headers.get('X-Diag-Id');
-      console.log('put diag', putDiag);
-      if (!putRes.ok) {
-        setLastDiag(`upload-put ${putRes.status} diag:${putDiag}`);
-        return;
-      }
-
-      let file_original_url = '';
-      if (sig?.upload?.signed_url && sig?.object_key) {
-        file_original_url = buildUploadsUrlFromObjectKey(sig.upload.signed_url, sig.object_key);
-      } else {
-        file_original_url = canonicalizeSupabaseUploadsUrl(sig?.upload?.signed_url || '');
-      }
-
-      const jobId = crypto.randomUUID();
-
-      const problems = [];
-      if (!jobId) problems.push('job_id missing');
-      if (!file_original_url?.startsWith('https://vxkewodclwozoennpqqv.supabase.co/storage/v1/object/uploads/')) {
-        problems.push('file_original_url must be canonical uploads URL');
-      }
-      if (!Number.isFinite(wCm)) problems.push('w_cm NaN');
-      if (!Number.isFinite(hCm)) problems.push('h_cm NaN');
-      if (!Number.isFinite(bleedMm)) problems.push('bleed_mm NaN');
-      if (!Number.isFinite(dpi)) problems.push('dpi NaN');
-      if (problems.length) {
-        console.error('[pre-validate fail]', { problems, file_original_url, wCm, hCm, bleedMm, dpi });
-        setLastDiag(problems.join(', '));
-        alert('Faltan datos: ' + problems.join(', '));
-        return;
-      }
-
-      const payload = normalizeSubmitPayload({
-        job_id: jobId,
-        material: 'Classic',
-        w_cm: wCm,
-        h_cm: hCm,
-        bleed_mm: bleedMm,
-        fit_mode: mode,
-        bg,
-        dpi,
-        file_original_url,
-        file_hash: sha256,
-        price_amount: 1000,
-        price_currency: 'ARS',
-        notes: 'creado desde front',
-        source: 'front'
-      });
-
-      console.log('[payload ready]', payload);
-      console.log('[startsWith uploads?]',
-        payload.file_original_url.startsWith('https://vxkewodclwozoennpqqv.supabase.co/storage/v1/object/uploads/')
-      );
-
-      await postSubmitJob(API_BASE, payload);
-      alert('¡Job creado!');
-    } catch (err) {
-      console.error('FINALIZE ERROR', err);
-      setLastDiag(err?.message || 'Error al crear el job');
-      alert(err?.message || 'Error al crear el job');
-    } finally {
-      setBusy(false);
+    const pre = prevalidateSubmitBody(submitBody);
+    console.log('[PREVALIDATE EditorCanvas]', pre, submitBody);
+    if (!pre.ok) {
+      alert(pre.problems.join('\n'));
+      return;
     }
+
+    const apiBase = import.meta.env.VITE_API_BASE || 'https://mgm-api.vercel.app';
+    const job = await submitJob(apiBase, submitBody);
+
+    onDone?.(job);
+  } catch (err) {
+    console.error(err);
+    alert(String(err?.message || err));
   }
+}
 
   return (
     <div className={styles.colorWrapper}>
