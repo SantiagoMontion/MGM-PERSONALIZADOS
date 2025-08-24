@@ -7,6 +7,7 @@ import EditorCanvas from '../components/EditorCanvas';
 import SizeControls from '../components/SizeControls';
 
 import { dpiLevel } from '../lib/dpi';
+import { sha256Hex } from '../lib/hash.js';
 import { buildSubmitJobBody, prevalidateSubmitBody } from '../lib/jobPayload.js';
 import { submitJob as submitJobApi } from '../lib/submitJob.js';
 import styles from './Home.module.css';
@@ -20,14 +21,13 @@ export default function Home() {
   // crear ObjectURL una sola vez
   const [imageUrl, setImageUrl] = useState(null);
   useEffect(() => {
-    if (uploaded?.file) {
-      const url = URL.createObjectURL(uploaded.file);
-      setImageUrl(url);
-      return () => URL.revokeObjectURL(url);
+    if (uploaded?.localUrl) {
+      setImageUrl(uploaded.localUrl);
+      return () => URL.revokeObjectURL(uploaded.localUrl);
     } else {
       setImageUrl(null);
     }
-  }, [uploaded?.file]);
+  }, [uploaded?.localUrl]);
 
   // medidas y material (source of truth)
   const [material, setMaterial] = useState('Classic');
@@ -54,7 +54,10 @@ export default function Home() {
   const level = useMemo(() => (effDpi ? dpiLevel(effDpi, 300, 100) : null), [effDpi]);
 
   async function handleContinue() {
-    if (!uploaded || !layout) return;
+    if (!uploaded?.file || !layout) {
+      setErr('Falta imagen o layout');
+      return;
+    }
     if (!designName.trim()) {
       setErr('Falta el nombre del modelo');
       return;
@@ -63,33 +66,68 @@ export default function Home() {
       setBusy(true);
       setErr('');
 
+      // 1) calcular hash local
+      const file_hash = await sha256Hex(uploaded.file);
+
+      // 2) pedir signed URL
+      const API_BASE = (import.meta.env.VITE_API_BASE || 'https://mgm-api.vercel.app').replace(/\/$/, '');
+      const ext = (uploaded.file.name.split('.').pop() || 'png').toLowerCase();
+      const mime = uploaded.file.type || 'image/png';
+      const size_bytes = uploaded.file.size;
+      const uploadUrlRes = await fetch(`${API_BASE}/api/upload-url`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ext,
+          mime,
+          size_bytes,
+          material,
+          w_cm: sizeCm.w,
+          h_cm: sizeCm.h,
+          sha256: file_hash,
+        }),
+      });
+      const uploadUrlJson = await uploadUrlRes.json();
+      if (!uploadUrlRes.ok) throw new Error(uploadUrlJson?.error || 'upload_url_failed');
+
+      // 3) PUT binario a signed_url
+      await fetch(uploadUrlJson.upload.signed_url, {
+        method: 'PUT',
+        headers: { 'Content-Type': mime },
+        body: uploaded.file,
+      });
+
+      // 4) construir URL canónica
+      const supaBase = (import.meta.env.VITE_SUPABASE_URL || new URL(uploadUrlJson.upload.signed_url).origin);
+      const file_original_url = `${supaBase.replace(/\/$/, '')}/storage/v1/object/uploads/${uploadUrlJson.object_key}`;
+
+      // 5) construir payload submit-job
       const submitBody = buildSubmitJobBody({
         material,
         size: { w: sizeCm.w, h: sizeCm.h, bleed_mm: 3 },
         fit_mode: 'cover',
         bg: '#ffffff',
         dpi: 300,
-        uploads: {
-          signed_url: uploaded?.upload?.signed_url || uploaded?.signed_url,
-          object_key: uploaded?.object_key,
-          canonical: uploaded?.file_original_url,
-        },
-        file_hash: uploaded?.file_hash,
+        uploads: { canonical: file_original_url },
+        file_hash,
         price: { amount: 45900, currency: 'ARS' },
         notes: designName,
         source: 'web',
       });
 
+      // 6) prevalidar sin pegarle a la API
       const pre = prevalidateSubmitBody(submitBody);
+      console.log('[PREVALIDATE]', { ok: pre.ok, problems: pre.problems, submitBody });
       if (!pre.ok) {
         setErr('Corrige antes de continuar: ' + pre.problems.join(' | '));
         setBusy(false);
         return;
       }
 
-      const apiBase = (import.meta.env.VITE_API_BASE || 'https://mgm-api.vercel.app').replace(/\/$/, '');
-      const job = await submitJobApi(apiBase, submitBody);
+      // 7) submit-job
+      const job = await submitJobApi(API_BASE, submitBody);
 
+      // 8) navegar a confirm
       navigate(`/confirm/${job.job_id}`);
     } catch (e) {
       console.error(e);

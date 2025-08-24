@@ -1,8 +1,9 @@
 // /api/upload-url.js
 // Requiere: "type": "module" en package.json
+import crypto from 'node:crypto';
 import { z } from 'zod';
 import { supa } from '../lib/supa.js';
-import { cors } from '../lib/cors.js';
+import { cors } from './_lib/cors.js';
 import { customAlphabet } from 'nanoid';
 
 const nano = customAlphabet('abcdef0123456789', 8);
@@ -21,15 +22,21 @@ const MAX_MB = Number(process.env.MAX_UPLOAD_MB || 40);
 const LIMITS = { Classic: { maxW: 140, maxH: 100 }, PRO: { maxW: 120, maxH: 60 } };
 
 export default async function handler(req, res) {
+  const diagId = crypto.randomUUID?.() ?? require('node:crypto').randomUUID();
+  res.setHeader('X-Diag-Id', String(diagId));
+
   // CORS + preflight
   if (cors(req, res)) return;
 
   // Solo POST
-  if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed' });
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', 'POST');
+    return res.status(405).json({ ok: false, diag_id: diagId, message: 'method_not_allowed' });
+  }
 
   // Env requeridas
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE) {
-    return res.status(500).json({ error: 'missing_env' });
+    return res.status(500).json({ error: 'missing_env', diag_id: diagId });
   }
 
   try {
