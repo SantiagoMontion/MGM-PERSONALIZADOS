@@ -1,17 +1,19 @@
 import { createClient } from '@supabase/supabase-js';
+import { getEnv } from './env.js';
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE;
+let client;
 
-if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE) {
-  throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE env vars');
+export function getSupabaseAdmin() {
+  if (!client) {
+    const { SUPABASE_URL, SUPABASE_SERVICE_ROLE } = getEnv();
+    client = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
+  }
+  return client;
 }
 
-export const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false
-  }
-});
-
-export default supabaseAdmin;
+export default getSupabaseAdmin;
