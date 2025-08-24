@@ -1,4 +1,10 @@
-import 'dotenv/config';
+// Load environment variables from .env in development.
+// If the optional dependency is not present, ignore the error.
+try {
+  await import('dotenv/config');
+} catch {
+  // no-op
+}
 
 export function mask(value = '') {
   if (!value) return '';
