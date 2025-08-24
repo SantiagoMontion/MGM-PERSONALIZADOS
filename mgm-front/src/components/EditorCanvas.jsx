@@ -144,12 +144,11 @@ export default function EditorCanvas({
     return s * 0.95;
   }, [wrapSize.w, wrapSize.h, workCm.w, workCm.h]);
   const [viewScale, setViewScale] = useState(1);
-  const [viewPos, setViewPos] = useState({ x: 0, y: 0 });
-  useEffect(() => {
-    const W = workCm.w * baseScale * viewScale;
-    const H = workCm.h * baseScale * viewScale;
-    setViewPos({ x: (wrapSize.w - W) / 2, y: (wrapSize.h - H) / 2 });
-  }, [wrapSize.w, wrapSize.h, baseScale, workCm.w, workCm.h]);
+  const [viewPos, setViewPos] = useState(() => {
+    const W = workCm.w * baseScale;
+    const H = workCm.h * baseScale;
+    return { x: (wrapSize.w - W) / 2, y: (wrapSize.h - H) / 2 };
+  });
 
   // pan
   const isPanningRef = useRef(false);
