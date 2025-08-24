@@ -62,6 +62,9 @@
   border-radius: 6px;
   border: 1px solid #e5e7eb;
 }
+.colorWrapper1 {
+  position: relative;           /* <- ancla local para posicionar el popover */
+}
 
 .hexInput {
   flex: 1;
@@ -169,3 +172,47 @@
   left: 50%;
   transform: translate(-50%, -50%);
 }
+
+
+
+/* El wrapper del botón + popover sirve de ancla para el popover */
+.colorWrapper {
+  position: relative;
+          /* <- ancla local para posicionar el popover */
+}
+
+/* Sacamos el popover del flujo para que NO empuje el ancho del toolbar */
+.colorPopoverWrap {
+  position: absolute;
+  inset-block-start: calc(100% + 4px);   /* top */
+  inset-inline-start: 0;                 /* left */
+  z-index: 1000;
+}
+
+/* El badge de calidad no rompe línea (si querés que no se corte) */
+.qualityBadge {
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+/* El label del checkbox en línea sin crecer raro */
+.freeScale {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+/* Medios y textos largos no deben empujar layout */
+img, video, canvas, svg, table {
+  max-width: 100%;
+  height: auto;
+}
+
+pre, code {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Opcional (parche temporal mientras depurás): recorta overflow global horizontal
+   ÚSALO SOLO si aún tenés otros desbordes externos al toolbar */

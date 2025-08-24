@@ -17,3 +17,5 @@
   flex: 1;
   padding: 16px;
 }
+
+html, body { overflow-x: auto; }

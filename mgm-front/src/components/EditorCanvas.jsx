@@ -629,7 +629,7 @@ export default function EditorCanvas({
   }, [dpi, bleedMm, wCm, hCm, imgEl, imgTx, mode, bgColor, cornerRadiusCm]);
 
   return (
-    <div>
+    <div className={styles.colorWrapper}>
       {/* Toolbar */}
       <div className={styles.toolbar}>
         <button onClick={fitCover} disabled={!imgEl}>Cubrir</button>
