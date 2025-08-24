@@ -700,6 +700,23 @@ export default function EditorCanvas({
       }
 
       const jobId = crypto.randomUUID();
+
+      const problems = [];
+      if (!jobId) problems.push('job_id missing');
+      if (!file_original_url?.startsWith('https://vxkewodclwozoennpqqv.supabase.co/storage/v1/object/uploads/')) {
+        problems.push('file_original_url must be canonical uploads URL');
+      }
+      if (!Number.isFinite(wCm)) problems.push('w_cm NaN');
+      if (!Number.isFinite(hCm)) problems.push('h_cm NaN');
+      if (!Number.isFinite(bleedMm)) problems.push('bleed_mm NaN');
+      if (!Number.isFinite(dpi)) problems.push('dpi NaN');
+      if (problems.length) {
+        console.error('[pre-validate fail]', { problems, file_original_url, wCm, hCm, bleedMm, dpi });
+        setLastDiag(problems.join(', '));
+        alert('Faltan datos: ' + problems.join(', '));
+        return;
+      }
+
       const payload = normalizeSubmitPayload({
         job_id: jobId,
         material: 'Classic',
@@ -716,6 +733,11 @@ export default function EditorCanvas({
         notes: 'creado desde front',
         source: 'front'
       });
+
+      console.log('[payload ready]', payload);
+      console.log('[startsWith uploads?]',
+        payload.file_original_url.startsWith('https://vxkewodclwozoennpqqv.supabase.co/storage/v1/object/uploads/')
+      );
 
       await postSubmitJob(API_BASE, payload);
       alert('¡Job creado!');
