@@ -610,20 +610,31 @@ export default function EditorCanvas({
   const [colorOpen, setColorOpen] = useState(false);
   const toggleContain = () => { fitContain(); setColorOpen(true); };
   const closeColor = () => setColorOpen(false);
+  // track latest callback to avoid effect loops when parent re-renders
+  const layoutChangeRef = useRef(onLayoutChange);
+  useEffect(() => {
+    layoutChangeRef.current = onLayoutChange;
+  }, [onLayoutChange]);
 
   // export layout
   useEffect(() => {
-    onLayoutChange?.({
+    layoutChangeRef.current?.({
       dpi,
       bleed_mm: bleedMm,
       size_cm: { w: wCm, h: hCm },
       image: imgEl ? { natural_px: { w: imgEl.naturalWidth, h: imgEl.naturalHeight } } : null,
-      transform: { x_cm: imgTx.x_cm, y_cm: imgTx.y_cm, scaleX: imgTx.scaleX, scaleY: imgTx.scaleY, rotation_deg: imgTx.rotation_deg },
+      transform: {
+        x_cm: imgTx.x_cm,
+        y_cm: imgTx.y_cm,
+        scaleX: imgTx.scaleX,
+        scaleY: imgTx.scaleY,
+        rotation_deg: imgTx.rotation_deg
+      },
       mode,
       background: mode === 'contain' ? bgColor : '#ffffff',
       corner_radius_cm: cornerRadiusCm
     });
-  }, [onLayoutChange, dpi, bleedMm, wCm, hCm, imgEl, imgTx, mode, bgColor, cornerRadiusCm]);
+  }, [dpi, bleedMm, wCm, hCm, imgEl, imgTx, mode, bgColor, cornerRadiusCm]);
 
   return (
     <div>
