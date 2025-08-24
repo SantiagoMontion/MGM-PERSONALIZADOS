@@ -4,6 +4,8 @@ import useImage from 'use-image';
 import { HexColorPicker, HexColorInput } from 'react-colorful';
 import styles from './EditorCanvas.module.css';
 import { cmToPx, blobToSHA256Hex, renderToCanvas } from '../lib/editor-export';
+import { buildUploadsUrlFromObjectKey, canonicalizeSupabaseUploadsUrl } from '@/lib/supabaseUrl';
+import { normalizeSubmitPayload, postSubmitJob } from '@/lib/submitJob';
 
 const CM_PER_INCH = 2.54;
 const mmToCm = (mm) => mm / 10;
@@ -603,7 +605,8 @@ export default function EditorCanvas({
   // popover color
   const [colorOpen, setColorOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [lastDiag, setLastDiag] = useState('');
+  const [lastDiag, setLastDiag] = useState(null);
+  const API_BASE = import.meta.env.VITE_API_BASE || 'https://mgm-api.vercel.app';
   const toggleContain = () => { fitContain(); setColorOpen(true); };
   const closeColor = () => setColorOpen(false);
   // track latest callback to avoid effect loops when parent re-renders
@@ -633,13 +636,13 @@ export default function EditorCanvas({
   }, [dpi, bleedMm, wCm, hCm, imgEl, imgTx, mode, bgColor, cornerRadiusCm]);
 
   // Confirmar y crear job
-  const onConfirm = async () => {
+  async function onConfirmSubmit() {
     if (!imageFile) return;
-    setBusy(true);
-    setLastDiag('');
     try {
+      setBusy(true);
+      setLastDiag(null);
+
       const bitmap = await createImageBitmap(imageFile);
-      // Canvas incluye el sangrado en su tamaño
       const widthPx = cmToPx(workCm.w, dpi);
       const heightPx = cmToPx(workCm.h, dpi);
       const bg = mode === 'contain' ? bgColor : '#ffffff';
@@ -663,7 +666,7 @@ export default function EditorCanvas({
       const sha256 = await blobToSHA256Hex(blob);
       const size_bytes = blob.size;
 
-      const upRes = await fetch('/api/upload-url', {
+      const upRes = await fetch(`${API_BASE.replace(/\/$/, '')}/api/upload-url`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ext, mime, size_bytes, material: 'Classic', w_cm: wCm, h_cm: hCm, sha256 }),
@@ -689,11 +692,16 @@ export default function EditorCanvas({
         return;
       }
 
-      const supaUrl = import.meta.env.VITE_SUPABASE_URL.replace(/\/$/, '');
-      const file_original_url = `${supaUrl}/storage/v1/object/uploads/${sig.object_key}`;
-      const job_id = crypto.randomUUID();
-      const jobBody = {
-        job_id,
+      let file_original_url = '';
+      if (sig?.upload?.signed_url && sig?.object_key) {
+        file_original_url = buildUploadsUrlFromObjectKey(sig.upload.signed_url, sig.object_key);
+      } else {
+        file_original_url = canonicalizeSupabaseUploadsUrl(sig?.upload?.signed_url || '');
+      }
+
+      const jobId = crypto.randomUUID();
+      const payload = normalizeSubmitPayload({
+        job_id: jobId,
         material: 'Classic',
         w_cm: wCm,
         h_cm: hCm,
@@ -703,25 +711,22 @@ export default function EditorCanvas({
         dpi,
         file_original_url,
         file_hash: sha256,
-      };
-      const jobRes = await fetch('/api/submit-job', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': job_id },
-        body: JSON.stringify(jobBody),
+        price_amount: 1000,
+        price_currency: 'ARS',
+        notes: 'creado desde front',
+        source: 'front'
       });
-      const jobDiag = jobRes.headers.get('X-Diag-Id');
-      console.log('submit-job diag', jobDiag);
-      if (!jobRes.ok) {
-        const body = await jobRes.json().catch(() => null);
-        setLastDiag(`submit-job ${jobRes.status}${body?.stage ? ` ${body.stage}` : ''}${body?.hints ? ` ${body.hints}` : ''} diag:${jobDiag}`);
-        return;
-      }
-    } catch (e) {
-      setLastDiag(String(e?.message || e));
+
+      await postSubmitJob(API_BASE, payload);
+      alert('¡Job creado!');
+    } catch (err) {
+      console.error('FINALIZE ERROR', err);
+      setLastDiag(err?.message || 'Error al crear el job');
+      alert(err?.message || 'Error al crear el job');
     } finally {
       setBusy(false);
     }
-  };
+  }
 
   return (
     <div className={styles.colorWrapper}>
@@ -766,7 +771,7 @@ export default function EditorCanvas({
           Calidad: {quality.label}
         </span>
         <button
-          onClick={onConfirm}
+          onClick={onConfirmSubmit}
           disabled={busy || !imgEl || !imageFile}
           className={styles.confirmButton}
         >{busy ? 'Creando…' : 'Crear job'}</button>
