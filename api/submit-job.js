@@ -1,6 +1,8 @@
 import supabase from './_lib/supabaseAdmin.js';
+import { cors } from '../lib/cors.js';
 
 export default async function handler(req, res) {
+  if (cors(req, res)) return;
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
     return res.status(405).json({ error: 'method_not_allowed' });
