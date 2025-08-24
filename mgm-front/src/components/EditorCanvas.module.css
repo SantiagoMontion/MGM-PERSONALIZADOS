@@ -1,0 +1,171 @@
+.colorPopover {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  width: 260px;
+}
+
+.colorPicker {
+  width: 100%;
+  border-radius: 12px;
+}
+
+.swatches {
+  display: grid;
+  grid-template-columns: repeat(10, 18px);
+  gap: 6px;
+}
+
+.swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: none;
+}
+
+.swatch0 { background: #ffffff; border: 1px solid #e5e7eb; }
+.swatch1 { background: #000000; }
+.swatch2 { background: #f3f4f6; }
+.swatch3 { background: #e5e7eb; }
+.swatch4 { background: #d1d5db; }
+.swatch5 { background: #1f2937; }
+.swatch6 { background: #111827; }
+.swatch7 { background: #ff0000; }
+.swatch8 { background: #ff7f00; }
+.swatch9 { background: #ffb800; }
+.swatch10 { background: #ffe600; }
+.swatch11 { background: #00a859; }
+.swatch12 { background: #00c9a7; }
+.swatch13 { background: #00ccff; }
+.swatch14 { background: #0066ff; }
+.swatch15 { background: #6f42c1; }
+.swatch16 { background: #ff69b4; }
+.swatch17 { background: #8b4513; }
+.swatch18 { background: #808080; }
+.swatch19 { background: #333333; }
+
+.colorControls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.colorPreview {
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+}
+
+.hexInput {
+  flex: 1;
+  padding: 6px 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.eyedropperButton {
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  color: #111827;
+  padding: 6px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.copyButton {
+  border: 1px solid #111827;
+  background: #111827;
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.colorWrapper {
+  position: relative;
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.colorPopoverWrap {
+  position: absolute;
+  z-index: 20;
+  top: 100%;
+  left: 0;
+  margin-top: 8px;
+}
+
+.freeScale {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.qualityBadge {
+  padding: 6px 10px;
+  border-radius: 999px;
+}
+
+.qualityUnknown { background: #9ca3af22; color: #9ca3af; border: 1px solid #9ca3af; }
+.qualityBad { background: #ef444422; color: #ef4444; border: 1px solid #ef4444; }
+.qualityWarn { background: #f59e0b22; color: #f59e0b; border: 1px solid #f59e0b; }
+.qualityOk { background: #10b98122; color: #10b981; border: 1px solid #10b981; }
+
+.canvasWrapper {
+  width: 100%;
+  height: 70vh;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f3f4f6;
+  position: relative;
+  cursor: default;
+}
+
+.grabbing {
+  cursor: grabbing;
+}
+
+.undoButton {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 20;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+}
+
+.undoButton:disabled {
+  cursor: not-allowed;
+}
+
+.undoButton:not(:disabled) {
+  cursor: pointer;
+}
+
+.spinnerOverlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}

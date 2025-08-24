@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { nanoid } from 'nanoid';
 import { STANDARD, LIMITS } from '../lib/sizes';
 import { dpiFor, dpiLevel } from '../lib/dpi';
+import styles from './OptionsStep.module.css';
 
 const Form = z.object({
   material: z.enum(['Classic','PRO']),
@@ -102,10 +103,10 @@ const level = useMemo(() => dpiLevel(dpiVal, 300, 100), [dpiVal]);
   }
 
   return (
-    <div style={{marginTop:24}}>
+    <div className={styles.container}>
       <h2>2) Ajustes</h2>
 
-      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12}}>
+      <div className={styles.twoColGrid}>
         <label>Material
           <select value={material} onChange={e=>setMaterial(e.target.value)}>
             <option>Classic</option>
@@ -122,7 +123,7 @@ const level = useMemo(() => dpiLevel(dpiVal, 300, 100), [dpiVal]);
       </div>
 
       {sizeMode === 'standard' ? (
-        <div style={{marginTop:8}}>
+        <div className={styles.standardSelect}>
           <select value={`${std.w}x${std.h}`} onChange={(e)=>{
             const [w,h]=e.target.value.split('x').map(Number);
             setStd({w,h});
@@ -135,7 +136,7 @@ const level = useMemo(() => dpiLevel(dpiVal, 300, 100), [dpiVal]);
           </select>
         </div>
       ) : (
-        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginTop:8}}>
+        <div className={styles.gridMt8}>
           <label>Ancho (cm)
             <input type="number" min="1" max={limits.maxW} value={custom.w}
                    onChange={e=>setCustom(v=>({...v, w: Number(e.target.value)}))}/>
@@ -148,7 +149,7 @@ const level = useMemo(() => dpiLevel(dpiVal, 300, 100), [dpiVal]);
         </div>
       )}
 
-      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginTop:8}}>
+      <div className={styles.gridMt8}>
         <label>Encaje
           <select value={fit} onChange={e=>setFit(e.target.value)}>
             <option value="cover">Cubrir (recorta)</option>
@@ -160,12 +161,12 @@ const level = useMemo(() => dpiLevel(dpiVal, 300, 100), [dpiVal]);
         </label>
       </div>
 
-      <div style={{marginTop:12}}>
+      <div className={styles.dpiSection}>
         <b>DPI estimado:</b> {Math.round(dpiVal)} — {
           level === 'ok' ? 'Excelente' : level === 'warn' ? 'Buena' : 'Baja'
         }
         {level === 'bad' && (
-          <div style={{marginTop:8}}>
+          <div className={styles.ackRow}>
             <label>
               <input type="checkbox" checked={ackLow} onChange={e=>setAckLow(e.target.checked)} />
               Soy consciente de la baja calidad y quiero continuar.
@@ -174,8 +175,8 @@ const level = useMemo(() => dpiLevel(dpiVal, 300, 100), [dpiVal]);
         )}
       </div>
 
-      {err && <p style={{color:'crimson'}}>{err}</p>}
-      <button style={{marginTop:12}} disabled={busy} onClick={submit}>
+      {err && <p className="errorText">{err}</p>}
+      <button className={styles.submitButton} disabled={busy} onClick={submit}>
         {busy ? 'Enviando…' : 'Continuar'}
       </button>
     </div>

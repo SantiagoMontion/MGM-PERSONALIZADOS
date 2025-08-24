@@ -1,0 +1,10 @@
+.previewImage {
+  max-width: 100%;
+  border: 1px solid #ddd;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+}

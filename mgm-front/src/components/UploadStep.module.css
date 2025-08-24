@@ -1,0 +1,11 @@
+.container {
+  margin-bottom: 12px;
+}
+
+.hiddenInput {
+  display: none;
+}
+
+.error {
+  margin-top: 6px;
+}

@@ -1,0 +1,32 @@
+.container {
+  margin-top: 24px;
+}
+
+.twoColGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.standardSelect {
+  margin-top: 8px;
+}
+
+.gridMt8 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.dpiSection {
+  margin-top: 12px;
+}
+
+.ackRow {
+  margin-top: 8px;
+}
+
+.submitButton {
+  margin-top: 12px;
+}

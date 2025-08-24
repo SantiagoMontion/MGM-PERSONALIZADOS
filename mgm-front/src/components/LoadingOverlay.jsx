@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import styles from './LoadingOverlay.module.css';
 
 export default function LoadingOverlay({ show, messages = [] }) {
   const [index, setIndex] = useState(0);
@@ -14,19 +15,9 @@ export default function LoadingOverlay({ show, messages = [] }) {
   if (!show) return null;
 
   return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      background: 'rgba(0,0,0,0.6)',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      color: '#fff',
-      zIndex: 1000,
-    }}>
-      <div className="spinner" style={{ marginBottom: 16 }} />
-      <p style={{ fontSize: 16 }}>{messages[index] || 'Cargando…'}</p>
+    <div className={styles.overlay}>
+      <div className={`spinner ${styles.spinnerSpacing}`} />
+      <p className={styles.message}>{messages[index] || 'Cargando…'}</p>
     </div>
   );
 }

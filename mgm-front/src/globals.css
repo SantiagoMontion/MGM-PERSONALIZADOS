@@ -47,3 +47,6 @@ button:hover:not(:disabled) {
   border-radius: 50%;
 }
 
+.errorText {
+  color: crimson;
+}

@@ -9,6 +9,7 @@ import LoadingOverlay from '../components/LoadingOverlay';
 import Modal from '../components/Modal';
 import { api } from '../lib/api';
 import { dpiLevel } from '../lib/dpi';
+import styles from './Home.module.css';
 
 export default function Home() {
   const navigate = useNavigate();
@@ -109,11 +110,11 @@ export default function Home() {
 
 
   return (
-    <div style={{ display: 'flex', gap: 16 }}>
-      <div style={{ width: 260, padding: 16, background: '#2b2b2b', borderRadius: 8 }}>
+    <div className={styles.container}>
+      <div className={styles.sidebar}>
         {uploaded && (
           <>
-            <div style={{ marginBottom: 12 }}>
+            <div className={styles.field}>
               <input
                 type="text"
                 placeholder="Nombre del modelo"
@@ -135,7 +136,7 @@ export default function Home() {
         )}
       </div>
 
-      <div style={{ flex: 1, padding: 16 }}>
+      <div className={styles.main}>
         <UploadStep onUploaded={file => { setUploaded(file); setAckLow(false); }} />
 
         <EditorCanvas
@@ -147,7 +148,7 @@ export default function Home() {
         />
 
         {uploaded && level === 'bad' && (
-          <label style={{ display: 'block', marginTop: 12 }}>
+          <label className={styles.ackLabel}>
             <input
               type="checkbox"
               checked={ackLow}
@@ -158,12 +159,12 @@ export default function Home() {
         )}
 
         {uploaded && (
-          <button style={{ marginTop: 12 }} disabled={busy} onClick={handleContinue}>
+          <button className={styles.continueButton} disabled={busy} onClick={handleContinue}>
             Continuar
           </button>
         )}
 
-        {err && <p style={{ color: 'crimson', marginTop: 6 }}>{err}</p>}
+        {err && <p className={`errorText ${styles.error}`}>{err}</p>}
       </div>
 
       <Modal
@@ -182,4 +183,3 @@ export default function Home() {
     </div>
   );
 }
-
