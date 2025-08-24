@@ -141,6 +141,7 @@ export default function Home() {
 
         <EditorCanvas
           imageUrl={imageUrl}
+          imageFile={uploaded?.file}
           sizeCm={sizeCm}
           bleedMm={3}
           dpi={300}
