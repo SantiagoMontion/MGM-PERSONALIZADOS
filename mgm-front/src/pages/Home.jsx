@@ -128,7 +128,7 @@ export default function Home() {
       const job = await submitJobApi(API_BASE, submitBody);
 
       // 8) navegar a confirm
-      navigate(`/confirm/${job.job_id}`);
+      navigate(`/confirm?job_id=${job.job_id}`);
     } catch (e) {
       console.error(e);
       setErr(String(e?.message || e));
