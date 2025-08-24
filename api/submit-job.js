@@ -91,7 +91,8 @@ export default async function handler(req, res) {
     }
 
     // La URL del original debe provenir del bucket 'uploads' (carpeta original/)
-    if (!/\/storage\/v1\/object\/.+\/uploads\/original\//.test(body.file_original_url)) {
+    // y puede o no incluir el segmento "/sign" antes del bucket.
+    if (!/\/storage\/v1\/object(?:\/sign)?\/uploads\/original\//.test(body.file_original_url)) {
       return res.status(400).json({ error: 'invalid_original_url' });
     }
 
