@@ -1,7 +1,8 @@
 // /api/create-checkout.js
+import crypto from 'node:crypto';
 import { supa } from '../lib/supa.js';
 import { shopifyAdmin } from '../lib/shopify.js';
-import { cors } from '../lib/cors.js';
+import { cors } from './_lib/cors.js';
 
 async function getInvoiceUrl(draftId) {
   // lee el draft y devuelve invoice_url si existe
@@ -10,9 +11,17 @@ async function getInvoiceUrl(draftId) {
 }
 
 export default async function handler(req, res) {
+  const diagId = crypto.randomUUID?.() ?? require('node:crypto').randomUUID();
+  res.setHeader('X-Diag-Id', String(diagId));
+
   if (cors(req, res)) return;
+
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', 'POST');
+    return res.status(405).json({ ok: false, diag_id: diagId, message: 'method_not_allowed' });
+  }
+
   try {
-    if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed' });
     const { job_id } = req.body || {};
     if (!job_id) return res.status(400).json({ error: 'missing_job_id' });
 

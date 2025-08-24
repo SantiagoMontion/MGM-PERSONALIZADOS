@@ -1,8 +1,18 @@
+import crypto from 'node:crypto';
 import { supa } from '../lib/supa.js';
-import { cors } from '../lib/cors.js';
+import { cors } from './_lib/cors.js';
 
 export default async function handler(req, res) {
+  const diagId = crypto.randomUUID?.() ?? require('node:crypto').randomUUID();
+  res.setHeader('X-Diag-Id', String(diagId));
+
   if (cors(req, res)) return;
+
+  if (req.method !== 'GET') {
+    res.setHeader('Allow', 'GET');
+    return res.status(405).json({ ok: false, diag_id: diagId, message: 'method_not_allowed' });
+  }
+
   const id = req.query.id; // puede ser job_id legible o el uuid con un flag
   if (!id) return res.status(400).json({ error: 'missing_id' });
 

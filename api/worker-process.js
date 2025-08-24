@@ -1,6 +1,7 @@
 // /api/worker-process.js  (dynamic import + pasos)
+import crypto from 'node:crypto';
 import { supa } from '../lib/supa.js';
-import { cors } from '../lib/cors.js';
+import { cors } from './_lib/cors.js';
 
 async function readJson(req){
   const chunks=[]; for await (const c of req) chunks.push(c);
@@ -9,8 +10,15 @@ async function readJson(req){
 }
 
 export default async function handler(req, res) {
+  const diagId = crypto.randomUUID?.() ?? require('node:crypto').randomUUID();
+  res.setHeader('X-Diag-Id', String(diagId));
+
   if (cors(req, res)) return;
-  if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed' });
+
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', 'POST');
+    return res.status(405).json({ ok: false, diag_id: diagId, message: 'method_not_allowed' });
+  }
   const auth = req.headers['authorization'] || '';
   if (auth !== `Bearer ${process.env.WORKER_TOKEN}`) {
     return res.status(401).json({ error: 'unauthorized' });
