@@ -38,17 +38,12 @@ button:hover:not(:disabled) {
   border-color: #646cff;
 }
 
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
-}
-
+/* Removed loading spinner animation to prevent moving content on load */
 .spinner {
   width: 40px;
   height: 40px;
   border: 4px solid rgba(255,255,255,0.3);
   border-top-color: #fff;
   border-radius: 50%;
-  animation: spin 1s linear infinite;
 }
 

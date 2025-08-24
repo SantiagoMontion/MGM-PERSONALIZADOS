@@ -50,6 +50,9 @@ function ColorPopover({ value, onChange, open, onClose }) {
         const res = await eyedropper.open();
         setHex(res.sRGBHex);
         onChange?.(res.sRGBHex);
+        await navigator.clipboard?.writeText(res.sRGBHex);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 900);
       }
     } catch { /* ignore */ }
   };
