@@ -3,8 +3,15 @@
 import { z } from 'zod';
 import { supa } from '../lib/supa.js';
 import { cors } from '../lib/cors.js';
+import { randomUUID } from 'crypto';
 
 const LIMITS = { Classic: { maxW: 140, maxH: 100 }, PRO: { maxW: 120, maxH: 60 } };
+
+function generateJobId() {
+  const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const uuid8 = randomUUID().split('-')[0];
+  return `job_${date}_${uuid8}`;
+}
 
 const Body = z.object({
   customer: z.object({
@@ -122,6 +129,7 @@ export default async function handler(req, res) {
 
     // INSERT de job nuevo
     const insertPayload = {
+      job_id: generateJobId(),
       customer_email: body.customer?.email || null,
       customer_name: body.customer?.name || null,
 

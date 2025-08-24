@@ -1,9 +1,17 @@
 -- Supabase schema for MGM personalized orders
 
+-- Function to generate default job_id: job_YYYYMMDD_uuid8
+create or replace function public.default_job_id()
+returns text
+language sql
+as $$
+  select 'job_' || to_char(now(), 'YYYYMMDD') || '_' || substr(gen_random_uuid()::text, 1, 8);
+$$;
+
 -- Table: jobs
 create table if not exists public.jobs (
   id uuid primary key default gen_random_uuid(),
-  job_id text unique not null,
+  job_id text unique not null default public.default_job_id(),
   status text not null default 'CREATED',
   material text,
   w_cm numeric,
