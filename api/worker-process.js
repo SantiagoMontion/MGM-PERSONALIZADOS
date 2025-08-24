@@ -1,5 +1,6 @@
 // /api/worker-process.js  (dynamic import + pasos)
 import { supa } from '../lib/supa.js';
+import { cors } from '../lib/cors.js';
 
 async function readJson(req){
   const chunks=[]; for await (const c of req) chunks.push(c);
@@ -8,6 +9,7 @@ async function readJson(req){
 }
 
 export default async function handler(req, res) {
+  if (cors(req, res)) return;
   if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed' });
   const auth = req.headers['authorization'] || '';
   if (auth !== `Bearer ${process.env.WORKER_TOKEN}`) {

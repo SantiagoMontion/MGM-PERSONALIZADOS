@@ -1,6 +1,7 @@
 // /api/create-checkout.js
 import { supa } from '../lib/supa.js';
 import { shopifyAdmin } from '../lib/shopify.js';
+import { cors } from '../lib/cors.js';
 
 async function getInvoiceUrl(draftId) {
   // lee el draft y devuelve invoice_url si existe
@@ -9,6 +10,7 @@ async function getInvoiceUrl(draftId) {
 }
 
 export default async function handler(req, res) {
+  if (cors(req, res)) return;
   try {
     if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed' });
     const { job_id } = req.body || {};
