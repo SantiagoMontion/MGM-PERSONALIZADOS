@@ -1,4 +1,3 @@
-import { submitJob } from '@/lib/submitJob';      // o '../lib/submitJob'
 // src/lib/submitJob.ts
 export interface SubmitJobBody {
   job_id: string;
