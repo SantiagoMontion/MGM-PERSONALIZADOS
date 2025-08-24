@@ -37,14 +37,14 @@ export async function submitJob(apiBase: string, body: SubmitJobBody): Promise<a
     console.error('[submit-job FAILED]', {
       status: res.status,
       diagId,
-      stage: data?.stage,
-      missing: data?.missing,
-      hints: data?.hints,
-      expect: data?.expect,
+      ...data,
       payloadSent: body,
     });
-    const hints = Array.isArray(data?.hints) ? data.hints.join(' | ') : '';
-    throw new Error(`submit-job ${res.status} diag:${diagId} stage:${data?.stage || 'unknown'} ${hints}`);
+    throw new Error(
+      `submit-job ${res.status} diag:${diagId} stage:${data?.stage || 'unknown'} ${
+        data?.supabase?.message || ''
+      }`
+    );
   }
 
   console.log('[submit-job OK]', { diagId, job: data?.job });
