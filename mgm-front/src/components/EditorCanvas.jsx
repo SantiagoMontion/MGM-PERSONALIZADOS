@@ -3,6 +3,7 @@ import { Stage, Layer, Rect, Group, Image as KonvaImage, Transformer } from 'rea
 import useImage from 'use-image';
 import { HexColorPicker, HexColorInput } from 'react-colorful';
 import styles from './EditorCanvas.module.css';
+import { cmToPx, blobToSHA256Hex, renderToCanvas } from '../lib/editor-export';
 
 const CM_PER_INCH = 2.54;
 const mmToCm = (mm) => mm / 10;
@@ -107,6 +108,7 @@ function ColorPopover({ value, onChange, open, onClose }) {
 // ---------- Editor ----------
 export default function EditorCanvas({
   imageUrl,
+  imageFile,
   sizeCm = { w: 90, h: 40 }, // tamaño final SIN sangrado (cm)
   bleedMm = 3,
   dpi = 300,
@@ -600,6 +602,8 @@ export default function EditorCanvas({
 
   // popover color
   const [colorOpen, setColorOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [lastDiag, setLastDiag] = useState('');
   const toggleContain = () => { fitContain(); setColorOpen(true); };
   const closeColor = () => setColorOpen(false);
   // track latest callback to avoid effect loops when parent re-renders
@@ -627,6 +631,97 @@ export default function EditorCanvas({
       corner_radius_cm: cornerRadiusCm
     });
   }, [dpi, bleedMm, wCm, hCm, imgEl, imgTx, mode, bgColor, cornerRadiusCm]);
+
+  // Confirmar y crear job
+  const onConfirm = async () => {
+    if (!imageFile) return;
+    setBusy(true);
+    setLastDiag('');
+    try {
+      const bitmap = await createImageBitmap(imageFile);
+      // Canvas incluye el sangrado en su tamaño
+      const widthPx = cmToPx(workCm.w, dpi);
+      const heightPx = cmToPx(workCm.h, dpi);
+      const bg = mode === 'contain' ? bgColor : '#ffffff';
+      const canvas = await renderToCanvas({
+        image: bitmap,
+        widthPx,
+        heightPx,
+        bg,
+        transform: {
+          x: cmToPx(imgTx.x_cm, dpi),
+          y: cmToPx(imgTx.y_cm, dpi),
+          scale: imgTx.scaleX,
+          rotateDeg: imgTx.rotation_deg,
+          fitMode: mode,
+        },
+      });
+      const mime = imageFile.type === 'image/jpeg' ? 'image/jpeg' : 'image/png';
+      const ext = mime === 'image/png' ? 'png' : 'jpg';
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, mime));
+      if (!blob) throw new Error('blob_fail');
+      const sha256 = await blobToSHA256Hex(blob);
+      const size_bytes = blob.size;
+
+      const upRes = await fetch('/api/upload-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ext, mime, size_bytes, material: 'Classic', w_cm: wCm, h_cm: hCm, sha256 }),
+      });
+      const upDiag = upRes.headers.get('X-Diag-Id');
+      console.log('upload-url diag', upDiag);
+      if (!upRes.ok) {
+        const body = await upRes.json().catch(() => null);
+        setLastDiag(`upload-url ${upRes.status}${body?.stage ? ` ${body.stage}` : ''}${body?.hints ? ` ${body.hints}` : ''} diag:${upDiag}`);
+        return;
+      }
+      const sig = await upRes.json();
+
+      const putRes = await fetch(sig.upload.signed_url, {
+        method: 'PUT',
+        headers: { 'Content-Type': mime },
+        body: blob,
+      });
+      const putDiag = putRes.headers.get('X-Diag-Id');
+      console.log('put diag', putDiag);
+      if (!putRes.ok) {
+        setLastDiag(`upload-put ${putRes.status} diag:${putDiag}`);
+        return;
+      }
+
+      const supaUrl = import.meta.env.VITE_SUPABASE_URL.replace(/\/$/, '');
+      const file_original_url = `${supaUrl}/storage/v1/object/uploads/${sig.object_key}`;
+      const job_id = crypto.randomUUID();
+      const jobBody = {
+        job_id,
+        material: 'Classic',
+        w_cm: wCm,
+        h_cm: hCm,
+        bleed_mm: bleedMm,
+        fit_mode: mode,
+        bg,
+        dpi,
+        file_original_url,
+        file_hash: sha256,
+      };
+      const jobRes = await fetch('/api/submit-job', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': job_id },
+        body: JSON.stringify(jobBody),
+      });
+      const jobDiag = jobRes.headers.get('X-Diag-Id');
+      console.log('submit-job diag', jobDiag);
+      if (!jobRes.ok) {
+        const body = await jobRes.json().catch(() => null);
+        setLastDiag(`submit-job ${jobRes.status}${body?.stage ? ` ${body.stage}` : ''}${body?.hints ? ` ${body.hints}` : ''} diag:${jobDiag}`);
+        return;
+      }
+    } catch (e) {
+      setLastDiag(String(e?.message || e));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <div className={styles.colorWrapper}>
@@ -670,7 +765,14 @@ export default function EditorCanvas({
         }`}>
           Calidad: {quality.label}
         </span>
+        <button
+          onClick={onConfirm}
+          disabled={busy || !imgEl || !imageFile}
+          className={styles.confirmButton}
+        >{busy ? 'Creando…' : 'Crear job'}</button>
       </div>
+
+      {lastDiag && <p className={styles.errorBox}>{lastDiag}</p>}
 
       {/* Canvas */}
       <div
