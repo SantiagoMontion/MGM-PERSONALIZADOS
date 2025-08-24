@@ -39,6 +39,7 @@ export function cors(req, res) {
     return false;
   } catch (e) {
     // Incluso si algo falla, respondemos preflight
+    res.setHeader('Vary', 'Origin');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Idempotency-Key');
     res.setHeader('Access-Control-Expose-Headers', 'X-Diag-Id');

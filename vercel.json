@@ -1,0 +1,16 @@
+{
+  "version": 2,
+  "routes": [
+    { "src": "/api/(.*)", "dest": "/api/$1", "methods": ["GET","POST","OPTIONS"] }
+  ],
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Methods", "value": "GET, POST, OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Idempotency-Key" },
+        { "key": "Access-Control-Expose-Headers", "value": "X-Diag-Id" }
+      ]
+    }
+  ]
+}
