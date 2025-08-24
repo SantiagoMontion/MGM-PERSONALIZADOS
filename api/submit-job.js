@@ -59,6 +59,7 @@ export default async function handler(req, res) {
     file_hash: z.string().optional(),
     price_amount: z.number().optional(),
     price_currency: z.string().optional(),
+    design_name: z.string().optional(),
     notes: z.string().optional(),
     source: z.string().optional(),
   });
@@ -95,6 +96,7 @@ export default async function handler(req, res) {
     file_hash: input.file_hash ?? null,
     price_amount: input.price_amount ?? null,
     price_currency: input.price_currency ?? null,
+    design_name: input.design_name ?? null,
     notes: input.notes ?? null,
     source: input.source ?? 'api',
   };

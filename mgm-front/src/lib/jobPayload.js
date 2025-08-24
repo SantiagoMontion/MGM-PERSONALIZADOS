@@ -78,6 +78,7 @@ export function buildSubmitJobBody(input) {
     file_original_url,
     customer_email: input?.customer?.email || undefined,
     customer_name: input?.customer?.name || undefined,
+    design_name: input?.design_name || undefined,
     file_hash: input?.file_hash || undefined,
     price_amount: (input?.price?.amount != null ? Number(input.price.amount) : undefined),
     price_currency: input?.price?.currency || undefined,

@@ -11,3 +11,37 @@ ALLOWED_ORIGINS=http://localhost:5173,https://<tu-front>.vercel.app
 ```
 
 Reemplaza `<tu-front>` con el nombre de tu deploy del front-end en Vercel.
+
+## Upload de archivos
+
+El endpoint `/api/upload-url` genera una URL firmada de Supabase Storage para subir el archivo original. El `object_key` sigue el formato:
+
+```
+original/YYYY/MM/<slug>-<WxH>-<MATERIAL>-<hash8>.<ext>
+```
+
+* `slug` es el `design_name` en minúsculas y sin acentos, con espacios reemplazados por `-`.
+* `WxH` son las medidas en centímetros.
+* `MATERIAL` es el material en mayúsculas.
+* `hash8` son los primeros 8 caracteres del SHA-256 del archivo.
+
+### Campos del POST `/api/upload-url`
+
+```
+{
+  design_name: "Gato Surfista",
+  ext: "png",
+  mime: "image/png",
+  size_bytes: 123456,
+  material: "PRO",
+  w_cm: 100,
+  h_cm: 50,
+  sha256: "<64 hex>"
+}
+```
+
+La respuesta incluye `object_key` y la `signed_url` para realizar el `PUT` binario. La URL canónica del archivo original puede construirse como:
+
+```
+${VITE_SUPABASE_URL}/storage/v1/object/uploads/${object_key}
+```

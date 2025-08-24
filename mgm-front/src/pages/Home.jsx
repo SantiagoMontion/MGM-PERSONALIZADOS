@@ -78,6 +78,7 @@ export default function Home() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          design_name: designName,
           ext,
           mime,
           size_bytes,
@@ -98,8 +99,16 @@ export default function Home() {
       });
 
       // 4) construir URL canónica
-      const supaBase = (import.meta.env.VITE_SUPABASE_URL || new URL(uploadUrlJson.upload.signed_url).origin);
+      const supaBase = (import.meta.env.VITE_SUPABASE_URL || '').trim();
       const file_original_url = `${supaBase.replace(/\/$/, '')}/storage/v1/object/uploads/${uploadUrlJson.object_key}`;
+
+      // 4b) actualizar estado uploaded
+      setUploaded(prev => ({
+        ...(prev || {}),
+        object_key: uploadUrlJson.object_key,
+        file_original_url,
+        file_hash,
+      }));
 
       // 5) construir payload submit-job
       const submitBody = buildSubmitJobBody({
@@ -111,6 +120,7 @@ export default function Home() {
         uploads: { canonical: file_original_url },
         file_hash,
         price: { amount: 45900, currency: 'ARS' },
+        design_name: designName,
         notes: designName,
         source: 'web',
       });
