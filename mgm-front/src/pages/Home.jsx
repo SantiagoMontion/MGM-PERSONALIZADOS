@@ -7,6 +7,8 @@ import EditorCanvas from '../components/EditorCanvas';
 import SizeControls from '../components/SizeControls';
 
 import { dpiLevel } from '../lib/dpi';
+import { buildSubmitJobBody, prevalidateSubmitBody } from '../lib/jobPayload.js';
+import { submitJob as submitJobApi } from '../lib/submitJob.js';
 import styles from './Home.module.css';
 
 export default function Home() {
@@ -38,6 +40,7 @@ export default function Home() {
   const [designName, setDesignName] = useState('');
   const [ackLow, setAckLow] = useState(false);
   const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
 
   const effDpi = useMemo(() => {
     if (!layout) return null;
@@ -50,13 +53,50 @@ export default function Home() {
   }, [layout]);
   const level = useMemo(() => (effDpi ? dpiLevel(effDpi, 300, 100) : null), [effDpi]);
 
-  function handleContinue() {
+  async function handleContinue() {
     if (!uploaded || !layout) return;
     if (!designName.trim()) {
       setErr('Falta el nombre del modelo');
       return;
     }
-    navigate('/confirm');
+    try {
+      setBusy(true);
+      setErr('');
+
+      const submitBody = buildSubmitJobBody({
+        material,
+        size: { w: sizeCm.w, h: sizeCm.h, bleed_mm: 3 },
+        fit_mode: 'cover',
+        bg: '#ffffff',
+        dpi: 300,
+        uploads: {
+          signed_url: uploaded?.upload?.signed_url || uploaded?.signed_url,
+          object_key: uploaded?.object_key,
+          canonical: uploaded?.file_original_url,
+        },
+        file_hash: uploaded?.file_hash,
+        price: { amount: 45900, currency: 'ARS' },
+        notes: designName,
+        source: 'web',
+      });
+
+      const pre = prevalidateSubmitBody(submitBody);
+      if (!pre.ok) {
+        setErr('Corrige antes de continuar: ' + pre.problems.join(' | '));
+        setBusy(false);
+        return;
+      }
+
+      const apiBase = (import.meta.env.VITE_API_BASE || 'https://mgm-api.vercel.app').replace(/\/$/, '');
+      const job = await submitJobApi(apiBase, submitBody);
+
+      navigate(`/confirm/${job.job_id}`);
+    } catch (e) {
+      console.error(e);
+      setErr(String(e?.message || e));
+    } finally {
+      setBusy(false);
+    }
   }
 
 
@@ -111,7 +151,7 @@ export default function Home() {
         )}
 
         {uploaded && (
-          <button className={styles.continueButton} onClick={handleContinue}>
+          <button className={styles.continueButton} disabled={busy} onClick={handleContinue}>
             Continuar
           </button>
         )}
