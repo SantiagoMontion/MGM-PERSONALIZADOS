@@ -4,7 +4,7 @@ type FitMode = 'cover'|'contain'|'stretch';
 
 export function normalizeSubmitPayload(p: any) {
   const fit: FitMode = (p.fit_mode === 'contain' || p.fit_mode === 'stretch') ? p.fit_mode : 'cover';
-  const dpi = parseInt(String(p.dpi), 10);
+  const dpiParsed = parseInt(String(p.dpi), 10);
 
   return {
     job_id: String(p.job_id),
@@ -14,7 +14,7 @@ export function normalizeSubmitPayload(p: any) {
     bleed_mm: Number(p.bleed_mm),
     fit_mode: fit,
     bg: String(p.bg || '#ffffff'),
-    dpi: Number.isFinite(dpi) ? dpi : 300,
+    dpi: Number.isFinite(dpiParsed) ? dpiParsed : 300,
     file_original_url: canonicalizeSupabaseUploadsUrl(String(p.file_original_url)),
     customer_email: p.customer_email || undefined,
     customer_name: p.customer_name || undefined,

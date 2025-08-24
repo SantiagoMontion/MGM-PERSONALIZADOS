@@ -13,8 +13,8 @@ export function canonicalizeSupabaseUploadsUrl(input: string): string {
   }
 }
 
-/** Construye la canónica con host de Supabase + object_key */
-export function buildUploadsUrlFromObjectKey(signedUrl: string, object_key: string): string {
-  const origin = new URL(signedUrl).origin; // ej https://<project>.supabase.co
+/** Construye la canónica con host de Supabase + object_key (preferido) */
+export function buildUploadsUrlFromObjectKey(signed_url: string, object_key: string): string {
+  const origin = new URL(signed_url).origin; // https://<project>.supabase.co
   return `${origin}/storage/v1/object/uploads/${object_key}`;
 }
