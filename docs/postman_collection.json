@@ -1,0 +1,71 @@
+{
+  "info": {
+    "name": "MGM API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Upload URL",
+      "request": {
+        "method": "POST",
+        "header": [ { "key": "Content-Type", "value": "application/json" } ],
+        "url": "{{api_base}}/api/upload-url",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"ext\": \"png\",\n  \"mime\": \"image/png\",\n  \"size_bytes\": 123456,\n  \"material\": \"Classic\",\n  \"w_cm\": 10,\n  \"h_cm\": 10,\n  \"sha256\": \"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\"\n}"
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Upload File",
+      "request": {
+        "method": "PUT",
+        "header": [ { "key": "Content-Type", "value": "image/png" } ],
+        "url": "{{signed_url}}",
+        "body": {
+          "mode": "file",
+          "file": { "src": "/path/to/local.png" }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Submit Job",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Idempotency-Key", "value": "demo-1" }
+        ],
+        "url": "{{api_base}}/api/submit-job",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"customer\": { \"email\": \"cliente@example.com\", \"name\": \"Cliente Demo\" },\n  \"design_name\": \"Prueba\",\n  \"publish_to_shopify\": false,\n  \"material\": \"Classic\",\n  \"size_cm\": { \"w\": 10, \"h\": 10, \"bleed_mm\": 3 },\n  \"fit_mode\": \"cover\",\n  \"bg\": \"#ffffff\",\n  \"file_original_url\": \"https://vxkewodclwozoennpqqv.supabase.co/storage/v1/object/uploads/original/2025/08/job_20250824_6cf3a8da/0123456789abcdef.png\",\n  \"file_hash\": \"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\n  \"dpi_report\": { \"dpi\": 300, \"level\": \"ok\" },\n  \"price\": { \"currency\": \"ARS\", \"amount\": 1000 },\n  \"notes\": \"Job de prueba\",\n  \"source\": \"postman\"\n}"
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Job Status",
+      "request": {
+        "method": "GET",
+        "url": "{{api_base}}/api/job-status?id={{job_id}}"
+      },
+      "response": []
+    },
+    {
+      "name": "Job Summary",
+      "request": {
+        "method": "GET",
+        "url": "{{api_base}}/api/job-summary?id={{job_id}}"
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    { "key": "api_base", "value": "https://mgm-api.vercel.app" },
+    { "key": "signed_url", "value": "" },
+    { "key": "job_id", "value": "" }
+  ]
+}
