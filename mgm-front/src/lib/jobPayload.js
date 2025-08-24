@@ -14,19 +14,36 @@ export function canonicalizeSupabaseUploadsUrl(input) {
     let p = u.pathname
       .replace('/storage/v1/object/upload/sign/uploads/', '/storage/v1/object/uploads/')
       .replace('/storage/v1/object/sign/uploads/', '/storage/v1/object/uploads/');
-    return `${u.origin}${p}`; // sin query (?token)
+    return `${u.origin}${p}`;
   } catch {
     return input || '';
   }
 }
 
-export function buildUploadsUrlFromObjectKey(signed_url, object_key) {
-  const origin = new URL(signed_url).origin; // https://<project>.supabase.co
+export function buildUploadsUrlFromObjectKey(baseUrl, object_key) {
+  const origin = baseUrl.replace(/\/$/, '');
   return `${origin}/storage/v1/object/uploads/${object_key}`;
 }
 
 function normalizeFit(mode) {
   return (mode === 'contain' || mode === 'stretch') ? mode : 'cover';
+}
+
+// NUEVO: devuelve la canónica según prioridad: canonical > (env/signed_url + object_key)
+function resolveCanonicalUrl({ canonical, signed_url, object_key }) {
+  if (canonical) {
+    const c = canonicalizeSupabaseUploadsUrl(canonical);
+    if (c.startsWith(uploadsPrefix)) return c;
+  }
+  const envBase = (import.meta?.env?.VITE_SUPABASE_URL || '').trim();
+  if (object_key && envBase) {
+    return buildUploadsUrlFromObjectKey(envBase, object_key);
+  }
+  if (object_key && signed_url) {
+    const origin = new URL(signed_url).origin; // https://<project>.supabase.co
+    return buildUploadsUrlFromObjectKey(origin, object_key);
+  }
+  return '';
 }
 
 /**
@@ -44,15 +61,12 @@ export function buildSubmitJobBody(input) {
   const bleed_mm = Number(input?.size?.bleed_mm ?? 3);
   const dpi = parseInt(String(input?.dpi ?? 300), 10);
 
-  let file_original_url = '';
   const up = input?.uploads || {};
-  if (up.signed_url && up.object_key) {
-    file_original_url = buildUploadsUrlFromObjectKey(up.signed_url, up.object_key);
-  } else if (up.canonical) {
-    file_original_url = canonicalizeSupabaseUploadsUrl(up.canonical);
-  } else {
-    file_original_url = '';
-  }
+  const file_original_url = resolveCanonicalUrl({
+    canonical: up.canonical,
+    signed_url: up.signed_url,
+    object_key: up.object_key,
+  });
 
   return {
     job_id,
