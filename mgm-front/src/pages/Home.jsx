@@ -5,13 +5,9 @@ import { useNavigate } from 'react-router-dom';
 import UploadStep from '../components/UploadStep';
 import EditorCanvas from '../components/EditorCanvas';
 import SizeControls from '../components/SizeControls';
-import LoadingOverlay from '../components/LoadingOverlay';
-import Modal from '../components/Modal';
 
 import { dpiLevel } from '../lib/dpi';
 import styles from './Home.module.css';
-import { buildSubmitJobBody, prevalidateSubmitBody } from '../lib/jobPayload';
-import { submitJob as submitJobApi } from '../lib/submitJob';
 
 export default function Home() {
   const navigate = useNavigate();
@@ -41,9 +37,7 @@ export default function Home() {
   const [layout, setLayout] = useState(null);
   const [designName, setDesignName] = useState('');
   const [ackLow, setAckLow] = useState(false);
-  const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
-  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const effDpi = useMemo(() => {
     if (!layout) return null;
@@ -62,46 +56,8 @@ export default function Home() {
       setErr('Falta el nombre del modelo');
       return;
     }
-    setConfirmOpen(true);
+    navigate('/confirm');
   }
-
- async function submitJob() {
-  try {
-    const submitBody = buildSubmitJobBody({
-      material: state.material,
-      size: { w: state.widthCm, h: state.heightCm, bleed_mm: 3 },
-      fit_mode: state.mode, // 'cover'|'contain'|'stretch'
-      bg: state.bg || '#ffffff',
-      dpi: state.dpi || 300,
-      uploads: {
-        signed_url: state?.upload?.signed_url,
-        object_key: state?.upload?.object_key,
-        canonical: state?.file_original_url,
-      },
-      file_hash: state?.file_hash,
-      price: { amount: 45900, currency: 'ARS' },
-      customer: { email: state?.email, name: state?.name },
-      notes: state?.notes || '',
-      source: 'web',
-    });
-
-    const pre = prevalidateSubmitBody(submitBody);
-    console.log('[PREVALIDATE Home]', pre, submitBody);
-    if (!pre.ok) {
-      alert(pre.problems.join('\n'));
-      return;
-    }
-
-    const apiBase = import.meta.env.VITE_API_BASE || 'https://mgm-api.vercel.app';
-    const job = await submitJobApi(apiBase, submitBody);
-
-    // segui con tu flujo…
-    navigate(`/confirm/${job.job_id}`);
-  } catch (err) {
-    console.error(err);
-    alert(String(err?.message || err));
-  }
-}
 
 
   return (
@@ -155,27 +111,13 @@ export default function Home() {
         )}
 
         {uploaded && (
-          <button className={styles.continueButton} disabled={busy} onClick={handleContinue}>
+          <button className={styles.continueButton} onClick={handleContinue}>
             Continuar
           </button>
         )}
 
         {err && <p className={`errorText ${styles.error}`}>{err}</p>}
       </div>
-
-      <Modal
-        open={confirmOpen}
-        title="¿La imagen está editada completamente y no realizarás más cambios?"
-        actions={[
-          { label: 'Cancelar', onClick: () => setConfirmOpen(false) },
-          { label: 'Enviar', onClick: submitJob }
-        ]}
-      />
-
-      <LoadingOverlay
-        show={busy}
-        messages={['Llamando a la api por teléfono', 'Cargando el último pixel']}
-      />
     </div>
   );
 }
