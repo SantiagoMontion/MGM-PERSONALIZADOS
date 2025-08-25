@@ -5,6 +5,9 @@ import { useNavigate } from 'react-router-dom';
 import UploadStep from '../components/UploadStep';
 import EditorCanvas from '../components/EditorCanvas';
 import SizeControls from '../components/SizeControls';
+import LoadingOverlay from '../components/LoadingOverlay';
+
+import { LIMITS, STANDARD } from '../lib/material.js';
 
 import { dpiLevel } from '../lib/dpi';
 import { sha256Hex } from '../lib/hash.js';
@@ -54,6 +57,35 @@ export default function Home() {
   }, [layout]);
   const level = useMemo(() => (effDpi ? dpiLevel(effDpi, 300, 100) : null), [effDpi]);
 
+  function handleSizeChange(next) {
+    if (next.material && next.material !== material) {
+      const lim = LIMITS[next.material];
+      const clamped = {
+        w: Math.min(Math.max(size.w, 1), lim.maxW),
+        h: Math.min(Math.max(size.h, 1), lim.maxH),
+      };
+      setMaterial(next.material);
+      setSize(clamped);
+      const isStd = (STANDARD[next.material] || []).some(
+        opt => Number(opt.w) === Number(clamped.w) && Number(opt.h) === Number(clamped.h)
+      );
+      setMode(isStd ? 'standard' : 'custom');
+      return;
+    }
+    if (next.mode && next.mode !== mode) {
+      setMode(next.mode);
+      if (next.mode === 'standard' && typeof next.w === 'number' && typeof next.h === 'number') {
+        setSize({ w: next.w, h: next.h });
+      }
+    }
+    if (typeof next.w === 'number' || typeof next.h === 'number') {
+      setSize({
+        w: typeof next.w === 'number' ? next.w : size.w,
+        h: typeof next.h === 'number' ? next.h : size.h,
+      });
+    }
+  }
+
   async function handleAfterSubmit(jobId) {
     const render = canvasRef.current?.getRenderDescriptor?.();
     navigate(`/creating/${jobId}`, { state: { render } });
@@ -69,8 +101,8 @@ export default function Home() {
       return;
     }
     try {
-      setBusy(true);
       setErr('');
+      setBusy(true);
 
       // 1) calcular hash local
       const file_hash = await sha256Hex(uploaded.file);
@@ -170,11 +202,7 @@ export default function Home() {
               material={material}
               size={size}
               mode={mode}
-              onChange={({ material: m, mode: md, w, h }) => {
-                setMaterial(m);
-                setMode(md);
-                setSize({ w, h });
-              }}
+              onChange={handleSizeChange}
             />
           </>
         )}
@@ -212,6 +240,7 @@ export default function Home() {
 
         {err && <p className={`errorText ${styles.error}`}>{err}</p>}
       </div>
+      <LoadingOverlay show={busy} messages={["Creando tu pedido…"]} />
     </div>
   );
 }
