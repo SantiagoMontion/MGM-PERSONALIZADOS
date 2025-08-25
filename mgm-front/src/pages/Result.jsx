@@ -10,8 +10,11 @@ export default function Result() {
   const [urls, setUrls] = useState({
     cart_url_follow: location.state?.cart_url_follow,
     checkout_url_now: location.state?.checkout_url_now,
+    cart_plain: location.state?.cart_plain,
+    checkout_plain: location.state?.checkout_plain,
   });
   const [job, setJob] = useState(null);
+  const [added, setAdded] = useState(() => localStorage.getItem(`MGM_jobAdded:${jobId}`) === 'true');
 
   useEffect(() => {
     async function fetchJob() {
@@ -38,6 +41,8 @@ export default function Result() {
             setUrls({
               cart_url_follow: j.cart_url_follow || j.cart_url,
               checkout_url_now: j.checkout_url_now,
+              cart_plain: j.cart_plain,
+              checkout_plain: j.checkout_plain,
             });
           }
         } catch { /* ignore */ }
@@ -50,19 +55,28 @@ export default function Result() {
     return <p>Preparando tu carrito…</p>;
   }
 
+  const hrefCart = added ? urls.cart_plain : urls.cart_url_follow;
+  const hrefCheckout = added ? urls.checkout_plain : urls.checkout_url_now;
+  const openNew = (u) => window.open(u, '_blank', 'noopener,noreferrer');
+
   return (
     <div>
       {job?.preview_url && (
         <img src={job.preview_url} alt="preview" style={{ maxWidth: '300px' }} />
       )}
       <div>
-        <button onClick={() => { window.location.href = urls.cart_url_follow; }}>
+        <button onClick={() => { openNew(hrefCart); localStorage.setItem(`MGM_jobAdded:${jobId}`,'true'); setAdded(true); }}>
           Agregar al carrito y seguir comprando
         </button>
-        <button onClick={() => { window.location.href = urls.checkout_url_now; }}>
+        <button onClick={() => { openNew(hrefCheckout); localStorage.setItem(`MGM_jobAdded:${jobId}`,'true'); setAdded(true); }}>
           Pagar ahora
         </button>
-        <button onClick={() => { window.open(urls.cart_url_follow, '_blank', 'noopener'); navigate('/'); }}>
+        <button onClick={() => {
+          openNew(hrefCart);
+          localStorage.setItem(`MGM_jobAdded:${jobId}`,'true');
+          setAdded(true);
+          navigate('/');
+        }}>
           Crear otro
         </button>
       </div>
