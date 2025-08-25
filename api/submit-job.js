@@ -59,7 +59,6 @@ export default async function handler(req, res) {
     file_hash: z.string().optional(),
     price_amount: z.number().optional(),
     price_currency: z.string().optional(),
-    design_name: z.string().optional(),
     notes: z.string().optional(),
     source: z.string().optional(),
   });
@@ -79,6 +78,7 @@ export default async function handler(req, res) {
   }
 
   const input = parsed.data;
+  const designName = typeof body?.design_name === 'string' ? body.design_name : undefined;
 
   // whitelist de columnas válidas
   const payloadInsert = {
@@ -100,8 +100,11 @@ export default async function handler(req, res) {
     source: input.source ?? 'api',
   };
 
-  if (input.design_name !== undefined) {
-    payloadInsert.design_name = input.design_name;
+  // TODO: remove when `design_name` column exists in DB (see supabase/migrations/2025-08-25_add_design_name.sql)
+  if (designName) {
+    payloadInsert.notes =
+      (payloadInsert.notes ? payloadInsert.notes + ' | ' : '') + `design_name:${designName}`;
+    if (payloadInsert.notes.length > 1000) payloadInsert.notes = payloadInsert.notes.slice(0, 1000);
   }
 
   const supabase = getSupabaseAdmin();
