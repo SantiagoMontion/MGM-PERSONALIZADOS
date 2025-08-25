@@ -14,6 +14,7 @@ export interface SubmitJobBody {
   file_hash?: string;
   price_amount?: number;
   price_currency?: string;
+  design_name?: string;
   notes?: string;
   source?: string;
 }

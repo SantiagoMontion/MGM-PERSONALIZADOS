@@ -96,10 +96,13 @@ export default async function handler(req, res) {
     file_hash: input.file_hash ?? null,
     price_amount: input.price_amount ?? null,
     price_currency: input.price_currency ?? null,
-    design_name: input.design_name ?? null,
     notes: input.notes ?? null,
     source: input.source ?? 'api',
   };
+
+  if (input.design_name !== undefined) {
+    payloadInsert.design_name = input.design_name;
+  }
 
   const supabase = getSupabaseAdmin();
 
