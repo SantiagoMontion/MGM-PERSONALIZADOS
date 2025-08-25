@@ -144,17 +144,20 @@ export default async function handler(req, res) {
       'items[0][properties][pdf_url]': job.pdf_url,
       // si te preocupa la longitud, puedes comentar uno de los dos URLs
     };
-    const cartUrl = `${pubBase}/cart/add?${qs(props)}&return_to=%2Fcart`;
+    const cartUrlFollow = `${pubBase}/cart/add?${qs(props)}&return_to=%2Fcart`;
+    const checkoutUrlNow = `${pubBase}/cart/add?${qs(props)}&return_to=%2Fcheckout`;
 
     // 4) Guardar y devolver
-    await supa.from('jobs').update({ cart_url: cartUrl }).eq('id', job.id);
+    await supa.from('jobs').update({ cart_url: cartUrlFollow }).eq('id', job.id);
 
     return res.status(200).json({
       ok: true,
       job_id: job.job_id,
       product_id: productId,
       variant_id: variantId,
-      cart_url: cartUrl
+      cart_url: cartUrlFollow,
+      cart_url_follow: cartUrlFollow,
+      checkout_url_now: checkoutUrlNow,
     });
   } catch (e) {
     console.error('create_cart_link_error', e);

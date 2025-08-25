@@ -4,6 +4,8 @@ import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import App from './App.jsx';
 import Home from './pages/Home.jsx';
 import Confirm from './pages/Confirm.jsx';
+import Creating from './pages/Creating.jsx';
+import Result from './pages/Result.jsx';
 import './globals.css';
 
 const router = createBrowserRouter([
@@ -11,7 +13,9 @@ const router = createBrowserRouter([
     element: <App />,
     children: [
       { path: '/', element: <Home /> },
-      { path: '/confirm', element: <Confirm /> }
+      { path: '/confirm', element: <Confirm /> },
+      { path: '/creating/:jobId', element: <Creating /> },
+      { path: '/result/:jobId', element: <Result /> }
     ]
   }
 ]);

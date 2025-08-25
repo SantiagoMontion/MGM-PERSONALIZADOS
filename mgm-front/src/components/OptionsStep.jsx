@@ -16,22 +16,6 @@ const Form = z.object({
   bg: z.string().optional()
 });
 
-// --- Helpers locales (sin tocar tu estructura de carpetas) ---
-function canonicalizeSupabaseUploadsUrl(input) {
-  if (!input) return input;
-  try {
-    const u = new URL(input);
-    // normaliza rutas firmadas a canónica /uploads/
-    let p = u.pathname
-      .replace('/storage/v1/object/upload/sign/uploads/', '/storage/v1/object/uploads/')
-      .replace('/storage/v1/object/sign/uploads/', '/storage/v1/object/uploads/');
-    // quita query (?token=...)
-    return `${u.origin}${p}`;
-  } catch {
-    return input;
-  }
-}
-
 export default function OptionsStep({ uploaded, onSubmitted }) {
   const [material, setMaterial] = useState('Classic');
   const [sizeMode, setSizeMode] = useState('standard');

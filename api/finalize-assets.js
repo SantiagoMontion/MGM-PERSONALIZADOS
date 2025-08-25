@@ -25,6 +25,7 @@ function buildOutputPaths({ job_id, ext = 'jpg' }) {
     preview: `${base}-preview.jpg`,
     print: `${base}-print.jpg`,
     pdf: `${base}-file.pdf`,
+    mock1080: `${base}-mock_1080.jpg`,
   };
 }
 
@@ -36,10 +37,11 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { job_id } =
+    const body =
       typeof req.body === 'string'
         ? JSON.parse(req.body || '{}')
         : req.body || {};
+    const { job_id, render } = body;
     if (!job_id)
       return res.status(400).json({ ok: false, error: 'missing_job_id' });
 
@@ -61,8 +63,21 @@ export default async function handler(req, res) {
       return res.status(404).json({ ok: false, error: 'job_not_found' });
 
     // Si ya está listo, salir idempotente
-    if (job.preview_url && job.print_jpg_url && job.pdf_url) {
-      return res.status(200).json({ ok: true, already: true, job_id });
+    if (
+      job.preview_url &&
+      job.print_jpg_url &&
+      job.pdf_url &&
+      (!render || job.mock_1080_url)
+    ) {
+      return res.status(200).json({
+        ok: true,
+        already: true,
+        job_id,
+        preview_url: job.preview_url,
+        print_jpg_url: job.print_jpg_url,
+        pdf_url: job.pdf_url,
+        mock_1080_url: job.mock_1080_url,
+      });
     }
 
     // 2) Obtener original desde 'uploads' (privado)
@@ -89,21 +104,106 @@ export default async function handler(req, res) {
     const buf = Buffer.from(await download.arrayBuffer());
 
     // 3) Generar assets con sharp/pdf-lib
-    // preview.jpg (ancho máx 1200px)
-    const previewBuf = await sharp(buf)
-      .jpeg({ quality: 82 })
-      .resize({ width: 1200, withoutEnlargement: true })
-      .toBuffer();
-    // print.jpg (alta calidad, sin resize para demo)
-    const printBuf = await sharp(buf).jpeg({ quality: 92 }).toBuffer();
-    // pdf con 1 página conteniendo la imagen "print"
-    const pdfDoc = await PDFDocument.create();
-    const jpg = await pdfDoc.embedJpg(printBuf);
-    const width = jpg.width;
-    const height = jpg.height;
-    const page = pdfDoc.addPage([width, height]);
-    page.drawImage(jpg, { x: 0, y: 0, width, height });
-    const pdfBuf = await pdfDoc.save();
+    let previewBuf, printBuf, pdfBuf, mockBuf;
+    if (render) {
+      const srcW = Number(render?.src_px?.w) || 0;
+      const srcH = Number(render?.src_px?.h) || 0;
+      const crop = render?.crop_px || {};
+      const left = Math.max(0, Math.min(srcW, Math.round(crop.left || 0)));
+      const top = Math.max(0, Math.min(srcH, Math.round(crop.top || 0)));
+      const width = Math.max(
+        1,
+        Math.min(srcW - left, Math.round(crop.width || srcW))
+      );
+      const height = Math.max(
+        1,
+        Math.min(srcH - top, Math.round(crop.height || srcH))
+      );
+      const rotate = [0, 90, 180, 270].includes(render.rotate_deg)
+        ? render.rotate_deg
+        : 0;
+      const fit =
+        render.fit_mode === 'contain'
+          ? 'contain'
+          : render.fit_mode === 'stretch'
+          ? 'fill'
+          : 'cover';
+      const bg = render.bg || '#ffffff';
+      const bleedCm = (Number(render.bleed_mm) || 0) / 10;
+      const w_cm = Number(render.w_cm) || Number(job.w_cm) || 0;
+      const h_cm = Number(render.h_cm) || Number(job.h_cm) || 0;
+      const dpi = 300;
+      const w_px = Math.round(((w_cm + 2 * bleedCm) * dpi) / 2.54);
+      const h_px = Math.round(((h_cm + 2 * bleedCm) * dpi) / 2.54);
+
+      const base = sharp(buf)
+        .extract({ left, top, width, height })
+        .rotate(rotate);
+
+      printBuf = await base
+        .clone()
+        .resize(w_px, h_px, { fit, background: bg })
+        .jpeg({ quality: 92 })
+        .toBuffer();
+
+      previewBuf = await sharp(printBuf)
+        .resize({
+          width: 1600,
+          height: 1600,
+          fit: 'inside',
+          withoutEnlargement: true,
+        })
+        .jpeg({ quality: 82 })
+        .toBuffer();
+
+      const pdfDoc = await PDFDocument.create();
+      const jpg = await pdfDoc.embedJpg(printBuf);
+      const widthPdf = jpg.width;
+      const heightPdf = jpg.height;
+      const page = pdfDoc.addPage([widthPdf, heightPdf]);
+      page.drawImage(jpg, { x: 0, y: 0, width: widthPdf, height: heightPdf });
+      pdfBuf = await pdfDoc.save();
+
+      const pxPerCm = Math.floor((1080 * 0.85) / Math.max(w_cm, h_cm));
+      const imgW = Math.round(w_cm * pxPerCm);
+      const imgH = Math.round(h_cm * pxPerCm);
+      const mockResized = await base
+        .clone()
+        .resize(imgW, imgH, { fit, background: bg })
+        .jpeg({ quality: 90 })
+        .toBuffer();
+      mockBuf = await sharp({
+        create: {
+          width: 1080,
+          height: 1080,
+          channels: 3,
+          background: '#ffffff',
+        },
+      })
+        .composite([
+          {
+            input: mockResized,
+            left: Math.round((1080 - imgW) / 2),
+            top: Math.round((1080 - imgH) / 2),
+          },
+        ])
+        .jpeg({ quality: 90 })
+        .toBuffer();
+    } else {
+      // Comportamiento retrocompatible
+      previewBuf = await sharp(buf)
+        .jpeg({ quality: 82 })
+        .resize({ width: 1200, withoutEnlargement: true })
+        .toBuffer();
+      printBuf = await sharp(buf).jpeg({ quality: 92 }).toBuffer();
+      const pdfDoc = await PDFDocument.create();
+      const jpg = await pdfDoc.embedJpg(printBuf);
+      const width = jpg.width;
+      const height = jpg.height;
+      const page = pdfDoc.addPage([width, height]);
+      page.drawImage(jpg, { x: 0, y: 0, width, height });
+      pdfBuf = await pdfDoc.save();
+    }
 
     // 4) Subir a bucket 'outputs' (público)
     const out = buildOutputPaths({ job_id });
@@ -146,21 +246,42 @@ export default async function handler(req, res) {
         detail: upPdf.error.message,
       });
 
+    let mock_1080_url;
+    if (mockBuf) {
+      const upMock = await supa.storage
+        .from('outputs')
+        .upload(out.mock1080.replace(/^outputs\//, ''), mockBuf, {
+          contentType: 'image/jpeg',
+          upsert: true,
+        });
+      if (upMock.error)
+        return res.status(500).json({
+          ok: false,
+          error: 'upload_mock_failed',
+          detail: upMock.error.message,
+        });
+    }
+
     // 5) Public URLs
     const base = (process.env.SUPABASE_URL || '').replace(/\/$/, '');
     const preview_url = `${base}/storage/v1/object/public/${out.preview}`;
     const print_jpg_url = `${base}/storage/v1/object/public/${out.print}`;
     const pdf_url = `${base}/storage/v1/object/public/${out.pdf}`;
+    if (mockBuf) {
+      mock_1080_url = `${base}/storage/v1/object/public/${out.mock1080}`;
+    }
 
     // 6) Actualizar job
+    const updatePayload = {
+      preview_url,
+      print_jpg_url,
+      pdf_url,
+      status: 'READY_FOR_PRINT',
+    };
+    if (mock_1080_url) updatePayload.mock_1080_url = mock_1080_url;
     const { error: upErr } = await supa
       .from('jobs')
-      .update({
-        preview_url,
-        print_jpg_url,
-        pdf_url,
-        status: 'READY_FOR_PRINT',
-      })
+      .update(updatePayload)
       .eq('id', job.id);
     if (upErr)
       return res.status(500).json({
@@ -175,6 +296,7 @@ export default async function handler(req, res) {
       preview_url,
       print_jpg_url,
       pdf_url,
+      mock_1080_url,
     });
   } catch (e) {
     console.error('finalize-assets error', e);
