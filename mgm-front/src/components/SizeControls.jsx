@@ -1,26 +1,7 @@
 // src/components/SizeControls.jsx
 import { useMemo } from 'react';
 import styles from './SizeControls.module.css';
-
-const LIMITS = {
-  Classic: { maxW: 140, maxH: 100 },
-  PRO: { maxW: 120, maxH: 60 }
-};
-const STANDARD = {
-  Classic: [
-    { w: 25, h: 25 },
-    { w: 82, h: 32 },
-    { w: 90, h: 40 },
-    { w: 100, h: 60 },
-    { w: 140, h: 100 }
-  ],
-  PRO: [
-    { w: 25, h: 25 },
-    { w: 50, h: 40 },
-    { w: 90, h: 40 },
-    { w: 120, h: 60 }
-  ]
-};
+import { LIMITS, STANDARD } from '../lib/material.js';
 
 /**
  * Props:
@@ -46,8 +27,7 @@ export default function SizeControls({ material, size, mode, onChange }) {
           value={material}
           onChange={(e) => {
             const m = e.target.value;
-            const first = STANDARD[m][0];
-            onChange({ material: m, mode: 'standard', w: first.w, h: first.h });
+            onChange({ material: m });
           }}
         >
           <option>Classic</option>
@@ -58,7 +38,7 @@ export default function SizeControls({ material, size, mode, onChange }) {
       <label>Modo
         <select
           value={mode}
-          onChange={(e) => onChange({ material, mode: e.target.value, w: size.w, h: size.h })}
+          onChange={(e) => onChange({ mode: e.target.value })}
         >
           <option value="standard">Estándar</option>
           <option value="custom">Personalizado</option>
@@ -71,7 +51,7 @@ export default function SizeControls({ material, size, mode, onChange }) {
             value={currentValue}
             onChange={(e) => {
               const [w, h] = e.target.value.split('x').map(Number);
-              onChange({ material, mode, w, h });
+              onChange({ mode: 'standard', w, h });
             }}
           >
             {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -84,7 +64,7 @@ export default function SizeControls({ material, size, mode, onChange }) {
               type="number" min="1" max={limits.maxW} value={size.w}
               onChange={(e)=>{
                 const w = Math.max(1, Math.min(limits.maxW, Number(e.target.value) || 0));
-                onChange({ material, mode, w, h: size.h });
+                onChange({ w, h: size.h });
               }}
             />
           </label>
@@ -93,7 +73,7 @@ export default function SizeControls({ material, size, mode, onChange }) {
               type="number" min="1" max={limits.maxH} value={size.h}
               onChange={(e)=>{
                 const h = Math.max(1, Math.min(limits.maxH, Number(e.target.value) || 0));
-                onChange({ material, mode, w: size.w, h });
+                onChange({ w: size.w, h });
               }}
             />
           </label>
