@@ -1,7 +1,6 @@
 // src/pages/Home.jsx
-import { useEffect, useMemo, useState } from 'react';
-
-import { pollJobAndCreateCart } from '../lib/pollJobAndCreateCart';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import UploadStep from '../components/UploadStep';
 import EditorCanvas from '../components/EditorCanvas';
@@ -41,7 +40,8 @@ export default function Home() {
   const [ackLow, setAckLow] = useState(false);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState('');
+  const navigate = useNavigate();
+  const canvasRef = useRef(null);
 
   const effDpi = useMemo(() => {
     if (!layout) return null;
@@ -54,37 +54,9 @@ export default function Home() {
   }, [layout]);
   const level = useMemo(() => (effDpi ? dpiLevel(effDpi, 300, 100) : null), [effDpi]);
 
-  async function handleAfterSubmit(job_id) {
-    setBusy(true);
-    setErr('');
-    setStatus('Preparando imágenes y carrito…');
-    const apiBase = import.meta.env.VITE_API_BASE || 'https://mgm-api.vercel.app';
-    try {
-      await fetch(`${apiBase}/api/finalize-assets`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ job_id })
-      }).catch(() => {});
-
-      console.log('[cart] esperando assets y precio…', job_id);
-      const res = await pollJobAndCreateCart(apiBase, job_id, {
-        onTick: (i, job) => {
-          if (i % 5 === 0) console.log(`[tick ${i}]`, job);
-        },
-      });
-      if (res.ok && res.cart_url) {
-        window.location.href = res.cart_url;
-        return;
-      }
-      console.error('[cart failed]', res);
-      setErr(`No se pudo crear el carrito: ${res.code || 'unknown'}`);
-    } catch (e) {
-      console.error(e);
-      setErr(String(e?.message || e));
-    } finally {
-      setBusy(false);
-      setStatus('');
-    }
+  async function handleAfterSubmit(jobId) {
+    const render = canvasRef.current?.getRenderDescriptor?.();
+    navigate(`/creating/${jobId}`, { state: { render } });
   }
 
   async function handleContinue() {
@@ -212,6 +184,7 @@ export default function Home() {
         <UploadStep onUploaded={file => { setUploaded(file); setAckLow(false); }} />
 
         <EditorCanvas
+          ref={canvasRef}
           imageUrl={imageUrl}
           imageFile={uploaded?.file}
           sizeCm={sizeCm}
@@ -237,7 +210,6 @@ export default function Home() {
           </button>
         )}
 
-        {status && <p>{status}</p>}
         {err && <p className={`errorText ${styles.error}`}>{err}</p>}
       </div>
     </div>

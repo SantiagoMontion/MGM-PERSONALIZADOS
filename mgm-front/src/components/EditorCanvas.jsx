@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+/* eslint-disable */
+import { useEffect, useMemo, useRef, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { Stage, Layer, Rect, Group, Image as KonvaImage, Transformer } from 'react-konva';
 import useImage from 'use-image';
 import { HexColorPicker, HexColorInput } from 'react-colorful';
@@ -107,15 +108,19 @@ function ColorPopover({ value, onChange, open, onClose }) {
     </div>
   );
 }
+
 // ---------- Editor ----------
-export default function EditorCanvas({
-  imageUrl,
-  imageFile,
-  sizeCm = { w: 90, h: 40 }, // tamaño final SIN sangrado (cm)
-  bleedMm = 3,
-  dpi = 300,
-  onLayoutChange,
-}) {
+const EditorCanvas = forwardRef(function EditorCanvas(
+  {
+    imageUrl,
+    imageFile,
+    sizeCm = { w: 90, h: 40 }, // tamaño final SIN sangrado (cm)
+    bleedMm = 3,
+    dpi = 300,
+    onLayoutChange,
+  },
+  ref
+) {
   const wCm = Number(sizeCm?.w ?? 90);
   const hCm = Number(sizeCm?.h ?? 40);
   const bleedCm = mmToCm(bleedMm);
@@ -595,12 +600,67 @@ export default function EditorCanvas({
     return Math.max(1, Math.min(1000, Math.min(dpiX, dpiY)));
   }, [imgEl, imgBaseCm, imgTx.scaleX, imgTx.scaleY]);
 
-  const quality = useMemo(() => {
+const quality = useMemo(() => {
     if (dpiEffective == null) return { label:'—', color:'#9ca3af' };
     if (dpiEffective < 80)    return { label:`Baja (${dpiEffective|0} DPI)`,  color:'#ef4444' };
     if (dpiEffective < 200)   return { label:`Buena (${dpiEffective|0} DPI)`, color:'#f59e0b' };
     return { label:`Excelente (${Math.min(300, dpiEffective|0)} DPI)`, color:'#10b981' };
   }, [dpiEffective]);
+
+  useImperativeHandle(ref, () => ({
+    getRenderDescriptor: () => {
+      if (!imgEl || !imgBaseCm) return null;
+      const naturalW = imgEl.naturalWidth;
+      const naturalH = imgEl.naturalHeight;
+      const cmPerPx = CM_PER_INCH / dpi;
+      const dispW = imgBaseCm.w * imgTx.scaleX;
+      const dispH = imgBaseCm.h * imgTx.scaleY;
+      const originX = imgTx.x_cm + dispW / 2;
+      const originY = imgTx.y_cm + dispH / 2;
+      const theta = (imgTx.rotation_deg * Math.PI) / 180;
+      const cos = Math.cos(theta);
+      const sin = Math.sin(theta);
+      function canvasToSrc(cx, cy) {
+        const dx = cx - originX;
+        const dy = cy - originY;
+        const rx = dx * cos + dy * sin;
+        const ry = -dx * sin + dy * cos;
+        const sx = (rx + dispW / 2) / (cmPerPx * imgTx.scaleX);
+        const sy = (ry + dispH / 2) / (cmPerPx * imgTx.scaleY);
+        return { sx, sy };
+      }
+      const workW = workCm.w;
+      const workH = workCm.h;
+      const pts = [
+        canvasToSrc(0, 0),
+        canvasToSrc(workW, 0),
+        canvasToSrc(0, workH),
+        canvasToSrc(workW, workH),
+      ];
+      let left = Math.max(0, Math.min(...pts.map(p => p.sx)));
+      let top = Math.max(0, Math.min(...pts.map(p => p.sy)));
+      let right = Math.min(naturalW, Math.max(...pts.map(p => p.sx)));
+      let bottom = Math.min(naturalH, Math.max(...pts.map(p => p.sy)));
+      left = Math.floor(left);
+      top = Math.floor(top);
+      const width = Math.ceil(right - left);
+      const height = Math.ceil(bottom - top);
+      return {
+        src_px: { w: naturalW, h: naturalH },
+        crop_px: { left, top, width, height },
+        rotate_deg: ((imgTx.rotation_deg % 360) + 360) % 360,
+        fit_mode: mode,
+        bg: mode === 'contain' ? bgColor : '#ffffff',
+        canvas_px: {
+          w: Math.round(workW / cmPerPx),
+          h: Math.round(workH / cmPerPx),
+        },
+        w_cm: wCm,
+        h_cm: hCm,
+        bleed_mm: bleedMm,
+      };
+    },
+  }));
 
   // popover color
   const [colorOpen, setColorOpen] = useState(false);
@@ -893,7 +953,9 @@ async function onConfirmSubmit() {
         {imageUrl && imgStatus !== 'loaded' && (
           <div className={`spinner ${styles.spinnerOverlay}`} />
         )}
+        </div>
       </div>
-    </div>
-  );
-}
+    );
+});
+
+export default EditorCanvas;
