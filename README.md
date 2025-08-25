@@ -45,3 +45,10 @@ La respuesta incluye `object_key` y la `signed_url` para realizar el `PUT` binar
 ```
 ${VITE_SUPABASE_URL}/storage/v1/object/uploads/${object_key}
 ```
+
+## Buckets
+
+La aplicación utiliza dos buckets de Supabase Storage:
+
+* `uploads`: privado, almacena los archivos originales subidos por el usuario.
+* `outputs`: público, recibe los archivos generados (`preview.jpg`, `print.jpg` y `file.pdf`) por `/api/finalize-assets`.

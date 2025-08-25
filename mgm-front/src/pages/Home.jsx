@@ -58,9 +58,15 @@ export default function Home() {
     setBusy(true);
     setErr('');
     setStatus('Preparando imágenes y carrito…');
+    const apiBase = import.meta.env.VITE_API_BASE || 'https://mgm-api.vercel.app';
     try {
+      await fetch(`${apiBase}/api/finalize-assets`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id })
+      }).catch(() => {});
+
       console.log('[cart] esperando assets y precio…', job_id);
-      const apiBase = import.meta.env.VITE_API_BASE || 'https://mgm-api.vercel.app';
       const res = await pollJobAndCreateCart(apiBase, job_id, {
         onTick: (i, job) => {
           if (i % 5 === 0) console.log(`[tick ${i}]`, job);
