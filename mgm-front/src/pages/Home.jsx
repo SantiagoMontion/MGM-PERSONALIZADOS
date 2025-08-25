@@ -1,6 +1,7 @@
 // src/pages/Home.jsx
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+
+import { pollJobAndCreateCart } from '../lib/pollJobAndCreateCart';
 
 import UploadStep from '../components/UploadStep';
 import EditorCanvas from '../components/EditorCanvas';
@@ -13,7 +14,6 @@ import { submitJob as submitJobApi } from '../lib/submitJob.js';
 import styles from './Home.module.css';
 
 export default function Home() {
-  const navigate = useNavigate();
 
   // archivo subido
   const [uploaded, setUploaded] = useState(null);
@@ -41,6 +41,7 @@ export default function Home() {
   const [ackLow, setAckLow] = useState(false);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState('');
 
   const effDpi = useMemo(() => {
     if (!layout) return null;
@@ -52,6 +53,33 @@ export default function Home() {
     );
   }, [layout]);
   const level = useMemo(() => (effDpi ? dpiLevel(effDpi, 300, 100) : null), [effDpi]);
+
+  async function handleAfterSubmit(job_id) {
+    setBusy(true);
+    setErr('');
+    setStatus('Preparando imágenes y carrito…');
+    try {
+      console.log('[cart] esperando assets y precio…', job_id);
+      const apiBase = import.meta.env.VITE_API_BASE || 'https://mgm-api.vercel.app';
+      const res = await pollJobAndCreateCart(apiBase, job_id, {
+        onTick: (i, job) => {
+          if (i % 5 === 0) console.log(`[tick ${i}]`, job);
+        },
+      });
+      if (res.ok && res.cart_url) {
+        window.location.href = res.cart_url;
+        return;
+      }
+      console.error('[cart failed]', res);
+      setErr(`No se pudo crear el carrito: ${res.code || 'unknown'}`);
+    } catch (e) {
+      console.error(e);
+      setErr(String(e?.message || e));
+    } finally {
+      setBusy(false);
+      setStatus('');
+    }
+  }
 
   async function handleContinue() {
     if (!uploaded?.file || !layout) {
@@ -135,10 +163,9 @@ export default function Home() {
       }
 
       // 7) submit-job
-      const job = await submitJobApi(API_BASE, submitBody);
-
-      // 8) navegar a confirm
-      navigate(`/confirm?job_id=${job.job_id}`);
+      const out = await submitJobApi(API_BASE, submitBody);
+      const jobId = out?.job?.job_id || out?.job_id;
+      await handleAfterSubmit(jobId);
     } catch (e) {
       console.error(e);
       setErr(String(e?.message || e));
@@ -204,6 +231,7 @@ export default function Home() {
           </button>
         )}
 
+        {status && <p>{status}</p>}
         {err && <p className={`errorText ${styles.error}`}>{err}</p>}
       </div>
     </div>
