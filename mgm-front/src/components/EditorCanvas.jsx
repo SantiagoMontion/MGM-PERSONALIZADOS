@@ -660,6 +660,46 @@ const quality = useMemo(() => {
         bleed_mm: bleedMm,
       };
     },
+    getRenderDescriptorV2: () => {
+      if (!imgEl || !imgBaseCm) return null;
+      const cmPerPx = CM_PER_INCH / dpi;
+      const canvas_px = {
+        w: Math.round(workCm.w / cmPerPx),
+        h: Math.round(workCm.h / cmPerPx),
+      };
+      const w = imgBaseCm.w * imgTx.scaleX;
+      const h = imgBaseCm.h * imgTx.scaleY;
+      const cx = imgTx.x_cm + w / 2;
+      const cy = imgTx.y_cm + h / 2;
+      const { halfW, halfH } = rotAABBHalf(w, h, theta);
+      let left = cx - halfW;
+      let top = cy - halfH;
+      let right = cx + halfW;
+      let bottom = cy + halfH;
+      left = Math.max(0, left);
+      top = Math.max(0, top);
+      right = Math.min(workCm.w, right);
+      bottom = Math.min(workCm.h, bottom);
+      const place_px = {
+        x: Math.round(left / cmPerPx),
+        y: Math.round(top / cmPerPx),
+        w: Math.round(Math.max(0, right - left) / cmPerPx),
+        h: Math.round(Math.max(0, bottom - top) / cmPerPx),
+      };
+      const snapped = Math.round(imgTx.rotation_deg / 90) * 90;
+      const rotate_deg = ((snapped % 360) + 360) % 360;
+      return {
+        canvas_px,
+        src_px: { w: imgEl.naturalWidth, h: imgEl.naturalHeight },
+        place_px,
+        rotate_deg,
+        fit_mode: mode,
+        bg_hex: bgColor,
+        w_cm: wCm,
+        h_cm: hCm,
+        bleed_mm: bleedMm,
+      };
+    },
   }));
 
   // popover color

@@ -8,6 +8,7 @@ export default function Creating() {
   const navigate = useNavigate();
   const location = useLocation();
   const render = location.state?.render;
+  const render_v2 = location.state?.render_v2;
   const apiBase = import.meta.env.VITE_API_BASE || 'https://mgm-api.vercel.app';
 
   useEffect(() => {
@@ -17,7 +18,7 @@ export default function Creating() {
         await fetch(`${apiBase}/api/finalize-assets`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(render ? { job_id: jobId, render } : { job_id: jobId })
+          body: JSON.stringify(render_v2 ? { job_id: jobId, render_v2 } : render ? { job_id: jobId, render } : { job_id: jobId })
         }).catch(() => {});
 
         const res = await pollJobAndCreateCart(apiBase, jobId);
@@ -35,7 +36,7 @@ export default function Creating() {
     }
     if (jobId) run();
     return () => { cancelled = true; };
-  }, [apiBase, jobId, render, navigate]);
+  }, [apiBase, jobId, render, render_v2, navigate]);
 
   return (
     <div>

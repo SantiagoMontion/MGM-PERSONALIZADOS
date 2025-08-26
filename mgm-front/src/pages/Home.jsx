@@ -119,7 +119,8 @@ export default function Home() {
 
   async function handleAfterSubmit(jobId) {
     const render = canvasRef.current?.getRenderDescriptor?.();
-    navigate(`/creating/${jobId}`, { state: { render } });
+    const render_v2 = canvasRef.current?.getRenderDescriptorV2?.();
+    navigate(`/creating/${jobId}`, { state: { render, render_v2 } });
   }
 
   async function handleContinue() {
