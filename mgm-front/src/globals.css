@@ -54,3 +54,15 @@ button:hover:not(:disabled) {
 .errorText {
   color: crimson;
 }
+
+.p-calcu {
+  font-size: 1.4em;
+  font-weight: bold;
+  margin: 8px 0 0;
+}
+
+.minitext {
+  font-size: 0.8em;
+  color: #9ca3af;
+  margin: 0;
+}
