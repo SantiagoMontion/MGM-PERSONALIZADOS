@@ -28,7 +28,8 @@ const Calculadora = ({ width, height, material, setPrice }) => {
   if (mode === "Glasspad") {
     const transferPrice = GLASSPAD_TRANSFER_PRICE;               // $110.000 con transferencia
     const normalFromTransfer = Math.round(transferPrice * 1.25); // +25% → $137.500 lista
-    if (typeof setPrice === "function") setPrice(normalFromTransfer);
+    // Enviamos transferencia al backend
+    if (typeof setPrice === "function") setPrice(transferPrice);
 
     return (
       <div>
@@ -105,7 +106,10 @@ const Calculadora = ({ width, height, material, setPrice }) => {
   const transferWithExtra = isClassic ? transferBase + 2000 : transferBase;
   const normalFromTransfer = Math.round(transferWithExtra / 0.8);
 
-  if (typeof setPrice === "function") setPrice(normalFromTransfer);
+  // Enviamos transferencia (con extra para Classic) al backend
+  if (typeof setPrice === "function") {
+    setPrice(transferWithExtra);
+  }
 
   return (
     <div>
