@@ -10,9 +10,9 @@ import { LIMITS, STANDARD } from '../lib/material.js';
  * - mode: 'standard' | 'custom'
  * - onChange: ({ material, mode, w, h }) => void
  */
-export default function SizeControls({ material, size, mode, onChange }) {
-  const limits = LIMITS[material];
-  const standard = STANDARD[material];
+export default function SizeControls({ material, size, mode, onChange, locked = false }) {
+  const limits = LIMITS[material] || { maxW: size.w, maxH: size.h };
+  const standard = STANDARD[material] || [];
   const currentValue = `${size.w}x${size.h}`;
 
   const options = useMemo(
@@ -32,6 +32,7 @@ export default function SizeControls({ material, size, mode, onChange }) {
         >
           <option>Classic</option>
           <option>PRO</option>
+          <option>Glasspad</option>
         </select>
       </label>
 
@@ -39,6 +40,7 @@ export default function SizeControls({ material, size, mode, onChange }) {
         <select
           value={mode}
           onChange={(e) => onChange({ mode: e.target.value })}
+          disabled={locked}
         >
           <option value="standard">Estándar</option>
           <option value="custom">Personalizado</option>
@@ -53,6 +55,7 @@ export default function SizeControls({ material, size, mode, onChange }) {
               const [w, h] = e.target.value.split('x').map(Number);
               onChange({ mode: 'standard', w, h });
             }}
+            disabled={locked}
           >
             {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
@@ -66,6 +69,7 @@ export default function SizeControls({ material, size, mode, onChange }) {
                 const w = Math.max(1, Math.min(limits.maxW, Number(e.target.value) || 0));
                 onChange({ w, h: size.h });
               }}
+              disabled={locked}
             />
           </label>
           <label>Alto (cm)
@@ -75,12 +79,18 @@ export default function SizeControls({ material, size, mode, onChange }) {
                 const h = Math.max(1, Math.min(limits.maxH, Number(e.target.value) || 0));
                 onChange({ w: size.w, h });
               }}
+              disabled={locked}
             />
           </label>
-          <small className={styles.helper}>
-            Máximo {limits.maxW}×{limits.maxH} cm para {material}
-          </small>
+          {!locked && (
+            <small className={styles.helper}>
+              Máximo {limits.maxW}×{limits.maxH} cm para {material}
+            </small>
+          )}
         </>
+      )}
+      {locked && (
+        <small className={styles.helper}>Medida fija 50×40 cm</small>
       )}
     </div>
   );

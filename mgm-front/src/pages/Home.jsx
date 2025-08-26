@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import UploadStep from '../components/UploadStep';
 import EditorCanvas from '../components/EditorCanvas';
 import SizeControls from '../components/SizeControls';
+import Calculadora from '../components/Calculadora';
 import LoadingOverlay from '../components/LoadingOverlay';
 
 import { LIMITS, STANDARD } from '../lib/material.js';
@@ -36,6 +37,19 @@ export default function Home() {
   const [mode, setMode] = useState('standard');
   const [size, setSize] = useState({ w: 90, h: 40 });
   const sizeCm = useMemo(() => ({ w: Number(size.w) || 90, h: Number(size.h) || 40 }), [size.w, size.h]);
+  const lastSize = useRef({
+    Classic: { w: 90, h: 40 },
+    PRO: { w: 90, h: 40 },
+  });
+
+  useEffect(() => {
+    if (material === 'Glasspad') {
+      setSize({ w: 50, h: 40 });
+    }
+  }, [material]);
+
+  const [priceAmount, setPriceAmount] = useState(0);
+  const priceCurrency = 'ARS';
 
   // layout del canvas
   const [layout, setLayout] = useState(null);
@@ -59,10 +73,20 @@ export default function Home() {
 
   function handleSizeChange(next) {
     if (next.material && next.material !== material) {
+      if (material !== 'Glasspad') {
+        lastSize.current[material] = { ...size };
+      }
+      if (next.material === 'Glasspad') {
+        setMaterial('Glasspad');
+        setMode('standard');
+        setSize({ w: 50, h: 40 });
+        return;
+      }
       const lim = LIMITS[next.material];
+      const prev = lastSize.current[next.material] || size;
       const clamped = {
-        w: Math.min(Math.max(size.w, 1), lim.maxW),
-        h: Math.min(Math.max(size.h, 1), lim.maxH),
+        w: Math.min(Math.max(prev.w, 1), lim.maxW),
+        h: Math.min(Math.max(prev.h, 1), lim.maxH),
       };
       setMaterial(next.material);
       setSize(clamped);
@@ -76,13 +100,20 @@ export default function Home() {
       setMode(next.mode);
       if (next.mode === 'standard' && typeof next.w === 'number' && typeof next.h === 'number') {
         setSize({ w: next.w, h: next.h });
+        if (material !== 'Glasspad') {
+          lastSize.current[material] = { w: next.w, h: next.h };
+        }
       }
     }
     if (typeof next.w === 'number' || typeof next.h === 'number') {
-      setSize({
+      const nextSize = {
         w: typeof next.w === 'number' ? next.w : size.w,
         h: typeof next.h === 'number' ? next.h : size.h,
-      });
+      };
+      setSize(nextSize);
+      if (material !== 'Glasspad') {
+        lastSize.current[material] = nextSize;
+      }
     }
   }
 
@@ -101,6 +132,10 @@ export default function Home() {
       return;
     }
     try {
+      if (priceAmount <= 0) {
+        setErr('Precio no disponible');
+        return;
+      }
       setErr('');
       setBusy(true);
 
@@ -149,6 +184,13 @@ export default function Home() {
       }));
 
       // 5) construir payload submit-job
+      console.log('[PRICE DEBUG]', {
+        material,
+        width_cm: Number(size.w),
+        height_cm: Number(size.h),
+        priceAmount,
+      });
+
       const submitBody = buildSubmitJobBody({
         material,
         size: { w: sizeCm.w, h: sizeCm.h, bleed_mm: 3 },
@@ -157,7 +199,7 @@ export default function Home() {
         dpi: 300,
         uploads: { canonical: file_original_url },
         file_hash,
-        price: { amount: 45900, currency: 'ARS' },
+        price: { amount: priceAmount, currency: priceCurrency },
         design_name: designName,
         notes: designName,
         source: 'web',
@@ -203,6 +245,13 @@ export default function Home() {
               size={size}
               mode={mode}
               onChange={handleSizeChange}
+              locked={material === 'Glasspad'}
+            />
+            <Calculadora
+              width={Number(size.w)}
+              height={Number(size.h)}
+              material={material}
+              setPrice={setPriceAmount}
             />
           </>
         )}
@@ -233,7 +282,7 @@ export default function Home() {
         )}
 
         {uploaded && (
-          <button className={styles.continueButton} disabled={busy} onClick={handleContinue}>
+          <button className={styles.continueButton} disabled={busy || priceAmount <= 0} onClick={handleContinue}>
             Continuar
           </button>
         )}
