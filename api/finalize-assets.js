@@ -68,7 +68,7 @@ export default async function handler(req, res) {
         .json({ ok: false, diag_id: diagId, stage: 'load', error: 'job_not_found' });
     }
 
-    if (job.preview_url && job.print_jpg_url && job.pdf_url) {
+    if (job.print_jpg_url && job.pdf_url) {
       return res.status(200).json({
         ok: true,
         already: true,
@@ -94,7 +94,9 @@ export default async function handler(req, res) {
     }
 
     stage = 'download';
-    const download = await fetch(signed.signedUrl);
+    const download = await fetch(signed.signedUrl, {
+      signal: AbortSignal.timeout(15000),
+    });
     if (!download.ok) {
       throw new Error('download_failed: ' + download.status);
     }
@@ -102,88 +104,128 @@ export default async function handler(req, res) {
 
     stage = 'process';
     let previewBuf, printBuf, pdfBuf, mock1080Buf;
-    if (render_v2) {
-      const DPI = 300;
-      const bleed_cm = (render_v2.bleed_mm || 3) / 10;
-      const out_w_cm = render_v2.w_cm + 2 * bleed_cm;
-      const out_h_cm = render_v2.h_cm + 2 * bleed_cm;
-      const out_w_px = Math.round((out_w_cm * DPI) / 2.54);
-      const out_h_px = Math.round((out_h_cm * DPI) / 2.54);
-      const scale = out_w_px / render_v2.canvas_px.w;
-      const bg = render_v2.fit_mode === 'contain' && render_v2.bg_hex ? render_v2.bg_hex : '#000000';
-      const base = await sharp({
-        create: { width: out_w_px, height: out_h_px, channels: 3, background: bg }
-      })
-        .png()
-        .toBuffer();
-      const rotated = await sharp(buf).rotate(render_v2.rotate_deg).toBuffer();
-      const imgTargetW = Math.max(1, Math.round(render_v2.place_px.w * scale));
-      const imgTargetH = Math.max(1, Math.round(render_v2.place_px.h * scale));
-      const placed = await sharp(rotated)
-        .resize({ width: imgTargetW, height: imgTargetH, fit: 'fill' })
-        .toBuffer();
-      const left = Math.round(render_v2.place_px.x * scale);
-      const top = Math.round(render_v2.place_px.y * scale);
-      printBuf = await sharp(base)
-        .composite([{ input: placed, left, top }])
-        .jpeg({ quality: 92 })
-        .toBuffer();
-      previewBuf = await sharp(printBuf)
-        .resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true })
-        .jpeg({ quality: 80 })
-        .toBuffer();
-      const PAD = 1080;
-      const MARGIN = Math.round(PAD * 0.1);
-      const avail = PAD - 2 * MARGIN;
-      const ratio = render_v2.w_cm / render_v2.h_cm;
-      let padW = avail;
-      let padH = Math.round(avail / ratio);
-      if (padH > avail) {
-        padH = avail;
-        padW = Math.round(avail * ratio);
-      }
-      const padX = Math.round((PAD - padW) / 2);
-      const padY = Math.round((PAD - padH) / 2);
-      const base1080 = await sharp({
-        create: {
-          width: PAD,
-          height: PAD,
-          channels: 4,
-          background: { r: 0, g: 0, b: 0, alpha: 0 }
+    try {
+      if (render_v2) {
+        const DPI = 300;
+        const bleed_cm = (render_v2?.bleed_mm ?? 3) / 10;
+        const out_w_cm = render_v2?.w_cm ?? body.w_cm;
+        const out_h_cm = render_v2?.h_cm ?? body.h_cm;
+        const bleed_px = Math.round((bleed_cm * DPI) / 2.54);
+        const inner_w_px = Math.round((out_w_cm * DPI) / 2.54);
+        const inner_h_px = Math.round((out_h_cm * DPI) / 2.54);
+        const out_w_px = inner_w_px + 2 * bleed_px;
+        const out_h_px = inner_h_px + 2 * bleed_px;
+
+        const canvas_w = render_v2?.canvas_px?.w || inner_w_px;
+        const canvas_h = render_v2?.canvas_px?.h || inner_h_px;
+
+        const scaleX = inner_w_px / canvas_w;
+        const scaleY = inner_h_px / canvas_h;
+        const scale = Math.min(scaleX, scaleY);
+
+        const place = render_v2?.place_px || { x: 0, y: 0, w: canvas_w, h: canvas_h };
+        const targetW = Math.max(1, Math.round(place.w * scale));
+        const targetH = Math.max(1, Math.round(place.h * scale));
+        const targetX = bleed_px + Math.round(place.x * scale);
+        const targetY = bleed_px + Math.round(place.y * scale);
+
+        const bgHex =
+          render_v2?.fit_mode === 'contain' && render_v2?.bg_hex
+            ? render_v2.bg_hex
+            : '#000000';
+
+        const base = await sharp({
+          create: { width: out_w_px, height: out_h_px, channels: 3, background: bgHex },
+        })
+          .png()
+          .toBuffer();
+
+        const srcRot = await sharp(buf)
+          .rotate(render_v2?.rotate_deg ?? 0)
+          .toBuffer();
+
+        const placed = await sharp(srcRot)
+          .resize({ width: targetW, height: targetH, fit: 'fill' })
+          .toBuffer();
+
+        printBuf = await sharp(base)
+          .composite([{ input: placed, left: targetX, top: targetY }])
+          .jpeg({ quality: 92 })
+          .toBuffer();
+
+        previewBuf = await sharp(printBuf)
+          .resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true })
+          .jpeg({ quality: 80 })
+          .toBuffer();
+
+        try {
+          const PAD = 1080;
+          const MARGIN = Math.round(PAD * 0.1);
+          const avail = PAD - 2 * MARGIN;
+          const ratio = out_w_cm / out_h_cm;
+          let padW = avail;
+          let padH = Math.round(avail / ratio);
+          if (padH > avail) {
+            padH = avail;
+            padW = Math.round(avail * ratio);
+          }
+          const padX = Math.round((PAD - padW) / 2);
+          const padY = Math.round((PAD - padH) / 2);
+          const base1080 = await sharp({
+            create: {
+              width: PAD,
+              height: PAD,
+              channels: 4,
+              background: { r: 0, g: 0, b: 0, alpha: 0 },
+            },
+          })
+            .png()
+            .toBuffer();
+          const imgCover = await sharp(printBuf)
+            .resize({ width: padW, height: padH, fit: 'cover', position: 'centre' })
+            .toBuffer();
+          const radius = Math.max(24, Math.round(Math.min(padW, padH) * 0.05));
+          const maskSvg = `<svg width="${padW}" height="${padH}" viewBox="0 0 ${padW} ${padH}"><rect x="0" y="0" width="${padW}" height="${padH}" rx="${radius}" ry="${radius}" fill="#fff"/></svg>`;
+          const mask = await sharp(Buffer.from(maskSvg)).png().toBuffer();
+          const rounded = await sharp(imgCover)
+            .composite([{ input: mask, blend: 'dest-in' }])
+            .png()
+            .toBuffer();
+          mock1080Buf = await sharp(base1080)
+            .composite([{ input: rounded, left: padX, top: padY }])
+            .png()
+            .toBuffer();
+        } catch (e) {
+          console.warn('mockup_1080_failed', e?.message);
         }
-      })
-        .png()
-        .toBuffer();
-      const imgCover = await sharp(printBuf)
-        .resize({ width: padW, height: padH, fit: 'cover', position: 'centre' })
-        .toBuffer();
-      const radius = Math.max(24, Math.round(Math.min(padW, padH) * 0.05));
-      const maskSvg = `<svg width="${padW}" height="${padH}" viewBox="0 0 ${padW} ${padH}"><rect x="0" y="0" width="${padW}" height="${padH}" rx="${radius}" ry="${radius}" fill="#fff"/></svg>`;
-      const mask = await sharp(Buffer.from(maskSvg)).png().toBuffer();
-      const rounded = await sharp(imgCover)
-        .composite([{ input: mask, blend: 'dest-in' }])
-        .png()
-        .toBuffer();
-      mock1080Buf = await sharp(base1080)
-        .composite([{ input: rounded, left: padX, top: padY }])
-        .png()
-        .toBuffer();
-    } else {
-      try {
+      } else {
         previewBuf = await sharp(buf)
           .resize({ width: 1200, withoutEnlargement: true })
           .jpeg({ quality: 80 })
           .toBuffer();
         printBuf = await sharp(buf).jpeg({ quality: 92 }).toBuffer();
-      } catch (err) {
-        printBuf = buf;
-        try {
-          previewBuf = await sharp(buf).jpeg({ quality: 80 }).toBuffer();
-        } catch {
-          previewBuf = buf;
-        }
       }
+    } catch (e) {
+      console.error('finalize-assets main_failed', {
+        diagId,
+        stage: 'process',
+        error: String(e?.message || e),
+      });
+      const fallbackPrint = await sharp(buf)
+        .jpeg({ quality: 90 })
+        .toBuffer()
+        .catch(() => buf);
+      const fallbackPreview = await sharp(buf)
+        .resize({ width: 1200, withoutEnlargement: true })
+        .jpeg({ quality: 80 })
+        .toBuffer()
+        .catch(() => buf);
+      printBuf = fallbackPrint;
+      previewBuf = fallbackPreview;
+      mock1080Buf = null;
     }
+
+    stage = 'pdf';
     const pdfDoc = await PDFDocument.create();
     const jpg = await pdfDoc.embedJpg(printBuf);
     const page = pdfDoc.addPage([jpg.width, jpg.height]);

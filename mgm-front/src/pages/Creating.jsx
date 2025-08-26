@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import LoadingOverlay from '../components/LoadingOverlay';
 import { pollJobAndCreateCart } from '../lib/pollJobAndCreateCart';
@@ -11,37 +11,77 @@ export default function Creating() {
   const render_v2 = location.state?.render_v2;
   const apiBase = import.meta.env.VITE_API_BASE || 'https://mgm-api.vercel.app';
 
-  useEffect(() => {
-    let cancelled = false;
-    async function run() {
-      try {
-        await fetch(`${apiBase}/api/finalize-assets`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(render_v2 ? { job_id: jobId, render_v2 } : render ? { job_id: jobId, render } : { job_id: jobId })
-        }).catch(() => {});
+  const [needsRetry, setNeedsRetry] = useState(false);
 
-        const res = await pollJobAndCreateCart(apiBase, jobId);
-        if (!cancelled) {
-          navigate(`/result/${jobId}`, {
-            state: {
-              cart_url_follow: res?.raw?.cart_url_follow || res?.raw?.cart_url,
-              checkout_url_now: res?.raw?.checkout_url_now
+  const run = useCallback(async () => {
+    setNeedsRetry(false);
+    try {
+      const resp = await fetch(`${apiBase}/api/finalize-assets`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(
+          render_v2
+            ? { job_id: jobId, render_v2 }
+            : render
+            ? { job_id: jobId, render }
+            : { job_id: jobId }
+        )
+      });
+      console.log('finalize diag', resp.headers.get('X-Diag-Id'));
+
+      let retried = false;
+      const res = await pollJobAndCreateCart(apiBase, jobId, {
+        onTick: async (attempt, job) => {
+          if (!retried && attempt >= 10 && job?.status === 'CREATED') {
+            retried = true;
+            try {
+              const r = await fetch(`${apiBase}/api/finalize-assets`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ job_id: jobId })
+              });
+              console.log('retry finalize diag', r.headers.get('X-Diag-Id'));
+            } catch (e) {
+              console.warn(e);
             }
-          });
+          }
         }
-      } catch {
-        if (!cancelled) navigate(`/result/${jobId}`);
+      });
+
+      if (res.ok) {
+        navigate(`/result/${jobId}`, {
+          state: {
+            cart_url_follow: res?.raw?.cart_url_follow || res?.raw?.cart_url,
+            checkout_url_now: res?.raw?.checkout_url_now
+          }
+        });
+      } else {
+        setNeedsRetry(true);
       }
+    } catch {
+      setNeedsRetry(true);
     }
-    if (jobId) run();
-    return () => { cancelled = true; };
   }, [apiBase, jobId, render, render_v2, navigate]);
+
+  useEffect(() => {
+    if (jobId) run();
+  }, [jobId, run]);
 
   return (
     <div>
-      <LoadingOverlay show messages={["Creando tu pedido…"]} />
+      <LoadingOverlay show={!needsRetry} messages={["Creando tu pedido…"]} />
+      {needsRetry && (
+        <button
+          onClick={() => {
+            console.log('manual retry');
+            run();
+          }}
+        >
+          Reintentar
+        </button>
+      )}
       <button onClick={() => navigate('/')}>Cancelar</button>
     </div>
   );
 }
+
