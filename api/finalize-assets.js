@@ -24,6 +24,7 @@ function buildOutputPaths({ job_id }) {
     preview: `${base}-preview.jpg`,
     print: `${base}-print.jpg`,
     pdf: `${base}-file.pdf`,
+    mock1080: `${base}-mock_1080.png`,
   };
 }
 
@@ -42,7 +43,7 @@ export default async function handler(req, res) {
   try {
     const body =
       typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body || {};
-    const { job_id } = body;
+    const { job_id, render_v2 } = body;
     if (!job_id) {
       return res
         .status(400)
@@ -100,19 +101,87 @@ export default async function handler(req, res) {
     const buf = Buffer.from(await download.arrayBuffer());
 
     stage = 'process';
-    let previewBuf, printBuf, pdfBuf;
-    try {
-      previewBuf = await sharp(buf)
-        .resize({ width: 1200, withoutEnlargement: true })
+    let previewBuf, printBuf, pdfBuf, mock1080Buf;
+    if (render_v2) {
+      const DPI = 300;
+      const bleed_cm = (render_v2.bleed_mm || 3) / 10;
+      const out_w_cm = render_v2.w_cm + 2 * bleed_cm;
+      const out_h_cm = render_v2.h_cm + 2 * bleed_cm;
+      const out_w_px = Math.round((out_w_cm * DPI) / 2.54);
+      const out_h_px = Math.round((out_h_cm * DPI) / 2.54);
+      const scale = out_w_px / render_v2.canvas_px.w;
+      const bg = render_v2.fit_mode === 'contain' && render_v2.bg_hex ? render_v2.bg_hex : '#000000';
+      const base = await sharp({
+        create: { width: out_w_px, height: out_h_px, channels: 3, background: bg }
+      })
+        .png()
+        .toBuffer();
+      const rotated = await sharp(buf).rotate(render_v2.rotate_deg).toBuffer();
+      const imgTargetW = Math.max(1, Math.round(render_v2.place_px.w * scale));
+      const imgTargetH = Math.max(1, Math.round(render_v2.place_px.h * scale));
+      const placed = await sharp(rotated)
+        .resize({ width: imgTargetW, height: imgTargetH, fit: 'fill' })
+        .toBuffer();
+      const left = Math.round(render_v2.place_px.x * scale);
+      const top = Math.round(render_v2.place_px.y * scale);
+      printBuf = await sharp(base)
+        .composite([{ input: placed, left, top }])
+        .jpeg({ quality: 92 })
+        .toBuffer();
+      previewBuf = await sharp(printBuf)
+        .resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true })
         .jpeg({ quality: 80 })
         .toBuffer();
-      printBuf = await sharp(buf).jpeg({ quality: 92 }).toBuffer();
-    } catch (err) {
-      printBuf = buf;
+      const PAD = 1080;
+      const MARGIN = Math.round(PAD * 0.1);
+      const avail = PAD - 2 * MARGIN;
+      const ratio = render_v2.w_cm / render_v2.h_cm;
+      let padW = avail;
+      let padH = Math.round(avail / ratio);
+      if (padH > avail) {
+        padH = avail;
+        padW = Math.round(avail * ratio);
+      }
+      const padX = Math.round((PAD - padW) / 2);
+      const padY = Math.round((PAD - padH) / 2);
+      const base1080 = await sharp({
+        create: {
+          width: PAD,
+          height: PAD,
+          channels: 4,
+          background: { r: 0, g: 0, b: 0, alpha: 0 }
+        }
+      })
+        .png()
+        .toBuffer();
+      const imgCover = await sharp(printBuf)
+        .resize({ width: padW, height: padH, fit: 'cover', position: 'centre' })
+        .toBuffer();
+      const radius = Math.max(24, Math.round(Math.min(padW, padH) * 0.05));
+      const maskSvg = `<svg width="${padW}" height="${padH}" viewBox="0 0 ${padW} ${padH}"><rect x="0" y="0" width="${padW}" height="${padH}" rx="${radius}" ry="${radius}" fill="#fff"/></svg>`;
+      const mask = await sharp(Buffer.from(maskSvg)).png().toBuffer();
+      const rounded = await sharp(imgCover)
+        .composite([{ input: mask, blend: 'dest-in' }])
+        .png()
+        .toBuffer();
+      mock1080Buf = await sharp(base1080)
+        .composite([{ input: rounded, left: padX, top: padY }])
+        .png()
+        .toBuffer();
+    } else {
       try {
-        previewBuf = await sharp(buf).jpeg({ quality: 80 }).toBuffer();
-      } catch {
-        previewBuf = buf;
+        previewBuf = await sharp(buf)
+          .resize({ width: 1200, withoutEnlargement: true })
+          .jpeg({ quality: 80 })
+          .toBuffer();
+        printBuf = await sharp(buf).jpeg({ quality: 92 }).toBuffer();
+      } catch (err) {
+        printBuf = buf;
+        try {
+          previewBuf = await sharp(buf).jpeg({ quality: 80 }).toBuffer();
+        } catch {
+          previewBuf = buf;
+        }
       }
     }
     const pdfDoc = await PDFDocument.create();
@@ -137,6 +206,15 @@ export default async function handler(req, res) {
         upsert: true,
       });
     if (upPrint.error) throw new Error('upload_print_failed: ' + upPrint.error.message);
+    const upMock = mock1080Buf
+      ? await supa.storage
+          .from('outputs')
+          .upload(out.mock1080.replace(/^outputs\//, ''), mock1080Buf, {
+            contentType: 'image/png',
+            upsert: true,
+          })
+      : { error: null };
+    if (upMock.error) throw new Error('upload_mock_failed: ' + upMock.error.message);
     const upPdf = await supa.storage
       .from('outputs')
       .upload(out.pdf.replace(/^outputs\//, ''), pdfBuf, {
@@ -150,9 +228,14 @@ export default async function handler(req, res) {
     const preview_url = `${base}/storage/v1/object/public/${out.preview}`;
     const print_jpg_url = `${base}/storage/v1/object/public/${out.print}`;
     const pdf_url = `${base}/storage/v1/object/public/${out.pdf}`;
+    const mock_1080_url = mock1080Buf
+      ? `${base}/storage/v1/object/public/${out.mock1080}`
+      : null;
+    const updateObj = { preview_url, print_jpg_url, pdf_url, status: 'READY_FOR_PRINT' };
+    if (mock_1080_url) updateObj.mock_1080_url = mock_1080_url;
     const { error: upErr } = await supa
       .from('jobs')
-      .update({ preview_url, print_jpg_url, pdf_url, status: 'READY_FOR_PRINT' })
+      .update(updateObj)
       .eq('id', job.id);
     if (upErr) throw new Error('db_update_failed: ' + upErr.message);
 
@@ -162,6 +245,7 @@ export default async function handler(req, res) {
       preview_url,
       print_jpg_url,
       pdf_url,
+      ...(mock_1080_url ? { mock_1080_url } : {}),
     });
   } catch (e) {
     console.error('finalize-assets error', { diagId, stage, error: e });
