@@ -120,6 +120,12 @@ export default function Home() {
   async function handleAfterSubmit(jobId) {
     const render = canvasRef.current?.getRenderDescriptor?.();
     const render_v2 = canvasRef.current?.getRenderDescriptorV2?.();
+    if (import.meta.env.DEV) {
+      const canvas = canvasRef.current?.exportVisibleCanvas?.();
+      window.__previewData = { canvas, render_v2, jobId };
+      navigate('/dev/canvas-preview', { state: { jobId } });
+      return;
+    }
     navigate(`/creating/${jobId}`, { state: { render, render_v2 } });
   }
 
