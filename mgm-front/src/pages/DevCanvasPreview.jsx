@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 export default function DevCanvasPreview() {
@@ -15,6 +15,10 @@ export default function DevCanvasPreview() {
     const url = canvas.toDataURL('image/png');
     setImgUrl(url);
   }
+
+  useEffect(() => {
+    exportPng();
+  }, []);
 
   function download() {
     if (!imgUrl) return;
@@ -65,10 +69,10 @@ export default function DevCanvasPreview() {
       )}
       <label style={{ display: 'block', marginTop: '10px' }}>
         <input type="checkbox" checked={onlyPreview} onChange={e => setOnlyPreview(e.target.checked)} />{' '}
-        Sólo previsualizar (no llamar API)
+        Sólo visualizar (no llamar API)
       </label>
       <div style={{ marginTop: '10px' }}>
-        <button onClick={continueFlow}>Continuar con API (finalize-assets)</button>
+        <button onClick={continueFlow}>Continuar (llamar finalize-assets)</button>
       </div>
     </div>
   );

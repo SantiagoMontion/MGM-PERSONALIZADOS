@@ -31,9 +31,9 @@ function isPosFinite(n) {
 }
 
 export default async function handler(req, res) {
+  if (cors(req, res)) return;
   const diagId = crypto.randomUUID?.() ?? crypto.randomUUID();
   res.setHeader('X-Diag-Id', String(diagId));
-  if (cors(req, res)) return;
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
     return err(res, 405, {

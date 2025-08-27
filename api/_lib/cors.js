@@ -10,7 +10,7 @@ export function cors(req, res) {
       .map(s => s.replace(/\/$/, '')); // sin barra final
 
     // Métodos / headers permitidos
-    res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader(
       'Access-Control-Allow-Headers',
       'Content-Type, Idempotency-Key, X-Diag-Id'
@@ -35,7 +35,7 @@ export function cors(req, res) {
   } catch (e) {
     // Incluso si algo falla, respondemos preflight
     res.setHeader('Access-Control-Allow-Origin', origin || '*');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader(
       'Access-Control-Allow-Headers',
       'Content-Type, Idempotency-Key, X-Diag-Id'
