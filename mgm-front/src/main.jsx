@@ -6,9 +6,10 @@ import Home from './pages/Home.jsx';
 import Confirm from './pages/Confirm.jsx';
 import Creating from './pages/Creating.jsx';
 import Result from './pages/Result.jsx';
+import DevRenderPreview from './pages/DevRenderPreview.jsx';
 import './globals.css';
 
-const router = createBrowserRouter([
+const routes = [
   {
     element: <App />,
     children: [
@@ -18,7 +19,13 @@ const router = createBrowserRouter([
       { path: '/result/:jobId', element: <Result /> }
     ]
   }
-]);
+];
+
+if (import.meta.env.DEV) {
+  routes[0].children.push({ path: '/dev/render-preview', element: <DevRenderPreview /> });
+}
+
+const router = createBrowserRouter(routes);
 
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>

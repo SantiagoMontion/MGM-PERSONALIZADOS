@@ -2,6 +2,7 @@
 import { cors } from './_lib/cors.js';
 import getSupabaseAdmin from './_lib/supabaseAdmin.js';
 import sharp from 'sharp';
+import composeImage from './_lib/composeImage.ts';
 import crypto from 'node:crypto';
 
 function parseUploadsObjectKey(url = '') {
@@ -174,112 +175,25 @@ export default async function handler(req, res) {
   const srcBuf = Buffer.from(await srcDownload.arrayBuffer());
 
   stage = 'compose';
+  let printBuf;
   try {
-    const DPI = 300;
-    const bleed_cm = (render_v2.bleed_mm ?? 3) / 10;
-    const inner_w_px = Math.round((render_v2.w_cm * DPI) / 2.54);
-    const inner_h_px = Math.round((render_v2.h_cm * DPI) / 2.54);
-    const bleed_px = Math.round((bleed_cm * DPI) / 2.54);
-    const out_w_px = inner_w_px + 2 * bleed_px;
-    const out_h_px = inner_h_px + 2 * bleed_px;
-    const scaleX = inner_w_px / c.w;
-    const scaleY = inner_h_px / c.h;
-    const scale = Math.min(scaleX, scaleY);
-    const targetW = Math.round(p.w * scale);
-    const targetH = Math.round(p.h * scale);
-    let destX = bleed_px + Math.round(p.x * scale);
-    let destY = bleed_px + Math.round(p.y * scale);
-
-    const srcRot = await sharp(srcBuf)
-      .rotate(render_v2.rotate_deg ?? 0)
-      .toBuffer();
-    const resized = await sharp(srcRot)
-      .resize({ width: targetW, height: targetH, fit: 'fill' })
-      .toBuffer();
-
-    const cutLeft = Math.max(0, -destX);
-    const cutTop = Math.max(0, -destY);
-    const cutRight = Math.max(0, destX + targetW - out_w_px);
-    const cutBottom = Math.max(0, destY + targetH - out_h_px);
-
-    const clipX = cutLeft;
-    const clipY = cutTop;
-    const clipW = targetW - cutLeft - cutRight;
-    const clipH = targetH - cutTop - cutBottom;
-    if (clipW <= 0 || clipH <= 0) {
-      debug = {
-        inner_w_px,
-        inner_h_px,
-        out_w_px,
-        out_h_px,
-        scaleX,
-        scaleY,
-        scale,
-        place: p,
-        destX,
-        destY,
-        targetW,
-        targetH,
-        clipX,
-        clipY,
-        clipW,
-        clipH,
-      };
-      return err(res, 400, {
-        diag_id: diagId,
-        stage,
-        message: 'invalid_bbox',
-        debug,
-      });
+    const comp = await composeImage({ render_v2, srcBuf });
+    ({ printBuf, debug } = comp);
+  } catch (e) {
+    if (e?.message === 'invalid_bbox') {
+      debug = e.debug || {};
+      return err(res, 400, { diag_id: diagId, stage, message: 'invalid_bbox', debug });
     }
+    throw e;
+  }
 
-    const layer = await sharp(resized)
-      .extract({ left: clipX, top: clipY, width: clipW, height: clipH })
-      .toBuffer();
+  const previewBuf = await sharp(printBuf)
+    .resize({ width: 1600, withoutEnlargement: true })
+    .jpeg({ quality: 82 })
+    .toBuffer();
 
-    destX = Math.max(0, destX);
-    destY = Math.max(0, destY);
-
-    debug = {
-      inner_w_px,
-      inner_h_px,
-      out_w_px,
-      out_h_px,
-      scaleX,
-      scaleY,
-      scale,
-      place: p,
-      destX,
-      destY,
-      targetW,
-      targetH,
-      clipX,
-      clipY,
-      clipW,
-      clipH,
-    };
-
-    const bgHex =
-      render_v2.fit_mode === 'contain' && render_v2.bg_hex
-        ? render_v2.bg_hex
-        : '#000000';
-    const base = await sharp({
-      create: { width: out_w_px, height: out_h_px, channels: 3, background: bgHex },
-    })
-      .png()
-      .toBuffer();
-    const printBuf = await sharp(base)
-      .composite([{ input: layer, left: destX, top: destY }])
-      .jpeg({ quality: 92 })
-      .toBuffer();
-
-    const previewBuf = await sharp(printBuf)
-      .resize({ width: 1600, withoutEnlargement: true })
-      .jpeg({ quality: 82 })
-      .toBuffer();
-
-    let mock1080Buf = null;
-    try {
+  let mock1080Buf = null;
+  try {
       const base1080 = await sharp({
         create: {
           width: 1080,
@@ -320,62 +234,62 @@ export default async function handler(req, res) {
       console.warn('mockup_1080_failed', e?.message);
     }
 
-    stage = 'upload';
-    const out = buildOutputPaths({ job_id });
-    const upPrev = await supa.storage
-      .from('outputs')
-      .upload(out.preview.replace(/^outputs\//, ''), previewBuf, {
-        contentType: 'image/jpeg',
-        upsert: true,
-      });
-    if (upPrev.error)
-      throw new Error('upload_preview_failed: ' + upPrev.error.message);
-    const upPrint = await supa.storage
-      .from('outputs')
-      .upload(out.print.replace(/^outputs\//, ''), printBuf, {
-        contentType: 'image/jpeg',
-        upsert: true,
-      });
-    if (upPrint.error)
-      throw new Error('upload_print_failed: ' + upPrint.error.message);
-    if (mock1080Buf) {
-      const upMock = await supa.storage
-        .from('outputs')
-        .upload(out.mock1080.replace(/^outputs\//, ''), mock1080Buf, {
-          contentType: 'image/png',
-          upsert: true,
-        });
-      if (upMock.error)
-        throw new Error('upload_mock_failed: ' + upMock.error.message);
-    }
-
-    stage = 'db';
-    const baseUrl = (process.env.SUPABASE_URL || '').replace(/\/$/, '');
-    const preview_url = `${baseUrl}/storage/v1/object/public/${out.preview}`;
-    const print_jpg_url = `${baseUrl}/storage/v1/object/public/${out.print}`;
-    const mock_1080_url = mock1080Buf
-      ? `${baseUrl}/storage/v1/object/public/${out.mock1080}`
-      : null;
-    const updateObj = {
-      preview_url,
-      print_jpg_url,
-      status: 'READY_FOR_PRINT',
-    };
-    if (mock_1080_url) updateObj.mock_1080_url = mock_1080_url;
-    const { error: upErr } = await supa
-      .from('jobs')
-      .update(updateObj)
-      .eq('id', job.id);
-    if (upErr) throw new Error('db_update_failed: ' + upErr.message);
-
-    return res.status(200).json({
-      ok: true,
-      job_id,
-      preview_url,
-      print_jpg_url,
-      ...(mock_1080_url ? { mock_1080_url } : {}),
+  stage = 'upload';
+  const out = buildOutputPaths({ job_id });
+  const upPrev = await supa.storage
+    .from('outputs')
+    .upload(out.preview.replace(/^outputs\//, ''), previewBuf, {
+      contentType: 'image/jpeg',
+      upsert: true,
     });
-  } catch (e) {
+  if (upPrev.error)
+    throw new Error('upload_preview_failed: ' + upPrev.error.message);
+  const upPrint = await supa.storage
+    .from('outputs')
+    .upload(out.print.replace(/^outputs\//, ''), printBuf, {
+      contentType: 'image/jpeg',
+      upsert: true,
+    });
+  if (upPrint.error)
+    throw new Error('upload_print_failed: ' + upPrint.error.message);
+  if (mock1080Buf) {
+    const upMock = await supa.storage
+      .from('outputs')
+      .upload(out.mock1080.replace(/^outputs\//, ''), mock1080Buf, {
+        contentType: 'image/png',
+        upsert: true,
+      });
+    if (upMock.error)
+      throw new Error('upload_mock_failed: ' + upMock.error.message);
+  }
+
+  stage = 'db';
+  const baseUrl = (process.env.SUPABASE_URL || '').replace(/\/$/, '');
+  const preview_url = `${baseUrl}/storage/v1/object/public/${out.preview}`;
+  const print_jpg_url = `${baseUrl}/storage/v1/object/public/${out.print}`;
+  const mock_1080_url = mock1080Buf
+    ? `${baseUrl}/storage/v1/object/public/${out.mock1080}`
+    : null;
+  const updateObj = {
+    preview_url,
+    print_jpg_url,
+    status: 'READY_FOR_PRINT',
+  };
+  if (mock_1080_url) updateObj.mock_1080_url = mock_1080_url;
+  const { error: upErr } = await supa
+    .from('jobs')
+    .update(updateObj)
+    .eq('id', job.id);
+  if (upErr) throw new Error('db_update_failed: ' + upErr.message);
+
+  return res.status(200).json({
+    ok: true,
+    job_id,
+    preview_url,
+    print_jpg_url,
+    ...(mock_1080_url ? { mock_1080_url } : {}),
+  });
+} catch (e) {
     console.error('finalize-assets error', { diagId, stage, error: e });
     const status = stage === 'download_src' ? 502 : 500;
     const msgMap = {
