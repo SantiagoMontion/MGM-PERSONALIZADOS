@@ -129,6 +129,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
   // viewport
   const wrapRef = useRef(null);
+  const stageRef = useRef(null);
   const [wrapSize, setWrapSize] = useState({ w: 960, h: 540 });
   useEffect(() => {
     const ro = new ResizeObserver(() => {
@@ -700,6 +701,23 @@ const quality = useMemo(() => {
         bleed_mm: bleedMm,
       };
     },
+    exportVisibleCanvas: () => {
+      if (!stageRef.current) return null;
+      const pixelRatio = window.devicePixelRatio || 1;
+      const stageCanvas = stageRef.current.toCanvas({ pixelRatio });
+      const k = baseScale * viewScale * pixelRatio;
+      const x = bleedCm * k;
+      const y = bleedCm * k;
+      const w = wCm * k;
+      const h = hCm * k;
+      const out = document.createElement('canvas');
+      out.width = Math.round(w);
+      out.height = Math.round(h);
+      out
+        .getContext('2d')
+        .drawImage(stageCanvas, x, y, w, h, 0, 0, Math.round(w), Math.round(h));
+      return out;
+    }
   }));
 
   // popover color
@@ -835,6 +853,7 @@ async function onConfirmSubmit() {
           className={styles.undoButton}
         >↺</button>
         <Stage
+          ref={stageRef}
           width={wrapSize.w}
           height={wrapSize.h}
           scaleX={baseScale * viewScale}

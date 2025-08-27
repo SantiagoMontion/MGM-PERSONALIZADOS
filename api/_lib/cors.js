@@ -9,27 +9,23 @@ export function cors(req, res) {
       .filter(Boolean)
       .map(s => s.replace(/\/$/, '')); // sin barra final
 
-    // Siempre informar qué variamos
-    res.setHeader('Vary', 'Origin');
-
     // Métodos / headers permitidos
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Idempotency-Key');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
+    res.setHeader(
+      'Access-Control-Allow-Headers',
+      'Content-Type, Idempotency-Key, X-Diag-Id'
+    );
     // Exponer diag al front para debug
     res.setHeader('Access-Control-Expose-Headers', 'X-Diag-Id');
 
-    const isDev = process.env.NODE_ENV !== 'production';
-
     if (allowed.length === 0) {
-      // Sin lista -> en dev: *, en prod: eco del origin (si viene), o *
-      res.setHeader('Access-Control-Allow-Origin', isDev ? '*' : (origin || '*'));
+      // Lista vacía -> permitir todos
+      res.setHeader('Access-Control-Allow-Origin', '*');
     } else if (origin && allowed.includes(origin)) {
       res.setHeader('Access-Control-Allow-Origin', origin);
-    } else if (isDev && origin.startsWith('http://localhost:')) {
-      // fallback dev para cualquier puerto local
-      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Vary', 'Origin');
     }
-    // Si no matchea y es prod: no seteamos ACAO (el navegador bloqueará)
+    // Si no matchea: no seteamos ACAO (el navegador bloqueará)
 
     if (req.method === 'OPTIONS') {
       res.status(204).end();
@@ -38,10 +34,12 @@ export function cors(req, res) {
     return false;
   } catch (e) {
     // Incluso si algo falla, respondemos preflight
-    res.setHeader('Vary', 'Origin');
     res.setHeader('Access-Control-Allow-Origin', origin || '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Idempotency-Key');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
+    res.setHeader(
+      'Access-Control-Allow-Headers',
+      'Content-Type, Idempotency-Key, X-Diag-Id'
+    );
     res.setHeader('Access-Control-Expose-Headers', 'X-Diag-Id');
     res.status(204).end();
     return true;

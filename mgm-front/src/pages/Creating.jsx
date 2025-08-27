@@ -9,6 +9,7 @@ export default function Creating() {
   const location = useLocation();
   const render = location.state?.render;
   const render_v2 = location.state?.render_v2;
+  const skipFinalize = location.state?.skipFinalize;
   const apiBase = import.meta.env.VITE_API_BASE || 'https://mgm-api.vercel.app';
 
   const [needsRetry, setNeedsRetry] = useState(false);
@@ -64,12 +65,13 @@ export default function Creating() {
   }, [apiBase, jobId, render, render_v2, navigate]);
 
   useEffect(() => {
-    if (jobId) run();
-  }, [jobId, run]);
+    if (jobId && !skipFinalize) run();
+  }, [jobId, run, skipFinalize]);
 
   return (
     <div>
-      <LoadingOverlay show={!needsRetry} messages={["Creando tu pedido…"]} />
+      <LoadingOverlay show={!needsRetry && !skipFinalize} messages={["Creando tu pedido…"]} />
+      {skipFinalize && <p>Modo sólo previsualización: finalize-assets no fue llamado.</p>}
       {needsRetry && (
         <button
           onClick={() => {
