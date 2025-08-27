@@ -35,7 +35,12 @@ export default function DevCanvasPreview() {
   console.log('[PREVIEW DEBUG]', {
     render_v2,
     canvas_px: render_v2?.canvas_px,
+    pad_px: render_v2?.pad_px,
     place_px: render_v2?.place_px,
+    place_rel: render_v2?.place_px && render_v2?.pad_px ? {
+      x: render_v2.place_px.x - render_v2.pad_px.x,
+      y: render_v2.place_px.y - render_v2.pad_px.y,
+    } : undefined,
     rotate_deg: render_v2?.rotate_deg,
     w_cm: render_v2?.w_cm,
     h_cm: render_v2?.h_cm,
@@ -59,7 +64,9 @@ export default function DevCanvasPreview() {
           </pre>
           <div>
             <p>{`canvas_px: ${JSON.stringify(render_v2.canvas_px)}`}</p>
+            <p>{`pad_px: ${JSON.stringify(render_v2.pad_px)}`}</p>
             <p>{`place_px: ${JSON.stringify(render_v2.place_px)}`}</p>
+            <p>{`place_rel: ${JSON.stringify({ x: render_v2.place_px.x - render_v2.pad_px.x, y: render_v2.place_px.y - render_v2.pad_px.y })}`}</p>
             <p>{`rotate_deg: ${render_v2.rotate_deg}`}</p>
             <p>{`w_cm: ${render_v2.w_cm}`}</p>
             <p>{`h_cm: ${render_v2.h_cm}`}</p>

@@ -60,12 +60,19 @@ export default async function handler(req, res) {
   }
 
   const { job_id, render_v2 } = body;
-  if (!job_id || !render_v2 || !render_v2.canvas_px || !render_v2.place_px) {
+  if (
+    !job_id ||
+    !render_v2 ||
+    !render_v2.canvas_px ||
+    !render_v2.place_px ||
+    !render_v2.pad_px
+  ) {
     debug = {
       has_job_id: !!job_id,
       has_render_v2: !!render_v2,
       has_canvas: !!render_v2?.canvas_px,
       has_place: !!render_v2?.place_px,
+      has_pad: !!render_v2?.pad_px,
     };
     return err(res, 400, {
       diag_id: diagId,
@@ -77,11 +84,22 @@ export default async function handler(req, res) {
 
   const c = render_v2.canvas_px;
   const p = render_v2.place_px;
+  const pad = render_v2.pad_px;
   const invalidField =
     !isPosFinite(c.w)
       ? ['canvas_px.w', c.w]
       : !isPosFinite(c.h)
       ? ['canvas_px.h', c.h]
+      : !Number.isFinite(pad.x)
+      ? ['pad_px.x', pad.x]
+      : !Number.isFinite(pad.y)
+      ? ['pad_px.y', pad.y]
+      : !isPosFinite(pad.w)
+      ? ['pad_px.w', pad.w]
+      : !isPosFinite(pad.h)
+      ? ['pad_px.h', pad.h]
+      : !isPosFinite(pad.radius_px)
+      ? ['pad_px.radius_px', pad.radius_px]
       : !Number.isFinite(p.x)
       ? ['place_px.x', p.x]
       : !Number.isFinite(p.y)
@@ -111,7 +129,9 @@ export default async function handler(req, res) {
       stage: 'validate',
       debug: {
         canvas: c,
+        pad,
         place: p,
+        place_rel: { x: p.x - pad.x, y: p.y - pad.y },
         w_cm: render_v2.w_cm,
         h_cm: render_v2.h_cm,
         bleed_mm: render_v2.bleed_mm,
