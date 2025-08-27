@@ -25,6 +25,10 @@ function err(res, status, { diag_id, stage, message, hints = [], debug = {} }) {
   return res.status(status).json({ ok: false, diag_id, stage, message, hints, debug });
 }
 
+function isPosFinite(n) {
+  return typeof n === 'number' && Number.isFinite(n) && n > 0;
+}
+
 export default async function handler(req, res) {
   const diagId = crypto.randomUUID?.() ?? crypto.randomUUID();
   res.setHeader('X-Diag-Id', String(diagId));
@@ -41,86 +45,136 @@ export default async function handler(req, res) {
   let stage = 'validate';
   let debug = {};
 
+  let body;
   try {
-    const body =
+    body =
       typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body || {};
-    const { job_id, render_v2 } = body;
-    if (!job_id) {
-      return err(res, 400, {
-        diag_id: diagId,
-        stage: 'validate',
-        message: 'missing_job_id',
-      });
-    }
-    if (!render_v2 || !render_v2.canvas_px || !render_v2.place_px) {
-      return err(res, 400, {
-        diag_id: diagId,
-        stage: 'validate',
-        message: 'bad_render_v2',
-      });
-    }
+  } catch (e) {
+    return err(res, 400, {
+      diag_id: diagId,
+      stage,
+      message: 'bad_json',
+      debug: { body: req.body },
+    });
+  }
 
-    const supa = getSupabaseAdmin();
+  const { job_id, render_v2 } = body;
+  if (!job_id || !render_v2 || !render_v2.canvas_px || !render_v2.place_px) {
+    debug = {
+      has_job_id: !!job_id,
+      has_render_v2: !!render_v2,
+      has_canvas: !!render_v2?.canvas_px,
+      has_place: !!render_v2?.place_px,
+    };
+    return err(res, 400, {
+      diag_id: diagId,
+      stage,
+      message: 'missing_fields',
+      debug,
+    });
+  }
 
-    stage = 'load_job';
-    const { data: job, error: jobErr } = await supa
-      .from('jobs')
-      .select(
-        'id, job_id, file_original_url, preview_url, print_jpg_url, mock_1080_url, status'
-      )
-      .eq('job_id', job_id)
-      .maybeSingle();
-    if (jobErr) throw new Error('db_load_error: ' + jobErr.message);
-    if (!job) {
-      return err(res, 404, {
-        diag_id: diagId,
-        stage: 'load_job',
-        message: 'job_not_found',
-      });
-    }
-    if (!job.file_original_url) {
-      return err(res, 400, {
-        diag_id: diagId,
-        stage: 'validate',
-        message: 'missing_original_url',
-      });
-    }
+  const c = render_v2.canvas_px;
+  const p = render_v2.place_px;
+  const invalidField =
+    !isPosFinite(c.w)
+      ? ['canvas_px.w', c.w]
+      : !isPosFinite(c.h)
+      ? ['canvas_px.h', c.h]
+      : !Number.isFinite(p.x)
+      ? ['place_px.x', p.x]
+      : !Number.isFinite(p.y)
+      ? ['place_px.y', p.y]
+      : !isPosFinite(p.w)
+      ? ['place_px.w', p.w]
+      : !isPosFinite(p.h)
+      ? ['place_px.h', p.h]
+      : !isPosFinite(render_v2.w_cm)
+      ? ['w_cm', render_v2.w_cm]
+      : !isPosFinite(render_v2.h_cm)
+      ? ['h_cm', render_v2.h_cm]
+      : null;
+  if (invalidField) {
+    const [field, value] = invalidField;
+    return err(res, 400, {
+      diag_id: diagId,
+      stage,
+      message: 'invalid_number',
+      debug: { field, value },
+    });
+  }
 
-    if (job.print_jpg_url && job.status === 'READY_FOR_PRINT') {
-      return res.status(200).json({
-        ok: true,
-        already: true,
-        job_id,
-        preview_url: job.preview_url,
-        print_jpg_url: job.print_jpg_url,
-        ...(job.mock_1080_url ? { mock_1080_url: job.mock_1080_url } : {}),
-      });
-    }
+  const supa = getSupabaseAdmin();
 
-    stage = 'download_src';
-    const objectKey = parseUploadsObjectKey(job.file_original_url);
-    if (!objectKey) {
-      return err(res, 400, {
-        diag_id: diagId,
-        stage: 'download_src',
-        message: 'bad_original_url',
-      });
-    }
-    const { data: srcDownload, error: srcErr } = await supa.storage
-      .from('uploads')
-      .download(objectKey);
-    if (srcErr || !srcDownload) {
-      return err(res, 502, {
-        diag_id: diagId,
-        stage: 'download_src',
-        message: 'download_failed',
-        hints: srcErr ? [srcErr.message] : [],
-      });
-    }
-    const srcBuf = Buffer.from(await srcDownload.arrayBuffer());
+  stage = 'load_job';
+  const { data: job, error: jobErr } = await supa
+    .from('jobs')
+    .select(
+      'id, job_id, file_original_url, preview_url, print_jpg_url, mock_1080_url, status'
+    )
+    .eq('job_id', job_id)
+    .maybeSingle();
+  if (jobErr) {
+    return err(res, 500, {
+      diag_id: diagId,
+      stage: 'db',
+      message: 'db_failed',
+      debug: { error: jobErr.message },
+    });
+  }
+  if (!job) {
+    return err(res, 404, {
+      diag_id: diagId,
+      stage: 'load_job',
+      message: 'job_not_found',
+      debug: { job_id },
+    });
+  }
+  if (!job.file_original_url) {
+    return err(res, 400, {
+      diag_id: diagId,
+      stage,
+      message: 'missing_original_url',
+      debug: { job_id },
+    });
+  }
 
-    stage = 'compose';
+  if (job.print_jpg_url && job.status === 'READY_FOR_PRINT') {
+    return res.status(200).json({
+      ok: true,
+      already: true,
+      job_id,
+      preview_url: job.preview_url,
+      print_jpg_url: job.print_jpg_url,
+      ...(job.mock_1080_url ? { mock_1080_url: job.mock_1080_url } : {}),
+    });
+  }
 
+  stage = 'download_src';
+  const objectKey = parseUploadsObjectKey(job.file_original_url);
+  if (!objectKey) {
+    return err(res, 400, {
+      diag_id: diagId,
+      stage,
+      message: 'bad_original_url',
+      debug: { file_original_url: job.file_original_url },
+    });
+  }
+  const { data: srcDownload, error: srcErr } = await supa.storage
+    .from('uploads')
+    .download(objectKey);
+  if (srcErr || !srcDownload) {
+    return err(res, 502, {
+      diag_id: diagId,
+      stage,
+      message: 'download_failed',
+      debug: { objectKey, error: srcErr?.message },
+    });
+  }
+  const srcBuf = Buffer.from(await srcDownload.arrayBuffer());
+
+  stage = 'compose';
+  try {
     const DPI = 300;
     const bleed_cm = (render_v2.bleed_mm ?? 3) / 10;
     const inner_w_px = Math.round((render_v2.w_cm * DPI) / 2.54);
@@ -128,30 +182,13 @@ export default async function handler(req, res) {
     const bleed_px = Math.round((bleed_cm * DPI) / 2.54);
     const out_w_px = inner_w_px + 2 * bleed_px;
     const out_h_px = inner_h_px + 2 * bleed_px;
-    const cw = render_v2.canvas_px?.w | 0;
-    const ch = render_v2.canvas_px?.h | 0;
-    if (!cw || !ch) {
-      return err(res, 400, {
-        diag_id: diagId,
-        stage: 'validate',
-        message: 'bad_canvas',
-      });
-    }
-    const place = render_v2.place_px;
-    if (!place || place.w <= 0 || place.h <= 0) {
-      return err(res, 400, {
-        diag_id: diagId,
-        stage: 'validate',
-        message: 'bad_place',
-      });
-    }
-    const scaleX = inner_w_px / cw;
-    const scaleY = inner_h_px / ch;
+    const scaleX = inner_w_px / c.w;
+    const scaleY = inner_h_px / c.h;
     const scale = Math.min(scaleX, scaleY);
-    const targetW = Math.max(1, Math.round(place.w * scale));
-    const targetH = Math.max(1, Math.round(place.h * scale));
-    let destX = bleed_px + Math.round(place.x * scale);
-    let destY = bleed_px + Math.round(place.y * scale);
+    const targetW = Math.round(p.w * scale);
+    const targetH = Math.round(p.h * scale);
+    let destX = bleed_px + Math.round(p.x * scale);
+    let destY = bleed_px + Math.round(p.y * scale);
 
     const srcRot = await sharp(srcBuf)
       .rotate(render_v2.rotate_deg ?? 0)
@@ -167,8 +204,34 @@ export default async function handler(req, res) {
 
     const clipX = cutLeft;
     const clipY = cutTop;
-    const clipW = Math.max(1, targetW - cutLeft - cutRight);
-    const clipH = Math.max(1, targetH - cutTop - cutBottom);
+    const clipW = targetW - cutLeft - cutRight;
+    const clipH = targetH - cutTop - cutBottom;
+    if (clipW <= 0 || clipH <= 0) {
+      debug = {
+        inner_w_px,
+        inner_h_px,
+        out_w_px,
+        out_h_px,
+        scaleX,
+        scaleY,
+        scale,
+        place: p,
+        destX,
+        destY,
+        targetW,
+        targetH,
+        clipX,
+        clipY,
+        clipW,
+        clipH,
+      };
+      return err(res, 400, {
+        diag_id: diagId,
+        stage,
+        message: 'invalid_bbox',
+        debug,
+      });
+    }
 
     const layer = await sharp(resized)
       .extract({ left: clipX, top: clipY, width: clipW, height: clipH })
@@ -185,7 +248,7 @@ export default async function handler(req, res) {
       scaleX,
       scaleY,
       scale,
-      place,
+      place: p,
       destX,
       destY,
       targetW,
