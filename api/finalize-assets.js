@@ -105,6 +105,20 @@ export default async function handler(req, res) {
     });
   }
 
+  console.log(
+    JSON.stringify({
+      diag_id: diagId,
+      stage: 'validate',
+      debug: {
+        canvas: c,
+        place: p,
+        w_cm: render_v2.w_cm,
+        h_cm: render_v2.h_cm,
+        bleed_mm: render_v2.bleed_mm,
+      },
+    })
+  );
+
   const supa = getSupabaseAdmin();
 
   stage = 'load_job';
@@ -174,11 +188,18 @@ export default async function handler(req, res) {
   }
   const srcBuf = Buffer.from(await srcDownload.arrayBuffer());
 
+  console.log(
+    JSON.stringify({ diag_id: diagId, stage: 'download_src', debug: { objectKey } })
+  );
+
   stage = 'compose';
   let printBuf;
   try {
     const comp = await composeImage({ render_v2, srcBuf });
     ({ printBuf, debug } = comp);
+    console.log(
+      JSON.stringify({ diag_id: diagId, stage: 'compose', debug })
+    );
   } catch (e) {
     if (e?.message === 'invalid_bbox') {
       debug = e.debug || {};
@@ -263,6 +284,10 @@ export default async function handler(req, res) {
       throw new Error('upload_mock_failed: ' + upMock.error.message);
   }
 
+  console.log(
+    JSON.stringify({ diag_id: diagId, stage: 'upload', debug: { out } })
+  );
+
   stage = 'db';
   const baseUrl = (process.env.SUPABASE_URL || '').replace(/\/$/, '');
   const preview_url = `${baseUrl}/storage/v1/object/public/${out.preview}`;
@@ -281,6 +306,14 @@ export default async function handler(req, res) {
     .update(updateObj)
     .eq('id', job.id);
   if (upErr) throw new Error('db_update_failed: ' + upErr.message);
+
+  console.log(
+    JSON.stringify({
+      diag_id: diagId,
+      stage: 'db',
+      debug: { job_id, preview_url, print_jpg_url, mock_1080_url },
+    })
+  );
 
   return res.status(200).json({
     ok: true,
