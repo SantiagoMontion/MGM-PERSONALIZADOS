@@ -2,7 +2,6 @@
 import { cors } from './_lib/cors.js';
 import getSupabaseAdmin from './_lib/supabaseAdmin.js';
 import sharp from 'sharp';
-import { PDFDocument } from 'pdf-lib';
 import crypto from 'node:crypto';
 
 function parseUploadsObjectKey(url = '') {
@@ -18,7 +17,6 @@ function buildOutputPaths({ job_id }) {
   return {
     preview: `${base}-preview.jpg`,
     print: `${base}-print.jpg`,
-    pdf: `${base}-file.pdf`,
     mock1080: `${base}-mock_1080.png`,
   };
 }
@@ -68,7 +66,7 @@ export default async function handler(req, res) {
     const { data: job, error: jobErr } = await supa
       .from('jobs')
       .select(
-        'id, job_id, file_original_url, preview_url, print_jpg_url, pdf_url, status'
+        'id, job_id, file_original_url, preview_url, print_jpg_url, mock_1080_url, status'
       )
       .eq('job_id', job_id)
       .maybeSingle();
@@ -88,14 +86,14 @@ export default async function handler(req, res) {
       });
     }
 
-    if (job.print_jpg_url && job.pdf_url) {
+    if (job.print_jpg_url && job.status === 'READY_FOR_PRINT') {
       return res.status(200).json({
         ok: true,
         already: true,
         job_id,
         preview_url: job.preview_url,
         print_jpg_url: job.print_jpg_url,
-        pdf_url: job.pdf_url,
+        ...(job.mock_1080_url ? { mock_1080_url: job.mock_1080_url } : {}),
       });
     }
 
@@ -108,29 +106,18 @@ export default async function handler(req, res) {
         message: 'bad_original_url',
       });
     }
-    const { data: signed, error: signErr } = await supa.storage
+    const { data: srcDownload, error: srcErr } = await supa.storage
       .from('uploads')
-      .createSignedUrl(objectKey, 60);
-    if (signErr) {
-      return err(res, 502, {
-        diag_id: diagId,
-        stage: 'download_src',
-        message: 'signed_url_failed',
-        hints: [signErr.message],
-      });
-    }
-    const download = await fetch(signed.signedUrl, {
-      signal: AbortSignal.timeout(15000),
-    }).catch(() => null);
-    if (!download || !download.ok) {
+      .download(objectKey);
+    if (srcErr || !srcDownload) {
       return err(res, 502, {
         diag_id: diagId,
         stage: 'download_src',
         message: 'download_failed',
-        debug: { status: download?.status },
+        hints: srcErr ? [srcErr.message] : [],
       });
     }
-    const srcBuf = Buffer.from(await download.arrayBuffer());
+    const srcBuf = Buffer.from(await srcDownload.arrayBuffer());
 
     stage = 'compose';
 
@@ -166,6 +153,30 @@ export default async function handler(req, res) {
     let destX = bleed_px + Math.round(place.x * scale);
     let destY = bleed_px + Math.round(place.y * scale);
 
+    const srcRot = await sharp(srcBuf)
+      .rotate(render_v2.rotate_deg ?? 0)
+      .toBuffer();
+    const resized = await sharp(srcRot)
+      .resize({ width: targetW, height: targetH, fit: 'fill' })
+      .toBuffer();
+
+    const cutLeft = Math.max(0, -destX);
+    const cutTop = Math.max(0, -destY);
+    const cutRight = Math.max(0, destX + targetW - out_w_px);
+    const cutBottom = Math.max(0, destY + targetH - out_h_px);
+
+    const clipX = cutLeft;
+    const clipY = cutTop;
+    const clipW = Math.max(1, targetW - cutLeft - cutRight);
+    const clipH = Math.max(1, targetH - cutTop - cutBottom);
+
+    const layer = await sharp(resized)
+      .extract({ left: clipX, top: clipY, width: clipW, height: clipH })
+      .toBuffer();
+
+    destX = Math.max(0, destX);
+    destY = Math.max(0, destY);
+
     debug = {
       inner_w_px,
       inner_h_px,
@@ -175,47 +186,20 @@ export default async function handler(req, res) {
       scaleY,
       scale,
       place,
-      dest: { x: destX, y: destY, w: targetW, h: targetH },
+      destX,
+      destY,
+      targetW,
+      targetH,
+      clipX,
+      clipY,
+      clipW,
+      clipH,
     };
-
-    const srcRot = await sharp(srcBuf)
-      .rotate(render_v2.rotate_deg ?? 0)
-      .toBuffer();
-    const resized = await sharp(srcRot)
-      .resize({ width: targetW, height: targetH, fit: 'fill' })
-      .toBuffer();
-
-    let cutLeft = Math.max(0, 0 - destX);
-    let cutTop = Math.max(0, 0 - destY);
-    let cutRight = Math.max(0, destX + targetW - out_w_px);
-    let cutBottom = Math.max(0, destY + targetH - out_h_px);
-
-    let clipX = cutLeft;
-    let clipY = cutTop;
-    let clipW = targetW - cutLeft - cutRight;
-    let clipH = targetH - cutTop - cutBottom;
-
-    if (clipW <= 0 || clipH <= 0) {
-      clipW = 1;
-      clipH = 1;
-      clipX = 0;
-      clipY = 0;
-    }
-
-    debug.clip = { clipX, clipY, clipW, clipH };
-
-    const layer = await sharp(resized)
-      .extract({ left: clipX, top: clipY, width: clipW, height: clipH })
-      .toBuffer();
-
-    destX = Math.max(0, destX);
-    destY = Math.max(0, destY);
-    debug.dest = { x: destX, y: destY, w: targetW, h: targetH };
 
     const bgHex =
       render_v2.fit_mode === 'contain' && render_v2.bg_hex
         ? render_v2.bg_hex
-        : '#000';
+        : '#000000';
     const base = await sharp({
       create: { width: out_w_px, height: out_h_px, channels: 3, background: bgHex },
     })
@@ -227,15 +211,9 @@ export default async function handler(req, res) {
       .toBuffer();
 
     const previewBuf = await sharp(printBuf)
-      .resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true })
+      .resize({ width: 1600, withoutEnlargement: true })
       .jpeg({ quality: 82 })
       .toBuffer();
-
-    const pdfDoc = await PDFDocument.create();
-    const jpg = await pdfDoc.embedJpg(printBuf);
-    const page = pdfDoc.addPage([jpg.width, jpg.height]);
-    page.drawImage(jpg, { x: 0, y: 0, width: jpg.width, height: jpg.height });
-    const pdfBuf = await pdfDoc.save();
 
     let mock1080Buf = null;
     try {
@@ -297,13 +275,6 @@ export default async function handler(req, res) {
       });
     if (upPrint.error)
       throw new Error('upload_print_failed: ' + upPrint.error.message);
-    const upPdf = await supa.storage
-      .from('outputs')
-      .upload(out.pdf.replace(/^outputs\//, ''), pdfBuf, {
-        contentType: 'application/pdf',
-        upsert: true,
-      });
-    if (upPdf.error) throw new Error('upload_pdf_failed: ' + upPdf.error.message);
     if (mock1080Buf) {
       const upMock = await supa.storage
         .from('outputs')
@@ -319,14 +290,12 @@ export default async function handler(req, res) {
     const baseUrl = (process.env.SUPABASE_URL || '').replace(/\/$/, '');
     const preview_url = `${baseUrl}/storage/v1/object/public/${out.preview}`;
     const print_jpg_url = `${baseUrl}/storage/v1/object/public/${out.print}`;
-    const pdf_url = `${baseUrl}/storage/v1/object/public/${out.pdf}`;
     const mock_1080_url = mock1080Buf
       ? `${baseUrl}/storage/v1/object/public/${out.mock1080}`
       : null;
     const updateObj = {
       preview_url,
       print_jpg_url,
-      pdf_url,
       status: 'READY_FOR_PRINT',
     };
     if (mock_1080_url) updateObj.mock_1080_url = mock_1080_url;
@@ -341,7 +310,6 @@ export default async function handler(req, res) {
       job_id,
       preview_url,
       print_jpg_url,
-      pdf_url,
       ...(mock_1080_url ? { mock_1080_url } : {}),
     });
   } catch (e) {
