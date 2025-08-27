@@ -601,12 +601,23 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     return Math.max(1, Math.min(1000, Math.min(dpiX, dpiY)));
   }, [imgEl, imgBaseCm, imgTx.scaleX, imgTx.scaleY]);
 
-const quality = useMemo(() => {
+  const quality = useMemo(() => {
     if (dpiEffective == null) return { label:'—', color:'#9ca3af' };
     if (dpiEffective < 80)    return { label:`Baja (${dpiEffective|0} DPI)`,  color:'#ef4444' };
     if (dpiEffective < 200)   return { label:`Buena (${dpiEffective|0} DPI)`, color:'#f59e0b' };
     return { label:`Excelente (${Math.min(300, dpiEffective|0)} DPI)`, color:'#10b981' };
   }, [dpiEffective]);
+
+  const getPadRectPx = () => {
+    const k = baseScale * viewScale;
+    return {
+      x: Math.round(viewPos.x + bleedCm * k),
+      y: Math.round(viewPos.y + bleedCm * k),
+      w: Math.round(wCm * k),
+      h: Math.round(hCm * k),
+      radius_px: Math.round(cornerRadiusCm * k),
+    };
+  };
 
   useImperativeHandle(ref, () => ({
     getRenderDescriptor: () => {
@@ -693,6 +704,7 @@ const quality = useMemo(() => {
         canvas_px,
         src_px: { w: imgEl.naturalWidth, h: imgEl.naturalHeight },
         place_px,
+        pad_px: getPadRectPx(),
         rotate_deg,
         fit_mode: mode,
         bg_hex: bgColor,
@@ -701,21 +713,32 @@ const quality = useMemo(() => {
         bleed_mm: bleedMm,
       };
     },
-    exportVisibleCanvas: () => {
+    getPadRect: getPadRectPx,
+    exportPadCanvas: () => {
       if (!stageRef.current) return null;
-      const pixelRatio = window.devicePixelRatio || 1;
-      const stageCanvas = stageRef.current.toCanvas({ pixelRatio });
-      const k = baseScale * viewScale * pixelRatio;
-      const x = bleedCm * k;
-      const y = bleedCm * k;
-      const w = wCm * k;
-      const h = hCm * k;
+      const stageCanvas = stageRef.current.toCanvas({ pixelRatio: 1 });
+      const pad = getPadRectPx();
       const out = document.createElement('canvas');
-      out.width = Math.round(w);
-      out.height = Math.round(h);
-      out
-        .getContext('2d')
-        .drawImage(stageCanvas, x, y, w, h, 0, 0, Math.round(w), Math.round(h));
+      out.width = pad.w;
+      out.height = pad.h;
+      const ctx = out.getContext('2d');
+      if (!ctx) return null;
+      const r = pad.radius_px;
+      const w = pad.w;
+      const h = pad.h;
+      ctx.beginPath();
+      ctx.moveTo(r, 0);
+      ctx.lineTo(w - r, 0);
+      ctx.arcTo(w, 0, w, r, r);
+      ctx.lineTo(w, h - r);
+      ctx.arcTo(w, h, w - r, h, r);
+      ctx.lineTo(r, h);
+      ctx.arcTo(0, h, 0, h - r, r);
+      ctx.lineTo(0, r);
+      ctx.arcTo(0, 0, r, 0, r);
+      ctx.closePath();
+      ctx.clip();
+      ctx.drawImage(stageCanvas, pad.x, pad.y, pad.w, pad.h, 0, 0, pad.w, pad.h);
       return out;
     }
   }));
