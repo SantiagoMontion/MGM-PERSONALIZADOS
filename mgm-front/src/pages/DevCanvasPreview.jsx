@@ -98,20 +98,41 @@ export default function DevCanvasPreview() {
     const W = 1080;
     const H = 1080;
     const ref = REF_MAX[material] || { w: w_cm, h: h_cm };
-    const rel = Math.min(
-      Math.max(Math.max(w_cm / ref.w, h_cm / ref.h), 0),
-      1
-    );
-    const margin = Math.round(
+    const REF_AREA = ref.w * ref.h;
+    const AREA = w_cm * h_cm;
+    const areaRatio = Math.min(Math.max(AREA / REF_AREA, 0), 1);
+    const gamma = 0.6;
+    const rel = Math.pow(areaRatio, gamma);
+    const marginPx = Math.round(
       MAX_MARGIN - (MAX_MARGIN - MIN_MARGIN) * rel
     );
-    const avail = W - 2 * margin;
+    const avail = W - 2 * marginPx;
     const k = Math.min(avail / w_cm, avail / h_cm);
     const target_w = Math.round(w_cm * k);
     const target_h = Math.round(h_cm * k);
     const drawX = Math.round((W - target_w) / 2);
     const drawY = Math.round((H - target_h) / 2);
     const r = Math.max(12, Math.min(Math.min(target_w, target_h) * 0.02, 20));
+    console.log('[MOCKUP SCALE DEBUG]', {
+      w_cm,
+      h_cm,
+      REF_W_CM: ref.w,
+      REF_H_CM: ref.h,
+      REF_AREA,
+      AREA,
+      areaRatio,
+      gamma,
+      rel,
+      MIN_MARGIN,
+      MAX_MARGIN,
+      marginPx,
+      avail,
+      k,
+      target_w,
+      target_h,
+      drawX,
+      drawY,
+    });
     const img = new Image();
     img.onload = () => {
       const canvas = document.createElement('canvas');
@@ -207,7 +228,7 @@ export default function DevCanvasPreview() {
       REF_MAX_W_CM: ref.w,
       REF_MAX_H_CM: ref.h,
       rel,
-      margin,
+      margin: marginPx,
       avail,
       k,
       target_w,
