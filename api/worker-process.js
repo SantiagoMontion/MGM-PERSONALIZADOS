@@ -2,6 +2,7 @@
 import crypto from 'node:crypto';
 import { supa } from '../lib/supa.js';
 import { cors } from './_lib/cors.js';
+import { slugifyName } from './_lib/slug.js';
 
 async function readJson(req){
   const chunks=[]; for await (const c of req) chunks.push(c);
@@ -149,10 +150,20 @@ export default async function handler(req, res) {
       const drawX = Math.round((1080 - target_w) / 2);
       const drawY = Math.round((1080 - target_h) / 2);
       const resized = await sharp(stretchedPng).resize({ width: target_w, height: target_h }).toBuffer();
-      const radius = Math.max(24, Math.round(Math.min(target_w, target_h) * 0.05));
-      const maskSvg = `<svg width="${target_w}" height="${target_h}" viewBox="0 0 ${target_w} ${target_h}"><rect x="0" y="0" width="${target_w}" height="${target_h}" rx="${radius}" ry="${radius}" fill="#fff"/></svg>`;
+      const radius = Math.max(12, Math.min(Math.min(target_w, target_h) * 0.02, 28));
+      const maskSvg = `<svg width="${target_w}" height="${target_h}" viewBox="0 0 ${target_w} ${target_h}" xmlns="http://www.w3.org/2000/svg"><rect x="0" y="0" width="${target_w}" height="${target_h}" rx="${radius}" ry="${radius}" fill="#fff"/></svg>`;
       const mask = await sharp(Buffer.from(maskSvg)).png().toBuffer();
       const rounded = await sharp(resized).composite([{ input: mask, blend: 'dest-in' }]).png().toBuffer();
+      const inset = 5;
+      const innerW = target_w - inset * 2;
+      const innerH = target_h - inset * 2;
+      const innerR = Math.max(0, radius - inset);
+      const borderSvg = `<svg width="${target_w}" height="${target_h}" xmlns="http://www.w3.org/2000/svg">
+        <rect x="0" y="0" width="${target_w}" height="${target_h}" rx="${radius}" ry="${radius}" fill="none" stroke="rgba(0,0,0,0.35)" stroke-width="3"/>
+        <rect x="${inset + 1}" y="${inset + 1}" width="${innerW}" height="${innerH}" rx="${innerR}" ry="${innerR}" fill="none" stroke="rgba(0,0,0,0.25)" stroke-width="2" stroke-dasharray="4 3"/>
+        <rect x="${inset}" y="${inset}" width="${innerW}" height="${innerH}" rx="${innerR}" ry="${innerR}" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="2" stroke-dasharray="4 3"/>
+      </svg>`;
+      const withBorder = await sharp(rounded).composite([{ input: Buffer.from(borderSvg) }]).png().toBuffer();
       preview = await sharp({
         create: {
           width: 1080,
@@ -161,10 +172,10 @@ export default async function handler(req, res) {
           background: { r:0, g:0, b:0, alpha:0 }
         }
       })
-        .composite([{ input: rounded, left: drawX, top: drawY }])
-        .png()
+        .composite([{ input: withBorder, left: drawX, top: drawY }])
+        .png({ palette: true, colors: 256 })
         .toBuffer();
-      console.log('[MOCKUP 1080]', {
+      console.log('[MOCKUP 1080 DEBUG]', {
         material: job.material,
         w_cm,
         h_cm,
@@ -177,6 +188,8 @@ export default async function handler(req, res) {
         target_h,
         drawX,
         drawY,
+        radius,
+        quantizer: 'sharp',
       });
     } catch (e) {
       console.warn('mockup_1080_failed', e?.message);
@@ -189,7 +202,8 @@ export default async function handler(req, res) {
     const base='outputs';
     const printKey = `print/${job.job_id}/print_${Number(job.w_cm)}x${Number(job.h_cm)}_${hash8}.jpg`;
     const pdfKey   = `pdf/${job.job_id}/print_${Number(job.w_cm)}x${Number(job.h_cm)}_${hash8}.pdf`;
-    const prevKey  = `mockup/${job.job_id}/preview_${hash8}.png`;
+    const slug = slugifyName(job.design_name || 'design');
+    const prevKey  = `mock/${job.job_id}/${slug}-1080.png`;
 
     const up1 = await supa.storage.from(base).upload(printKey, printJpgBuf, { contentType:'image/jpeg', upsert:true });
     if (up1.error) return res.status(500).json({ step: step.name, error: up1.error.message || String(up1.error) });
