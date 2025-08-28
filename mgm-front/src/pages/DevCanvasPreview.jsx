@@ -86,31 +86,80 @@ export default function DevCanvasPreview() {
   }
 
   async function downloadMockup() {
-    if (!padBlob) return;
+    if (!padBlob || !render_v2) return;
+    const { w_cm, h_cm, material } = render_v2;
+    const REF = { Classic: { w: 120, h: 60 }, PRO: { w: 120, h: 60 }, Glasspad: { w: 50, h: 40 } };
+    const mockMargin = 40;
+    const W = 1080;
+    const H = 1080;
+    const avail = W - 2 * mockMargin;
+    const ref = REF[material] || { w: w_cm, h: h_cm };
+    const k = Math.min(avail / ref.w, avail / ref.h);
+    const target_w = Math.round(w_cm * k);
+    const target_h = Math.round(h_cm * k);
+    const drawX = Math.round((W - target_w) / 2);
+    const drawY = Math.round((H - target_h) / 2);
+    const r = Math.max(12, Math.min(Math.min(target_w, target_h) * 0.02, 28));
     const img = new Image();
     img.onload = () => {
-      const sourceBitmap = { w: img.width, h: img.height };
-      const target = { w: 1080, h: 1080 };
-      const scale = Math.min(target.w / sourceBitmap.w, target.h / sourceBitmap.h);
-      const drawW = Math.round(sourceBitmap.w * scale);
-      const drawH = Math.round(sourceBitmap.h * scale);
-      const drawX = Math.round((target.w - drawW) / 2);
-      const drawY = Math.round((target.h - drawH) / 2);
       const canvas = document.createElement('canvas');
-      canvas.width = target.w;
-      canvas.height = target.h;
+      canvas.width = W;
+      canvas.height = H;
       const ctx = canvas.getContext('2d');
-      ctx.clearRect(0, 0, target.w, target.h);
+      ctx.clearRect(0, 0, W, H);
+      ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(img, drawX, drawY, drawW, drawH);
-      console.log('[MOCKUP DEBUG]', {
-        sourceBitmap,
-        target,
-        scale,
-        drawX,
-        drawY,
-      });
-      canvas.toBlob((b) => {
+
+      function roundRectPath(x, y, w, h, rad) {
+        const rr = Math.min(rad, w / 2, h / 2);
+        ctx.beginPath();
+        ctx.moveTo(x + rr, y);
+        ctx.lineTo(x + w - rr, y);
+        ctx.quadraticCurveTo(x + w, y, x + w, y + rr);
+        ctx.lineTo(x + w, y + h - rr);
+        ctx.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
+        ctx.lineTo(x + rr, y + h);
+        ctx.quadraticCurveTo(x, y + h, x, y + h - rr);
+        ctx.lineTo(x, y + rr);
+        ctx.quadraticCurveTo(x, y, x + rr, y);
+        ctx.closePath();
+      }
+
+      roundRectPath(drawX, drawY, target_w, target_h, r);
+      ctx.save();
+      ctx.clip();
+      ctx.drawImage(img, drawX, drawY, target_w, target_h);
+      ctx.restore();
+
+      roundRectPath(drawX, drawY, target_w, target_h, r);
+      ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      const inset = 5;
+      const innerR = Math.max(0, r - inset);
+      roundRectPath(drawX + inset, drawY + inset, target_w - 2 * inset, target_h - 2 * inset, innerR);
+      ctx.setLineDash([4, 3]);
+      ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+      ctx.lineWidth = 2;
+      ctx.save();
+      ctx.translate(1, 1);
+      ctx.stroke();
+      ctx.restore();
+      ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      const imgData = ctx.getImageData(0, 0, W, H);
+      const data = imgData.data;
+      for (let i = 0; i < data.length; i += 4) {
+        data[i] &= 0xe0;
+        data[i + 1] &= 0xe0;
+        data[i + 2] &= 0xc0;
+      }
+      ctx.putImageData(imgData, 0, 0);
+
+      canvas.toBlob(b => {
         if (!b) return;
         const url = URL.createObjectURL(b);
         const a = document.createElement('a');
@@ -121,6 +170,22 @@ export default function DevCanvasPreview() {
       }, 'image/png');
     };
     img.src = URL.createObjectURL(padBlob);
+    console.log('[MOCKUP 1080 DEBUG]', {
+      material,
+      w_cm,
+      h_cm,
+      ref_w_cm: ref.w,
+      ref_h_cm: ref.h,
+      mockMargin,
+      avail,
+      k,
+      target_w,
+      target_h,
+      drawX,
+      drawY,
+      radius: r,
+      quantizer: 'bitmask',
+    });
   }
 
   function continueFlow() {

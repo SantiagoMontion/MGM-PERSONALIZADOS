@@ -297,11 +297,24 @@ export default async function handler(req, res) {
     const resized = await sharp(stretchedPng)
       .resize({ width: target_w, height: target_h })
       .toBuffer();
-    const radius = Math.max(24, Math.round(Math.min(target_w, target_h) * 0.05));
-    const maskSvg = `<svg width="${target_w}" height="${target_h}" viewBox="0 0 ${target_w} ${target_h}"><rect x="0" y="0" width="${target_w}" height="${target_h}" rx="${radius}" ry="${radius}" fill="#fff"/></svg>`;
+    const radius = Math.max(12, Math.min(Math.min(target_w, target_h) * 0.02, 28));
+    const maskSvg = `<svg width="${target_w}" height="${target_h}" viewBox="0 0 ${target_w} ${target_h}" xmlns="http://www.w3.org/2000/svg"><rect x="0" y="0" width="${target_w}" height="${target_h}" rx="${radius}" ry="${radius}" fill="#fff"/></svg>`;
     const mask = await sharp(Buffer.from(maskSvg)).png().toBuffer();
     const rounded = await sharp(resized)
       .composite([{ input: mask, blend: 'dest-in' }])
+      .png()
+      .toBuffer();
+    const inset = 5;
+    const innerW = target_w - inset * 2;
+    const innerH = target_h - inset * 2;
+    const innerR = Math.max(0, radius - inset);
+    const borderSvg = `<svg width="${target_w}" height="${target_h}" xmlns="http://www.w3.org/2000/svg">
+      <rect x="0" y="0" width="${target_w}" height="${target_h}" rx="${radius}" ry="${radius}" fill="none" stroke="rgba(0,0,0,0.35)" stroke-width="3"/>
+      <rect x="${inset + 1}" y="${inset + 1}" width="${innerW}" height="${innerH}" rx="${innerR}" ry="${innerR}" fill="none" stroke="rgba(0,0,0,0.25)" stroke-width="2" stroke-dasharray="4 3"/>
+      <rect x="${inset}" y="${inset}" width="${innerW}" height="${innerH}" rx="${innerR}" ry="${innerR}" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="2" stroke-dasharray="4 3"/>
+    </svg>`;
+    const withBorder = await sharp(rounded)
+      .composite([{ input: Buffer.from(borderSvg) }])
       .png()
       .toBuffer();
     mock1080Buf = await sharp({
@@ -312,10 +325,10 @@ export default async function handler(req, res) {
         background: { r: 0, g: 0, b: 0, alpha: 0 },
       },
     })
-      .composite([{ input: rounded, left: drawX, top: drawY }])
-      .png()
+      .composite([{ input: withBorder, left: drawX, top: drawY }])
+      .png({ palette: true, colors: 256 })
       .toBuffer();
-    console.log('[MOCKUP 1080]', {
+    console.log('[MOCKUP 1080 DEBUG]', {
       material: job.material,
       w_cm,
       h_cm,
@@ -327,6 +340,8 @@ export default async function handler(req, res) {
       target_h,
       drawX,
       drawY,
+      radius,
+      quantizer: 'sharp',
     });
   } catch (e) {
     console.warn('mockup_1080_failed', e?.message);
