@@ -628,35 +628,81 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     radius: cornerRadiusCm,
   });
 
+  const getRenderDescriptorV2 = () => {
+    if (!imgEl || !imgBaseCm) return null;
+    const cmPerPx = CM_PER_INCH / dpi;
+    const canvas_px = {
+      w: Math.round(workCm.w / cmPerPx),
+      h: Math.round(workCm.h / cmPerPx),
+    };
+    const w = imgBaseCm.w * imgTx.scaleX;
+    const h = imgBaseCm.h * imgTx.scaleY;
+    const cx = imgTx.x_cm + w / 2;
+    const cy = imgTx.y_cm + h / 2;
+    const { halfW, halfH } = rotAABBHalf(w, h, theta);
+    let left = cx - halfW;
+    let top = cy - halfH;
+    let right = cx + halfW;
+    let bottom = cy + halfH;
+    left = Math.max(0, left);
+    top = Math.max(0, top);
+    right = Math.min(workCm.w, right);
+    bottom = Math.min(workCm.h, bottom);
+    const place_px = {
+      x: Math.round(left / cmPerPx),
+      y: Math.round(top / cmPerPx),
+      w: Math.round(Math.max(0, right - left) / cmPerPx),
+      h: Math.round(Math.max(0, bottom - top) / cmPerPx),
+    };
+    const snapped = Math.round(imgTx.rotation_deg / 90) * 90;
+    const rotate_deg = ((snapped % 360) + 360) % 360;
+    return {
+      canvas_px,
+      src_px: { w: imgEl.naturalWidth, h: imgEl.naturalHeight },
+      place_px,
+      pad_px: getPadRectPx(),
+      rotate_deg,
+      fit_mode: mode,
+      bg_hex: bgColor,
+      w_cm: wCm,
+      h_cm: hCm,
+      bleed_mm: bleedMm,
+    };
+  };
+
   const exportPadAsBlob = async () => {
     if (!exportStageRef.current) return null;
-    const inner_w_px = Math.round(wCm * dpi / CM_PER_INCH);
-    const inner_h_px = Math.round(hCm * dpi / CM_PER_INCH);
-    const bleed_px = Math.round((bleedMm / 10) * dpi / CM_PER_INCH);
-    const pixelRatio = Math.min(inner_w_px / wCm, inner_h_px / hCm);
-    const dataUrl = exportStageRef.current.toDataURL({
-      mimeType: 'image/jpeg',
-      quality: 0.95,
+    const inner_w_px = Math.round((wCm * dpi) / CM_PER_INCH);
+    const inner_h_px = Math.round((hCm * dpi) / CM_PER_INCH);
+    const pixelRatioX = inner_w_px / wCm;
+    const pixelRatioY = inner_h_px / hCm;
+    const pixelRatio = Math.min(pixelRatioX, pixelRatioY);
+    const blob = await exportStageRef.current.toBlob({
+      mimeType: 'image/png',
       pixelRatio,
     });
-    if (bleed_px > 0) {
-      const base = document.createElement('canvas');
-      base.width = inner_w_px + 2 * bleed_px;
-      base.height = inner_h_px + 2 * bleed_px;
-      const ctx = base.getContext('2d');
-      if (mode === 'contain') {
-        ctx.fillStyle = bgColor;
-        ctx.fillRect(0, 0, base.width, base.height);
-      }
-      const img = await new Promise((resolve) => {
-        const i = new Image();
-        i.onload = () => resolve(i);
-        i.src = dataUrl;
-      });
-      ctx.drawImage(img, bleed_px, bleed_px, inner_w_px, inner_h_px);
-      return await new Promise((resolve) => base.toBlob(resolve, 'image/jpeg', 0.95));
-    }
-    return await (await fetch(dataUrl)).blob();
+    const outBitmap = await new Promise((resolve) => {
+      const i = new Image();
+      i.onload = () => resolve({ width: i.width, height: i.height });
+      i.src = URL.createObjectURL(blob);
+    });
+    const desc = getRenderDescriptorV2();
+    console.log({
+      pad_px: desc?.pad_px,
+      canvas_px: desc?.canvas_px,
+      place_px: desc?.place_px,
+      rotate_deg: desc?.rotate_deg,
+      w_cm: wCm,
+      h_cm: hCm,
+      bleed_mm: bleedMm,
+      inner_w_px,
+      inner_h_px,
+      pixelRatioX,
+      pixelRatioY,
+      pixelRatio,
+      outBitmap,
+    });
+    return blob;
   };
 
   useImperativeHandle(ref, () => ({
@@ -712,47 +758,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         bleed_mm: bleedMm,
       };
     },
-    getRenderDescriptorV2: () => {
-      if (!imgEl || !imgBaseCm) return null;
-      const cmPerPx = CM_PER_INCH / dpi;
-      const canvas_px = {
-        w: Math.round(workCm.w / cmPerPx),
-        h: Math.round(workCm.h / cmPerPx),
-      };
-      const w = imgBaseCm.w * imgTx.scaleX;
-      const h = imgBaseCm.h * imgTx.scaleY;
-      const cx = imgTx.x_cm + w / 2;
-      const cy = imgTx.y_cm + h / 2;
-      const { halfW, halfH } = rotAABBHalf(w, h, theta);
-      let left = cx - halfW;
-      let top = cy - halfH;
-      let right = cx + halfW;
-      let bottom = cy + halfH;
-      left = Math.max(0, left);
-      top = Math.max(0, top);
-      right = Math.min(workCm.w, right);
-      bottom = Math.min(workCm.h, bottom);
-      const place_px = {
-        x: Math.round(left / cmPerPx),
-        y: Math.round(top / cmPerPx),
-        w: Math.round(Math.max(0, right - left) / cmPerPx),
-        h: Math.round(Math.max(0, bottom - top) / cmPerPx),
-      };
-      const snapped = Math.round(imgTx.rotation_deg / 90) * 90;
-      const rotate_deg = ((snapped % 360) + 360) % 360;
-      return {
-        canvas_px,
-        src_px: { w: imgEl.naturalWidth, h: imgEl.naturalHeight },
-        place_px,
-        pad_px: getPadRectPx(),
-        rotate_deg,
-        fit_mode: mode,
-        bg_hex: bgColor,
-        w_cm: wCm,
-        h_cm: hCm,
-        bleed_mm: bleedMm,
-      };
-    },
+    getRenderDescriptorV2,
     getPadRect,
     getPadRectPx,
     exportPadCanvas: () => {
@@ -1081,42 +1087,22 @@ async function onConfirmSubmit() {
           style={{ display: 'none' }}
         >
           <Layer>
-            <Group
-              clipFunc={(ctx) => {
-                const r = cornerRadiusCm;
-                const w = wCm;
-                const h = hCm;
-                const rr = Math.max(0, Math.min(r, Math.min(w, h) / 2));
-                ctx.beginPath();
-                ctx.moveTo(rr, 0);
-                ctx.lineTo(w - rr, 0);
-                ctx.arcTo(w, 0, w, rr, rr);
-                ctx.lineTo(w, h - rr);
-                ctx.arcTo(w, h, w - rr, h, rr);
-                ctx.lineTo(rr, h);
-                ctx.arcTo(0, h, 0, h - rr, rr);
-                ctx.lineTo(0, rr);
-                ctx.arcTo(0, 0, rr, 0, rr);
-                ctx.closePath();
-              }}
-            >
-              {mode === 'contain' && (
-                <Rect x={0} y={0} width={wCm} height={hCm} fill={bgColor} listening={false} />
-              )}
-              {imgEl && imgBaseCm && (
-                <KonvaImage
-                  image={imgEl}
-                  x={imgTx.x_cm - bleedCm + dispW / 2}
-                  y={imgTx.y_cm - bleedCm + dispH / 2}
-                  width={dispW}
-                  height={dispH}
-                  offsetX={dispW / 2}
-                  offsetY={dispH / 2}
-                  rotation={imgTx.rotation_deg}
-                  listening={false}
-                />
-              )}
-            </Group>
+            {mode === 'contain' && (
+              <Rect x={0} y={0} width={wCm} height={hCm} fill={bgColor} listening={false} />
+            )}
+            {imgEl && imgBaseCm && (
+              <KonvaImage
+                image={imgEl}
+                x={imgTx.x_cm - bleedCm + dispW / 2}
+                y={imgTx.y_cm - bleedCm + dispH / 2}
+                width={dispW}
+                height={dispH}
+                offsetX={dispW / 2}
+                offsetY={dispH / 2}
+                rotation={imgTx.rotation_deg}
+                listening={false}
+              />
+            )}
           </Layer>
         </Stage>
         {imageUrl && imgStatus !== 'loaded' && (
