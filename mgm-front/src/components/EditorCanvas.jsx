@@ -670,12 +670,16 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     };
   };
 
+  const padRectPx = getPadRectPx();
+  const exportScale = padRectPx.w / wCm;
+
   const exportPadAsBlob = async () => {
     if (!exportStageRef.current) return null;
     const inner_w_px = Math.round((wCm * dpi) / CM_PER_INCH);
     const inner_h_px = Math.round((hCm * dpi) / CM_PER_INCH);
-    const pixelRatioX = inner_w_px / wCm;
-    const pixelRatioY = inner_h_px / hCm;
+    const pad_px = getPadRectPx();
+    const pixelRatioX = inner_w_px / pad_px.w;
+    const pixelRatioY = inner_h_px / pad_px.h;
     const pixelRatio = Math.min(pixelRatioX, pixelRatioY);
     const blob = await exportStageRef.current.toBlob({
       mimeType: 'image/png',
@@ -761,33 +765,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     getRenderDescriptorV2,
     getPadRect,
     getPadRectPx,
-    exportPadCanvas: () => {
-      if (!stageRef.current) return null;
-      const stageCanvas = stageRef.current.toCanvas({ pixelRatio: 1 });
-      const pad = getPadRectPx();
-      const out = document.createElement('canvas');
-      out.width = pad.w;
-      out.height = pad.h;
-      const ctx = out.getContext('2d');
-      if (!ctx) return null;
-      const r = pad.radius_px;
-      const w = pad.w;
-      const h = pad.h;
-      ctx.beginPath();
-      ctx.moveTo(r, 0);
-      ctx.lineTo(w - r, 0);
-      ctx.arcTo(w, 0, w, r, r);
-      ctx.lineTo(w, h - r);
-      ctx.arcTo(w, h, w - r, h, r);
-      ctx.lineTo(r, h);
-      ctx.arcTo(0, h, 0, h - r, r);
-      ctx.lineTo(0, r);
-      ctx.arcTo(0, 0, r, 0, r);
-      ctx.closePath();
-      ctx.clip();
-      ctx.drawImage(stageCanvas, pad.x, pad.y, pad.w, pad.h, 0, 0, pad.w, pad.h);
-      return out;
-    },
     exportPadAsBlob,
   }));
 
@@ -1082,23 +1059,30 @@ async function onConfirmSubmit() {
         </Stage>
         <Stage
           ref={exportStageRef}
-          width={wCm}
-          height={hCm}
+          width={padRectPx.w}
+          height={padRectPx.h}
           style={{ display: 'none' }}
         >
           <Layer>
             {mode === 'contain' && (
-              <Rect x={0} y={0} width={wCm} height={hCm} fill={bgColor} listening={false} />
+              <Rect
+                x={0}
+                y={0}
+                width={padRectPx.w}
+                height={padRectPx.h}
+                fill={bgColor}
+                listening={false}
+              />
             )}
             {imgEl && imgBaseCm && (
               <KonvaImage
                 image={imgEl}
-                x={imgTx.x_cm - bleedCm + dispW / 2}
-                y={imgTx.y_cm - bleedCm + dispH / 2}
-                width={dispW}
-                height={dispH}
-                offsetX={dispW / 2}
-                offsetY={dispH / 2}
+                x={(imgTx.x_cm - bleedCm + dispW / 2) * exportScale}
+                y={(imgTx.y_cm - bleedCm + dispH / 2) * exportScale}
+                width={dispW * exportScale}
+                height={dispH * exportScale}
+                offsetX={(dispW * exportScale) / 2}
+                offsetY={(dispH * exportScale) / 2}
                 rotation={imgTx.rotation_deg}
                 listening={false}
               />
