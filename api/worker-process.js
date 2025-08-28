@@ -140,56 +140,81 @@ export default async function handler(req, res) {
     step.name='preview';
     let preview;
     try {
-      const REF = { Classic:{ w:120, h:60 }, PRO:{ w:120, h:60 }, Glasspad:{ w:50, h:40 } };
-      const mockMargin = 40;
-      const avail = 1080 - 2*mockMargin;
-      const ref = REF[job.material] || { w: w_cm, h: h_cm };
-      const k = Math.min(avail / ref.w, avail / ref.h);
+      const REF_MAX = {
+        Classic: { w: 140, h: 100 },
+        PRO: { w: 140, h: 100 },
+        Glasspad: { w: 50, h: 40 },
+      };
+      const MIN_MARGIN = 100;
+      const MAX_MARGIN = 220;
+      const ref = REF_MAX[job.material] || { w: w_cm, h: h_cm };
+      const rel = Math.min(
+        Math.max(Math.max(w_cm / ref.w, h_cm / ref.h), 0),
+        1
+      );
+      const margin = Math.round(
+        MAX_MARGIN - (MAX_MARGIN - MIN_MARGIN) * rel
+      );
+      const avail = 1080 - 2 * margin;
+      const k = Math.min(avail / w_cm, avail / h_cm);
       const target_w = Math.round(w_cm * k);
       const target_h = Math.round(h_cm * k);
       const drawX = Math.round((1080 - target_w) / 2);
       const drawY = Math.round((1080 - target_h) / 2);
-      const resized = await sharp(stretchedPng).resize({ width: target_w, height: target_h }).toBuffer();
-      const radius = Math.max(12, Math.min(Math.min(target_w, target_h) * 0.02, 28));
+      const resized = await sharp(stretchedPng)
+        .resize({ width: target_w, height: target_h })
+        .toBuffer();
+      const radius = Math.max(12, Math.min(Math.min(target_w, target_h) * 0.02, 20));
       const maskSvg = `<svg width="${target_w}" height="${target_h}" viewBox="0 0 ${target_w} ${target_h}" xmlns="http://www.w3.org/2000/svg"><rect x="0" y="0" width="${target_w}" height="${target_h}" rx="${radius}" ry="${radius}" fill="#fff"/></svg>`;
       const mask = await sharp(Buffer.from(maskSvg)).png().toBuffer();
-      const rounded = await sharp(resized).composite([{ input: mask, blend: 'dest-in' }]).png().toBuffer();
-      const inset = 5;
-      const innerW = target_w - inset * 2;
-      const innerH = target_h - inset * 2;
-      const innerR = Math.max(0, radius - inset);
+      const rounded = await sharp(resized)
+        .composite([{ input: mask, blend: 'dest-in' }])
+        .png()
+        .toBuffer();
+      const inset = 4;
+      const seamW = target_w - inset * 2;
+      const seamH = target_h - inset * 2;
+      const seamR = Math.max(0, radius - inset);
+      const inset2 = 2;
+      const innerW2 = target_w - inset2 * 2;
+      const innerH2 = target_h - inset2 * 2;
+      const innerR2 = Math.max(0, radius - inset2);
       const borderSvg = `<svg width="${target_w}" height="${target_h}" xmlns="http://www.w3.org/2000/svg">
-        <rect x="0" y="0" width="${target_w}" height="${target_h}" rx="${radius}" ry="${radius}" fill="none" stroke="rgba(0,0,0,0.35)" stroke-width="3"/>
-        <rect x="${inset + 1}" y="${inset + 1}" width="${innerW}" height="${innerH}" rx="${innerR}" ry="${innerR}" fill="none" stroke="rgba(0,0,0,0.25)" stroke-width="2" stroke-dasharray="4 3"/>
-        <rect x="${inset}" y="${inset}" width="${innerW}" height="${innerH}" rx="${innerR}" ry="${innerR}" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="2" stroke-dasharray="4 3"/>
+        <rect x="0" y="0" width="${target_w}" height="${target_h}" rx="${radius}" ry="${radius}" fill="none" stroke="rgba(0,0,0,0.22)" stroke-width="2"/>
+        <rect x="${inset}" y="${inset}" width="${seamW}" height="${seamH}" rx="${seamR}" ry="${seamR}" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="1.5" stroke-dasharray="3 3"/>
+        <rect x="${inset2}" y="${inset2}" width="${innerW2}" height="${innerH2}" rx="${innerR2}" ry="${innerR2}" fill="none" stroke="rgba(0,0,0,0.18)" stroke-width="1"/>
       </svg>`;
-      const withBorder = await sharp(rounded).composite([{ input: Buffer.from(borderSvg) }]).png().toBuffer();
+      const withBorder = await sharp(rounded)
+        .composite([{ input: Buffer.from(borderSvg) }])
+        .png()
+        .toBuffer();
       preview = await sharp({
         create: {
           width: 1080,
           height: 1080,
           channels: 4,
-          background: { r:0, g:0, b:0, alpha:0 }
-        }
+          background: { r: 0, g: 0, b: 0, alpha: 0 },
+        },
       })
         .composite([{ input: withBorder, left: drawX, top: drawY }])
-        .png({ palette: true, colors: 256 })
+        .png()
         .toBuffer();
-      console.log('[MOCKUP 1080 DEBUG]', {
+      console.log('[MOCKUP 1080 FINAL]', {
         material: job.material,
         w_cm,
         h_cm,
-        ref_w_cm: ref.w,
-        ref_h_cm: ref.h,
-        mockMargin,
+        REF_MAX_W_CM: ref.w,
+        REF_MAX_H_CM: ref.h,
+        rel,
+        margin,
         avail,
         k,
         target_w,
         target_h,
         drawX,
         drawY,
-        radius,
-        quantizer: 'sharp',
+        r: radius,
+        seam: { lineDash: [3, 3], lw1: 2, lw2: 1.5, lw3: 1 },
       });
     } catch (e) {
       console.warn('mockup_1080_failed', e?.message);
