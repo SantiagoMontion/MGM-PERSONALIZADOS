@@ -705,6 +705,71 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     return blob;
   };
 
+  const exportPadDocument = async () => {
+    if (!exportStageRef.current) return null;
+    const desc = getRenderDescriptorV2();
+    const pad_px = desc?.pad_px;
+    const canvas_px = desc?.canvas_px;
+    const out_w_cm = wCm + 2;
+    const out_h_cm = hCm + 2;
+    const out_w_px = Math.round((out_w_cm * dpi) / CM_PER_INCH);
+    const out_h_px = Math.round((out_h_cm * dpi) / CM_PER_INCH);
+    const margin_px = Math.round((1 * dpi) / CM_PER_INCH);
+    const pixelRatioX = pad_px ? out_w_px / pad_px.w : out_w_px / wCm;
+    const pixelRatioY = pad_px ? out_h_px / pad_px.h : out_h_px / hCm;
+    const pixelRatio = Math.min(pixelRatioX, pixelRatioY);
+
+    const padBlob = await exportStageRef.current.toBlob({
+      mimeType: 'image/png',
+      pixelRatio,
+    });
+    const padImg = await createImageBitmap(padBlob);
+    const canvas = document.createElement('canvas');
+    canvas.width = out_w_px;
+    canvas.height = out_h_px;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, out_w_px, out_h_px);
+    ctx.drawImage(
+      padImg,
+      margin_px,
+      margin_px,
+      out_w_px - margin_px * 2,
+      out_h_px - margin_px * 2,
+    );
+    const jpegBlob = await new Promise((resolve) =>
+      canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.98),
+    );
+    const { PDFDocument } = await import('pdf-lib');
+    const pdf = await PDFDocument.create();
+    const pageWpt = (out_w_cm / CM_PER_INCH) * 72;
+    const pageHpt = (out_h_cm / CM_PER_INCH) * 72;
+    const page = pdf.addPage([pageWpt, pageHpt]);
+    const jpgBytes = await jpegBlob.arrayBuffer();
+    const jpg = await pdf.embedJpg(jpgBytes);
+    page.drawImage(jpg, { x: 0, y: 0, width: pageWpt, height: pageHpt });
+    const pdfBytes = await pdf.save();
+    const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
+
+    console.log('[EXPORT DOC DEBUG]', {
+      w_cm: wCm,
+      h_cm: hCm,
+      out_w_cm,
+      out_h_cm,
+      out_w_px,
+      out_h_px,
+      pad_px,
+      canvas_px,
+      pixelRatioX,
+      pixelRatioY,
+      pixelRatio,
+      margin_px,
+    });
+
+    return { pdfBlob, jpegBlob };
+  };
+
   useImperativeHandle(ref, () => ({
     getRenderDescriptor: () => {
       if (!imgEl || !imgBaseCm) return null;
@@ -789,6 +854,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       return out;
     },
     exportPadAsBlob,
+    exportPadDocument,
   }));
 
   // popover color

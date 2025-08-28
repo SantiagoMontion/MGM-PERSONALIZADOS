@@ -7,24 +7,30 @@ export default function DevCanvasPreview() {
   const jobId = location.state?.jobId || window.__previewData?.jobId;
   const render_v2 = window.__previewData?.render_v2;
   const [imgUrl, setImgUrl] = useState(null);
+  const [pdfUrl, setPdfUrl] = useState(null);
   const [onlyPreview, setOnlyPreview] = useState(false);
 
-  function exportPng() {
-    const canvas = window.__previewData?.canvas;
-    if (!canvas) return;
-    const url = canvas.toDataURL('image/png');
-    setImgUrl(url);
+  async function exportDoc() {
+    const fn = window.__previewData?.exportPadDocument;
+    if (!fn) return;
+    const res = await fn();
+    if (res?.jpegBlob) {
+      setImgUrl(URL.createObjectURL(res.jpegBlob));
+    }
+    if (res?.pdfBlob) {
+      setPdfUrl(URL.createObjectURL(res.pdfBlob));
+    }
   }
 
   useEffect(() => {
-    exportPng();
+    exportDoc();
   }, []);
 
-  function download() {
-    if (!imgUrl) return;
+  function downloadPdf() {
+    if (!pdfUrl) return;
     const a = document.createElement('a');
-    a.href = imgUrl;
-    a.download = 'canvas.png';
+    a.href = pdfUrl;
+    a.download = 'canvas.pdf';
     a.click();
   }
 
@@ -50,12 +56,14 @@ export default function DevCanvasPreview() {
   return (
     <div style={{ padding: '10px' }}>
       <h3>Canvas Preview</h3>
-      <button onClick={exportPng}>Exportar lienzo (PNG)</button>
+      <button onClick={exportDoc}>Exportar lienzo (PNG/PDF)</button>
       {imgUrl && (
         <div>
           <img src={imgUrl} alt="preview" style={{ maxWidth: '100%' }} />
-          <div><button onClick={download}>Descargar PNG</button></div>
         </div>
+      )}
+      {pdfUrl && (
+        <div><button onClick={downloadPdf}>Descargar PDF</button></div>
       )}
       {render_v2 && (
         <div style={{ display: 'flex', gap: '20px', marginTop: '10px' }}>
