@@ -88,27 +88,42 @@ export default function DevCanvasPreview() {
   async function downloadMockup() {
     if (!padBlob || !render_v2) return;
     const { w_cm, h_cm, material } = render_v2;
-    const REF = { Classic: { w: 120, h: 60 }, PRO: { w: 120, h: 60 }, Glasspad: { w: 50, h: 40 } };
-    const mockMargin = 40;
+    const REF_MAX = {
+      Classic: { w: 140, h: 100 },
+      PRO: { w: 140, h: 100 },
+      Glasspad: { w: 50, h: 40 },
+    };
+    const MIN_MARGIN = 100;
+    const MAX_MARGIN = 220;
     const W = 1080;
     const H = 1080;
-    const avail = W - 2 * mockMargin;
-    const ref = REF[material] || { w: w_cm, h: h_cm };
-    const k = Math.min(avail / ref.w, avail / ref.h);
+    const ref = REF_MAX[material] || { w: w_cm, h: h_cm };
+    const rel = Math.min(
+      Math.max(Math.max(w_cm / ref.w, h_cm / ref.h), 0),
+      1
+    );
+    const margin = Math.round(
+      MAX_MARGIN - (MAX_MARGIN - MIN_MARGIN) * rel
+    );
+    const avail = W - 2 * margin;
+    const k = Math.min(avail / w_cm, avail / h_cm);
     const target_w = Math.round(w_cm * k);
     const target_h = Math.round(h_cm * k);
     const drawX = Math.round((W - target_w) / 2);
     const drawY = Math.round((H - target_h) / 2);
-    const r = Math.max(12, Math.min(Math.min(target_w, target_h) * 0.02, 28));
+    const r = Math.max(12, Math.min(Math.min(target_w, target_h) * 0.02, 20));
     const img = new Image();
     img.onload = () => {
       const canvas = document.createElement('canvas');
       canvas.width = W;
       canvas.height = H;
       const ctx = canvas.getContext('2d');
-      ctx.clearRect(0, 0, W, H);
+      ctx.filter = 'none';
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1;
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
+      ctx.clearRect(0, 0, W, H);
 
       function roundRectPath(x, y, w, h, rad) {
         const rr = Math.min(rad, w / 2, h / 2);
@@ -132,59 +147,75 @@ export default function DevCanvasPreview() {
       ctx.restore();
 
       roundRectPath(drawX, drawY, target_w, target_h, r);
-      ctx.strokeStyle = 'rgba(0,0,0,0.35)';
-      ctx.lineWidth = 3;
-      ctx.stroke();
-
-      const inset = 5;
-      const innerR = Math.max(0, r - inset);
-      roundRectPath(drawX + inset, drawY + inset, target_w - 2 * inset, target_h - 2 * inset, innerR);
-      ctx.setLineDash([4, 3]);
-      ctx.strokeStyle = 'rgba(0,0,0,0.25)';
-      ctx.lineWidth = 2;
       ctx.save();
-      ctx.translate(1, 1);
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = 'rgba(0,0,0,0.22)';
+      ctx.setLineDash([]);
       ctx.stroke();
       ctx.restore();
-      ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+
+      const inset = 4;
+      const seamR = Math.max(0, r - inset);
+      ctx.save();
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+      ctx.setLineDash([3, 3]);
+      roundRectPath(
+        drawX + inset,
+        drawY + inset,
+        target_w - 2 * inset,
+        target_h - 2 * inset,
+        seamR
+      );
       ctx.stroke();
+      ctx.restore();
+
+      const inset2 = 2;
+      const innerR2 = Math.max(0, r - inset2);
+      ctx.save();
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(0,0,0,0.18)';
       ctx.setLineDash([]);
+      roundRectPath(
+        drawX + inset2,
+        drawY + inset2,
+        target_w - 2 * inset2,
+        target_h - 2 * inset2,
+        innerR2
+      );
+      ctx.stroke();
+      ctx.restore();
 
-      const imgData = ctx.getImageData(0, 0, W, H);
-      const data = imgData.data;
-      for (let i = 0; i < data.length; i += 4) {
-        data[i] &= 0xe0;
-        data[i + 1] &= 0xe0;
-        data[i + 2] &= 0xc0;
-      }
-      ctx.putImageData(imgData, 0, 0);
-
-      canvas.toBlob(b => {
-        if (!b) return;
-        const url = URL.createObjectURL(b);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'mock-1080.png';
-        a.click();
-        URL.revokeObjectURL(url);
-      }, 'image/png');
+      canvas.toBlob(
+        b => {
+          if (!b) return;
+          const url = URL.createObjectURL(b);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'mock-1080.png';
+          a.click();
+          URL.revokeObjectURL(url);
+        },
+        { type: 'image/png' }
+      );
     };
     img.src = URL.createObjectURL(padBlob);
-    console.log('[MOCKUP 1080 DEBUG]', {
+    console.log('[MOCKUP 1080 FINAL]', {
       material,
       w_cm,
       h_cm,
-      ref_w_cm: ref.w,
-      ref_h_cm: ref.h,
-      mockMargin,
+      REF_MAX_W_CM: ref.w,
+      REF_MAX_H_CM: ref.h,
+      rel,
+      margin,
       avail,
       k,
       target_w,
       target_h,
       drawX,
       drawY,
-      radius: r,
-      quantizer: 'bitmask',
+      r,
+      seam: { lineDash: [3, 3], lw1: 2, lw2: 1.5, lw3: 1 },
     });
   }
 
