@@ -2,6 +2,7 @@
 import { cors } from './_lib/cors.js';
 import getSupabaseAdmin from './_lib/supabaseAdmin.js';
 import sharp from 'sharp';
+import { PDFDocument } from 'pdf-lib';
 import composeImage from './_lib/composeImage.ts';
 import crypto from 'node:crypto';
 
@@ -21,8 +22,9 @@ function buildOutputPaths({ job_id, slug, w_cm, h_cm, material }) {
   const printBase = `outputs/print/${job_id}`;
   const mockBase = `outputs/mock/${job_id}`;
   return {
-    print: `${printBase}/${slug}-${size}-${material}.png`,
-    mock1080: `${mockBase}/${slug}-1080.jpg`,
+    printJpg: `${printBase}/${slug}-${size}-${material}.jpg`,
+    pdf: `${printBase}/${slug}-${size}-${material}.pdf`,
+    mock1080: `${mockBase}/${slug}-1080.png`,
   };
 }
 
@@ -217,13 +219,11 @@ export default async function handler(req, res) {
   );
 
   stage = 'compose';
-  let printBuf;
+  let innerBuf;
   try {
     const comp = await composeImage({ render_v2, srcBuf });
-    ({ printBuf, debug } = comp);
-    console.log(
-      JSON.stringify({ diag_id: diagId, stage: 'compose', debug })
-    );
+    ({ innerBuf, debug } = comp);
+    console.log(JSON.stringify({ diag_id: diagId, stage: 'compose', debug }));
   } catch (e) {
     if (e?.message === 'invalid_bbox') {
       debug = e.debug || {};
@@ -232,69 +232,135 @@ export default async function handler(req, res) {
     throw e;
   }
 
+  stage = 'print_export';
+  const w_cm = render_v2.w_cm;
+  const h_cm = render_v2.h_cm;
+  const out_w_cm = w_cm + 2;
+  const out_h_cm = h_cm + 2;
+  const DPI = 300;
+  const inner_w_px = Math.round((w_cm * DPI) / 2.54);
+  const inner_h_px = Math.round((h_cm * DPI) / 2.54);
+  const out_w_px = Math.round((out_w_cm * DPI) / 2.54);
+  const out_h_px = Math.round((out_h_cm * DPI) / 2.54);
+  const pixelRatioX = inner_w_px / pad.w;
+  const pixelRatioY = inner_h_px / pad.h;
+  const pixelRatio = Math.min(pixelRatioX, pixelRatioY);
+  const scaleX = out_w_px / inner_w_px;
+  const scaleY = out_h_px / inner_h_px;
+  console.log('[PRINT EXPORT]', {
+    w_cm,
+    h_cm,
+    out_w_cm,
+    out_h_cm,
+    inner_w_px,
+    inner_h_px,
+    out_w_px,
+    out_h_px,
+    pad_px: pad,
+    pixelRatioX,
+    pixelRatioY,
+    pixelRatio,
+    scaleX,
+    scaleY,
+  });
+
+  const stretchedPng = await sharp(innerBuf)
+    .resize({ width: out_w_px, height: out_h_px, fit: 'fill' })
+    .png()
+    .toBuffer();
+  const printJpgBuf = await sharp(stretchedPng)
+    .jpeg({ quality: 98, chromaSubsampling: '4:4:4' })
+    .toBuffer();
+  const pdfDoc = await PDFDocument.create();
+  const page_w_pt = (out_w_cm / 2.54) * 72;
+  const page_h_pt = (out_h_cm / 2.54) * 72;
+  const page = pdfDoc.addPage([page_w_pt, page_h_pt]);
+  const pdfImg = await pdfDoc.embedJpg(printJpgBuf);
+  page.drawImage(pdfImg, { x: 0, y: 0, width: page_w_pt, height: page_h_pt });
+  const pdfBuf = await pdfDoc.save();
+
   let mock1080Buf = null;
   try {
-      const base1080 = await sharp({
-        create: {
-          width: 1080,
-          height: 1080,
-          channels: 4,
-          background: { r: 0, g: 0, b: 0, alpha: 0 },
-        },
-      })
-        .png()
-        .toBuffer();
-      const ratio = render_v2.w_cm / render_v2.h_cm;
-      const usable = Math.round(1080 * 0.8);
-      let padW, padH;
-      if (ratio >= 1) {
-        padW = usable;
-        padH = Math.round(usable / ratio);
-      } else {
-        padH = usable;
-        padW = Math.round(usable * ratio);
-      }
-      const padX = Math.round((1080 - padW) / 2);
-      const padY = Math.round((1080 - padH) / 2);
-      const imgCover = await sharp(printBuf)
-        .resize({ width: padW, height: padH, fit: 'cover', position: 'centre' })
-        .toBuffer();
-      const radius = Math.max(24, Math.round(Math.min(padW, padH) * 0.05));
-      const maskSvg = `<svg width="${padW}" height="${padH}" viewBox="0 0 ${padW} ${padH}"><rect x="0" y="0" width="${padW}" height="${padH}" rx="${radius}" ry="${radius}" fill="#fff"/></svg>`;
-      const mask = await sharp(Buffer.from(maskSvg)).png().toBuffer();
-      const rounded = await sharp(imgCover)
-        .composite([{ input: mask, blend: 'dest-in' }])
-        .png()
-        .toBuffer();
-      mock1080Buf = await sharp(base1080)
-        .composite([{ input: rounded, left: padX, top: padY }])
-        .png()
-        .toBuffer();
-    } catch (e) {
-      console.warn('mockup_1080_failed', e?.message);
-    }
+    const REF = {
+      Classic: { w: 120, h: 60 },
+      PRO: { w: 120, h: 60 },
+      Glasspad: { w: 50, h: 40 },
+    };
+    const mock_margin = 40;
+    const avail = 1080 - 2 * mock_margin;
+    const ref = REF[job.material] || { w: w_cm, h: h_cm };
+    const k = Math.min(avail / ref.w, avail / ref.h);
+    const target_w = Math.round(w_cm * k);
+    const target_h = Math.round(h_cm * k);
+    const drawX = Math.round((1080 - target_w) / 2);
+    const drawY = Math.round((1080 - target_h) / 2);
+    const resized = await sharp(stretchedPng)
+      .resize({ width: target_w, height: target_h })
+      .toBuffer();
+    const radius = Math.max(24, Math.round(Math.min(target_w, target_h) * 0.05));
+    const maskSvg = `<svg width="${target_w}" height="${target_h}" viewBox="0 0 ${target_w} ${target_h}"><rect x="0" y="0" width="${target_w}" height="${target_h}" rx="${radius}" ry="${radius}" fill="#fff"/></svg>`;
+    const mask = await sharp(Buffer.from(maskSvg)).png().toBuffer();
+    const rounded = await sharp(resized)
+      .composite([{ input: mask, blend: 'dest-in' }])
+      .png()
+      .toBuffer();
+    mock1080Buf = await sharp({
+      create: {
+        width: 1080,
+        height: 1080,
+        channels: 4,
+        background: { r: 0, g: 0, b: 0, alpha: 0 },
+      },
+    })
+      .composite([{ input: rounded, left: drawX, top: drawY }])
+      .png()
+      .toBuffer();
+    console.log('[MOCKUP 1080]', {
+      material: job.material,
+      w_cm,
+      h_cm,
+      ref_w_cm: ref.w,
+      ref_h_cm: ref.h,
+      mock_margin,
+      k,
+      target_w,
+      target_h,
+      drawX,
+      drawY,
+    });
+  } catch (e) {
+    console.warn('mockup_1080_failed', e?.message);
+  }
 
   stage = 'upload';
   const out = buildOutputPaths({
     job_id,
     slug,
-    w_cm: job.w_cm,
-    h_cm: job.h_cm,
+    w_cm: out_w_cm,
+    h_cm: out_h_cm,
     material: job.material,
   });
   const upPrint = await supa.storage
     .from('outputs')
-    .upload(out.print.replace(/^outputs\//, ''), printBuf, {
-      contentType: 'image/png',
+    .upload(out.printJpg.replace(/^outputs\//, ''), printJpgBuf, {
+      contentType: 'image/jpeg',
       upsert: true,
     });
   if (upPrint.error)
     throw new Error('upload_print_failed: ' + upPrint.error.message);
+  const upPdf = await supa.storage
+    .from('outputs')
+    .upload(out.pdf.replace(/^outputs\//, ''), Buffer.from(pdfBuf), {
+      contentType: 'application/pdf',
+      upsert: true,
+    });
+  if (upPdf.error)
+    throw new Error('upload_pdf_failed: ' + upPdf.error.message);
   if (mock1080Buf) {
     const upMock = await supa.storage
       .from('outputs')
       .upload(out.mock1080.replace(/^outputs\//, ''), mock1080Buf, {
-        contentType: 'image/jpeg',
+        contentType: 'image/png',
         upsert: true,
       });
     if (upMock.error)
@@ -310,10 +376,12 @@ export default async function handler(req, res) {
   const preview_url = mock1080Buf
     ? `${baseUrl}/storage/v1/object/public/${out.mock1080}`
     : null;
-  const print_jpg_url = `${baseUrl}/storage/v1/object/public/${out.print}`;
+  const print_jpg_url = `${baseUrl}/storage/v1/object/public/${out.printJpg}`;
+  const pdf_url = `${baseUrl}/storage/v1/object/public/${out.pdf}`;
   const updateObj = {
     preview_url,
     print_jpg_url,
+    pdf_url,
     status: 'READY_FOR_PRINT',
   };
   const { error: upErr } = await supa
@@ -326,7 +394,7 @@ export default async function handler(req, res) {
     JSON.stringify({
       diag_id: diagId,
       stage: 'db',
-      debug: { job_id, preview_url, print_jpg_url },
+      debug: { job_id, preview_url, print_jpg_url, pdf_url },
     })
   );
 
@@ -335,6 +403,7 @@ export default async function handler(req, res) {
     job_id,
     preview_url,
     print_jpg_url,
+    pdf_url,
   });
 } catch (e) {
     console.error('finalize-assets error', { diagId, stage, error: e });
@@ -342,6 +411,7 @@ export default async function handler(req, res) {
     const msgMap = {
       download_src: 'download_failed',
       compose: 'compose_failed',
+      print_export: 'print_export_failed',
       upload: 'upload_failed',
       db: 'db_failed',
     };
