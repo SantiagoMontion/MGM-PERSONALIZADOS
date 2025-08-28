@@ -29,26 +29,30 @@ export default function DevCanvasPreview() {
     const inner_h_px = Math.round((h_cm * dpi) / 2.54);
     const out_w_px = Math.round((out_w_cm * dpi) / 2.54);
     const out_h_px = Math.round((out_h_cm * dpi) / 2.54);
-    const margin_px = Math.round((1 * dpi) / 2.54);
     const pad_px = render_v2.pad_px;
     const pixelRatioX = inner_w_px / pad_px.w;
     const pixelRatioY = inner_h_px / pad_px.h;
     const pixelRatio = Math.min(pixelRatioX, pixelRatioY);
+    const scaleX = out_w_px / inner_w_px;
+    const scaleY = out_h_px / inner_h_px;
     const img = new Image();
     img.onload = () => {
       const canvas = document.createElement('canvas');
       canvas.width = out_w_px;
       canvas.height = out_h_px;
       const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, out_w_px, out_h_px);
-      ctx.drawImage(img, margin_px, margin_px, inner_w_px, inner_h_px);
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, 0, 0, out_w_px, out_h_px);
       const debug = {
         w_cm, h_cm, out_w_cm, out_h_cm,
         inner_w_px, inner_h_px, out_w_px, out_h_px,
-        pad_px, pixelRatioX, pixelRatioY, pixelRatio, margin_px,
+        pad_px, pixelRatioX, pixelRatioY, pixelRatio,
+        scaleX, scaleY,
+        pdf_engine: 'jpg',
+        page_units: 'px',
+        page_w: out_w_px, page_h: out_h_px,
       };
-      console.log('[EXPORT DOC DEBUG]', debug);
+      console.log('[EXPORT LIENZO DEBUG]', debug);
       canvas.toBlob((b) => {
         if (!b) return;
         const url = URL.createObjectURL(b);
@@ -57,7 +61,7 @@ export default function DevCanvasPreview() {
         a.download = `print-${out_w_cm}x${out_h_cm}.jpg`;
         a.click();
         URL.revokeObjectURL(url);
-      }, 'image/jpeg', 0.99);
+      }, 'image/jpeg', 0.98);
     };
     img.src = URL.createObjectURL(padBlob);
   }
