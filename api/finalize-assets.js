@@ -249,7 +249,7 @@ export default async function handler(req, res) {
   const scaleY = out_h_px / inner_h_px;
   const page_w_pt = (out_w_cm / 2.54) * 72;
   const page_h_pt = (out_h_cm / 2.54) * 72;
-  console.log('[PRINT EXPORT]', {
+  console.log('[EXPORT LIENZO DEBUG]', {
     w_cm,
     h_cm,
     out_w_cm,
@@ -258,15 +258,12 @@ export default async function handler(req, res) {
     inner_h_px,
     out_w_px,
     out_h_px,
-    page_units: 'pt',
-    page_w: page_w_pt,
-    page_h: page_h_pt,
-    pad_px: pad,
-    pixelRatioX,
-    pixelRatioY,
-    pixelRatio,
     scaleX,
     scaleY,
+    pdf_engine: 'pdf-lib',
+    page_w_unit: 'pt',
+    page_w: page_w_pt,
+    page_h: page_h_pt,
   });
 
   const stretchedPng = await sharp(innerBuf)
@@ -274,7 +271,7 @@ export default async function handler(req, res) {
     .png()
     .toBuffer();
   const printJpgBuf = await sharp(stretchedPng)
-    .jpeg({ quality: 98, chromaSubsampling: '4:4:4' })
+    .jpeg({ quality: 88, chromaSubsampling: '4:4:4' })
     .toBuffer();
   const pdfDoc = await PDFDocument.create();
   const page = pdfDoc.addPage([page_w_pt, page_h_pt]);

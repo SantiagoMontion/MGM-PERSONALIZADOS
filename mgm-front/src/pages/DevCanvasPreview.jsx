@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { PDFDocument } from 'pdf-lib';
+// import jsPDF from 'jspdf';
 
 export default function DevCanvasPreview() {
   const navigate = useNavigate();
@@ -29,39 +31,56 @@ export default function DevCanvasPreview() {
     const inner_h_px = Math.round((h_cm * dpi) / 2.54);
     const out_w_px = Math.round((out_w_cm * dpi) / 2.54);
     const out_h_px = Math.round((out_h_cm * dpi) / 2.54);
-    const pad_px = render_v2.pad_px;
-    const pixelRatioX = inner_w_px / pad_px.w;
-    const pixelRatioY = inner_h_px / pad_px.h;
-    const pixelRatio = Math.min(pixelRatioX, pixelRatioY);
     const scaleX = out_w_px / inner_w_px;
     const scaleY = out_h_px / inner_h_px;
     const img = new Image();
-    img.onload = () => {
+    img.onload = async () => {
       const canvas = document.createElement('canvas');
       canvas.width = out_w_px;
       canvas.height = out_h_px;
       const ctx = canvas.getContext('2d');
       ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(img, 0, 0, out_w_px, out_h_px);
-      const debug = {
-        w_cm, h_cm, out_w_cm, out_h_cm,
-        inner_w_px, inner_h_px, out_w_px, out_h_px,
-        pad_px, pixelRatioX, pixelRatioY, pixelRatio,
-        scaleX, scaleY,
-        pdf_engine: 'jpg',
-        page_units: 'px',
-        page_w: out_w_px, page_h: out_h_px,
-      };
-      console.log('[EXPORT LIENZO DEBUG]', debug);
-      canvas.toBlob((b) => {
-        if (!b) return;
-        const url = URL.createObjectURL(b);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `print-${out_w_cm}x${out_h_cm}.jpg`;
-        a.click();
-        URL.revokeObjectURL(url);
-      }, 'image/jpeg', 0.98);
+      const blob = await new Promise(resolve =>
+        canvas.toBlob(resolve, 'image/jpeg', 0.88)
+      );
+      if (!blob) return;
+      // const jpegDataUrl = canvas.toDataURL('image/jpeg', 0.88);
+      // const doc = new jsPDF({ unit: 'cm', format: [out_w_cm, out_h_cm] });
+      // doc.addImage(jpegDataUrl, 'JPEG', 0, 0, out_w_cm, out_h_cm);
+      // doc.save(`print-${out_w_cm}x${out_h_cm}.pdf`);
+      const jpegBytes = new Uint8Array(await blob.arrayBuffer());
+      const pdfDoc = await PDFDocument.create();
+      const page_w_pt = (out_w_cm / 2.54) * 72;
+      const page_h_pt = (out_h_cm / 2.54) * 72;
+      const page = pdfDoc.addPage([page_w_pt, page_h_pt]);
+      const jpg = await pdfDoc.embedJpg(jpegBytes);
+      page.drawImage(jpg, { x: 0, y: 0, width: page_w_pt, height: page_h_pt });
+      console.log('[EXPORT LIENZO DEBUG]', {
+        w_cm,
+        h_cm,
+        out_w_cm,
+        out_h_cm,
+        inner_w_px,
+        inner_h_px,
+        out_w_px,
+        out_h_px,
+        scaleX,
+        scaleY,
+        pdf_engine: 'pdf-lib',
+        page_w_unit: 'pt',
+        page_w: page_w_pt,
+        page_h: page_h_pt,
+      });
+      const pdfBytes = await pdfDoc.save();
+      const url = URL.createObjectURL(
+        new Blob([pdfBytes], { type: 'application/pdf' })
+      );
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `print-${out_w_cm}x${out_h_cm}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
     };
     img.src = URL.createObjectURL(padBlob);
   }
