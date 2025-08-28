@@ -122,7 +122,8 @@ export default function Home() {
     const render_v2 = canvasRef.current?.getRenderDescriptorV2?.();
     if (import.meta.env.DEV) {
       const canvas = canvasRef.current?.exportPadCanvas?.();
-      window.__previewData = { canvas, render_v2, jobId };
+      const exportPadDocument = canvasRef.current?.exportPadDocument;
+      window.__previewData = { canvas, render_v2, jobId, exportPadDocument };
       navigate('/dev/canvas-preview', { state: { jobId } });
       return;
     }
