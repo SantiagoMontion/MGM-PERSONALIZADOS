@@ -10,15 +10,19 @@ function parseUploadsObjectKey(url = '') {
   return idx >= 0 ? url.slice(idx + '/uploads/'.length) : '';
 }
 
-function buildOutputPaths({ job_id }) {
-  const now = new Date();
-  const yyyy = now.getFullYear();
-  const mm = String(now.getMonth() + 1).padStart(2, '0');
-  const base = `outputs/${yyyy}/${mm}/${job_id}`;
+function extractSlug(objectKey = '') {
+  const base = objectKey.split('/').pop() || '';
+  const m = base.match(/^(.*?)-\d+x\d+-[^-]+-[a-f0-9]{8}\.\w+$/i);
+  return m ? m[1] : 'design';
+}
+
+function buildOutputPaths({ job_id, slug, w_cm, h_cm, material }) {
+  const size = `${Math.round(w_cm)}x${Math.round(h_cm)}`;
+  const printBase = `outputs/print/${job_id}`;
+  const mockBase = `outputs/mock/${job_id}`;
   return {
-    preview: `${base}-preview.jpg`,
-    print: `${base}-print.jpg`,
-    mock1080: `${base}-mock_1080.png`,
+    print: `${printBase}/${slug}-${size}-${material}.png`,
+    mock1080: `${mockBase}/${slug}-1080.jpg`,
   };
 }
 
@@ -142,13 +146,13 @@ export default async function handler(req, res) {
   const supa = getSupabaseAdmin();
 
   stage = 'load_job';
-  const { data: job, error: jobErr } = await supa
-    .from('jobs')
-    .select(
-      'id, job_id, file_original_url, preview_url, print_jpg_url, mock_1080_url, status'
-    )
-    .eq('job_id', job_id)
-    .maybeSingle();
+    const { data: job, error: jobErr } = await supa
+      .from('jobs')
+      .select(
+        'id, job_id, file_original_url, preview_url, print_jpg_url, status, w_cm, h_cm, material'
+      )
+      .eq('job_id', job_id)
+      .maybeSingle();
   if (jobErr) {
     return err(res, 500, {
       diag_id: diagId,
@@ -174,19 +178,19 @@ export default async function handler(req, res) {
     });
   }
 
-  if (job.print_jpg_url && job.status === 'READY_FOR_PRINT') {
-    return res.status(200).json({
-      ok: true,
-      already: true,
-      job_id,
-      preview_url: job.preview_url,
-      print_jpg_url: job.print_jpg_url,
-      ...(job.mock_1080_url ? { mock_1080_url: job.mock_1080_url } : {}),
-    });
-  }
+    if (job.print_jpg_url && job.status === 'READY_FOR_PRINT') {
+      return res.status(200).json({
+        ok: true,
+        already: true,
+        job_id,
+        preview_url: job.preview_url,
+        print_jpg_url: job.print_jpg_url,
+      });
+    }
 
   stage = 'download_src';
   const objectKey = parseUploadsObjectKey(job.file_original_url);
+  const slug = extractSlug(objectKey);
   if (!objectKey) {
     return err(res, 400, {
       diag_id: diagId,
@@ -227,11 +231,6 @@ export default async function handler(req, res) {
     }
     throw e;
   }
-
-  const previewBuf = await sharp(printBuf)
-    .resize({ width: 1600, withoutEnlargement: true })
-    .jpeg({ quality: 82 })
-    .toBuffer();
 
   let mock1080Buf = null;
   try {
@@ -276,19 +275,17 @@ export default async function handler(req, res) {
     }
 
   stage = 'upload';
-  const out = buildOutputPaths({ job_id });
-  const upPrev = await supa.storage
-    .from('outputs')
-    .upload(out.preview.replace(/^outputs\//, ''), previewBuf, {
-      contentType: 'image/jpeg',
-      upsert: true,
-    });
-  if (upPrev.error)
-    throw new Error('upload_preview_failed: ' + upPrev.error.message);
+  const out = buildOutputPaths({
+    job_id,
+    slug,
+    w_cm: job.w_cm,
+    h_cm: job.h_cm,
+    material: job.material,
+  });
   const upPrint = await supa.storage
     .from('outputs')
     .upload(out.print.replace(/^outputs\//, ''), printBuf, {
-      contentType: 'image/jpeg',
+      contentType: 'image/png',
       upsert: true,
     });
   if (upPrint.error)
@@ -297,7 +294,7 @@ export default async function handler(req, res) {
     const upMock = await supa.storage
       .from('outputs')
       .upload(out.mock1080.replace(/^outputs\//, ''), mock1080Buf, {
-        contentType: 'image/png',
+        contentType: 'image/jpeg',
         upsert: true,
       });
     if (upMock.error)
@@ -310,17 +307,15 @@ export default async function handler(req, res) {
 
   stage = 'db';
   const baseUrl = (process.env.SUPABASE_URL || '').replace(/\/$/, '');
-  const preview_url = `${baseUrl}/storage/v1/object/public/${out.preview}`;
-  const print_jpg_url = `${baseUrl}/storage/v1/object/public/${out.print}`;
-  const mock_1080_url = mock1080Buf
+  const preview_url = mock1080Buf
     ? `${baseUrl}/storage/v1/object/public/${out.mock1080}`
     : null;
+  const print_jpg_url = `${baseUrl}/storage/v1/object/public/${out.print}`;
   const updateObj = {
     preview_url,
     print_jpg_url,
     status: 'READY_FOR_PRINT',
   };
-  if (mock_1080_url) updateObj.mock_1080_url = mock_1080_url;
   const { error: upErr } = await supa
     .from('jobs')
     .update(updateObj)
@@ -331,7 +326,7 @@ export default async function handler(req, res) {
     JSON.stringify({
       diag_id: diagId,
       stage: 'db',
-      debug: { job_id, preview_url, print_jpg_url, mock_1080_url },
+      debug: { job_id, preview_url, print_jpg_url },
     })
   );
 
@@ -340,7 +335,6 @@ export default async function handler(req, res) {
     job_id,
     preview_url,
     print_jpg_url,
-    ...(mock_1080_url ? { mock_1080_url } : {}),
   });
 } catch (e) {
     console.error('finalize-assets error', { diagId, stage, error: e });

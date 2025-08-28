@@ -100,10 +100,10 @@ export async function composeImage({ render_v2, srcBuf }: { render_v2: any; srcB
     .png()
     .toBuffer();
 
-  const printBuf = await sharp(composed)
-    .flatten({ background: bgHex })
-    .jpeg({ quality: 92 })
-    .toBuffer();
+    const printBuf = await sharp(composed)
+      .flatten({ background: bgHex })
+      .png()
+      .toBuffer();
 
   const innerBuf = await sharp(composed)
     .extract({ left: bleed_px, top: bleed_px, width: inner_w_px, height: inner_h_px })
