@@ -53,18 +53,38 @@ export default async function handler(req, res) {
 
     // 4) Preparar dimensiones
     step.name='prepare_dims';
-    const dpi = Number(layout?.dpi || 300);
-    const bleedPx = Math.max(0, Math.round(((Number(job.bleed_mm||3)/10)/2.54)*dpi));
-    const targetW = Math.round((Number(job.w_cm)/2.54)*dpi) + bleedPx*2;
-    const targetH = Math.round((Number(job.h_cm)/2.54)*dpi) + bleedPx*2;
+    const DPI = 300;
+    const w_cm = Number(job.w_cm);
+    const h_cm = Number(job.h_cm);
+    const out_w_cm = w_cm + 2;
+    const out_h_cm = h_cm + 2;
+    const inner_w_px = Math.round((w_cm * DPI) / 2.54);
+    const inner_h_px = Math.round((h_cm * DPI) / 2.54);
+    const out_w_px = Math.round((out_w_cm * DPI) / 2.54);
+    const out_h_px = Math.round((out_h_cm * DPI) / 2.54);
+    const pageWpt = (out_w_cm / 2.54) * 72;
+    const pageHpt = (out_h_cm / 2.54) * 72;
+    console.log('[PRINT EXPORT]', {
+      w_cm,
+      h_cm,
+      out_w_cm,
+      out_h_cm,
+      inner_w_px,
+      inner_h_px,
+      out_w_px,
+      out_h_px,
+      page_units: 'pt',
+      page_w: pageWpt,
+      page_h: pageHpt,
+    });
 
     // 5) Normalizar + aplicar layout
     step.name='sharp_fit';
-    let fitted;
+    let inner;
     if (layout?.transform && layout?.image?.natural_px) {
       const bg = layout.mode === 'contain' ? (layout.background || '#ffffff') : '#ffffff';
       const base = sharp({
-        create: { width: targetW, height: targetH, channels: 3, background: bg }
+        create: { width: inner_w_px, height: inner_h_px, channels: 3, background: bg }
       });
 
       const scaledW = Math.round(layout.image.natural_px.w * layout.transform.scaleX);
@@ -80,54 +100,83 @@ export default async function handler(req, res) {
       const rotH = Math.abs(scaledW * Math.sin(theta)) + Math.abs(scaledH * Math.cos(theta));
       const dx = (scaledW - rotW) / 2;
       const dy = (scaledH - rotH) / 2;
-      const left = Math.round((layout.transform.x_cm / 2.54) * dpi + dx);
-      const top  = Math.round((layout.transform.y_cm / 2.54) * dpi + dy);
+      const left = Math.round((layout.transform.x_cm / 2.54) * DPI + dx);
+      const top  = Math.round((layout.transform.y_cm / 2.54) * DPI + dy);
 
-      fitted = await base
+      inner = await base
         .composite([{ input: imgBuf, left, top }])
         .jpeg({ quality:95, mozjpeg:true })
         .toBuffer();
     } else {
       const norm = sharp(inputBuf, { failOn: 'none' }).rotate().withMetadata({ orientation:1 });
-      fitted = await norm
-        .resize(targetW, targetH, { fit: (job.fit_mode==='contain'?'contain':'cover'), background: (job.bg||'#ffffff'), position:'centre' })
+      inner = await norm
+        .resize(inner_w_px, inner_h_px, { fit: (job.fit_mode==='contain'?'contain':'cover'), background: (job.bg||'#ffffff'), position:'centre' })
         .jpeg({ quality:95, mozjpeg:true })
         .toBuffer();
     }
 
-    // 6) PDF (sin sangrado visible)
+    // 6) Escalar a salida física y generar JPG/PDF
     step.name='pdf_build';
-    const noBleedW = Math.max(1, targetW - bleedPx*2);
-    const noBleedH = Math.max(1, targetH - bleedPx*2);
-    const noBleed = await sharp(fitted).extract({ left: bleedPx, top: bleedPx, width: noBleedW, height: noBleedH }).jpeg({ quality:95, mozjpeg:true }).toBuffer();
+    const stretchedPng = await sharp(inner)
+      .resize({ width: out_w_px, height: out_h_px, fit: 'fill' })
+      .png()
+      .toBuffer();
+    const printJpgBuf = await sharp(stretchedPng)
+      .jpeg({ quality:95, mozjpeg:true })
+      .toBuffer();
     const pdf = await PDFDocument.create();
-    const pageWpt = (Number(job.w_cm)/2.54)*72;
-    const pageHpt = (Number(job.h_cm)/2.54)*72;
     const page = pdf.addPage([pageWpt, pageHpt]);
-    const jpg = await pdf.embedJpg(noBleed);
+    const jpg = await pdf.embedJpg(printJpgBuf);
     page.drawImage(jpg, { x:0, y:0, width:pageWpt, height:pageHpt });
     const pdfBytes = await pdf.save();
 
     // 7) Preview / mockup 1080x1080
     step.name='preview';
-    const mockSize = 1080;
-    const scale = Math.min(mockSize / targetW, mockSize / targetH);
-    const mockW = Math.max(1, Math.round(targetW * scale));
-    const mockH = Math.max(1, Math.round(targetH * scale));
-    const resized = await sharp(fitted).resize(mockW, mockH).png().toBuffer();
-    const left = Math.round((mockSize - mockW) / 2);
-    const top = Math.round((mockSize - mockH) / 2);
-    const preview = await sharp({
-      create: {
-        width: mockSize,
-        height: mockSize,
-        channels: 3,
-        background: job.bg || '#ffffff'
-      }
-    })
-      .composite([{ input: resized, left, top }])
-      .png()
-      .toBuffer();
+    let preview;
+    try {
+      const REF = { Classic:{ w:120, h:60 }, PRO:{ w:120, h:60 }, Glasspad:{ w:50, h:40 } };
+      const mockMargin = 40;
+      const avail = 1080 - 2*mockMargin;
+      const ref = REF[job.material] || { w: w_cm, h: h_cm };
+      const k = Math.min(avail / ref.w, avail / ref.h);
+      const target_w = Math.round(w_cm * k);
+      const target_h = Math.round(h_cm * k);
+      const drawX = Math.round((1080 - target_w) / 2);
+      const drawY = Math.round((1080 - target_h) / 2);
+      const resized = await sharp(stretchedPng).resize({ width: target_w, height: target_h }).toBuffer();
+      const radius = Math.max(24, Math.round(Math.min(target_w, target_h) * 0.05));
+      const maskSvg = `<svg width="${target_w}" height="${target_h}" viewBox="0 0 ${target_w} ${target_h}"><rect x="0" y="0" width="${target_w}" height="${target_h}" rx="${radius}" ry="${radius}" fill="#fff"/></svg>`;
+      const mask = await sharp(Buffer.from(maskSvg)).png().toBuffer();
+      const rounded = await sharp(resized).composite([{ input: mask, blend: 'dest-in' }]).png().toBuffer();
+      preview = await sharp({
+        create: {
+          width: 1080,
+          height: 1080,
+          channels: 4,
+          background: { r:0, g:0, b:0, alpha:0 }
+        }
+      })
+        .composite([{ input: rounded, left: drawX, top: drawY }])
+        .png()
+        .toBuffer();
+      console.log('[MOCKUP 1080]', {
+        material: job.material,
+        w_cm,
+        h_cm,
+        ref_w_cm: ref.w,
+        ref_h_cm: ref.h,
+        mockMargin,
+        avail,
+        k,
+        target_w,
+        target_h,
+        drawX,
+        drawY,
+      });
+    } catch (e) {
+      console.warn('mockup_1080_failed', e?.message);
+      preview = stretchedPng;
+    }
 
     // 8) Subir a outputs
     step.name='upload';
@@ -137,7 +186,7 @@ export default async function handler(req, res) {
     const pdfKey   = `pdf/${job.job_id}/print_${Number(job.w_cm)}x${Number(job.h_cm)}_${hash8}.pdf`;
     const prevKey  = `mockup/${job.job_id}/preview_${hash8}.png`;
 
-    const up1 = await supa.storage.from(base).upload(printKey, fitted, { contentType:'image/jpeg', upsert:true });
+    const up1 = await supa.storage.from(base).upload(printKey, printJpgBuf, { contentType:'image/jpeg', upsert:true });
     if (up1.error) return res.status(500).json({ step: step.name, error: up1.error.message || String(up1.error) });
     const up2 = await supa.storage.from(base).upload(pdfKey, Buffer.from(pdfBytes), { contentType:'application/pdf', upsert:true });
     if (up2.error) return res.status(500).json({ step: step.name, error: up2.error.message || String(up2.error) });
