@@ -130,6 +130,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   // viewport
   const wrapRef = useRef(null);
   const stageRef = useRef(null);
+  const exportStageRef = useRef(null);
   const [wrapSize, setWrapSize] = useState({ w: 960, h: 540 });
   useEffect(() => {
     const ro = new ResizeObserver(() => {
@@ -619,6 +620,45 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     };
   };
 
+  const getPadRect = () => ({
+    x: bleedCm,
+    y: bleedCm,
+    w: wCm,
+    h: hCm,
+    radius: cornerRadiusCm,
+  });
+
+  const exportPadAsBlob = async () => {
+    if (!exportStageRef.current) return null;
+    const inner_w_px = Math.round(wCm * dpi / CM_PER_INCH);
+    const inner_h_px = Math.round(hCm * dpi / CM_PER_INCH);
+    const bleed_px = Math.round((bleedMm / 10) * dpi / CM_PER_INCH);
+    const pixelRatio = Math.min(inner_w_px / wCm, inner_h_px / hCm);
+    const dataUrl = exportStageRef.current.toDataURL({
+      mimeType: 'image/jpeg',
+      quality: 0.95,
+      pixelRatio,
+    });
+    if (bleed_px > 0) {
+      const base = document.createElement('canvas');
+      base.width = inner_w_px + 2 * bleed_px;
+      base.height = inner_h_px + 2 * bleed_px;
+      const ctx = base.getContext('2d');
+      if (mode === 'contain') {
+        ctx.fillStyle = bgColor;
+        ctx.fillRect(0, 0, base.width, base.height);
+      }
+      const img = await new Promise((resolve) => {
+        const i = new Image();
+        i.onload = () => resolve(i);
+        i.src = dataUrl;
+      });
+      ctx.drawImage(img, bleed_px, bleed_px, inner_w_px, inner_h_px);
+      return await new Promise((resolve) => base.toBlob(resolve, 'image/jpeg', 0.95));
+    }
+    return await (await fetch(dataUrl)).blob();
+  };
+
   useImperativeHandle(ref, () => ({
     getRenderDescriptor: () => {
       if (!imgEl || !imgBaseCm) return null;
@@ -713,7 +753,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         bleed_mm: bleedMm,
       };
     },
-    getPadRect: getPadRectPx,
+    getPadRect,
+    getPadRectPx,
     exportPadCanvas: () => {
       if (!stageRef.current) return null;
       const stageCanvas = stageRef.current.toCanvas({ pixelRatio: 1 });
@@ -740,7 +781,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       ctx.clip();
       ctx.drawImage(stageCanvas, pad.x, pad.y, pad.w, pad.h, 0, 0, pad.w, pad.h);
       return out;
-    }
+    },
+    exportPadAsBlob,
   }));
 
   // popover color
@@ -1030,6 +1072,51 @@ async function onConfirmSubmit() {
               cornerRadius={Math.max(0, cornerRadiusCm - 1)}
               listening={false}
             />
+          </Layer>
+        </Stage>
+        <Stage
+          ref={exportStageRef}
+          width={wCm}
+          height={hCm}
+          style={{ display: 'none' }}
+        >
+          <Layer>
+            <Group
+              clipFunc={(ctx) => {
+                const r = cornerRadiusCm;
+                const w = wCm;
+                const h = hCm;
+                const rr = Math.max(0, Math.min(r, Math.min(w, h) / 2));
+                ctx.beginPath();
+                ctx.moveTo(rr, 0);
+                ctx.lineTo(w - rr, 0);
+                ctx.arcTo(w, 0, w, rr, rr);
+                ctx.lineTo(w, h - rr);
+                ctx.arcTo(w, h, w - rr, h, rr);
+                ctx.lineTo(rr, h);
+                ctx.arcTo(0, h, 0, h - rr, rr);
+                ctx.lineTo(0, rr);
+                ctx.arcTo(0, 0, rr, 0, rr);
+                ctx.closePath();
+              }}
+            >
+              {mode === 'contain' && (
+                <Rect x={0} y={0} width={wCm} height={hCm} fill={bgColor} listening={false} />
+              )}
+              {imgEl && imgBaseCm && (
+                <KonvaImage
+                  image={imgEl}
+                  x={imgTx.x_cm - bleedCm + dispW / 2}
+                  y={imgTx.y_cm - bleedCm + dispH / 2}
+                  width={dispW}
+                  height={dispH}
+                  offsetX={dispW / 2}
+                  offsetY={dispH / 2}
+                  rotation={imgTx.rotation_deg}
+                  listening={false}
+                />
+              )}
+            </Group>
           </Layer>
         </Stage>
         {imageUrl && imgStatus !== 'loaded' && (
