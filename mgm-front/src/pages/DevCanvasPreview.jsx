@@ -4,6 +4,9 @@ import { PDFDocument } from 'pdf-lib';
 import { buildExportBaseName } from '../lib/filename';
 import { renderMockup1080, downloadBlob } from '../lib/mockup';
 import { dlog } from '../lib/debug';
+import { PX_PER_CM } from '@/lib/export-consts';
+
+console.assert(Number.isFinite(PX_PER_CM), '[export] PX_PER_CM inválido', PX_PER_CM);
 
 export default function DevCanvasPreview() {
   const navigate = useNavigate();
@@ -30,9 +33,8 @@ export default function DevCanvasPreview() {
     const out_w_cm = w_cm + 2;
     const out_h_cm = h_cm + 2;
     const baseName = buildExportBaseName(designName, w_cm, h_cm);
-    const dpi = 300;
-    const out_w_px = Math.round((out_w_cm * dpi) / 2.54);
-    const out_h_px = Math.round((out_h_cm * dpi) / 2.54);
+    const out_w_px = Math.round(out_w_cm * PX_PER_CM);
+    const out_h_px = Math.round(out_h_cm * PX_PER_CM);
     const img = new Image();
     img.onload = async () => {
       const canvas = document.createElement('canvas');

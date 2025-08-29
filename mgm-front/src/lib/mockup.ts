@@ -1,6 +1,7 @@
 import { dlog } from './debug';
+import { MOCKUP_BASE_PX } from '@/lib/export-consts';
 
-const CANVAS = 1080;
+console.assert(Number.isFinite(MOCKUP_BASE_PX), '[export] MOCKUP_BASE_PX inválido', MOCKUP_BASE_PX);
 
 function pathRoundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, rad: number) {
   const rr = Math.min(rad, w / 2, h / 2);
@@ -20,9 +21,9 @@ function pathRoundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, w:
 export async function renderMockup1080(canvas: HTMLCanvasElement, src: ImageBitmap | Blob | HTMLImageElement, w_cm: number, h_cm: number, material: string) {
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('2d context');
-  canvas.width = CANVAS;
-  canvas.height = CANVAS;
-  ctx.clearRect(0,0,CANVAS,CANVAS);
+  canvas.width = MOCKUP_BASE_PX;
+  canvas.height = MOCKUP_BASE_PX;
+  ctx.clearRect(0,0,MOCKUP_BASE_PX,MOCKUP_BASE_PX);
   ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = 'source-over';
   ctx.filter = 'none';
@@ -55,15 +56,15 @@ export async function renderMockup1080(canvas: HTMLCanvasElement, src: ImageBitm
   let target_h = Math.max(1, Math.round(h_cm * pxPerCm));
 
   const MIN_MARGIN = 80;
-  const avail = CANVAS - 2 * MIN_MARGIN;
+  const avail = MOCKUP_BASE_PX - 2 * MIN_MARGIN;
   if (target_w > avail || target_h > avail) {
     const s = Math.min(avail / target_w, avail / target_h);
     target_w = Math.max(1, Math.round(target_w * s));
     target_h = Math.max(1, Math.round(target_h * s));
   }
 
-  const dx = Math.round((CANVAS - target_w) / 2);
-  const dy = Math.round((CANVAS - target_h) / 2);
+  const dx = Math.round((MOCKUP_BASE_PX - target_w) / 2);
+  const dy = Math.round((MOCKUP_BASE_PX - target_h) / 2);
   const r = Math.max(12, Math.min(Math.min(target_w, target_h) * 0.02, 20));
 
   dlog('[MOCKUP DEBUG]', { w_cm, h_cm, t, pxPerCm, target_w, target_h, dx, dy });

@@ -5,9 +5,11 @@ import useImage from 'use-image';
 import styles from './EditorCanvas.module.css';
 import ColorPopover from './ColorPopover';
 import { dlog } from '../lib/debug';
-
+import { PX_PER_CM } from '@/lib/export-consts';
 import { buildSubmitJobBody, prevalidateSubmitBody } from '../lib/jobPayload';
 import { submitJob } from '../lib/submitJob';
+
+console.assert(Number.isFinite(PX_PER_CM), '[export] PX_PER_CM inválido', PX_PER_CM);
 
 const CM_PER_INCH = 2.54;
 const mmToCm = (mm) => mm / 10;
@@ -26,7 +28,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     imageFile,
     sizeCm = { w: 90, h: 40 }, // tamaño final SIN sangrado (cm)
     bleedMm = 3,
-    dpi = 300,
     onLayoutChange,
     material,
     onPickedColor,
@@ -88,6 +89,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     setIsPickingColor(true);
   }, []);
 
+  const viewPxPerCm = useMemo(() => baseScale * viewScale, [baseScale, viewScale]);
+
   const updateLoupe = useCallback((clientX, clientY) => {
     if (!exportStageRef.current) return;
     const stage = stageRef.current;
@@ -99,8 +102,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     const worldX = (x - viewPos.x) / k;
     const worldY = (y - viewPos.y) / k;
     if (worldX < bleedCm || worldX > bleedCm + wCm || worldY < bleedCm || worldY > bleedCm + hCm) return;
-    const px = Math.floor((worldX - bleedCm) * exportScale);
-    const py = Math.floor((worldY - bleedCm) * exportScale);
+    const px = Math.floor((worldX - bleedCm) * viewPxPerCm);
+    const py = Math.floor((worldY - bleedCm) * viewPxPerCm);
     try {
       const src = exportStageRef.current.toCanvas();
       const ctx = src.getContext('2d');
@@ -128,7 +131,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       setPickOverlay({ x: clientX + 15, y: clientY + 15, hex });
       console.log('[COLOR-PICK]', hex, px, py);
     } catch { /* ignore */ }
-  }, [baseScale, viewScale, viewPos.x, viewPos.y, bleedCm, exportScale, wCm, hCm]);
+  }, [baseScale, viewScale, viewPos.x, viewPos.y, bleedCm, viewPxPerCm, wCm, hCm]);
 
   useEffect(() => {
     if (!isPickingColor) return;
@@ -247,10 +250,10 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const imgBaseCm = useMemo(() => {
     if (!imgEl) return null;
     return {
-      w: (imgEl.naturalWidth  / dpi) * CM_PER_INCH,
-      h: (imgEl.naturalHeight / dpi) * CM_PER_INCH
+      w: imgEl.naturalWidth / PX_PER_CM,
+      h: imgEl.naturalHeight / PX_PER_CM
     };
-  }, [imgEl, dpi]);
+  }, [imgEl]);
 
   const [imgTx, setImgTx] = useState({ x_cm: 0, y_cm: 0, scaleX: 1, scaleY: 1, rotation_deg: 0 });
   const historyRef = useRef([]); // pila de estados para undo
@@ -659,7 +662,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
   const getRenderDescriptorV2 = () => {
     if (!imgEl || !imgBaseCm) return null;
-    const cmPerPx = CM_PER_INCH / dpi;
+    const cmPerPx = 1 / PX_PER_CM;
     const canvas_px = {
       w: Math.round(workCm.w / cmPerPx),
       h: Math.round(workCm.h / cmPerPx),
@@ -700,12 +703,11 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   };
 
   const padRectPx = getPadRectPx();
-  const exportScale = padRectPx.w / wCm;
 
   const exportPadAsBlob = async () => {
     if (!exportStageRef.current) return null;
-    const inner_w_px = Math.round((wCm * dpi) / CM_PER_INCH);
-    const inner_h_px = Math.round((hCm * dpi) / CM_PER_INCH);
+    const inner_w_px = Math.round(wCm * PX_PER_CM);
+    const inner_h_px = Math.round(hCm * PX_PER_CM);
     const pad_px = getPadRectPx();
     const pixelRatioX = inner_w_px / pad_px.w;
     const pixelRatioY = inner_h_px / pad_px.h;
@@ -743,7 +745,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       if (!imgEl || !imgBaseCm) return null;
       const naturalW = imgEl.naturalWidth;
       const naturalH = imgEl.naturalHeight;
-      const cmPerPx = CM_PER_INCH / dpi;
+    const cmPerPx = 1 / PX_PER_CM;
       const dispW = imgBaseCm.w * imgTx.scaleX;
       const dispH = imgBaseCm.h * imgTx.scaleY;
       const originX = imgTx.x_cm + dispW / 2;
@@ -814,7 +816,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   // export layout
   useEffect(() => {
     layoutChangeRef.current?.({
-      dpi,
+      dpi: Math.round(PX_PER_CM * CM_PER_INCH),
       bleed_mm: bleedMm,
       size_cm: { w: wCm, h: hCm },
       image: imgEl ? { natural_px: { w: imgEl.naturalWidth, h: imgEl.naturalHeight } } : null,
@@ -829,7 +831,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       background: mode === 'contain' ? bgColor : '#ffffff',
       corner_radius_cm: cornerRadiusCm
     });
-  }, [dpi, bleedMm, wCm, hCm, imgEl, imgTx, mode, bgColor, cornerRadiusCm]);
+  }, [bleedMm, wCm, hCm, imgEl, imgTx, mode, bgColor, cornerRadiusCm]);
 
   // Confirmar y crear job
 async function onConfirmSubmit() {
@@ -839,7 +841,7 @@ async function onConfirmSubmit() {
       size: { w: sizeCm?.w, h: sizeCm?.h, bleed_mm: 3 },
       fit_mode: transform?.fitMode, // 'cover'|'contain'|'stretch'
       bg: bgColor || '#ffffff',
-      dpi: Math.round(currentDpi || 300),
+      dpi: Math.round(currentDpi || PX_PER_CM * CM_PER_INCH),
       uploads: {
         signed_url: uploadUrlResponse?.upload?.signed_url,
         object_key: uploadUrlResponse?.object_key,
@@ -1111,12 +1113,12 @@ async function onConfirmSubmit() {
             {imgEl && imgBaseCm && (
               <KonvaImage
                 image={imgEl}
-                x={(imgTx.x_cm - bleedCm + dispW / 2) * exportScale}
-                y={(imgTx.y_cm - bleedCm + dispH / 2) * exportScale}
-                width={dispW * exportScale}
-                height={dispH * exportScale}
-                offsetX={(dispW * exportScale) / 2}
-                offsetY={(dispH * exportScale) / 2}
+                x={(imgTx.x_cm - bleedCm + dispW / 2) * viewPxPerCm}
+                y={(imgTx.y_cm - bleedCm + dispH / 2) * viewPxPerCm}
+                width={dispW * viewPxPerCm}
+                height={dispH * viewPxPerCm}
+                offsetX={(dispW * viewPxPerCm) / 2}
+                offsetY={(dispH * viewPxPerCm) / 2}
                 rotation={imgTx.rotation_deg}
                 listening={false}
               />
