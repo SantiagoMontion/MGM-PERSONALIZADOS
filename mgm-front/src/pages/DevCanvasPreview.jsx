@@ -88,50 +88,52 @@ export default function DevCanvasPreview() {
   async function downloadMockup() {
     if (!padBlob || !render_v2) return;
     const { w_cm, h_cm, material } = render_v2;
+    const CANVAS = 1080;
     const REF_MAX = {
       Classic: { w: 140, h: 100 },
       PRO: { w: 140, h: 100 },
       Glasspad: { w: 50, h: 40 },
     };
-    const MIN_MARGIN = 100;
-    const MAX_MARGIN = 220;
-    const W = 1080;
-    const H = 1080;
     const ref = REF_MAX[material] || { w: w_cm, h: h_cm };
-    const REF_AREA = ref.w * ref.h;
-    const AREA = w_cm * h_cm;
-    const areaRatio = Math.min(Math.max(AREA / REF_AREA, 0), 1);
-    const gamma = 0.6;
-    const rel = Math.pow(areaRatio, gamma);
-    const marginPx = Math.round(
-      MAX_MARGIN - (MAX_MARGIN - MIN_MARGIN) * rel
-    );
-    const avail = W - 2 * marginPx;
-    const k = Math.min(avail / w_cm, avail / h_cm);
-    const target_w = Math.round(w_cm * k);
-    const target_h = Math.round(h_cm * k);
-    const drawX = Math.round((W - target_w) / 2);
-    const drawY = Math.round((H - target_h) / 2);
+    const W = CANVAS;
+    const H = CANVAS;
+    const MIN_DIAG_CM = Math.sqrt(25 * 25 + 25 * 25);
+    const MAX_DIAG_CM = Math.sqrt(ref.w * ref.w + ref.h * ref.h);
+    const PX_PER_CM_SMALL = 15.0;
+    const PX_PER_CM_LARGE = 6.3;
+    const MIN_MARGIN = 80;
+    const diag_cm = Math.sqrt(w_cm * w_cm + h_cm * h_cm);
+    let t = (diag_cm - MIN_DIAG_CM) / (MAX_DIAG_CM - MIN_DIAG_CM);
+    t = Math.max(0, Math.min(t, 1));
+    const px_per_cm =
+      PX_PER_CM_SMALL + (PX_PER_CM_LARGE - PX_PER_CM_SMALL) * t;
+    let target_w = Math.round(w_cm * px_per_cm);
+    let target_h = Math.round(h_cm * px_per_cm);
+    const avail = CANVAS - 2 * MIN_MARGIN;
+    const appliedClamp = target_w > avail || target_h > avail;
+    if (appliedClamp) {
+      const s = Math.min(avail / target_w, avail / target_h);
+      target_w = Math.round(target_w * s);
+      target_h = Math.round(target_h * s);
+    }
+    const drawX = Math.round((CANVAS - target_w) / 2);
+    const drawY = Math.round((CANVAS - target_h) / 2);
     const r = Math.max(12, Math.min(Math.min(target_w, target_h) * 0.02, 20));
-    console.log('[MOCKUP SCALE DEBUG]', {
+    console.log('[MOCKUP RESCALE DIAGONAL]', {
       w_cm,
       h_cm,
-      REF_W_CM: ref.w,
-      REF_H_CM: ref.h,
-      REF_AREA,
-      AREA,
-      areaRatio,
-      gamma,
-      rel,
-      MIN_MARGIN,
-      MAX_MARGIN,
-      marginPx,
-      avail,
-      k,
+      MIN_DIAG_CM,
+      MAX_DIAG_CM,
+      diag_cm,
+      PX_PER_CM_SMALL: PX_PER_CM_SMALL,
+      PX_PER_CM_LARGE: PX_PER_CM_LARGE,
+      t,
+      px_per_cm,
       target_w,
       target_h,
       drawX,
       drawY,
+      appliedClamp,
     });
     const img = new Image();
     img.onload = () => {
@@ -227,14 +229,14 @@ export default function DevCanvasPreview() {
       h_cm,
       REF_MAX_W_CM: ref.w,
       REF_MAX_H_CM: ref.h,
-      rel,
-      margin: marginPx,
+      diag_cm,
+      px_per_cm,
       avail,
-      k,
       target_w,
       target_h,
       drawX,
       drawY,
+      appliedClamp,
       r,
       seam: { lineDash: [3, 3], lw1: 2, lw2: 1.5, lw3: 1 },
     });
