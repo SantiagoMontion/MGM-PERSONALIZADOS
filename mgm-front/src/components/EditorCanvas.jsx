@@ -2,8 +2,8 @@
 import { useEffect, useMemo, useRef, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { Stage, Layer, Rect, Group, Image as KonvaImage, Transformer } from 'react-konva';
 import useImage from 'use-image';
-import { HexColorPicker, HexColorInput } from 'react-colorful';
 import styles from './EditorCanvas.module.css';
+import ColorPopover from './ColorPopover';
 
 import { buildSubmitJobBody, prevalidateSubmitBody } from '../lib/jobPayload';
 import { submitJob } from '../lib/submitJob';
@@ -18,97 +18,6 @@ const STAGE_BG = '#e5e7eb';
 const SNAP_LIVE_CM = 2.0;
 const RELEASE_CM   = 3.0;
 
-// ---------- Popover de color ----------
-function ColorPopover({ value, onChange, open, onClose }) {
-  const boxRef = useRef(null);
-  const previewRef = useRef(null);
-  const [hex, setHex] = useState(value || '#ffffff');
-  const [copied, setCopied] = useState(false);
-
-  useEffect(() => setHex(value || '#ffffff'), [value]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e) => {
-      if (!boxRef.current) return;
-      if (!boxRef.current.contains(e.target)) onClose?.();
-    };
-    const onKey = (e) => { if (e.key === 'Escape') onClose?.(); };
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open, onClose]);
-
-  useEffect(() => {
-    if (previewRef.current) previewRef.current.style.background = hex;
-  }, [hex]);
-
-  const swatches = [
-    '#ffffff','#000000','#f3f4f6','#e5e7eb','#d1d5db',
-    '#1f2937','#111827','#ff0000','#ff7f00','#ffb800',
-    '#ffe600','#00a859','#00c9a7','#00ccff','#0066ff',
-    '#6f42c1','#ff69b4','#8b4513','#808080','#333333'
-  ];
-
-  const pickWithEyedropper = async () => {
-    try {
-      if ('EyeDropper' in window) {
-        const eyedropper = new window.EyeDropper();
-        const res = await eyedropper.open();
-        setHex(res.sRGBHex);
-        onChange?.(res.sRGBHex);
-        await navigator.clipboard?.writeText(res.sRGBHex);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 900);
-      }
-    } catch { /* ignore */ }
-  };
-
-  const copyHex = async () => {
-    try {
-      await navigator.clipboard?.writeText(hex);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 900);
-    } catch { /* ignore */ }
-  };
-
-  if (!open) return null;
-
-  return (
-    <div ref={boxRef} className={styles.colorPopover}>
-      <HexColorPicker
-        color={hex}
-        onChange={(c)=>{ setHex(c); onChange?.(c); }}
-        className={styles.colorPicker}
-      />
-      <div className={styles.swatches}>
-        {swatches.map((c,i)=>(
-          <button
-            key={c}
-            title={c}
-            onClick={()=>{ setHex(c); onChange?.(c); }}
-            className={`${styles.swatch} ${styles['swatch'+i]}`}
-          />
-        ))}
-      </div>
-      <div className={styles.colorControls}>
-        <div ref={previewRef} className={styles.colorPreview} />
-        <HexColorInput
-          color={hex}
-          onChange={(c)=>{ const v = c.startsWith('#') ? c : `#${c}`; setHex(v); onChange?.(v); }}
-          prefixed
-          className={styles.hexInput}
-        />
-        <button title="Cuentagotas" onClick={pickWithEyedropper} className={styles.eyedropperButton}>🧪</button>
-        <button title="Copiar" onClick={copyHex} className={styles.copyButton}>{copied ? '✓' : 'Copiar'}</button>
-      </div>
-    </div>
-  );
-}
-
 // ---------- Editor ----------
 const EditorCanvas = forwardRef(function EditorCanvas(
   {
@@ -118,6 +27,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     bleedMm = 3,
     dpi = 300,
     onLayoutChange,
+    material,
+    onPickedColor,
   },
   ref
 ) {
@@ -156,6 +67,9 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   // pan
   const isPanningRef = useRef(false);
   const lastPointerRef = useRef({ x: 0, y: 0 });
+  const pickingColorRef = useRef(false);
+  const pickCallbackRef = useRef(null);
+  const [isPickingColor, setIsPickingColor] = useState(false);
 
   const pointerWorld = (stage) => {
     const pt = stage.getPointerPosition();
@@ -163,6 +77,12 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     return { x: (pt.x - viewPos.x) / k, y: (pt.y - viewPos.y) / k };
   };
   const isOutsideWorkArea = (wp) => wp.x < 0 || wp.y < 0 || wp.x > workCm.w || wp.y > workCm.h;
+
+  const startPickColor = useCallback((cb) => {
+    pickCallbackRef.current = cb;
+    pickingColorRef.current = true;
+    setIsPickingColor(true);
+  }, []);
 
   // selección
   const imgRef = useRef(null);
@@ -183,6 +103,29 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const onStageMouseDown = (e) => {
     const stage = e.target.getStage();
     const wp = pointerWorld(stage);
+
+    if (pickingColorRef.current) {
+      if (wp.x >= bleedCm && wp.x <= bleedCm + wCm && wp.y >= bleedCm && wp.y <= bleedCm + hCm) {
+        const k = baseScale * viewScale;
+        const px = Math.floor((wp.x - bleedCm) * k);
+        const py = Math.floor((wp.y - bleedCm) * k);
+        try {
+          const canvas = exportStageRef.current?.toCanvas();
+          const ctx = canvas?.getContext('2d');
+          const data = ctx?.getImageData(px, py, 1, 1)?.data;
+          if (data) {
+            const hex = `#${[0,1,2].map(i=>data[i].toString(16).padStart(2,'0')).join('')}`;
+            pickCallbackRef.current?.(hex);
+            onPickedColor?.(hex);
+          }
+        } catch { /* ignore */ }
+      }
+      pickCallbackRef.current = null;
+      pickingColorRef.current = false;
+      setIsPickingColor(false);
+      return;
+    }
+
     const onImg = isTargetOnImageOrTransformer(e.target);
 
     if (!onImg) {
@@ -278,6 +221,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
   const moveBy = useCallback((dx, dy) => {
     pushHistory(imgTx);
+    stickyFitRef.current = null;
     setImgTx((tx) => ({ ...tx, x_cm: tx.x_cm + dx, y_cm: tx.y_cm + dy }));
   }, [imgTx]);
 
@@ -297,6 +241,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const [freeScale, setFreeScale] = useState(false); // ⟵ NUEVO: “Estirar sin límites”
   const keepRatio = !freeScale;
   const [mode, setMode] = useState('cover'); // 'cover' | 'contain' | 'stretch'
+  const stickyFitRef = useRef('cover');
   const [bgColor, setBgColor] = useState('#ffffff');
 
   // cover inicial 1 sola vez
@@ -327,6 +272,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const onImgDragStart = () => {
     stickRef.current = { x: null, y: null, activeX: false, activeY: false };
     pushHistory(imgTx);
+    stickyFitRef.current = null;
   };
   const dragBoundFunc = useCallback((pos) => {
     if (!imgBaseCm) return pos;
@@ -427,6 +373,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const onTransformEnd = () => {
     if (!imgRef.current || !imgBaseCm) return;
     pushHistory(imgTx);
+    stickyFitRef.current = null;
     const n = imgRef.current;
     const sx = n.scaleX();
     const sy = n.scaleY();
@@ -456,96 +403,60 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   };
 
   // cover/contain/estirar con rotación
-  const fitCover = useCallback(() => {
-    if (!imgBaseCm) return;
-    const { cx, cy } = currentCenter();
-    const w = imgBaseCm.w, h = imgBaseCm.h;
-    const c = Math.abs(Math.cos(theta));
-    const s = Math.abs(Math.sin(theta));
-    const denomW = w * c + h * s;
-    const denomH = w * s + h * c;
-    const sCover = Math.max(workCm.w / denomW, workCm.h / denomH);
-    const newW = w * sCover, newH = h * sCover;
-    pushHistory(imgTx);
-    setImgTx((prev) => ({
-      x_cm: cx - newW/2, y_cm: cy - newH/2,
-      scaleX: sCover, scaleY: sCover,
-      rotation_deg: prev.rotation_deg,
-    }));
-    setMode('cover');
-  }, [imgBaseCm?.w, imgBaseCm?.h, workCm.w, workCm.h, theta, imgTx.x_cm, imgTx.y_cm, imgTx.scaleX, imgTx.scaleY]);
-
-  const fitContain = useCallback(() => {
-    if (!imgBaseCm) return;
-    const { cx, cy } = currentCenter();
-    const w = imgBaseCm.w, h = imgBaseCm.h;
-    const c = Math.abs(Math.cos(theta));
-    const s = Math.abs(Math.sin(theta));
-    const denomW = w * c + h * s;
-    const denomH = w * s + h * c;
-    const sContain = Math.min(workCm.w / denomW, workCm.h / denomH);
-    const newW = w * sContain, newH = h * sContain;
-    pushHistory(imgTx);
-    setImgTx((prev) => ({
-      x_cm: cx - newW/2, y_cm: cy - newH/2,
-      scaleX: sContain, scaleY: sContain,
-      rotation_deg: prev.rotation_deg,
-    }));
-    setMode('contain');
-  }, [imgBaseCm?.w, imgBaseCm?.h, workCm.w, workCm.h, theta, imgTx.x_cm, imgTx.y_cm, imgTx.scaleX, imgTx.scaleY]);
-
-  // estirar centrado (respeta rotación)
-  const fitStretchCentered = useCallback(() => {
+  const applyFit = useCallback((mode) => {
     if (!imgBaseCm) return;
     const { cx, cy } = currentCenter();
     const w = imgBaseCm.w, h = imgBaseCm.h;
     const c = Math.abs(Math.cos(theta));
     const s = Math.abs(Math.sin(theta));
 
-    const A11 = w * c, A12 = h * s;
-    const A21 = w * s, A22 = h * c;
-    const det = A11 * A22 - A12 * A21;
-
-    let sx = 1, sy = 1;
-    if (Math.abs(det) > 1e-6) {
-      sx = ( (workCm.w * A22) - (A12 * workCm.h) ) / det;
-      sy = ( (-A21 * workCm.w) + (A11 * workCm.h) ) / det;
-    } else {
+    if (mode === 'cover' || mode === 'contain') {
       const denomW = w * c + h * s;
       const denomH = w * s + h * c;
-      const sCover = Math.max(workCm.w / denomW, workCm.h / denomH);
-      sx = sy = sCover;
+      const scale = mode === 'cover'
+        ? Math.max(workCm.w / denomW, workCm.h / denomH)
+        : Math.min(workCm.w / denomW, workCm.h / denomH);
+      const newW = w * scale, newH = h * scale;
+      pushHistory(imgTx);
+      setImgTx((prev) => ({
+        x_cm: cx - newW/2, y_cm: cy - newH/2,
+        scaleX: scale, scaleY: scale,
+        rotation_deg: prev.rotation_deg,
+      }));
+      setMode(mode);
+      return;
     }
 
-    sx = Math.max(sx, 0.02);
-    sy = Math.max(sy, 0.02);
-
-    const newW = w * sx, newH = h * sy;
-    pushHistory(imgTx);
-    setImgTx((prev) => ({
-      x_cm: cx - newW/2, y_cm: cy - newH/2,
-      scaleX: sx, scaleY: sy,
-      rotation_deg: prev.rotation_deg,
-    }));
-    setMode('stretch');
+    if (mode === 'stretch') {
+      const A11 = w * c, A12 = h * s;
+      const A21 = w * s, A22 = h * c;
+      const det = A11 * A22 - A12 * A21;
+      let sx = 1, sy = 1;
+      if (Math.abs(det) > 1e-6) {
+        sx = ( (workCm.w * A22) - (A12 * workCm.h) ) / det;
+        sy = ( (-A21 * workCm.w) + (A11 * workCm.h) ) / det;
+      } else {
+        const denomW = w * c + h * s;
+        const denomH = w * s + h * c;
+        const sCover = Math.max(workCm.w / denomW, workCm.h / denomH);
+        sx = sy = sCover;
+      }
+      sx = Math.max(sx, 0.02);
+      sy = Math.max(sy, 0.02);
+      const newW = w * sx, newH = h * sy;
+      pushHistory(imgTx);
+      setImgTx((prev) => ({
+        x_cm: cx - newW/2, y_cm: cy - newH/2,
+        scaleX: sx, scaleY: sy,
+        rotation_deg: prev.rotation_deg,
+      }));
+      setMode('stretch');
+    }
   }, [imgBaseCm?.w, imgBaseCm?.h, workCm.w, workCm.h, theta, imgTx.x_cm, imgTx.y_cm, imgTx.scaleX, imgTx.scaleY]);
 
-  // estirar libre (ignora rotación para el cálculo)
-  // eslint-disable-next-line no-unused-vars
-  const fitStretchFree = useCallback(() => {
-    if (!imgBaseCm) return;
-    const { cx, cy } = currentCenter();
-    const sx = workCm.w / imgBaseCm.w;
-    const sy = workCm.h / imgBaseCm.h;
-    const newW = imgBaseCm.w * sx, newH = imgBaseCm.h * sy;
-    pushHistory(imgTx);
-    setImgTx((prev) => ({
-      x_cm: cx - newW/2, y_cm: cy - newH/2,
-      scaleX: sx, scaleY: sy,
-      rotation_deg: prev.rotation_deg,
-    }));
-    setMode('stretch');
-  }, [imgBaseCm?.w, imgBaseCm?.h, workCm.w, workCm.h, imgTx.x_cm, imgTx.y_cm, imgTx.scaleX, imgTx.scaleY]);
+  const fitCover = useCallback(() => { applyFit('cover'); stickyFitRef.current = 'cover'; }, [applyFit]);
+  const fitContain = useCallback(() => { applyFit('contain'); stickyFitRef.current = 'contain'; }, [applyFit]);
+  const fitStretchCentered = useCallback(() => { applyFit('stretch'); stickyFitRef.current = 'stretch'; }, [applyFit]);
 
   const centerHoriz = useCallback(() => {
     if (!imgBaseCm) return;
@@ -585,8 +496,15 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   
   const rotate = (deg) => {
     pushHistory(imgTx);
+    stickyFitRef.current = null;
     setImgTx((tx) => ({ ...tx, rotation_deg: (tx.rotation_deg + deg) % 360 }));
   };
+
+  useEffect(() => {
+    if (stickyFitRef.current) {
+      applyFit(stickyFitRef.current);
+    }
+  }, [material, wCm, hCm, applyFit]);
 
 
   // calidad
@@ -766,6 +684,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     getPadRect,
     getPadRectPx,
     exportPadAsBlob,
+    startPickColor,
   }));
 
   // popover color
@@ -849,7 +768,13 @@ async function onConfirmSubmit() {
           <button onClick={toggleContain} disabled={!imgEl}>Contener</button>
           {mode === 'contain' && imgEl && (
             <div className={styles.colorPopoverWrap}>
-              <ColorPopover value={bgColor} onChange={setBgColor} open={colorOpen} onClose={closeColor} />
+              <ColorPopover
+                value={bgColor}
+                onChange={setBgColor}
+                open={colorOpen}
+                onClose={closeColor}
+                onPickFromCanvas={() => startPickColor(setBgColor)}
+              />
             </div>
           )}
         </div>
@@ -893,7 +818,7 @@ async function onConfirmSubmit() {
       {/* Canvas */}
       <div
         ref={wrapRef}
-        className={`${styles.canvasWrapper} ${isPanningRef.current ? styles.grabbing : ''}`}
+        className={`${styles.canvasWrapper} ${isPanningRef.current ? styles.grabbing : ''} ${isPickingColor ? styles.picking : ''}`}
       >
         <button
           onClick={undo}

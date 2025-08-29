@@ -92,6 +92,10 @@
   cursor: pointer;
 }
 
+.picking {
+  cursor: crosshair;
+}
+
 .toolbar {
   display: flex;
   gap: 8px;
