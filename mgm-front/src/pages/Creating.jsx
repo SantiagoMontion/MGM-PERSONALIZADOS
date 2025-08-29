@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import LoadingOverlay from '../components/LoadingOverlay';
 import { pollJobAndCreateCart } from '../lib/pollJobAndCreateCart';
+import { dlog } from '../lib/debug';
 
 export default function Creating() {
   const { jobId } = useParams();
@@ -13,6 +14,7 @@ export default function Creating() {
   const apiBase = import.meta.env.VITE_API_BASE || 'https://mgm-api.vercel.app';
 
   const [needsRetry, setNeedsRetry] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState(null);
 
   const run = useCallback(async () => {
     setNeedsRetry(false);
@@ -28,11 +30,12 @@ export default function Creating() {
             : { job_id: jobId }
         )
       });
-      console.log('finalize diag', resp.headers.get('X-Diag-Id'));
+      dlog('finalize diag', resp.headers.get('X-Diag-Id'));
 
       let retried = false;
       const res = await pollJobAndCreateCart(apiBase, jobId, {
         onTick: async (attempt, job) => {
+          if (job?.preview_url) setPreviewUrl(job.preview_url);
           if (!retried && attempt >= 10 && job?.status === 'CREATED') {
             retried = true;
             try {
@@ -41,7 +44,7 @@ export default function Creating() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ job_id: jobId })
               });
-              console.log('retry finalize diag', r.headers.get('X-Diag-Id'));
+              dlog('retry finalize diag', r.headers.get('X-Diag-Id'));
             } catch (e) {
               console.warn(e);
             }
@@ -70,12 +73,13 @@ export default function Creating() {
 
   return (
     <div>
+      {previewUrl && <img src={previewUrl} alt="preview" style={{ maxWidth: '300px' }} />}
       <LoadingOverlay show={!needsRetry && !skipFinalize} messages={["Creando tu pedido…"]} />
       {skipFinalize && <p>Modo sólo previsualización: finalize-assets no fue llamado.</p>}
       {needsRetry && (
         <button
           onClick={() => {
-            console.log('manual retry');
+            dlog('manual retry');
             run();
           }}
         >

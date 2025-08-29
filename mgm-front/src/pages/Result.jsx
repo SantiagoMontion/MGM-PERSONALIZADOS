@@ -57,7 +57,6 @@ export default function Result() {
 
   const hrefCart = added ? urls.cart_plain : urls.cart_url_follow;
   const hrefCheckout = added ? urls.checkout_plain : urls.checkout_url_now;
-  const openNew = (u) => window.open(u, '_blank', 'noopener,noreferrer');
 
   return (
     <div>
@@ -65,20 +64,40 @@ export default function Result() {
         <img src={job.preview_url} alt="preview" style={{ maxWidth: '300px' }} />
       )}
       <div>
-        <button onClick={() => { openNew(hrefCart); localStorage.setItem(`MGM_jobAdded:${jobId}`,'true'); setAdded(true); }}>
+        <a
+          href={hrefCart}
+          target="_blank"
+          rel="noopener"
+          onClick={() => {
+            localStorage.setItem(`MGM_jobAdded:${jobId}`, 'true');
+            setAdded(true);
+          }}
+        >
           Agregar al carrito y seguir comprando
-        </button>
-        <button onClick={() => { openNew(hrefCheckout); localStorage.setItem(`MGM_jobAdded:${jobId}`,'true'); setAdded(true); }}>
+        </a>
+        <a
+          href={hrefCheckout}
+          target="_blank"
+          rel="noopener"
+          onClick={() => {
+            localStorage.setItem(`MGM_jobAdded:${jobId}`, 'true');
+            setAdded(true);
+          }}
+        >
           Pagar ahora
-        </button>
-        <button onClick={() => {
-          openNew(hrefCart);
-          localStorage.setItem(`MGM_jobAdded:${jobId}`,'true');
-          setAdded(true);
-          navigate('/');
-        }}>
+        </a>
+        <a
+          href={hrefCart}
+          target="_blank"
+          rel="noopener"
+          onClick={() => {
+            localStorage.setItem(`MGM_jobAdded:${jobId}`, 'true');
+            setAdded(true);
+            navigate('/');
+          }}
+        >
           Crear otro
-        </button>
+        </a>
       </div>
     </div>
   );

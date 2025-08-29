@@ -1,4 +1,5 @@
 // src/lib/submitJob.ts
+import { dlog } from './debug';
 export interface SubmitJobBody {
   job_id: string;
   material: string;
@@ -48,7 +49,7 @@ export async function submitJob(apiBase: string, body: SubmitJobBody): Promise<a
     );
   }
 
-  console.log('[submit-job OK]', { diagId, job: data?.job });
+  dlog('[submit-job OK]', { diagId, job: data?.job });
   return data?.job;
 }
 

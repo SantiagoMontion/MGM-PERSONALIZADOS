@@ -2,6 +2,7 @@
 import { useRef, useState } from 'react';
 import styles from './UploadStep.module.css';
 import LoadingOverlay from './LoadingOverlay';
+import { dlog } from '../lib/debug';
 
 export default function UploadStep({ onUploaded }) {
   const inputRef = useRef(null);
@@ -22,7 +23,7 @@ export default function UploadStep({ onUploaded }) {
     try {
       const localUrl = URL.createObjectURL(file);
       const uploaded = { file, localUrl };
-      console.log('[UploadStep] local-only', uploaded);
+      dlog('[UploadStep] local-only', uploaded);
       onUploaded(uploaded);
     } catch (e) {
       console.error(e);

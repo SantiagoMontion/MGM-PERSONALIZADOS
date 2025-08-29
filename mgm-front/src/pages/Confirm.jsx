@@ -41,13 +41,13 @@ export default function Confirm() {
 
       <div className={styles.actions}>
         {data.cart_url && (
-          <a className="btn" href={data.cart_url}>Agregar al carrito</a>
+          <a className="btn" href={data.cart_url} target="_blank" rel="noopener">Agregar al carrito</a>
         )}
         {data.shopify_product_url && (
-          <a className="btn" href={data.shopify_product_url} target="_blank">Ver producto</a>
+          <a className="btn" href={data.shopify_product_url} target="_blank" rel="noopener">Ver producto</a>
         )}
         {data.checkout_url && (
-          <a className="btn" href={data.checkout_url} target="_blank" rel="noreferrer">Pagar ahora</a>
+          <a className="btn" href={data.checkout_url} target="_blank" rel="noopener">Pagar ahora</a>
         )}
         <a className="btn" href="/">Cargar otro diseño</a>
       </div>

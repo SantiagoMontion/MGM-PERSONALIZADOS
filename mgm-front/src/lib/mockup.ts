@@ -1,3 +1,5 @@
+import { dlog } from './debug';
+
 const CANVAS = 1080;
 
 function pathRoundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, rad: number) {
@@ -64,7 +66,7 @@ export async function renderMockup1080(canvas: HTMLCanvasElement, src: ImageBitm
   const dy = Math.round((CANVAS - target_h) / 2);
   const r = Math.max(12, Math.min(Math.min(target_w, target_h) * 0.02, 20));
 
-  console.log('[MOCKUP DEBUG]', { w_cm, h_cm, t, pxPerCm, target_w, target_h, dx, dy });
+  dlog('[MOCKUP DEBUG]', { w_cm, h_cm, t, pxPerCm, target_w, target_h, dx, dy });
 
   ctx.save();
   pathRoundedRect(ctx, dx, dy, target_w, target_h, r);
