@@ -12,11 +12,14 @@ import DebugPanel from '../components/DebugPanel';
 import { LIMITS, STANDARD } from '../lib/material.js';
 
 import { dpiLevel } from '../lib/dpi';
+import { PX_PER_CM } from '@/lib/export-consts';
 import { sha256Hex } from '../lib/hash.js';
 import { buildSubmitJobBody, prevalidateSubmitBody } from '../lib/jobPayload.js';
 import { submitJob as submitJobApi } from '../lib/submitJob.js';
 import { DEBUG, dlog } from '../lib/debug';
 import styles from './Home.module.css';
+
+console.assert(Number.isFinite(PX_PER_CM), '[export] PX_PER_CM inválido', PX_PER_CM);
 
 export default function Home() {
 
@@ -212,7 +215,7 @@ export default function Home() {
         size: { w: sizeCm.w, h: sizeCm.h, bleed_mm: 3 },
         fit_mode: 'cover',
         bg: '#ffffff',
-        dpi: 300,
+        dpi: Math.round(PX_PER_CM * 2.54),
         uploads: { canonical: file_original_url },
         file_hash,
         price: { amount: priceAmount, currency: priceCurrency },
@@ -281,7 +284,6 @@ export default function Home() {
           imageFile={uploaded?.file}
           sizeCm={sizeCm}
           bleedMm={3}
-          dpi={300}
           onLayoutChange={setLayout}
         />
 
