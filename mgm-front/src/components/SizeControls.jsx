@@ -1,34 +1,66 @@
 // src/components/SizeControls.jsx
-import { useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import styles from './SizeControls.module.css';
 import { LIMITS, STANDARD } from '../lib/material.js';
 
 /**
  * Props:
- * - material: 'Classic' | 'PRO'
+ * - material: 'Classic' | 'PRO' | 'Glasspad'
  * - size: { w, h }
- * - mode: 'standard' | 'custom'
- * - onChange: ({ material, mode, w, h }) => void
+ * - onChange: ({ material?, w?, h? }) => void
  */
-export default function SizeControls({ material, size, mode, onChange, locked = false }) {
+export default function SizeControls({ material, size, onChange, locked = false }) {
   const limits = LIMITS[material] || { maxW: size.w, maxH: size.h };
-  const standard = STANDARD[material] || [];
-  const currentValue = `${size.w}x${size.h}`;
+  const presets = STANDARD[material] || [];
 
-  const options = useMemo(
-    () => standard.map(s => ({ label: `${s.w}×${s.h} cm`, value: `${s.w}x${s.h}` })),
-    [standard]
-  );
+  const [wText, setWText] = useState(String(size.w || ''));
+  const [hText, setHText] = useState(String(size.h || ''));
+
+  useEffect(() => { setWText(String(size.w ?? '')); }, [size.w]);
+  useEffect(() => { setHText(String(size.h ?? '')); }, [size.h]);
+
+  useEffect(() => {
+    if (material === 'Glasspad') {
+      setWText('50');
+      setHText('40');
+      onChange({ w: 50, h: 40 });
+    }
+  }, [material, onChange]);
+
+  const numPattern = /^[0-9]{0,3}(\.[0-9]{0,2})?$/;
+
+  const handleWChange = (e) => {
+    const v = e.target.value;
+    if (v === '' || numPattern.test(v)) setWText(v);
+  };
+  const handleHChange = (e) => {
+    const v = e.target.value;
+    if (v === '' || numPattern.test(v)) setHText(v);
+  };
+  const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
+  const handleWBlur = () => {
+    const num = clamp(parseFloat(wText || '0'), 1, limits.maxW);
+    setWText(num ? String(num) : '');
+    onChange({ w: num, h: parseFloat(hText || size.h) });
+  };
+  const handleHBlur = () => {
+    const num = clamp(parseFloat(hText || '0'), 1, limits.maxH);
+    setHText(num ? String(num) : '');
+    onChange({ w: parseFloat(wText || size.w), h: num });
+  };
+
+  const applyPreset = (w, h) => {
+    setWText(String(w));
+    setHText(String(h));
+    onChange({ w, h });
+  };
 
   return (
     <div className={styles.container}>
       <label>Material
         <select
           value={material}
-          onChange={(e) => {
-            const m = e.target.value;
-            onChange({ material: m });
-          }}
+          onChange={(e) => onChange({ material: e.target.value })}
         >
           <option>Classic</option>
           <option>PRO</option>
@@ -36,59 +68,42 @@ export default function SizeControls({ material, size, mode, onChange, locked = 
         </select>
       </label>
 
-      <label>Modo
-        <select
-          value={mode}
-          onChange={(e) => onChange({ mode: e.target.value })}
-          disabled={locked}
-        >
-          <option value="standard">Estándar</option>
-          <option value="custom">Personalizado</option>
-        </select>
+      <label>Ancho (cm)
+        <input
+          value={wText}
+          onChange={handleWChange}
+          onBlur={handleWBlur}
+          inputMode="decimal"
+          pattern="[0-9]*"
+          disabled={locked || material === 'Glasspad'}
+        />
       </label>
 
-      {mode === 'standard' ? (
-        <label>Medida estándar
-          <select
-            value={currentValue}
-            onChange={(e) => {
-              const [w, h] = e.target.value.split('x').map(Number);
-              onChange({ mode: 'standard', w, h });
-            }}
-            disabled={locked}
-          >
-            {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
-        </label>
-      ) : (
-        <>
-          <label>Ancho (cm)
-            <input
-              type="number" min="1" max={limits.maxW} value={size.w}
-              onChange={(e)=>{
-                const w = Math.max(1, Math.min(limits.maxW, Number(e.target.value) || 0));
-                onChange({ w, h: size.h });
-              }}
-              disabled={locked}
-            />
-          </label>
-          <label>Alto (cm)
-            <input
-              type="number" min="1" max={limits.maxH} value={size.h}
-              onChange={(e)=>{
-                const h = Math.max(1, Math.min(limits.maxH, Number(e.target.value) || 0));
-                onChange({ w: size.w, h });
-              }}
-              disabled={locked}
-            />
-          </label>
-          {!locked && (
-            <small className={styles.helper}>
-              Máximo {limits.maxW}×{limits.maxH} cm para {material}
-            </small>
-          )}
-        </>
+      <label>Alto (cm)
+        <input
+          value={hText}
+          onChange={handleHChange}
+          onBlur={handleHBlur}
+          inputMode="decimal"
+          pattern="[0-9]*"
+          disabled={locked || material === 'Glasspad'}
+        />
+      </label>
+
+      <div className={styles.presets}>
+        {presets.map(p => (
+          <button key={`${p.w}x${p.h}`} onClick={() => applyPreset(p.w, p.h)} disabled={locked}>
+            {p.w}×{p.h}
+          </button>
+        ))}
+      </div>
+
+      {!locked && material !== 'Glasspad' && (
+        <small className={styles.helper}>
+          Máximo {limits.maxW}×{limits.maxH} cm para {material}
+        </small>
       )}
+
       {locked && (
         <small className={styles.helper}>Medida fija 50×40 cm</small>
       )}

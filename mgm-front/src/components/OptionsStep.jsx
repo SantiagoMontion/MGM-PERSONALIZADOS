@@ -1,29 +1,26 @@
 import { useEffect, useMemo, useState } from 'react';
 import { z } from 'zod';
-// import { nanoid } from 'nanoid'; // ya no lo usamos
-import { STANDARD, LIMITS } from '../lib/sizes';
+import { STANDARD, LIMITS } from '../lib/material.js';
 import { dpiFor, dpiLevel } from '../lib/dpi';
 import styles from './OptionsStep.module.css';
 import { buildSubmitJobBody, prevalidateSubmitBody } from '../lib/jobPayload';
 import { submitJob } from '../lib/submitJob';
 
 const Form = z.object({
-  material: z.enum(['Classic','PRO']),
-  sizeMode: z.enum(['standard','custom']),
+  material: z.enum(['Classic','PRO','Glasspad']),
   w: z.number().positive(),
   h: z.number().positive(),
-  fit: z.enum(['cover','contain']),
+  fit: z.enum(['cover','contain','stretch']),
   bg: z.string().optional()
 });
 
 export default function OptionsStep({ uploaded, onSubmitted }) {
   const [material, setMaterial] = useState('Classic');
-  const [sizeMode, setSizeMode] = useState('standard');
-  const [std, setStd] = useState({ w: 90, h: 40 });
-  const [custom, setCustom] = useState({ w: 90, h: 40 });
+  const [wText, setWText] = useState('90');
+  const [hText, setHText] = useState('40');
   const [fit, setFit] = useState('cover');
   const [bg, setBg] = useState('#ffffff');
-  const [imgPx, setImgPx] = useState({ w: 0, h: 0 }); // natural px
+  const [imgPx, setImgPx] = useState({ w: 0, h: 0 });
   const [ackLow, setAckLow] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -40,25 +37,58 @@ export default function OptionsStep({ uploaded, onSubmitted }) {
     img.src = url;
   }, [uploaded]);
 
-  const size = sizeMode === 'standard' ? std : custom;
+  useEffect(() => {
+    if (material === 'Glasspad') {
+      setWText('50');
+      setHText('40');
+    }
+  }, [material]);
+
+  const size = useMemo(() => ({ w: parseFloat(wText || '0'), h: parseFloat(hText || '0') }), [wText, hText]);
   const limits = LIMITS[material];
+  const presets = STANDARD[material] || [];
+  const numPattern = /^[0-9]{0,3}(\.[0-9]{0,2})?$/;
+  const handleWChange = (e) => {
+    const v = e.target.value;
+    if (v === '' || numPattern.test(v)) setWText(v);
+  };
+  const handleHChange = (e) => {
+    const v = e.target.value;
+    if (v === '' || numPattern.test(v)) setHText(v);
+  };
+  const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
+  const handleWBlur = () => {
+    const num = clamp(parseFloat(wText || '0'), 1, limits.maxW);
+    setWText(num ? String(num) : '');
+  };
+  const handleHBlur = () => {
+    const num = clamp(parseFloat(hText || '0'), 1, limits.maxH);
+    setHText(num ? String(num) : '');
+  };
+  const applyPreset = (w, h) => {
+    setWText(String(w));
+    setHText(String(h));
+  };
 
   // DPI estimado
   const dpiVal = useMemo(() => dpiFor(size.w, size.h, imgPx.w, imgPx.h), [size, imgPx]);
   const level = useMemo(() => dpiLevel(dpiVal, 300, 100), [dpiVal]);
 
-  function clamp(val, min, max) { return Math.max(min, Math.min(max, val)); }
+  async function submit() {
+    setErr('');
+    setBusy(true);
+    try {
+    const wNum = clamp(parseFloat(wText || '0'), 1, limits.maxW);
+    const hNum = clamp(parseFloat(hText || '0'), 1, limits.maxH);
 
- async function submit() {
-  setErr('');
-  setBusy(true);
-  try {
-    // validar y clamp
-    const wNum = clamp(Number(size.w), 1, limits.maxW);
-    const hNum = clamp(Number(size.h), 1, limits.maxH);
+    if (!wText || !hText) {
+      setErr('Completá las medidas');
+      setBusy(false);
+      return;
+    }
 
     const form = Form.parse({
-      material, sizeMode, w: wNum, h: hNum, fit, bg
+      material, w: wNum, h: hNum, fit, bg
     });
 
     if (level === 'bad' && !ackLow) {
@@ -113,55 +143,58 @@ export default function OptionsStep({ uploaded, onSubmitted }) {
           <select value={material} onChange={e=>setMaterial(e.target.value)}>
             <option>Classic</option>
             <option>PRO</option>
+            <option>Glasspad</option>
           </select>
         </label>
 
-        <label>Modo de tamaño
-          <select value={sizeMode} onChange={e=>setSizeMode(e.target.value)}>
-            <option value="standard">Estándar</option>
-            <option value="custom">Personalizado</option>
-          </select>
-        </label>
-      </div>
-
-      {sizeMode === 'standard' ? (
-        <div className={styles.standardSelect}>
-          <select value={`${std.w}x${std.h}`} onChange={(e)=>{
-            const [w,h]=e.target.value.split('x').map(Number);
-            setStd({w,h});
-          }}>
-            {STANDARD[material].map(s => (
-              <option key={`${s.w}x${s.h}`} value={`${s.w}x${s.h}`}>
-                {s.w}x{s.h} cm
-              </option>
-            ))}
-          </select>
-        </div>
-      ) : (
-        <div className={styles.gridMt8}>
-          <label>Ancho (cm)
-            <input type="number" min="1" max={limits.maxW} value={custom.w}
-                   onChange={e=>setCustom(v=>({...v, w: Number(e.target.value)}))}/>
-          </label>
-          <label>Alto (cm)
-            <input type="number" min="1" max={limits.maxH} value={custom.h}
-                   onChange={e=>setCustom(v=>({...v, h: Number(e.target.value)}))}/>
-          </label>
-          <small>Máximo {limits.maxW}×{limits.maxH} para {material}</small>
-        </div>
-      )}
-
-      <div className={styles.gridMt8}>
         <label>Encaje
           <select value={fit} onChange={e=>setFit(e.target.value)}>
-            <option value="cover">Cubrir (recorta)</option>
-            <option value="contain">Contener (bordes)</option>
+            <option value="cover">Cubrir</option>
+            <option value="contain">Contener</option>
+            <option value="stretch">Estirar</option>
           </select>
         </label>
-        <label>Fondo (si “contener”)
-          <input type="color" value={bg} onChange={e=>setBg(e.target.value)} />
-        </label>
       </div>
+
+      <div className={styles.gridMt8}>
+        <label>Ancho (cm)
+          <input
+            value={wText}
+            onChange={handleWChange}
+            onBlur={handleWBlur}
+            inputMode="decimal"
+            pattern="[0-9]*"
+            disabled={material === 'Glasspad'}
+          />
+        </label>
+        <label>Alto (cm)
+          <input
+            value={hText}
+            onChange={handleHChange}
+            onBlur={handleHBlur}
+            inputMode="decimal"
+            pattern="[0-9]*"
+            disabled={material === 'Glasspad'}
+          />
+        </label>
+        <small>Máximo {limits.maxW}×{limits.maxH} para {material}</small>
+      </div>
+
+      <div className={styles.presets}>
+        {presets.map(p => (
+          <button key={`${p.w}x${p.h}`} onClick={() => applyPreset(p.w, p.h)}>
+            {p.w}×{p.h}
+          </button>
+        ))}
+      </div>
+
+      {fit === 'contain' && (
+        <div className={styles.gridMt8}>
+          <label>Fondo
+            <input type="color" value={bg} onChange={e=>setBg(e.target.value)} />
+          </label>
+        </div>
+      )}
 
       <div className={styles.dpiSection}>
         <b>DPI estimado:</b> {Math.round(dpiVal)} — {
