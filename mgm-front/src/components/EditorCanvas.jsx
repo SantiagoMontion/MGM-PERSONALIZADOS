@@ -308,6 +308,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const [mode, setMode] = useState('cover'); // 'cover' | 'contain' | 'stretch'
   const stickyFitRef = useRef('cover');
   const [bgColor, setBgColor] = useState('#ffffff');
+  const theta = (imgTx.rotation_deg * Math.PI) / 180;
 
   // cover inicial 1 sola vez
   const didInitRef = useRef(false);
@@ -332,8 +333,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   // medidas visuales (para offset centro)
   const dispW = imgBaseCm ? imgBaseCm.w * imgTx.scaleX : 0;
   const dispH = imgBaseCm ? imgBaseCm.h * imgTx.scaleY : 0;
-
-  const theta = (imgTx.rotation_deg * Math.PI) / 180;
   const rotAABBHalf = (w, h, ang) => ({
     halfW: (Math.abs(w * Math.cos(ang)) + Math.abs(h * Math.sin(ang))) / 2,
     halfH: (Math.abs(w * Math.sin(ang)) + Math.abs(h * Math.cos(ang))) / 2,
