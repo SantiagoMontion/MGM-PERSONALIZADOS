@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { PDFDocument } from 'pdf-lib';
-// import jsPDF from 'jspdf';
+import { buildExportBaseName } from '../lib/filename';
+import { renderMockup1080, downloadBlob } from '../lib/mockup';
 
 export default function DevCanvasPreview() {
   const navigate = useNavigate();
@@ -9,6 +10,7 @@ export default function DevCanvasPreview() {
   const jobId = location.state?.jobId || window.__previewData?.jobId;
   const render_v2 = window.__previewData?.render_v2;
   const padBlob = window.__previewData?.padBlob;
+  const designName = window.__previewData?.designName || 'Diseño';
   const [imgUrl, setImgUrl] = useState(null);
   const [onlyPreview, setOnlyPreview] = useState(false);
 
@@ -26,29 +28,28 @@ export default function DevCanvasPreview() {
     const h_cm = render_v2.h_cm;
     const out_w_cm = w_cm + 2;
     const out_h_cm = h_cm + 2;
+    const baseName = buildExportBaseName(designName, w_cm, h_cm);
     const dpi = 300;
-    const inner_w_px = Math.round((w_cm * dpi) / 2.54);
-    const inner_h_px = Math.round((h_cm * dpi) / 2.54);
     const out_w_px = Math.round((out_w_cm * dpi) / 2.54);
     const out_h_px = Math.round((out_h_cm * dpi) / 2.54);
-    const scaleX = out_w_px / inner_w_px;
-    const scaleY = out_h_px / inner_h_px;
     const img = new Image();
     img.onload = async () => {
       const canvas = document.createElement('canvas');
       canvas.width = out_w_px;
       canvas.height = out_h_px;
       const ctx = canvas.getContext('2d');
+      if (!ctx || canvas.width <= 0 || canvas.height <= 0) return;
+      ctx.clearRect(0, 0, out_w_px, out_h_px);
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.filter = 'none';
+      ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(img, 0, 0, out_w_px, out_h_px);
       const blob = await new Promise(resolve =>
         canvas.toBlob(resolve, 'image/jpeg', 0.88)
       );
       if (!blob) return;
-      // const jpegDataUrl = canvas.toDataURL('image/jpeg', 0.88);
-      // const doc = new jsPDF({ unit: 'cm', format: [out_w_cm, out_h_cm] });
-      // doc.addImage(jpegDataUrl, 'JPEG', 0, 0, out_w_cm, out_h_cm);
-      // doc.save(`print-${out_w_cm}x${out_h_cm}.pdf`);
       const jpegBytes = new Uint8Array(await blob.arrayBuffer());
       const pdfDoc = await PDFDocument.create();
       const page_w_pt = (out_w_cm / 2.54) * 72;
@@ -56,190 +57,27 @@ export default function DevCanvasPreview() {
       const page = pdfDoc.addPage([page_w_pt, page_h_pt]);
       const jpg = await pdfDoc.embedJpg(jpegBytes);
       page.drawImage(jpg, { x: 0, y: 0, width: page_w_pt, height: page_h_pt });
-      console.log('[EXPORT LIENZO DEBUG]', {
-        w_cm,
-        h_cm,
-        out_w_cm,
-        out_h_cm,
-        inner_w_px,
-        inner_h_px,
-        out_w_px,
-        out_h_px,
-        scaleX,
-        scaleY,
-        pdf_engine: 'pdf-lib',
-        page_w_unit: 'pt',
-        page_w: page_w_pt,
-        page_h: page_h_pt,
+      console.log('[EXPORT LIENZO]', {
+        out_px: { w: canvas.width, h: canvas.height },
+        baseName,
       });
       const pdfBytes = await pdfDoc.save();
-      const url = URL.createObjectURL(
-        new Blob([pdfBytes], { type: 'application/pdf' })
-      );
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `print-${out_w_cm}x${out_h_cm}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
+      downloadBlob(new Blob([pdfBytes], { type: 'application/pdf' }), `${baseName}.pdf`);
     };
+    img.crossOrigin = 'anonymous';
     img.src = URL.createObjectURL(padBlob);
   }
 
   async function downloadMockup() {
     if (!padBlob || !render_v2) return;
     const { w_cm, h_cm, material } = render_v2;
-    const CANVAS = 1080;
-    const REF_MAX = {
-      Classic: { w: 140, h: 100 },
-      PRO: { w: 140, h: 100 },
-      Glasspad: { w: 50, h: 40 },
-    };
-    const ref = REF_MAX[material] || { w: w_cm, h: h_cm };
-    const W = CANVAS;
-    const H = CANVAS;
-    const MIN_DIAG_CM = Math.sqrt(25 * 25 + 25 * 25);
-    const MAX_DIAG_CM = Math.sqrt(ref.w * ref.w + ref.h * ref.h);
-    const PX_PER_CM_SMALL = 15.0;
-    const PX_PER_CM_LARGE = 6.3;
-    const MIN_MARGIN = 80;
-    const diag_cm = Math.sqrt(w_cm * w_cm + h_cm * h_cm);
-    let t = (diag_cm - MIN_DIAG_CM) / (MAX_DIAG_CM - MIN_DIAG_CM);
-    t = Math.max(0, Math.min(t, 1));
-    const px_per_cm =
-      PX_PER_CM_SMALL + (PX_PER_CM_LARGE - PX_PER_CM_SMALL) * t;
-    let target_w = Math.round(w_cm * px_per_cm);
-    let target_h = Math.round(h_cm * px_per_cm);
-    const avail = CANVAS - 2 * MIN_MARGIN;
-    const appliedClamp = target_w > avail || target_h > avail;
-    if (appliedClamp) {
-      const s = Math.min(avail / target_w, avail / target_h);
-      target_w = Math.round(target_w * s);
-      target_h = Math.round(target_h * s);
-    }
-    const drawX = Math.round((CANVAS - target_w) / 2);
-    const drawY = Math.round((CANVAS - target_h) / 2);
-    const r = Math.max(12, Math.min(Math.min(target_w, target_h) * 0.02, 20));
-    console.log('[MOCKUP RESCALE DIAGONAL]', {
-      w_cm,
-      h_cm,
-      MIN_DIAG_CM,
-      MAX_DIAG_CM,
-      diag_cm,
-      PX_PER_CM_SMALL: PX_PER_CM_SMALL,
-      PX_PER_CM_LARGE: PX_PER_CM_LARGE,
-      t,
-      px_per_cm,
-      target_w,
-      target_h,
-      drawX,
-      drawY,
-      appliedClamp,
-    });
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = W;
-      canvas.height = H;
-      const ctx = canvas.getContext('2d');
-      ctx.filter = 'none';
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.globalAlpha = 1;
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
-      ctx.clearRect(0, 0, W, H);
-
-      function roundRectPath(x, y, w, h, rad) {
-        const rr = Math.min(rad, w / 2, h / 2);
-        ctx.beginPath();
-        ctx.moveTo(x + rr, y);
-        ctx.lineTo(x + w - rr, y);
-        ctx.quadraticCurveTo(x + w, y, x + w, y + rr);
-        ctx.lineTo(x + w, y + h - rr);
-        ctx.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
-        ctx.lineTo(x + rr, y + h);
-        ctx.quadraticCurveTo(x, y + h, x, y + h - rr);
-        ctx.lineTo(x, y + rr);
-        ctx.quadraticCurveTo(x, y, x + rr, y);
-        ctx.closePath();
-      }
-
-      roundRectPath(drawX, drawY, target_w, target_h, r);
-      ctx.save();
-      ctx.clip();
-      ctx.drawImage(img, drawX, drawY, target_w, target_h);
-      ctx.restore();
-
-      roundRectPath(drawX, drawY, target_w, target_h, r);
-      ctx.save();
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = 'rgba(0,0,0,0.22)';
-      ctx.setLineDash([]);
-      ctx.stroke();
-      ctx.restore();
-
-      const inset = 4;
-      const seamR = Math.max(0, r - inset);
-      ctx.save();
-      ctx.lineWidth = 1.5;
-      ctx.strokeStyle = 'rgba(255,255,255,0.22)';
-      ctx.setLineDash([3, 3]);
-      roundRectPath(
-        drawX + inset,
-        drawY + inset,
-        target_w - 2 * inset,
-        target_h - 2 * inset,
-        seamR
-      );
-      ctx.stroke();
-      ctx.restore();
-
-      const inset2 = 2;
-      const innerR2 = Math.max(0, r - inset2);
-      ctx.save();
-      ctx.lineWidth = 1;
-      ctx.strokeStyle = 'rgba(0,0,0,0.18)';
-      ctx.setLineDash([]);
-      roundRectPath(
-        drawX + inset2,
-        drawY + inset2,
-        target_w - 2 * inset2,
-        target_h - 2 * inset2,
-        innerR2
-      );
-      ctx.stroke();
-      ctx.restore();
-
-      canvas.toBlob(
-        b => {
-          if (!b) return;
-          const url = URL.createObjectURL(b);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = 'mock-1080.png';
-          a.click();
-          URL.revokeObjectURL(url);
-        },
-        { type: 'image/png' }
-      );
-    };
-    img.src = URL.createObjectURL(padBlob);
-    console.log('[MOCKUP 1080 FINAL]', {
-      material,
-      w_cm,
-      h_cm,
-      REF_MAX_W_CM: ref.w,
-      REF_MAX_H_CM: ref.h,
-      diag_cm,
-      px_per_cm,
-      avail,
-      target_w,
-      target_h,
-      drawX,
-      drawY,
-      appliedClamp,
-      r,
-      seam: { lineDash: [3, 3], lw1: 2, lw2: 1.5, lw3: 1 },
-    });
+    const baseName = buildExportBaseName(designName, w_cm, h_cm);
+    const bitmap = await createImageBitmap(padBlob);
+    const canvas = document.createElement("canvas");
+    await renderMockup1080(canvas, bitmap, w_cm, h_cm, material);
+    canvas.toBlob(b => {
+      if (b) downloadBlob(b, `${baseName}.png`);
+    }, "image/png");
   }
 
   function continueFlow() {
