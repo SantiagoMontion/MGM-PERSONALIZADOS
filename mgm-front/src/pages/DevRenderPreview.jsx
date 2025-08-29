@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 
 export default function DevRenderPreview() {
   const [file, setFile] = useState(null);
@@ -18,9 +18,7 @@ export default function DevRenderPreview() {
     try { setRenderObj(renderText ? JSON.parse(renderText) : null); } catch { /* ignore */ }
   }, [renderText]);
 
-  useEffect(() => { drawLocal(); }, [file, renderObj, showGuides]);
-
-  async function drawLocal() {
+  const drawLocal = useCallback(async () => {
     if (!file || !renderObj || !canvasRef.current) return;
     const img = new Image();
     img.onload = () => {
@@ -46,7 +44,9 @@ export default function DevRenderPreview() {
       }
     };
     img.src = URL.createObjectURL(file);
-  }
+  }, [file, renderObj, showGuides]);
+
+  useEffect(() => { drawLocal(); }, [drawLocal]);
 
   async function handleServer() {
     if (!file || !renderObj) return;

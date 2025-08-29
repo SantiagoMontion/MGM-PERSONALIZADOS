@@ -4,6 +4,7 @@ import { Stage, Layer, Rect, Group, Image as KonvaImage, Transformer } from 'rea
 import useImage from 'use-image';
 import styles from './EditorCanvas.module.css';
 import ColorPopover from './ColorPopover';
+import { dlog } from '../lib/debug';
 
 import { buildSubmitJobBody, prevalidateSubmitBody } from '../lib/jobPayload';
 import { submitJob } from '../lib/submitJob';
@@ -609,7 +610,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       i.src = URL.createObjectURL(blob);
     });
     const desc = getRenderDescriptorV2();
-    console.log({
+    dlog({
       pad_px: desc?.pad_px,
       canvas_px: desc?.canvas_px,
       place_px: desc?.place_px,
@@ -742,7 +743,7 @@ async function onConfirmSubmit() {
     });
 
     const pre = prevalidateSubmitBody(submitBody);
-    console.log('[PREVALIDATE EditorCanvas]', pre, submitBody);
+    dlog('[PREVALIDATE EditorCanvas]', pre, submitBody);
     if (!pre.ok) {
       alert(pre.problems.join('\n'));
       return;
@@ -989,16 +990,14 @@ async function onConfirmSubmit() {
           style={{ display: 'none' }}
         >
           <Layer>
-            {mode === 'contain' && (
-              <Rect
-                x={0}
-                y={0}
-                width={padRectPx.w}
-                height={padRectPx.h}
-                fill={bgColor}
-                listening={false}
-              />
-            )}
+            <Rect
+              x={0}
+              y={0}
+              width={padRectPx.w}
+              height={padRectPx.h}
+              fill={mode === 'contain' ? (bgColor || '#ffffff') : '#ffffff'}
+              listening={false}
+            />
             {imgEl && imgBaseCm && (
               <KonvaImage
                 image={imgEl}

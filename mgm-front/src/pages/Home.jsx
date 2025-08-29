@@ -7,6 +7,7 @@ import EditorCanvas from '../components/EditorCanvas';
 import SizeControls from '../components/SizeControls';
 import Calculadora from '../components/Calculadora';
 import LoadingOverlay from '../components/LoadingOverlay';
+import DebugPanel from '../components/DebugPanel';
 
 import { LIMITS, STANDARD } from '../lib/material.js';
 
@@ -14,6 +15,7 @@ import { dpiLevel } from '../lib/dpi';
 import { sha256Hex } from '../lib/hash.js';
 import { buildSubmitJobBody, prevalidateSubmitBody } from '../lib/jobPayload.js';
 import { submitJob as submitJobApi } from '../lib/submitJob.js';
+import { DEBUG, dlog } from '../lib/debug';
 import styles from './Home.module.css';
 
 export default function Home() {
@@ -53,6 +55,7 @@ export default function Home() {
 
   // layout del canvas
   const [layout, setLayout] = useState(null);
+  const [debugState, setDebugState] = useState(null);
   const [designName, setDesignName] = useState('');
   const [ackLow, setAckLow] = useState(false);
   const [err, setErr] = useState('');
@@ -70,6 +73,12 @@ export default function Home() {
     );
   }, [layout]);
   const level = useMemo(() => (effDpi ? dpiLevel(effDpi, 300, 100) : null), [effDpi]);
+
+  useEffect(() => {
+    if (DEBUG) {
+      setDebugState(canvasRef.current?.getRenderDescriptorV2?.());
+    }
+  }, [layout]);
 
   function handleSizeChange(next) {
     if (next.material && next.material !== material) {
@@ -191,7 +200,7 @@ export default function Home() {
       }));
 
       // 5) construir payload submit-job
-      console.log('[PRICE DEBUG]', {
+      dlog('[PRICE DEBUG]', {
         material,
         width_cm: Number(size.w),
         height_cm: Number(size.h),
@@ -208,13 +217,12 @@ export default function Home() {
         file_hash,
         price: { amount: priceAmount, currency: priceCurrency },
         design_name: designName,
-        notes: designName,
         source: 'web',
       });
 
       // 6) prevalidar sin pegarle a la API
       const pre = prevalidateSubmitBody(submitBody);
-      console.log('[PREVALIDATE]', { ok: pre.ok, problems: pre.problems, submitBody });
+      dlog('[PREVALIDATE]', { ok: pre.ok, problems: pre.problems, submitBody });
       if (!pre.ok) {
         setErr('Corrige antes de continuar: ' + pre.problems.join(' | '));
         setBusy(false);
@@ -297,6 +305,7 @@ export default function Home() {
         {err && <p className={`errorText ${styles.error}`}>{err}</p>}
       </div>
       <LoadingOverlay show={busy} messages={["Creando tu pedido…"]} />
+      {DEBUG && <DebugPanel data={debugState} />}
     </div>
   );
 }

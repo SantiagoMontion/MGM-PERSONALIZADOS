@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { PDFDocument } from 'pdf-lib';
 import { buildExportBaseName } from '../lib/filename';
 import { renderMockup1080, downloadBlob } from '../lib/mockup';
+import { dlog } from '../lib/debug';
 
 export default function DevCanvasPreview() {
   const navigate = useNavigate();
@@ -39,13 +40,20 @@ export default function DevCanvasPreview() {
       canvas.height = out_h_px;
       const ctx = canvas.getContext('2d');
       if (!ctx || canvas.width <= 0 || canvas.height <= 0) return;
-      ctx.clearRect(0, 0, out_w_px, out_h_px);
-      ctx.globalAlpha = 1;
+      ctx.save();
       ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1;
       ctx.filter = 'none';
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
+      if (render_v2.fit_mode === 'contain') {
+        ctx.fillStyle = render_v2.bg_hex || '#ffffff';
+      } else {
+        ctx.fillStyle = '#ffffff';
+      }
+      ctx.fillRect(0, 0, out_w_px, out_h_px);
       ctx.drawImage(img, 0, 0, out_w_px, out_h_px);
+      ctx.restore();
       const blob = await new Promise(resolve =>
         canvas.toBlob(resolve, 'image/jpeg', 0.88)
       );
@@ -57,7 +65,7 @@ export default function DevCanvasPreview() {
       const page = pdfDoc.addPage([page_w_pt, page_h_pt]);
       const jpg = await pdfDoc.embedJpg(jpegBytes);
       page.drawImage(jpg, { x: 0, y: 0, width: page_w_pt, height: page_h_pt });
-      console.log('[EXPORT LIENZO]', {
+      dlog('[EXPORT LIENZO]', {
         out_px: { w: canvas.width, h: canvas.height },
         baseName,
       });
@@ -84,7 +92,7 @@ export default function DevCanvasPreview() {
     navigate(`/creating/${jobId}`, { state: { render_v2, skipFinalize: onlyPreview } });
   }
 
-  console.log('[PREVIEW DEBUG]', {
+  dlog('[PREVIEW DEBUG]', {
     render_v2,
     canvas_px: render_v2?.canvas_px,
     pad_px: render_v2?.pad_px,
