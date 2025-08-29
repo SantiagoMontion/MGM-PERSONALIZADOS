@@ -8,11 +8,13 @@ import Creating from './pages/Creating.jsx';
 import Result from './pages/Result.jsx';
 import DevRenderPreview from './pages/DevRenderPreview.jsx';
 import DevCanvasPreview from './pages/DevCanvasPreview.jsx';
+import ErrorPage from './ErrorPage.jsx';
 import './globals.css';
 
 const routes = [
   {
     element: <App />,
+    errorElement: <ErrorPage />,
     children: [
       { path: '/', element: <Home /> },
       { path: '/confirm', element: <Confirm /> },
