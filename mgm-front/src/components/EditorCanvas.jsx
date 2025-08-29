@@ -70,6 +70,9 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const pickingColorRef = useRef(false);
   const pickCallbackRef = useRef(null);
   const [isPickingColor, setIsPickingColor] = useState(false);
+  const loupeRef = useRef(null);
+  const currentHexRef = useRef('#000000');
+  const [pickOverlay, setPickOverlay] = useState({ x: 0, y: 0, hex: '#000000' });
 
   const pointerWorld = (stage) => {
     const pt = stage.getPointerPosition();
@@ -83,6 +86,84 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     pickingColorRef.current = true;
     setIsPickingColor(true);
   }, []);
+
+  const updateLoupe = useCallback((clientX, clientY) => {
+    if (!exportStageRef.current) return;
+    const stage = stageRef.current;
+    if (!stage) return;
+    const rect = stage.container().getBoundingClientRect();
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    const k = baseScale * viewScale;
+    const worldX = (x - viewPos.x) / k;
+    const worldY = (y - viewPos.y) / k;
+    if (worldX < bleedCm || worldX > bleedCm + wCm || worldY < bleedCm || worldY > bleedCm + hCm) return;
+    const px = Math.floor((worldX - bleedCm) * exportScale);
+    const py = Math.floor((worldY - bleedCm) * exportScale);
+    try {
+      const src = exportStageRef.current.toCanvas();
+      const ctx = src.getContext('2d');
+      const data = ctx.getImageData(px, py, 1, 1).data;
+      const hex = `#${[0,1,2].map(i=>data[i].toString(16).padStart(2,'0')).join('')}`;
+      currentHexRef.current = hex;
+      const loupe = loupeRef.current;
+      if (loupe) {
+        const lctx = loupe.getContext('2d');
+        lctx.imageSmoothingEnabled = false;
+        lctx.clearRect(0,0,120,120);
+        lctx.drawImage(src, px - 10, py - 10, 20, 20, 0, 0, 120, 120);
+        lctx.strokeStyle = 'rgba(0,0,0,0.3)';
+        for (let i=0;i<=20;i++) {
+          const p = i * 6;
+          lctx.beginPath();
+          lctx.moveTo(p,0); lctx.lineTo(p,120); lctx.stroke();
+          lctx.beginPath();
+          lctx.moveTo(0,p); lctx.lineTo(120,p); lctx.stroke();
+        }
+        lctx.strokeStyle = '#ffffff';
+        lctx.lineWidth = 2;
+        lctx.strokeRect(9*6,9*6,6,6);
+      }
+      setPickOverlay({ x: clientX + 15, y: clientY + 15, hex });
+      console.log('[COLOR-PICK]', hex, px, py);
+    } catch { /* ignore */ }
+  }, [baseScale, viewScale, viewPos.x, viewPos.y, bleedCm, exportScale, wCm, hCm]);
+
+  useEffect(() => {
+    if (!isPickingColor) return;
+    const move = (e) => updateLoupe(e.clientX, e.clientY);
+    const down = (e) => {
+      if (e.button === 0) {
+        updateLoupe(e.clientX, e.clientY);
+        pickCallbackRef.current?.(currentHexRef.current);
+        onPickedColor?.(currentHexRef.current);
+        pickingColorRef.current = false;
+        setIsPickingColor(false);
+      } else if (e.button === 2) {
+        pickingColorRef.current = false;
+        setIsPickingColor(false);
+      }
+    };
+    const key = (e) => {
+      if (e.key === 'Escape') {
+        pickingColorRef.current = false;
+        setIsPickingColor(false);
+      }
+    };
+    const ctxMenu = (e) => e.preventDefault();
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerdown', down, true);
+    window.addEventListener('keydown', key);
+    window.addEventListener('contextmenu', ctxMenu);
+    document.body.style.cursor = 'crosshair';
+    return () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerdown', down, true);
+      window.removeEventListener('keydown', key);
+      window.removeEventListener('contextmenu', ctxMenu);
+      document.body.style.cursor = '';
+    };
+  }, [isPickingColor, updateLoupe, onPickedColor]);
 
   // selección
   const imgRef = useRef(null);
@@ -101,30 +182,9 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   };
 
   const onStageMouseDown = (e) => {
+    if (pickingColorRef.current) return;
     const stage = e.target.getStage();
     const wp = pointerWorld(stage);
-
-    if (pickingColorRef.current) {
-      if (wp.x >= bleedCm && wp.x <= bleedCm + wCm && wp.y >= bleedCm && wp.y <= bleedCm + hCm) {
-        const k = baseScale * viewScale;
-        const px = Math.floor((wp.x - bleedCm) * k);
-        const py = Math.floor((wp.y - bleedCm) * k);
-        try {
-          const canvas = exportStageRef.current?.toCanvas();
-          const ctx = canvas?.getContext('2d');
-          const data = ctx?.getImageData(px, py, 1, 1)?.data;
-          if (data) {
-            const hex = `#${[0,1,2].map(i=>data[i].toString(16).padStart(2,'0')).join('')}`;
-            pickCallbackRef.current?.(hex);
-            onPickedColor?.(hex);
-          }
-        } catch { /* ignore */ }
-      }
-      pickCallbackRef.current = null;
-      pickingColorRef.current = false;
-      setIsPickingColor(false);
-      return;
-    }
 
     const onImg = isTargetOnImageOrTransformer(e.target);
 
@@ -148,6 +208,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     }
   };
   const onStageMouseMove = (e) => {
+    if (pickingColorRef.current) return;
     if (!isPanningRef.current) return;
     const { clientX, clientY } = e.evt;
     const dx = clientX - lastPointerRef.current.x;
@@ -248,14 +309,21 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const didInitRef = useRef(false);
   useEffect(() => {
     if (!imgBaseCm || didInitRef.current) return;
-    const s = Math.max(workCm.w / imgBaseCm.w, workCm.h / imgBaseCm.h);
-    const w = imgBaseCm.w * s, h = imgBaseCm.h * s;
-    const initial = { x_cm: (workCm.w - w)/2, y_cm: (workCm.h - h)/2, scaleX: s, scaleY: s, rotation_deg: 0 };
+    const c = Math.abs(Math.cos(theta));
+    const sSin = Math.abs(Math.sin(theta));
+    const denomW = imgBaseCm.w * c + imgBaseCm.h * sSin;
+    const denomH = imgBaseCm.w * sSin + imgBaseCm.h * c;
+    const coverScale = Math.max(workCm.w / denomW, workCm.h / denomH);
+    const w = imgBaseCm.w * coverScale, h = imgBaseCm.h * coverScale;
+    const initial = { x_cm: (workCm.w - w)/2, y_cm: (workCm.h - h)/2, scaleX: coverScale, scaleY: coverScale, rotation_deg: 0 };
     setImgTx(initial);
     pushHistory(initial);
     setMode('cover');
+    stickyFitRef.current = 'cover';
+    const maxContain = Math.min(workCm.w / denomW, workCm.h / denomH);
+    console.log('[FIT]', 'cover', 1, coverScale, maxContain, coverScale, { w: wCm, h: hCm }, material);
     didInitRef.current = true;
-  }, [imgBaseCm, workCm.w, workCm.h]);
+  }, [imgBaseCm, workCm.w, workCm.h, theta, wCm, hCm, material]);
 
   // medidas visuales (para offset centro)
   const dispW = imgBaseCm ? imgBaseCm.w * imgTx.scaleX : 0;
@@ -405,25 +473,41 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   // cover/contain/estirar con rotación
   const applyFit = useCallback((mode) => {
     if (!imgBaseCm) return;
+    const prevScale = imgTx.scaleX;
     const { cx, cy } = currentCenter();
     const w = imgBaseCm.w, h = imgBaseCm.h;
     const c = Math.abs(Math.cos(theta));
     const s = Math.abs(Math.sin(theta));
+    const denomW = w * c + h * s;
+    const denomH = w * s + h * c;
+    const minCover = Math.max(workCm.w / denomW, workCm.h / denomH);
+    const maxContain = Math.min(workCm.w / denomW, workCm.h / denomH);
 
-    if (mode === 'cover' || mode === 'contain') {
-      const denomW = w * c + h * s;
-      const denomH = w * s + h * c;
-      const scale = mode === 'cover'
-        ? Math.max(workCm.w / denomW, workCm.h / denomH)
-        : Math.min(workCm.w / denomW, workCm.h / denomH);
+    if (mode === 'cover') {
+      const scale = Math.max(prevScale, minCover);
       const newW = w * scale, newH = h * scale;
       pushHistory(imgTx);
       setImgTx((prev) => ({
-        x_cm: cx - newW/2, y_cm: cy - newH/2,
+        x_cm: cx - newW / 2, y_cm: cy - newH / 2,
         scaleX: scale, scaleY: scale,
         rotation_deg: prev.rotation_deg,
       }));
-      setMode(mode);
+      setMode('cover');
+      console.log('[FIT]', 'cover', prevScale, minCover, maxContain, scale, { w: wCm, h: hCm }, material);
+      return;
+    }
+
+    if (mode === 'contain') {
+      const scale = Math.min(prevScale, maxContain);
+      const newW = w * scale, newH = h * scale;
+      pushHistory(imgTx);
+      setImgTx((prev) => ({
+        x_cm: cx - newW / 2, y_cm: cy - newH / 2,
+        scaleX: scale, scaleY: scale,
+        rotation_deg: prev.rotation_deg,
+      }));
+      setMode('contain');
+      console.log('[FIT]', 'contain', prevScale, minCover, maxContain, scale, { w: wCm, h: hCm }, material);
       return;
     }
 
@@ -433,26 +517,24 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       const det = A11 * A22 - A12 * A21;
       let sx = 1, sy = 1;
       if (Math.abs(det) > 1e-6) {
-        sx = ( (workCm.w * A22) - (A12 * workCm.h) ) / det;
-        sy = ( (-A21 * workCm.w) + (A11 * workCm.h) ) / det;
+        sx = ((workCm.w * A22) - (A12 * workCm.h)) / det;
+        sy = ((-A21 * workCm.w) + (A11 * workCm.h)) / det;
       } else {
-        const denomW = w * c + h * s;
-        const denomH = w * s + h * c;
-        const sCover = Math.max(workCm.w / denomW, workCm.h / denomH);
-        sx = sy = sCover;
+        sx = sy = minCover;
       }
       sx = Math.max(sx, 0.02);
       sy = Math.max(sy, 0.02);
       const newW = w * sx, newH = h * sy;
       pushHistory(imgTx);
       setImgTx((prev) => ({
-        x_cm: cx - newW/2, y_cm: cy - newH/2,
+        x_cm: cx - newW / 2, y_cm: cy - newH / 2,
         scaleX: sx, scaleY: sy,
         rotation_deg: prev.rotation_deg,
       }));
       setMode('stretch');
+      console.log('[FIT]', 'stretch', prevScale, minCover, maxContain, { sx, sy }, { w: wCm, h: hCm }, material);
     }
-  }, [imgBaseCm?.w, imgBaseCm?.h, workCm.w, workCm.h, theta, imgTx.x_cm, imgTx.y_cm, imgTx.scaleX, imgTx.scaleY]);
+  }, [imgBaseCm?.w, imgBaseCm?.h, workCm.w, workCm.h, theta, imgTx, wCm, hCm, material]);
 
   const fitCover = useCallback(() => { applyFit('cover'); stickyFitRef.current = 'cover'; }, [applyFit]);
   const fitContain = useCallback(() => { applyFit('contain'); stickyFitRef.current = 'contain'; }, [applyFit]);
@@ -471,6 +553,32 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     pushHistory(imgTx);
     setImgTx((tx) => ({ ...tx, y_cm: (workCm.h - h) / 2 }));
   }, [imgBaseCm?.h, workCm.h, imgTx.scaleY]);
+
+  const centerBoth = useCallback(() => {
+    if (!imgBaseCm) return;
+    const w = imgBaseCm.w * imgTx.scaleX;
+    const h = imgBaseCm.h * imgTx.scaleY;
+    setImgTx((tx) => ({ ...tx, x_cm: (workCm.w - w)/2, y_cm: (workCm.h - h)/2 }));
+  }, [imgBaseCm?.w, imgBaseCm?.h, imgTx.scaleX, imgTx.scaleY, workCm.w, workCm.h]);
+
+  const normalizeIntoBounds = useCallback(() => {
+    if (!imgBaseCm) return;
+    setImgTx((tx) => {
+      const w = imgBaseCm.w * tx.scaleX;
+      const h = imgBaseCm.h * tx.scaleY;
+      let x = tx.x_cm;
+      let y = tx.y_cm;
+      if (w < workCm.w) x = (workCm.w - w) / 2; else {
+        if (x > workCm.w - w) x = workCm.w - w;
+        if (x < 0) x = 0;
+      }
+      if (h < workCm.h) y = (workCm.h - h) / 2; else {
+        if (y > workCm.h - h) y = workCm.h - h;
+        if (y < 0) y = 0;
+      }
+      return { ...tx, x_cm: x, y_cm: y };
+    });
+  }, [imgBaseCm?.w, imgBaseCm?.h, workCm.w, workCm.h]);
 
   const alignEdge = (edge) => {
     if (!imgBaseCm) return;
@@ -503,8 +611,10 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   useEffect(() => {
     if (stickyFitRef.current) {
       applyFit(stickyFitRef.current);
+    } else {
+      normalizeIntoBounds();
     }
-  }, [material, wCm, hCm, applyFit]);
+  }, [material, wCm, hCm, applyFit, normalizeIntoBounds]);
 
 
   // calidad
@@ -1014,6 +1124,20 @@ async function onConfirmSubmit() {
             )}
           </Layer>
         </Stage>
+        {isPickingColor && (
+          <div
+            className={styles.pickOverlay}
+            style={{ left: pickOverlay.x, top: pickOverlay.y }}
+          >
+            <canvas ref={loupeRef} width={120} height={120} />
+            <div
+              className={styles.pickLabel}
+              style={{ background: pickOverlay.hex }}
+            >
+              {pickOverlay.hex}
+            </div>
+          </div>
+        )}
         {imageUrl && imgStatus !== 'loaded' && (
           <div className={`spinner ${styles.spinnerOverlay}`} />
         )}

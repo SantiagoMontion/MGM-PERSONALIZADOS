@@ -39,35 +39,22 @@ export default function OptionsStep({ uploaded, onSubmitted }) {
 
   useEffect(() => {
     if (material === 'Glasspad') {
-      setWText('50');
-      setHText('40');
+      applyPreset(50, 40);
     }
   }, [material]);
 
   const size = useMemo(() => ({ w: parseFloat(wText || '0'), h: parseFloat(hText || '0') }), [wText, hText]);
   const limits = LIMITS[material];
   const presets = STANDARD[material] || [];
-  const numPattern = /^[0-9]{0,3}(\.[0-9]{0,2})?$/;
-  const handleWChange = (e) => {
-    const v = e.target.value;
-    if (v === '' || numPattern.test(v)) setWText(v);
-  };
-  const handleHChange = (e) => {
-    const v = e.target.value;
-    if (v === '' || numPattern.test(v)) setHText(v);
-  };
   const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
-  const handleWBlur = () => {
-    const num = clamp(parseFloat(wText || '0'), 1, limits.maxW);
-    setWText(num ? String(num) : '');
-  };
-  const handleHBlur = () => {
-    const num = clamp(parseFloat(hText || '0'), 1, limits.maxH);
-    setHText(num ? String(num) : '');
+  const applySize = (wVal = wText, hVal = hText) => {
+    const wNum = clamp(parseFloat(wVal || '0'), 1, limits.maxW);
+    const hNum = clamp(parseFloat(hVal || '0'), 1, limits.maxH);
+    setWText(String(wNum));
+    setHText(String(hNum));
   };
   const applyPreset = (w, h) => {
-    setWText(String(w));
-    setHText(String(h));
+    applySize(String(w), String(h));
   };
 
   // DPI estimado
@@ -159,21 +146,29 @@ export default function OptionsStep({ uploaded, onSubmitted }) {
       <div className={styles.gridMt8}>
         <label>Ancho (cm)
           <input
+            type="number"
+            step={1}
+            min={1}
+            max={limits.maxW}
             value={wText}
-            onChange={handleWChange}
-            onBlur={handleWBlur}
-            inputMode="decimal"
-            pattern="[0-9]*"
+            onChange={e=>setWText(e.target.value)}
+            onKeyDown={e=>e.key === 'Enter' && applySize()}
+            onBlur={applySize}
+            inputMode="numeric"
             disabled={material === 'Glasspad'}
           />
         </label>
         <label>Alto (cm)
           <input
+            type="number"
+            step={1}
+            min={1}
+            max={limits.maxH}
             value={hText}
-            onChange={handleHChange}
-            onBlur={handleHBlur}
-            inputMode="decimal"
-            pattern="[0-9]*"
+            onChange={e=>setHText(e.target.value)}
+            onKeyDown={e=>e.key === 'Enter' && applySize()}
+            onBlur={applySize}
+            inputMode="numeric"
             disabled={material === 'Glasspad'}
           />
         </label>
