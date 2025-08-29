@@ -27,26 +27,13 @@ export default function SizeControls({ material, size, onChange, locked = false 
     }
   }, [material, onChange]);
 
-  const numPattern = /^[0-9]{0,3}(\.[0-9]{0,2})?$/;
-
-  const handleWChange = (e) => {
-    const v = e.target.value;
-    if (v === '' || numPattern.test(v)) setWText(v);
-  };
-  const handleHChange = (e) => {
-    const v = e.target.value;
-    if (v === '' || numPattern.test(v)) setHText(v);
-  };
   const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
-  const handleWBlur = () => {
-    const num = clamp(parseFloat(wText || '0'), 1, limits.maxW);
-    setWText(num ? String(num) : '');
-    onChange({ w: num, h: parseFloat(hText || size.h) });
-  };
-  const handleHBlur = () => {
-    const num = clamp(parseFloat(hText || '0'), 1, limits.maxH);
-    setHText(num ? String(num) : '');
-    onChange({ w: parseFloat(wText || size.w), h: num });
+  const applySize = () => {
+    const wNum = clamp(parseFloat(wText || '0'), 1, limits.maxW);
+    const hNum = clamp(parseFloat(hText || '0'), 1, limits.maxH);
+    setWText(String(wNum));
+    setHText(String(hNum));
+    onChange({ w: wNum, h: hNum });
   };
 
   const applyPreset = (w, h) => {
@@ -70,22 +57,30 @@ export default function SizeControls({ material, size, onChange, locked = false 
 
       <label>Ancho (cm)
         <input
+          type="number"
+          step={1}
+          min={1}
+          max={limits.maxW}
           value={wText}
-          onChange={handleWChange}
-          onBlur={handleWBlur}
-          inputMode="decimal"
-          pattern="[0-9]*"
+          onChange={e=>setWText(e.target.value)}
+          onKeyDown={e=>e.key === 'Enter' && applySize()}
+          onBlur={applySize}
+          inputMode="numeric"
           disabled={locked || material === 'Glasspad'}
         />
       </label>
 
       <label>Alto (cm)
         <input
+          type="number"
+          step={1}
+          min={1}
+          max={limits.maxH}
           value={hText}
-          onChange={handleHChange}
-          onBlur={handleHBlur}
-          inputMode="decimal"
-          pattern="[0-9]*"
+          onChange={e=>setHText(e.target.value)}
+          onKeyDown={e=>e.key === 'Enter' && applySize()}
+          onBlur={applySize}
+          inputMode="numeric"
           disabled={locked || material === 'Glasspad'}
         />
       </label>
