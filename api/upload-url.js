@@ -1,17 +1,17 @@
 // /api/upload-url.js
 // Requiere: "type": "module" en package.json
+import crypto from 'node:crypto';
 import { z } from 'zod';
 import { supa } from '../lib/supa.js';
-import { cors } from '../lib/cors.js';
-import { customAlphabet } from 'nanoid';
-
-const nano = customAlphabet('abcdef0123456789', 8);
+import { cors } from './_lib/cors.js';
+import { buildObjectKey } from './_lib/slug.js';
 
 const BodySchema = z.object({
-  ext: z.enum(['jpg','jpeg','png','webp']),
-  mime: z.enum(['image/jpeg','image/png','image/webp']),
+  design_name: z.string().min(1),
+  ext: z.enum(['jpg', 'jpeg', 'png', 'webp']),
+  mime: z.enum(['image/jpeg', 'image/png', 'image/webp']),
   size_bytes: z.number().int().positive(),
-  material: z.enum(['Classic','PRO']),
+  material: z.enum(['Classic', 'PRO']),
   w_cm: z.number().positive(),
   h_cm: z.number().positive(),
   sha256: z.string().regex(/^[a-f0-9]{64}$/)
@@ -21,15 +21,21 @@ const MAX_MB = Number(process.env.MAX_UPLOAD_MB || 40);
 const LIMITS = { Classic: { maxW: 140, maxH: 100 }, PRO: { maxW: 120, maxH: 60 } };
 
 export default async function handler(req, res) {
+  const diagId = crypto.randomUUID?.() ?? require('node:crypto').randomUUID();
+  res.setHeader('X-Diag-Id', String(diagId));
+
   // CORS + preflight
   if (cors(req, res)) return;
 
   // Solo POST
-  if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed' });
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', 'POST');
+    return res.status(405).json({ ok: false, diag_id: diagId, message: 'method_not_allowed' });
+  }
 
   // Env requeridas
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE) {
-    return res.status(500).json({ error: 'missing_env' });
+    return res.status(500).json({ error: 'missing_env', diag_id: diagId });
   }
 
   try {
@@ -46,16 +52,15 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'size_out_of_bounds', limits: lim });
     }
 
-    // IDs y ruta destino
-    const now = new Date();
-    const ymd = now.toISOString().slice(0,10).replace(/-/g,'');   // YYYYMMDD
-    const job_hint = `job_${ymd}_${nano()}`;
-    const year = now.getFullYear();
-    const mm = String(now.getMonth()+1).padStart(2,'0');
-    const hash16 = body.sha256.slice(0,16);
-
-    // Guardamos solo bajo 'original/'. El bucket es 'uploads' (privado)
-    const object_key = `original/${year}/${mm}/${job_hint}/${hash16}.${body.ext}`;
+    // Ruta destino legible
+    const object_key = buildObjectKey({
+      design_name: body.design_name,
+      w_cm: body.w_cm,
+      h_cm: body.h_cm,
+      material: body.material,
+      hash: body.sha256,
+      ext: body.ext,
+    });
 
     // Firmar subida: expira en 60s
     const { data, error } = await supa
@@ -71,7 +76,6 @@ export default async function handler(req, res) {
     // Respuesta para que el front suba el archivo con supabase-js v2:
     // storage.from('uploads').uploadToSignedUrl(object_key, data.token, file)
     return res.status(200).json({
-      job_hint,
       bucket: 'uploads',
       object_key,
       upload: {

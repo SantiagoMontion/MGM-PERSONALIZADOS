@@ -57,3 +57,9 @@ create table if not exists public.job_events (
 );
 
 create index if not exists job_events_job_id_idx on public.job_events(job_id);
+
+-- Optional full-text search index for jobs (design_name + material)
+-- create extension if not exists pg_trgm;
+-- create index if not exists jobs_design_material_fts on public.jobs using gin (
+--   (to_tsvector('spanish', coalesce(design_name,'')) || to_tsvector('simple', coalesce(material,'')))
+-- );

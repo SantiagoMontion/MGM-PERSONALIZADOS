@@ -1,11 +1,20 @@
+import crypto from 'node:crypto';
 import { supa } from '../lib/supa.js';
 import { shopifyAdmin } from '../lib/shopify.js';
-import { cors } from '../lib/cors.js';
+import { cors } from './_lib/cors.js';
 
 export default async function handler(req, res) {
+  const diagId = crypto.randomUUID?.() ?? require('node:crypto').randomUUID();
+  res.setHeader('X-Diag-Id', String(diagId));
+
   if (cors(req, res)) return;
+
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', 'POST');
+    return res.status(405).json({ ok: false, diag_id: diagId, message: 'method_not_allowed' });
+  }
+
   try {
-    if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed' });
     const { job_id } = req.body || {};
     if (!job_id) return res.status(400).json({ error: 'missing_job_id' });
 

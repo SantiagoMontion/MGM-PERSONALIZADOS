@@ -20,8 +20,12 @@ export default function UploadStep({ onUploaded }) {
     setBusy(true);
     setErr('');
     try {
-      onUploaded({ file });
+      const localUrl = URL.createObjectURL(file);
+      const uploaded = { file, localUrl };
+      console.log('[UploadStep] local-only', uploaded);
+      onUploaded(uploaded);
     } catch (e) {
+      console.error(e);
       setErr(String(e?.message || e));
     } finally {
       setBusy(false);

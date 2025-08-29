@@ -1,27 +1,26 @@
 import { useEffect, useMemo, useState } from 'react';
 import { z } from 'zod';
-import { nanoid } from 'nanoid';
-import { STANDARD, LIMITS } from '../lib/sizes';
+import { STANDARD, LIMITS } from '../lib/material.js';
 import { dpiFor, dpiLevel } from '../lib/dpi';
 import styles from './OptionsStep.module.css';
+import { buildSubmitJobBody, prevalidateSubmitBody } from '../lib/jobPayload';
+import { submitJob } from '../lib/submitJob';
 
 const Form = z.object({
-  material: z.enum(['Classic','PRO']),
-  sizeMode: z.enum(['standard','custom']),
+  material: z.enum(['Classic','PRO','Glasspad']),
   w: z.number().positive(),
   h: z.number().positive(),
-  fit: z.enum(['cover','contain']),
+  fit: z.enum(['cover','contain','stretch']),
   bg: z.string().optional()
 });
 
 export default function OptionsStep({ uploaded, onSubmitted }) {
   const [material, setMaterial] = useState('Classic');
-  const [sizeMode, setSizeMode] = useState('standard');
-  const [std, setStd] = useState({ w: 90, h: 40 });
-  const [custom, setCustom] = useState({ w: 90, h: 40 });
+  const [wText, setWText] = useState('90');
+  const [hText, setHText] = useState('40');
   const [fit, setFit] = useState('cover');
   const [bg, setBg] = useState('#ffffff');
-  const [imgPx, setImgPx] = useState({ w: 0, h: 0 }); // natural px
+  const [imgPx, setImgPx] = useState({ w: 0, h: 0 });
   const [ackLow, setAckLow] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -38,128 +37,159 @@ export default function OptionsStep({ uploaded, onSubmitted }) {
     img.src = url;
   }, [uploaded]);
 
-  const size = sizeMode === 'standard' ? std : custom;
+  useEffect(() => {
+    if (material === 'Glasspad') {
+      applyPreset(50, 40);
+    }
+  }, [material]);
+
+  const size = useMemo(() => ({ w: parseFloat(wText || '0'), h: parseFloat(hText || '0') }), [wText, hText]);
   const limits = LIMITS[material];
+  const presets = STANDARD[material] || [];
+  const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
+  const applySize = (wVal = wText, hVal = hText) => {
+    const wNum = clamp(parseFloat(wVal || '0'), 1, limits.maxW);
+    const hNum = clamp(parseFloat(hVal || '0'), 1, limits.maxH);
+    setWText(String(wNum));
+    setHText(String(hNum));
+  };
+  const applyPreset = (w, h) => {
+    applySize(String(w), String(h));
+  };
 
   // DPI estimado
   const dpiVal = useMemo(() => dpiFor(size.w, size.h, imgPx.w, imgPx.h), [size, imgPx]);
-const level = useMemo(() => dpiLevel(dpiVal, 300, 100), [dpiVal]);
-
-  function clamp(val, min, max) { return Math.max(min, Math.min(max, val)); }
+  const level = useMemo(() => dpiLevel(dpiVal, 300, 100), [dpiVal]);
 
   async function submit() {
     setErr('');
     setBusy(true);
     try {
-      // validar y clamp
-      const w = clamp(Number(size.w), 1, limits.maxW);
-      const h = clamp(Number(size.h), 1, limits.maxH);
+    const wNum = clamp(parseFloat(wText || '0'), 1, limits.maxW);
+    const hNum = clamp(parseFloat(hText || '0'), 1, limits.maxH);
 
-      const form = Form.parse({
-        material, sizeMode, w, h, fit, bg
-      });
-
-      if (level === 'bad' && !ackLow) {
-        setErr('La calidad parece baja. Confirmá que aceptás continuar.');
-        setBusy(false);
-        return;
-      }
-
-      // precio (MVP: placeholder; luego conectamos tu calculadora)
-      const price_amount = 45900; // TODO: reemplazar con tu calculadora
-
-      const body = {
-        customer: undefined,
-        design_name: undefined,
-        publish_to_shopify: true, // o dejar en false si no querés publicar
-        material: form.material,
-        size_cm: { w: form.w, h: form.h, bleed_mm: 3 },
-        fit_mode: form.fit,
-        bg: form.bg || '#ffffff',
-        file_original_url: uploaded.file_original_url,
-        file_hash: uploaded.file_hash,
-        dpi_report: { dpi: Math.round(dpiVal), level, customer_ack: ackLow },
-        notes: '',
-        price: { currency: 'ARS', amount: price_amount },
-        source: 'web'
-      };
-
-      const idem = nanoid();
-      const res = await fetch(`${import.meta.env.VITE_API_BASE}/api/submit-job`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idem },
-        body: JSON.stringify(body)
-      });
-      const out = await res.json();
-      if (!res.ok) throw new Error(out?.error || 'submit_failed');
-
-      // listo: pasamos job_id al padre para ir a confirm
-      onSubmitted({ job_id: out.job_id });
-    } catch (e) {
-      setErr(String(e?.message || e));
-    } finally {
+    if (!wText || !hText) {
+      setErr('Completá las medidas');
       setBusy(false);
+      return;
     }
-  }
 
+    const form = Form.parse({
+      material, w: wNum, h: hNum, fit, bg
+    });
+
+    if (level === 'bad' && !ackLow) {
+      setErr('La calidad parece baja. Confirmá que aceptás continuar.');
+      setBusy(false);
+      return;
+    }
+
+    const submitBody = buildSubmitJobBody({
+      material: form.material,
+      size: { w: form.w, h: form.h, bleed_mm: 3 },
+      fit_mode: form.fit, // 'cover'|'contain'
+      bg: form.bg || '#ffffff',
+      dpi: Math.round(dpiVal),
+      uploads: {
+        // tomamos lo que haya en uploaded:
+        signed_url: uploaded?.upload?.signed_url || uploaded?.signed_url,
+        object_key: uploaded?.object_key,
+        canonical: uploaded?.file_original_url,
+      },
+      file_hash: uploaded?.file_hash,
+      price: { amount: 45900, currency: 'ARS' },
+      customer: { email: uploaded?.customer_email, name: uploaded?.customer_name },
+      notes: '',
+      source: 'web',
+    });
+
+    const pre = prevalidateSubmitBody(submitBody);
+    console.log('[PREVALIDATE OptionsStep]', pre, submitBody);
+    if (!pre.ok) {
+      setErr('Corregí antes de enviar: ' + pre.problems.join(' | '));
+      setBusy(false);
+      return;
+    }
+
+    const apiBase = import.meta.env.VITE_API_BASE || 'https://mgm-api.vercel.app';
+    const job = await submitJob(apiBase, submitBody);
+
+    onSubmitted({ job_id: job?.job_id || submitBody.job_id });
+  } catch (e) {
+    setErr(String(e?.message || e));
+  } finally {
+    setBusy(false);
+  }
+}
   return (
     <div className={styles.container}>
-      <h2>2) Ajustes</h2>
+      <h2>2 Ajustes</h2>
 
       <div className={styles.twoColGrid}>
         <label>Material
           <select value={material} onChange={e=>setMaterial(e.target.value)}>
             <option>Classic</option>
             <option>PRO</option>
+            <option>Glasspad</option>
           </select>
         </label>
 
-        <label>Modo de tamaño
-          <select value={sizeMode} onChange={e=>setSizeMode(e.target.value)}>
-            <option value="standard">Estándar</option>
-            <option value="custom">Personalizado</option>
-          </select>
-        </label>
-      </div>
-
-      {sizeMode === 'standard' ? (
-        <div className={styles.standardSelect}>
-          <select value={`${std.w}x${std.h}`} onChange={(e)=>{
-            const [w,h]=e.target.value.split('x').map(Number);
-            setStd({w,h});
-          }}>
-            {STANDARD[material].map(s => (
-              <option key={`${s.w}x${s.h}`} value={`${s.w}x${s.h}`}>
-                {s.w}x{s.h} cm
-              </option>
-            ))}
-          </select>
-        </div>
-      ) : (
-        <div className={styles.gridMt8}>
-          <label>Ancho (cm)
-            <input type="number" min="1" max={limits.maxW} value={custom.w}
-                   onChange={e=>setCustom(v=>({...v, w: Number(e.target.value)}))}/>
-          </label>
-          <label>Alto (cm)
-            <input type="number" min="1" max={limits.maxH} value={custom.h}
-                   onChange={e=>setCustom(v=>({...v, h: Number(e.target.value)}))}/>
-          </label>
-          <small>Máximo {limits.maxW}×{limits.maxH} para {material}</small>
-        </div>
-      )}
-
-      <div className={styles.gridMt8}>
         <label>Encaje
           <select value={fit} onChange={e=>setFit(e.target.value)}>
-            <option value="cover">Cubrir (recorta)</option>
-            <option value="contain">Contener (bordes)</option>
+            <option value="cover">Cubrir</option>
+            <option value="contain">Contener</option>
+            <option value="stretch">Estirar</option>
           </select>
         </label>
-        <label>Fondo (si “contener”)
-          <input type="color" value={bg} onChange={e=>setBg(e.target.value)} />
-        </label>
       </div>
+
+      <div className={styles.gridMt8}>
+        <label>Ancho (cm)
+          <input
+            type="number"
+            step={1}
+            min={1}
+            max={limits.maxW}
+            value={wText}
+            onChange={e=>setWText(e.target.value)}
+            onKeyDown={e=>e.key === 'Enter' && applySize()}
+            onBlur={applySize}
+            inputMode="numeric"
+            disabled={material === 'Glasspad'}
+          />
+        </label>
+        <label>Alto (cm)
+          <input
+            type="number"
+            step={1}
+            min={1}
+            max={limits.maxH}
+            value={hText}
+            onChange={e=>setHText(e.target.value)}
+            onKeyDown={e=>e.key === 'Enter' && applySize()}
+            onBlur={applySize}
+            inputMode="numeric"
+            disabled={material === 'Glasspad'}
+          />
+        </label>
+        <small>Máximo {limits.maxW}×{limits.maxH} para {material}</small>
+      </div>
+
+      <div className={styles.presets}>
+        {presets.map(p => (
+          <button key={`${p.w}x${p.h}`} onClick={() => applyPreset(p.w, p.h)}>
+            {p.w}×{p.h}
+          </button>
+        ))}
+      </div>
+
+      {fit === 'contain' && (
+        <div className={styles.gridMt8}>
+          <label>Fondo
+            <input type="color" value={bg} onChange={e=>setBg(e.target.value)} />
+          </label>
+        </div>
+      )}
 
       <div className={styles.dpiSection}>
         <b>DPI estimado:</b> {Math.round(dpiVal)} — {

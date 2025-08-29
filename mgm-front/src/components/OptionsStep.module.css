@@ -19,6 +19,13 @@
   margin-top: 8px;
 }
 
+.presets {
+  margin-top: 8px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .dpiSection {
   margin-top: 12px;
 }

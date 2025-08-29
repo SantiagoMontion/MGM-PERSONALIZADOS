@@ -1,106 +1,106 @@
 // src/components/SizeControls.jsx
-import { useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import styles from './SizeControls.module.css';
-
-const LIMITS = {
-  Classic: { maxW: 140, maxH: 100 },
-  PRO: { maxW: 120, maxH: 60 }
-};
-const STANDARD = {
-  Classic: [
-    { w: 25, h: 25 },
-    { w: 82, h: 32 },
-    { w: 90, h: 40 },
-    { w: 100, h: 60 },
-    { w: 140, h: 100 }
-  ],
-  PRO: [
-    { w: 25, h: 25 },
-    { w: 50, h: 40 },
-    { w: 90, h: 40 },
-    { w: 120, h: 60 }
-  ]
-};
+import { LIMITS, STANDARD } from '../lib/material.js';
 
 /**
  * Props:
- * - material: 'Classic' | 'PRO'
+ * - material: 'Classic' | 'PRO' | 'Glasspad'
  * - size: { w, h }
- * - mode: 'standard' | 'custom'
- * - onChange: ({ material, mode, w, h }) => void
+ * - onChange: ({ material?, w?, h? }) => void
  */
-export default function SizeControls({ material, size, mode, onChange }) {
-  const limits = LIMITS[material];
-  const standard = STANDARD[material];
-  const currentValue = `${size.w}x${size.h}`;
+export default function SizeControls({ material, size, onChange, locked = false }) {
+  const limits = LIMITS[material] || { maxW: size.w, maxH: size.h };
+  const presets = STANDARD[material] || [];
 
-  const options = useMemo(
-    () => standard.map(s => ({ label: `${s.w}×${s.h} cm`, value: `${s.w}x${s.h}` })),
-    [standard]
-  );
+  const [wText, setWText] = useState(String(size.w || ''));
+  const [hText, setHText] = useState(String(size.h || ''));
+
+  useEffect(() => { setWText(String(size.w ?? '')); }, [size.w]);
+  useEffect(() => { setHText(String(size.h ?? '')); }, [size.h]);
+
+  useEffect(() => {
+    if (material === 'Glasspad') {
+      setWText('50');
+      setHText('40');
+      onChange({ w: 50, h: 40 });
+    }
+  }, [material, onChange]);
+
+  const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
+  const applySize = () => {
+    const wNum = clamp(parseFloat(wText || '0'), 1, limits.maxW);
+    const hNum = clamp(parseFloat(hText || '0'), 1, limits.maxH);
+    setWText(String(wNum));
+    setHText(String(hNum));
+    onChange({ w: wNum, h: hNum });
+  };
+
+  const applyPreset = (w, h) => {
+    setWText(String(w));
+    setHText(String(h));
+    onChange({ w, h });
+  };
 
   return (
     <div className={styles.container}>
       <label>Material
         <select
           value={material}
-          onChange={(e) => {
-            const m = e.target.value;
-            const first = STANDARD[m][0];
-            onChange({ material: m, mode: 'standard', w: first.w, h: first.h });
-          }}
+          onChange={(e) => onChange({ material: e.target.value })}
         >
           <option>Classic</option>
           <option>PRO</option>
+          <option>Glasspad</option>
         </select>
       </label>
 
-      <label>Modo
-        <select
-          value={mode}
-          onChange={(e) => onChange({ material, mode: e.target.value, w: size.w, h: size.h })}
-        >
-          <option value="standard">Estándar</option>
-          <option value="custom">Personalizado</option>
-        </select>
+      <label>Ancho (cm)
+        <input
+          type="number"
+          step={1}
+          min={1}
+          max={limits.maxW}
+          value={wText}
+          onChange={e=>setWText(e.target.value)}
+          onKeyDown={e=>e.key === 'Enter' && applySize()}
+          onBlur={applySize}
+          inputMode="numeric"
+          disabled={locked || material === 'Glasspad'}
+        />
       </label>
 
-      {mode === 'standard' ? (
-        <label>Medida estándar
-          <select
-            value={currentValue}
-            onChange={(e) => {
-              const [w, h] = e.target.value.split('x').map(Number);
-              onChange({ material, mode, w, h });
-            }}
-          >
-            {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
-        </label>
-      ) : (
-        <>
-          <label>Ancho (cm)
-            <input
-              type="number" min="1" max={limits.maxW} value={size.w}
-              onChange={(e)=>{
-                const w = Math.max(1, Math.min(limits.maxW, Number(e.target.value) || 0));
-                onChange({ material, mode, w, h: size.h });
-              }}
-            />
-          </label>
-          <label>Alto (cm)
-            <input
-              type="number" min="1" max={limits.maxH} value={size.h}
-              onChange={(e)=>{
-                const h = Math.max(1, Math.min(limits.maxH, Number(e.target.value) || 0));
-                onChange({ material, mode, w: size.w, h });
-              }}
-            />
-          </label>
-          <small className={styles.helper}>
-            Máximo {limits.maxW}×{limits.maxH} cm para {material}
-          </small>
-        </>
+      <label>Alto (cm)
+        <input
+          type="number"
+          step={1}
+          min={1}
+          max={limits.maxH}
+          value={hText}
+          onChange={e=>setHText(e.target.value)}
+          onKeyDown={e=>e.key === 'Enter' && applySize()}
+          onBlur={applySize}
+          inputMode="numeric"
+          disabled={locked || material === 'Glasspad'}
+        />
+      </label>
+
+      <div className={styles.presets}>
+        {presets.map(p => (
+          <button key={`${p.w}x${p.h}`} onClick={() => applyPreset(p.w, p.h)} disabled={locked}>
+            {p.w}×{p.h}
+          </button>
+        ))}
+      </div>
+
+      {!locked && material !== 'Glasspad' && (
+        <small className={styles.helper}>
+          Máximo {limits.maxW}×{limits.maxH} cm para {material}
+        </small>
+      )}
+
+      {locked && (
+        <small className={styles.helper}>Medida fija 50×40 cm</small>
       )}
     </div>
   );
