@@ -288,7 +288,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
   const moveBy = useCallback((dx, dy) => {
     pushHistory(imgTx);
-    stickyFitRef.current = null;
+    setIsManual(true);
     setImgTx((tx) => ({ ...tx, x_cm: tx.x_cm + dx, y_cm: tx.y_cm + dy }));
   }, [imgTx]);
 
@@ -308,7 +308,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const [freeScale, setFreeScale] = useState(false); // ⟵ NUEVO: “Estirar sin límites”
   const keepRatio = !freeScale;
   const [mode, setMode] = useState('cover'); // 'cover' | 'contain' | 'stretch'
-  const stickyFitRef = useRef('cover');
+  const [isManual, setIsManual] = useState(false);
   const [bgColor, setBgColor] = useState('#ffffff');
   const theta = (imgTx.rotation_deg * Math.PI) / 180;
 
@@ -326,7 +326,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     setImgTx(initial);
     pushHistory(initial);
     setMode('cover');
-    stickyFitRef.current = 'cover';
     const maxContain = Math.min(workCm.w / denomW, workCm.h / denomH);
     dlog('[FIT]', 'cover', 1, coverScale, maxContain, coverScale, { w: wCm, h: hCm }, material);
     didInitRef.current = true;
@@ -347,7 +346,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const onImgDragStart = () => {
     stickRef.current = { x: null, y: null, activeX: false, activeY: false };
     pushHistory(imgTx);
-    stickyFitRef.current = null;
+    setIsManual(true);
   };
   const dragBoundFunc = useCallback((pos) => {
     if (!imgBaseCm) return pos;
@@ -436,6 +435,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   };
   const onImgDragEnd = () => {
     stickRef.current = { x: null, y: null, activeX: false, activeY: false };
+    normalizeIntoBounds();
   };
 
   // transformer
@@ -451,9 +451,11 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     const active = trRef.current?.getActiveAnchor();
     if (!['top-left','top-right','bottom-left','bottom-right'].includes(active)) {
       pushHistory(imgTx);
+      setIsManual(true);
       return;
     }
     pushHistory(imgTx);
+    setIsManual(true);
     const stage = stageRef.current;
     const pointer = pointerWorld(stage);
     const anchorMap = {
@@ -545,6 +547,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   // cover/contain/estirar con rotación
   const applyFit = useCallback((mode) => {
     if (!imgBaseCm) return;
+    setIsManual(false);
     const prevScale = Math.abs(imgTx.scaleX);
     const { cx, cy } = currentCenter();
     const w = imgBaseCm.w, h = imgBaseCm.h;
@@ -611,9 +614,9 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     }
   }, [imgBaseCm?.w, imgBaseCm?.h, workCm.w, workCm.h, theta, imgTx, wCm, hCm, material]);
 
-  const fitCover = useCallback(() => { applyFit('cover'); stickyFitRef.current = 'cover'; }, [applyFit]);
-  const fitContain = useCallback(() => { applyFit('contain'); stickyFitRef.current = 'contain'; }, [applyFit]);
-  const fitStretchCentered = useCallback(() => { applyFit('stretch'); stickyFitRef.current = 'stretch'; }, [applyFit]);
+  const fitCover = useCallback(() => { applyFit('cover'); }, [applyFit]);
+  const fitContain = useCallback(() => { applyFit('contain'); }, [applyFit]);
+  const fitStretchCentered = useCallback(() => { applyFit('stretch'); }, [applyFit]);
 
   const centerHoriz = useCallback(() => {
     if (!imgBaseCm) return;
@@ -639,22 +642,16 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const normalizeIntoBounds = useCallback(() => {
     if (!imgBaseCm) return;
     setImgTx((tx) => {
-      const w = imgBaseCm.w * Math.abs(tx.scaleX);
-      const h = imgBaseCm.h * Math.abs(tx.scaleY);
-      let x = tx.x_cm;
-      let y = tx.y_cm;
-      if (w < workCm.w) x = (workCm.w - w) / 2; else {
-        if (x > workCm.w - w) x = workCm.w - w;
-        if (x < 0) x = 0;
-      }
-      if (h < workCm.h) y = (workCm.h - h) / 2; else {
-        if (y > workCm.h - h) y = workCm.h - h;
-        if (y < 0) y = 0;
-      }
-      if (x === tx.x_cm && y === tx.y_cm) return tx;
-      return { ...tx, x_cm: x, y_cm: y };
+      let { x_cm, y_cm, scaleX, scaleY } = tx;
+      if (!Number.isFinite(x_cm)) x_cm = 0;
+      if (!Number.isFinite(y_cm)) y_cm = 0;
+      const signX = Math.sign(scaleX) || 1;
+      const signY = Math.sign(scaleY) || 1;
+      const absX = Math.min(Math.max(Math.abs(scaleX), 0.01), IMG_ZOOM_MAX);
+      const absY = Math.min(Math.max(Math.abs(scaleY), 0.01), IMG_ZOOM_MAX);
+      return { ...tx, x_cm, y_cm, scaleX: signX * absX, scaleY: signY * absY };
     });
-  }, [imgBaseCm?.w, imgBaseCm?.h, workCm.w, workCm.h]);
+  }, [imgBaseCm]);
 
   const alignEdge = (edge) => {
     if (!imgBaseCm) return;
@@ -697,15 +694,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
   const applyFitRef = useRef(applyFit);
   useEffect(() => { applyFitRef.current = applyFit; }, [applyFit]);
-  const normalizeRef = useRef(normalizeIntoBounds);
-  useEffect(() => { normalizeRef.current = normalizeIntoBounds; }, [normalizeIntoBounds]);
   useEffect(() => {
-    if (stickyFitRef.current) {
-      applyFitRef.current(stickyFitRef.current);
-      stickyFitRef.current = null;
-    } else {
-      normalizeRef.current();
-    }
+    applyFitRef.current(mode);
   }, [material, wCm, hCm]);
 
 
@@ -728,6 +718,9 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     if (dpiEffective < 200)   return { label:`Buena (${dpiEffective|0} DPI)`, color:'#f59e0b' };
     return { label:`Excelente (${Math.min(300, dpiEffective|0)} DPI)`, color:'#10b981' };
   }, [dpiEffective]);
+
+  const fitTip = 'preset inicial; si modificás manualmente, se mantiene hasta reencajar';
+  const modeLabel = mode === 'cover' ? 'Cubrir' : mode === 'contain' ? 'Contener' : 'Estirar';
 
   const getPadRectPx = () => {
     const k = baseScale * viewScale;
@@ -917,6 +910,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         scaleX: imgTx.scaleX,
         scaleY: imgTx.scaleY,
         rotation_deg: imgTx.rotation_deg,
+        fitMode: mode,
+        isManual,
       },
       mode,
       background: mode === 'contain' ? bgColor : '#ffffff',
@@ -932,6 +927,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       Math.abs(prev.transform.scaleX - next.transform.scaleX) > tol ||
       Math.abs(prev.transform.scaleY - next.transform.scaleY) > tol ||
       Math.abs(prev.transform.rotation_deg - next.transform.rotation_deg) > rotTol ||
+      prev.transform.fitMode !== next.transform.fitMode ||
+      prev.transform.isManual !== next.transform.isManual ||
       prev.mode !== next.mode ||
       prev.background !== next.background ||
       prev.bleed_mm !== next.bleed_mm ||
@@ -941,7 +938,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       prevLayoutRef.current = next;
       layoutChangeRef.current?.(next);
     }
-  }, [bleedMm, wCm, hCm, imgEl, imgTx, mode, bgColor, cornerRadiusCm]);
+  }, [bleedMm, wCm, hCm, imgEl, imgTx, mode, bgColor, cornerRadiusCm, isManual]);
 
   // Confirmar y crear job
 async function onConfirmSubmit() {
@@ -985,10 +982,10 @@ async function onConfirmSubmit() {
     <div className={styles.colorWrapper}>
       {/* Toolbar */}
       <div className={styles.toolbar}>
-        <button onClick={fitCover} disabled={!imgEl}>Cubrir</button>
+        <button onClick={fitCover} disabled={!imgEl} title={fitTip}>Cubrir</button>
 
         <div className={styles.colorWrapper}>
-          <button onClick={toggleContain} disabled={!imgEl}>Contener</button>
+          <button onClick={toggleContain} disabled={!imgEl} title={fitTip}>Contener</button>
           {mode === 'contain' && imgEl && (
             <div className={styles.colorPopoverWrap}>
               <ColorPopover
@@ -1002,7 +999,13 @@ async function onConfirmSubmit() {
           )}
         </div>
 
-        <button onClick={fitStretchCentered} disabled={!imgEl}>Estirar</button>
+        <button onClick={fitStretchCentered} disabled={!imgEl} title={fitTip}>Estirar</button>
+
+        {isManual && (
+          <button onClick={() => applyFit(mode)}>
+            Reencajar a {modeLabel}
+          </button>
+        )}
 
 
         <button onClick={centerHoriz} disabled={!imgEl}>Centrar H</button>

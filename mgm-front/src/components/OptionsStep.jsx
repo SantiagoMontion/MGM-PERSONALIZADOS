@@ -147,29 +147,25 @@ export default function OptionsStep({ uploaded, onSubmitted }) {
       <div className={styles.gridMt8}>
         <label>Ancho (cm)
           <input
-            type="number"
-            step={1}
-            min={1}
-            max={limits.maxW}
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
             value={wText}
             onChange={e=>setWText(e.target.value)}
             onKeyDown={e=>e.key === 'Enter' && applySize()}
             onBlur={applySize}
-            inputMode="numeric"
             disabled={material === 'Glasspad'}
           />
         </label>
         <label>Alto (cm)
           <input
-            type="number"
-            step={1}
-            min={1}
-            max={limits.maxH}
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
             value={hText}
             onChange={e=>setHText(e.target.value)}
             onKeyDown={e=>e.key === 'Enter' && applySize()}
             onBlur={applySize}
-            inputMode="numeric"
             disabled={material === 'Glasspad'}
           />
         </label>
