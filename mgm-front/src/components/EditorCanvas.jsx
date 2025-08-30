@@ -316,8 +316,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [moveBy]);
-  const [freeScale, setFreeScale] = useState(false); // ⟵ NUEVO: “Estirar sin límites”
-  const keepRatio = !freeScale;
   const [mode, setMode] = useState('cover'); // 'cover' | 'contain' | 'stretch'
   const [isManual, setIsManual] = useState(false);
   const [bgColor, setBgColor] = useState('#ffffff');
@@ -461,7 +459,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     if (showTransformer && imgRef.current) trRef.current.nodes([imgRef.current]);
     else trRef.current.nodes([]);
     trRef.current.getLayer()?.batchDraw();
-  }, [imgEl, keepRatio, showTransformer]);
+  }, [imgEl, showTransformer]);
 
   const onTransformStart = (e) => {
     if (!imgRef.current || !imgBaseCm) return;
@@ -484,6 +482,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     setIsManual(true);
     const stage = stageRef.current;
     const pointer = pointerWorld(stage);
+    const shiftKey = e?.evt?.shiftKey;
+    const altKey = e?.evt?.altKey || e?.evt?.metaKey;
     const anchorMap = {
       'top-left': 'bottom-right',
       'top-right': 'bottom-left',
@@ -494,7 +494,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       'middle-left': 'middle-right',
       'middle-right': 'middle-left',
     };
-    const anchorName = anchorMap[active] || 'bottom-right';
+    const anchorName = altKey ? 'center' : anchorMap[active] || 'bottom-right';
     const w = imgBaseCm.w;
     const h = imgBaseCm.h;
     const wScaled = w * Math.abs(imgTx.scaleX);
@@ -503,7 +503,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     const cy = imgTx.y_cm + hScaled / 2;
     const thetaRad = imgTx.rotation_deg * Math.PI / 180;
     const startTransform = { tx: cx, ty: cy, theta: thetaRad, sx: imgTx.scaleX, sy: imgTx.scaleY };
-    const anchorLocal = {
+    const anchorLocal = altKey ? { x: 0, y: 0 } : {
       x: anchorName.includes('left') ? -w/2 : anchorName.includes('right') ? w/2 : 0,
       y: anchorName.includes('top') ? -h/2 : anchorName.includes('bottom') ? h/2 : 0,
     };
@@ -522,15 +522,18 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       anchorName,
       lockX,
       lockY,
+      shiftKey,
+      altKey,
       latest: null,
     };
     if (DEBUG_SCALE) console.log('[SCALE] start', { startScaleX: imgTx.scaleX, startScaleY: imgTx.scaleY, startX: imgTx.x_cm, startY: imgTx.y_cm });
   };
 
-  const onTransform = () => {
+  const onTransform = (e) => {
     if (!scaleGestureRef.current || !imgBaseCm) return;
     const g = scaleGestureRef.current;
     if (!g.anchorLocal) return;
+    g.shiftKey = e?.evt?.shiftKey;
     const stage = stageRef.current;
     const pointer = pointerWorld(stage);
     const pointerLocal = canvasToLocal(pointer, g.startTransform);
@@ -538,6 +541,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     const dy0 = g.startPointerLocal.y - g.anchorLocal.y;
     let ratioX = dx0 !== 0 ? (pointerLocal.x - g.anchorLocal.x) / dx0 : 1;
     let ratioY = dy0 !== 0 ? (pointerLocal.y - g.anchorLocal.y) / dy0 : 1;
+    const keepRatio = g.shiftKey;
     if (g.lockX) ratioX = keepRatio ? ratioY : 1;
     if (g.lockY) ratioY = keepRatio ? ratioX : 1;
     let scaleX = g.initScaleX * ratioX;
@@ -1112,12 +1116,6 @@ async function onConfirmSubmit() {
         <button onClick={flipVert} disabled={!imgEl}>Espejo V</button>
 
 
-        {/* ⟵ NUEVO: checkbox para estirar sin límites desde las esquinas */}
-        <label className={styles.freeScale}>
-          <input type="checkbox" checked={freeScale} onChange={(e)=>setFreeScale(e.target.checked)} disabled={!imgEl} />
-          Escalar libre
-        </label>
-
                 <span className={`${styles.qualityBadge} ${
           quality.color === '#ef4444' ? styles.qualityBad :
           quality.color === '#f59e0b' ? styles.qualityWarn :
@@ -1212,20 +1210,11 @@ async function onConfirmSubmit() {
                     visible={showTransformer}
                     rotateEnabled
                     rotationSnaps={[0, 90, 180, 270]}
-                    keepRatio={keepRatio}
+                    keepRatio={false}
                     enabledAnchors={['top-left','top-right','bottom-left','bottom-right','top-center','bottom-center','middle-left','middle-right']}
                     boundBoxFunc={(oldBox, newBox) => {
                       const MIN_W = 0.02 * (imgBaseCm?.w || 1);
                       const MIN_H = 0.02 * (imgBaseCm?.h || 1);
-
-                      if (!keepRatio) {
-                        // ⟵ MODO LIBRE: sólo mínimo, SIN límites superiores
-                        const w = Math.max(MIN_W, newBox.width);
-                        const h = Math.max(MIN_H, newBox.height);
-                        return { ...newBox, width: w, height: h };
-                      }
-
-                      // Mantener proporción: con topes razonables
                       const MAX_W = (imgBaseCm?.w || 1) * IMG_ZOOM_MAX;
                       const MAX_H = (imgBaseCm?.h || 1) * IMG_ZOOM_MAX;
                       const w = Math.max(MIN_W, Math.min(newBox.width,  MAX_W));
