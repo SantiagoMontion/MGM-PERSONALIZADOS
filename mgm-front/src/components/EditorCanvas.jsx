@@ -173,6 +173,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const imgRef = useRef(null);
   const trRef  = useRef(null);
   const [showTransformer, setShowTransformer] = useState(true);
+  const scaleGestureRef = useRef(null);
+  const scaleRafRef = useRef(false);
 
   const isTargetOnImageOrTransformer = (target) => {
     if (!target) return false;
@@ -331,8 +333,10 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   }, [imgBaseCm, workCm.w, workCm.h, theta, wCm, hCm, material]);
 
   // medidas visuales (para offset centro)
-  const dispW = imgBaseCm ? imgBaseCm.w * imgTx.scaleX : 0;
-  const dispH = imgBaseCm ? imgBaseCm.h * imgTx.scaleY : 0;
+  const dispW = imgBaseCm ? imgBaseCm.w * Math.abs(imgTx.scaleX) : 0;
+  const dispH = imgBaseCm ? imgBaseCm.h * Math.abs(imgTx.scaleY) : 0;
+  const flipXSign = imgTx.scaleX < 0 ? -1 : 1;
+  const flipYSign = imgTx.scaleY < 0 ? -1 : 1;
   const rotAABBHalf = (w, h, ang) => ({
     halfW: (Math.abs(w * Math.cos(ang)) + Math.abs(h * Math.sin(ang))) / 2,
     halfH: (Math.abs(w * Math.sin(ang)) + Math.abs(h * Math.cos(ang))) / 2,
@@ -347,12 +351,13 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   };
   const dragBoundFunc = useCallback((pos) => {
     if (!imgBaseCm) return pos;
+    if (scaleGestureRef.current) return pos;
 
     let cx = pos.x;
     let cy = pos.y;
 
-    const w = imgBaseCm.w * imgTx.scaleX;
-    const h = imgBaseCm.h * imgTx.scaleY;
+    const w = imgBaseCm.w * Math.abs(imgTx.scaleX);
+    const h = imgBaseCm.h * Math.abs(imgTx.scaleY);
     const { halfW, halfH } = rotAABBHalf(w, h, theta);
 
     const dL = Math.abs((cx - halfW) - 0);
@@ -420,11 +425,12 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     }
   };
   const onImgDragMove = (e) => {
+    if (scaleGestureRef.current) return;
     isPanningRef.current = false;
     const n = e.target;
     setImgTx((prev) => {
-      const w = imgBaseCm.w * prev.scaleX;
-      const h = imgBaseCm.h * prev.scaleY;
+      const w = imgBaseCm.w * Math.abs(prev.scaleX);
+      const h = imgBaseCm.h * Math.abs(prev.scaleY);
       return { ...prev, x_cm: n.x() - w / 2, y_cm: n.y() - h / 2 };
     });
   };
@@ -440,43 +446,106 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     trRef.current.getLayer()?.batchDraw();
   }, [imgEl, keepRatio, showTransformer]);
 
-  // fin de resize por esquinas
-  const onTransformEnd = () => {
+  const onTransformStart = () => {
     if (!imgRef.current || !imgBaseCm) return;
+    const active = trRef.current?.getActiveAnchor();
+    if (!['top-left','top-right','bottom-left','bottom-right'].includes(active)) {
+      pushHistory(imgTx);
+      return;
+    }
     pushHistory(imgTx);
-    stickyFitRef.current = null;
+    const stage = stageRef.current;
+    const pointer = pointerWorld(stage);
+    const anchorMap = {
+      'top-left': 'bottom-right',
+      'top-right': 'bottom-left',
+      'bottom-left': 'top-right',
+      'bottom-right': 'top-left',
+    };
+    const anchorName = anchorMap[active] || 'bottom-right';
+    const w = imgBaseCm.w * Math.abs(imgTx.scaleX);
+    const h = imgBaseCm.h * Math.abs(imgTx.scaleY);
+    const cx = imgTx.x_cm + w / 2;
+    const cy = imgTx.y_cm + h / 2;
+    const thetaRad = imgTx.rotation_deg * Math.PI / 180;
+    const dirX = { x: Math.cos(thetaRad), y: Math.sin(thetaRad) };
+    const dirY = { x: -Math.sin(thetaRad), y: Math.cos(thetaRad) };
+    const anchorX = cx + dirX.x * (anchorName.includes('right') ? w/2 : -w/2) + dirY.x * (anchorName.includes('bottom') ? h/2 : -h/2);
+    const anchorY = cy + dirX.y * (anchorName.includes('right') ? w/2 : -w/2) + dirY.y * (anchorName.includes('bottom') ? h/2 : -h/2);
+    const v0x = pointer.x - anchorX;
+    const v0y = pointer.y - anchorY;
+    const proj0x = v0x * dirX.x + v0y * dirX.y;
+    const proj0y = v0x * dirY.x + v0y * dirY.y;
+    scaleGestureRef.current = { anchor:{x:anchorX,y:anchorY}, dirX, dirY, proj0x, proj0y, initScaleX: imgTx.scaleX, initScaleY: imgTx.scaleY, anchorName, latest:null };
+  };
+
+  const onTransform = () => {
+    if (!scaleGestureRef.current || !imgBaseCm) return;
+    const stage = stageRef.current;
+    const pointer = pointerWorld(stage);
+    const g = scaleGestureRef.current;
+    const v1x = pointer.x - g.anchor.x;
+    const v1y = pointer.y - g.anchor.y;
+    const proj1x = v1x * g.dirX.x + v1y * g.dirX.y;
+    const proj1y = v1x * g.dirY.x + v1y * g.dirY.y;
+    let scaleX = g.initScaleX * (proj1x / g.proj0x);
+    let scaleY = g.initScaleY * (proj1y / g.proj0y);
+    if (keepRatio) {
+      const signX = Math.sign(scaleX) || 1;
+      const signY = Math.sign(scaleY) || 1;
+      const uni = Math.min(Math.abs(scaleX), Math.abs(scaleY), IMG_ZOOM_MAX);
+      scaleX = signX * uni;
+      scaleY = signY * uni;
+    } else {
+      const signX = Math.sign(scaleX) || 1;
+      const signY = Math.sign(scaleY) || 1;
+      scaleX = signX * Math.max(Math.abs(scaleX), 0.01);
+      scaleY = signY * Math.max(Math.abs(scaleY), 0.01);
+    }
+    const w = imgBaseCm.w * Math.abs(scaleX);
+    const h = imgBaseCm.h * Math.abs(scaleY);
+    const offsetX = g.anchorName.includes('right') ? -w/2 : w/2;
+    const offsetY = g.anchorName.includes('bottom') ? -h/2 : h/2;
+    const cx = g.anchor.x + g.dirX.x * offsetX + g.dirY.x * offsetY;
+    const cy = g.anchor.y + g.dirX.y * offsetX + g.dirY.y * offsetY;
+    g.latest = { x_cm: cx - w/2, y_cm: cy - h/2, scaleX, scaleY, rotation_deg: imgTx.rotation_deg };
+    if (!scaleRafRef.current) {
+      scaleRafRef.current = true;
+      requestAnimationFrame(() => {
+        scaleRafRef.current = false;
+        if (scaleGestureRef.current?.latest) {
+          setImgTx((tx) => ({ ...tx, ...scaleGestureRef.current.latest }));
+        }
+      });
+    }
+  };
+
+  const onTransformEnd = () => {
     const n = imgRef.current;
-    const sx = n.scaleX();
-    const sy = n.scaleY();
-    setImgTx((prev) => {
-      // libre => sin límites superiores
-      if (!keepRatio) {
-        const newSX = Math.max(prev.scaleX * sx, 0.01);
-        const newSY = Math.max(prev.scaleY * sy, 0.01);
-        const w = imgBaseCm.w * newSX;
-        const h = imgBaseCm.h * newSY;
-        return { x_cm: n.x() - w/2, y_cm: n.y() - h/2, scaleX: newSX, scaleY: newSY, rotation_deg: n.rotation() };
-      }
-      // mantener proporción con clamp razonable
-      const uni = Math.min(prev.scaleX * sx, IMG_ZOOM_MAX);
-      const w = imgBaseCm.w * uni;
-      const h = imgBaseCm.h * uni;
-      return { x_cm: n.x() - w/2, y_cm: n.y() - h/2, scaleX: uni, scaleY: uni, rotation_deg: n.rotation() };
-    });
-    n.scaleX(1); n.scaleY(1);
+    if (!n || !imgBaseCm) return;
+    if (!scaleGestureRef.current) {
+      setImgTx((prev) => ({ ...prev, rotation_deg: n.rotation() }));
+      normalizeIntoBounds();
+      return;
+    }
+    if (scaleGestureRef.current.latest) {
+      setImgTx((tx) => ({ ...tx, ...scaleGestureRef.current.latest }));
+    }
+    scaleGestureRef.current = null;
+    normalizeIntoBounds();
   };
 
   // centro actual
   const currentCenter = () => {
-    const w = imgBaseCm.w * imgTx.scaleX;
-    const h = imgBaseCm.h * imgTx.scaleY;
+    const w = imgBaseCm.w * Math.abs(imgTx.scaleX);
+    const h = imgBaseCm.h * Math.abs(imgTx.scaleY);
     return { cx: imgTx.x_cm + w/2, cy: imgTx.y_cm + h/2 };
   };
 
   // cover/contain/estirar con rotación
   const applyFit = useCallback((mode) => {
     if (!imgBaseCm) return;
-    const prevScale = imgTx.scaleX;
+    const prevScale = Math.abs(imgTx.scaleX);
     const { cx, cy } = currentCenter();
     const w = imgBaseCm.w, h = imgBaseCm.h;
     const c = Math.abs(Math.cos(theta));
@@ -492,7 +561,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       pushHistory(imgTx);
       setImgTx((prev) => ({
         x_cm: cx - newW / 2, y_cm: cy - newH / 2,
-        scaleX: scale, scaleY: scale,
+        scaleX: scale * Math.sign(prev.scaleX),
+        scaleY: scale * Math.sign(prev.scaleY),
         rotation_deg: prev.rotation_deg,
       }));
       setMode('cover');
@@ -506,7 +576,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       pushHistory(imgTx);
       setImgTx((prev) => ({
         x_cm: cx - newW / 2, y_cm: cy - newH / 2,
-        scaleX: scale, scaleY: scale,
+        scaleX: scale * Math.sign(prev.scaleX),
+        scaleY: scale * Math.sign(prev.scaleY),
         rotation_deg: prev.rotation_deg,
       }));
       setMode('contain');
@@ -531,7 +602,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       pushHistory(imgTx);
       setImgTx((prev) => ({
         x_cm: cx - newW / 2, y_cm: cy - newH / 2,
-        scaleX: sx, scaleY: sy,
+        scaleX: sx * Math.sign(imgTx.scaleX),
+        scaleY: sy * Math.sign(imgTx.scaleY),
         rotation_deg: prev.rotation_deg,
       }));
       setMode('stretch');
@@ -545,30 +617,30 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
   const centerHoriz = useCallback(() => {
     if (!imgBaseCm) return;
-    const w = imgBaseCm.w * imgTx.scaleX;
+    const w = imgBaseCm.w * Math.abs(imgTx.scaleX);
     pushHistory(imgTx);
     setImgTx((tx) => ({ ...tx, x_cm: (workCm.w - w) / 2 }));
   }, [imgBaseCm?.w, workCm.w, imgTx.scaleX]);
 
   const centerVert = useCallback(() => {
     if (!imgBaseCm) return;
-    const h = imgBaseCm.h * imgTx.scaleY;
+    const h = imgBaseCm.h * Math.abs(imgTx.scaleY);
     pushHistory(imgTx);
     setImgTx((tx) => ({ ...tx, y_cm: (workCm.h - h) / 2 }));
   }, [imgBaseCm?.h, workCm.h, imgTx.scaleY]);
 
   const centerBoth = useCallback(() => {
     if (!imgBaseCm) return;
-    const w = imgBaseCm.w * imgTx.scaleX;
-    const h = imgBaseCm.h * imgTx.scaleY;
+    const w = imgBaseCm.w * Math.abs(imgTx.scaleX);
+    const h = imgBaseCm.h * Math.abs(imgTx.scaleY);
     setImgTx((tx) => ({ ...tx, x_cm: (workCm.w - w)/2, y_cm: (workCm.h - h)/2 }));
   }, [imgBaseCm?.w, imgBaseCm?.h, imgTx.scaleX, imgTx.scaleY, workCm.w, workCm.h]);
 
   const normalizeIntoBounds = useCallback(() => {
     if (!imgBaseCm) return;
     setImgTx((tx) => {
-      const w = imgBaseCm.w * tx.scaleX;
-      const h = imgBaseCm.h * tx.scaleY;
+      const w = imgBaseCm.w * Math.abs(tx.scaleX);
+      const h = imgBaseCm.h * Math.abs(tx.scaleY);
       let x = tx.x_cm;
       let y = tx.y_cm;
       if (w < workCm.w) x = (workCm.w - w) / 2; else {
@@ -586,8 +658,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
   const alignEdge = (edge) => {
     if (!imgBaseCm) return;
-    const w = imgBaseCm.w * imgTx.scaleX;
-    const h = imgBaseCm.h * imgTx.scaleY;
+    const w = imgBaseCm.w * Math.abs(imgTx.scaleX);
+    const h = imgBaseCm.h * Math.abs(imgTx.scaleY);
     const { halfW, halfH } = rotAABBHalf(w, h, theta);
 
     let cx = imgTx.x_cm + w/2;
@@ -601,15 +673,26 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     pushHistory(imgTx);
     setImgTx((tx) => ({
       ...tx,
-      x_cm: cx - (imgBaseCm.w * tx.scaleX)/2,
-      y_cm: cy - (imgBaseCm.h * tx.scaleY)/2,
+      x_cm: cx - (imgBaseCm.w * Math.abs(tx.scaleX))/2,
+      y_cm: cy - (imgBaseCm.h * Math.abs(tx.scaleY))/2,
     }));
   };
   
   const rotate = (deg) => {
     pushHistory(imgTx);
-    stickyFitRef.current = null;
     setImgTx((tx) => ({ ...tx, rotation_deg: (tx.rotation_deg + deg) % 360 }));
+  };
+
+  const flipHoriz = () => {
+    pushHistory(imgTx);
+    setImgTx((tx) => ({ ...tx, scaleX: -tx.scaleX }));
+    requestAnimationFrame(() => normalizeIntoBounds());
+  };
+
+  const flipVert = () => {
+    pushHistory(imgTx);
+    setImgTx((tx) => ({ ...tx, scaleY: -tx.scaleY }));
+    requestAnimationFrame(() => normalizeIntoBounds());
   };
 
   const applyFitRef = useRef(applyFit);
@@ -629,8 +712,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   // calidad
   const dpiEffective = useMemo(() => {
     if (!imgEl || !imgBaseCm) return null;
-    const printedWcm = imgBaseCm.w * imgTx.scaleX;
-    const printedHcm = imgBaseCm.h * imgTx.scaleY;
+    const printedWcm = imgBaseCm.w * Math.abs(imgTx.scaleX);
+    const printedHcm = imgBaseCm.h * Math.abs(imgTx.scaleY);
     if (printedWcm <= 0 || printedHcm <= 0) return null;
     const printedWin = printedWcm / CM_PER_INCH;
     const printedHin = printedHcm / CM_PER_INCH;
@@ -672,8 +755,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       w: Math.round(workCm.w / cmPerPx),
       h: Math.round(workCm.h / cmPerPx),
     };
-    const w = imgBaseCm.w * imgTx.scaleX;
-    const h = imgBaseCm.h * imgTx.scaleY;
+    const w = imgBaseCm.w * Math.abs(imgTx.scaleX);
+    const h = imgBaseCm.h * Math.abs(imgTx.scaleY);
     const cx = imgTx.x_cm + w / 2;
     const cy = imgTx.y_cm + h / 2;
     const { halfW, halfH } = rotAABBHalf(w, h, theta);
@@ -699,6 +782,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       place_px,
       pad_px: getPadRectPx(),
       rotate_deg,
+      flipX: imgTx.scaleX < 0,
+      flipY: imgTx.scaleY < 0,
       fit_mode: mode,
       bg_hex: bgColor,
       w_cm: wCm,
@@ -751,8 +836,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       const naturalW = imgEl.naturalWidth;
       const naturalH = imgEl.naturalHeight;
     const cmPerPx = 1 / PX_PER_CM;
-      const dispW = imgBaseCm.w * imgTx.scaleX;
-      const dispH = imgBaseCm.h * imgTx.scaleY;
+      const dispW = imgBaseCm.w * Math.abs(imgTx.scaleX);
+      const dispH = imgBaseCm.h * Math.abs(imgTx.scaleY);
       const originX = imgTx.x_cm + dispW / 2;
       const originY = imgTx.y_cm + dispH / 2;
       const theta = (imgTx.rotation_deg * Math.PI) / 180;
@@ -763,8 +848,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         const dy = cy - originY;
         const rx = dx * cos + dy * sin;
         const ry = -dx * sin + dy * cos;
-        const sx = (rx + dispW / 2) / (cmPerPx * imgTx.scaleX);
-        const sy = (ry + dispH / 2) / (cmPerPx * imgTx.scaleY);
+        const sx = (rx + dispW / 2) / (cmPerPx * Math.abs(imgTx.scaleX));
+        const sy = (ry + dispH / 2) / (cmPerPx * Math.abs(imgTx.scaleY));
         return { sx, sy };
       }
       const workW = workCm.w;
@@ -929,6 +1014,9 @@ async function onConfirmSubmit() {
         <button onClick={() => rotate(-90)} disabled={!imgEl}>⟲ -90°</button>
         <button onClick={() => rotate(90)} disabled={!imgEl}>⟳ +90°</button>
 
+        <button onClick={flipHoriz} disabled={!imgEl}>Espejo H</button>
+        <button onClick={flipVert} disabled={!imgEl}>Espejo V</button>
+
 
         {/* ⟵ NUEVO: checkbox para estirar sin límites desde las esquinas */}
         <label className={styles.freeScale}>
@@ -1013,6 +1101,8 @@ async function onConfirmSubmit() {
                     y={imgTx.y_cm + dispH / 2}
                     width={dispW}
                     height={dispH}
+                    scaleX={flipXSign}
+                    scaleY={flipYSign}
                     offsetX={dispW / 2}
                     offsetY={dispH / 2}
                     rotation={imgTx.rotation_deg}
@@ -1082,6 +1172,8 @@ async function onConfirmSubmit() {
                     y={imgTx.y_cm + dispH / 2}
                     width={dispW}
                     height={dispH}
+                    scaleX={flipXSign}
+                    scaleY={flipYSign}
                     offsetX={dispW / 2}
                     offsetY={dispH / 2}
                     rotation={imgTx.rotation_deg}
@@ -1142,6 +1234,8 @@ async function onConfirmSubmit() {
                 y={(imgTx.y_cm - bleedCm + dispH / 2) * viewPxPerCm}
                 width={dispW * viewPxPerCm}
                 height={dispH * viewPxPerCm}
+                scaleX={flipXSign}
+                scaleY={flipYSign}
                 offsetX={(dispW * viewPxPerCm) / 2}
                 offsetY={(dispH * viewPxPerCm) / 2}
                 rotation={imgTx.rotation_deg}
