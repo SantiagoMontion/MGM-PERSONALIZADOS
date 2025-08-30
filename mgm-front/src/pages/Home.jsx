@@ -13,7 +13,7 @@ import { dpiLevel } from '../lib/dpi';
 import { PX_PER_CM } from '@/lib/export-consts';
 import { sha256Hex } from '../lib/hash.js';
 import { buildSubmitJobBody, prevalidateSubmitBody } from '../lib/jobPayload.js';
-import orchestrateJob from '../lib/jobOrchestrator';
+import { submitJob, pollJobUntilReady, createCartLink } from '../lib/checkoutFlow';
 import { dlog } from '../lib/debug';
 import styles from './Home.module.css';
 
@@ -60,6 +60,9 @@ export default function Home() {
   const [ackLow, setAckLow] = useState(false);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+  const [jobId, setJobId] = useState(null);
+  const [previewUrlState, setPreviewUrlState] = useState(null);
+  const [cartUrlState, setCartUrlState] = useState(null);
   const navigate = useNavigate();
   const canvasRef = useRef(null);
 
@@ -190,6 +193,7 @@ export default function Home() {
       });
 
       const submitBody = buildSubmitJobBody({
+        job_id: jobId || undefined,
         material,
         size: { w: sizeCm.w, h: sizeCm.h, bleed_mm: 3 },
         fit_mode: 'cover',
@@ -211,18 +215,23 @@ export default function Home() {
         return;
       }
 
-      const render_v2 = canvasRef.current?.getRenderDescriptorV2?.();
+      const job = await submitJob(API_BASE, submitBody);
+      const id = job?.job_id || submitBody.job_id;
+      setJobId(id);
 
-      const result = await orchestrateJob(API_BASE, submitBody, { render_v2 });
+      const finalJob = await pollJobUntilReady(API_BASE, id);
+      const preview = finalJob?.preview_url || previewUrlState;
+      setPreviewUrlState(preview);
 
-      const cartUrl = result.cart_url_follow || result.cart_url;
-      navigate(`/result/${result.job_id}`, {
+      const cart = cartUrlState ? { cart_url: cartUrlState } : await createCartLink(API_BASE, id);
+      const cartUrl = cartUrlState || cart.cart_url;
+      setCartUrlState(cartUrl);
+
+      navigate(`/result/${id}`, {
         state: {
-          preview_url: result.preview_url,
+          preview_url: preview,
           cart_url: cartUrl,
-          checkout_url: result.checkout_url_now || cartUrl,
-          cart_plain: result.cart_plain,
-          checkout_plain: result.checkout_plain,
+          checkout_url: cart.checkout_url || cartUrl,
         },
       });
     } catch (e) {
@@ -230,6 +239,7 @@ export default function Home() {
       const diag = msg.match(/diag:([^\s]+)/)?.[1];
       const stage = msg.match(/stage:([^\s]+)/)?.[1];
       console.error('[checkout failed]', { msg, diag, stage });
+      alert(`Ocurrió un error. diag:${diag || 'sin'} stage:${stage || 'unknown'}`);
       setErr('Ocurrió un error al crear el producto. Intenta nuevamente.');
     } finally {
       setBusy(false);

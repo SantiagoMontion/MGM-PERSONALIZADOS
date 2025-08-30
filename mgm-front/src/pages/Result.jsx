@@ -19,8 +19,9 @@ export default function Result() {
   const cartUrl = added ? urls.cart_plain || urls.cart_url : urls.cart_url;
   const checkoutUrl = added ? urls.checkout_plain || urls.checkout_url : urls.checkout_url;
 
-  function open(url, mark) {
-    if (!url) return;
+  function open(e, url, mark) {
+    e.preventDefault();
+    if (!url || disabled) return;
     setDisabled(true);
     window.open(url, '_blank', 'noopener,noreferrer');
     if (mark && !added) {
@@ -36,21 +37,27 @@ export default function Result() {
         <img src={previewUrl} alt="preview" style={{ maxWidth: '300px' }} />
       )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '20px' }}>
-        <button disabled={disabled} onClick={() => open(cartUrl, true)}>
-          Agregar al carrito y seguir comprando
-        </button>
-        <button disabled={disabled} onClick={() => open(checkoutUrl, true)}>
-          Pagar ahora
-        </button>
-        <button
-          disabled={disabled}
-          onClick={() => {
-            open(cartUrl, true);
+        <a href={cartUrl || '#'} target="_blank" rel="noopener noreferrer">
+          <button disabled={disabled} onClick={e => open(e, cartUrl, true)}>
+            Agregar al carrito y seguir comprando
+          </button>
+        </a>
+        <a href={checkoutUrl || '#'} target="_blank" rel="noopener noreferrer">
+          <button disabled={disabled} onClick={e => open(e, checkoutUrl, true)}>
+            Pagar ahora
+          </button>
+        </a>
+        <a
+          href={cartUrl || '#'}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={e => {
+            open(e, cartUrl, true);
             navigate('/');
           }}
         >
-          Crear otro
-        </button>
+          <button disabled={disabled}>Crear otro</button>
+        </a>
       </div>
     </div>
   );

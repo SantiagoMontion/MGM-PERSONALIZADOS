@@ -6,6 +6,7 @@ import styles from './EditorCanvas.module.css';
 import ColorPopover from './ColorPopover';
 import { dlog } from '../lib/debug';
 import { PX_PER_CM } from '@/lib/export-consts';
+import { exportCanvas } from '@/lib/exportService';
 import { buildSubmitJobBody, prevalidateSubmitBody } from '../lib/jobPayload';
 import { submitJob } from '../lib/submitJob';
 
@@ -827,10 +828,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     const pixelRatioX = inner_w_px / pad_px.w;
     const pixelRatioY = inner_h_px / pad_px.h;
     const pixelRatio = Math.min(pixelRatioX, pixelRatioY);
-    const blob = await exportStageRef.current.toBlob({
-      mimeType: 'image/png',
-      pixelRatio,
-    });
+    const canvas = exportStageRef.current.toCanvas({ pixelRatio });
+    const blob = await exportCanvas(canvas, 'print');
     const outBitmap = await new Promise((resolve) => {
       const i = new Image();
       i.onload = () => resolve({ width: i.width, height: i.height });

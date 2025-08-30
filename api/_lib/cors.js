@@ -1,47 +1,35 @@
 // api/_lib/cors.js
 export function cors(req, res) {
   const origin = (req.headers.origin || '').replace(/\/$/, '');
-  try {
-    const raw = process.env.ALLOWED_ORIGINS || '';
-    const allowed = raw
-      .split(',')
-      .map(s => s.trim())
-      .filter(Boolean)
-      .map(s => s.replace(/\/$/, '')); // sin barra final
+  const allowed = (process.env.ALLOWED_ORIGINS || '')
+    .split(',')
+    .map(s => s.trim().replace(/\/$/, ''))
+    .filter(Boolean);
 
-    // Métodos / headers permitidos
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader(
-      'Access-Control-Allow-Headers',
-      'Content-Type, Idempotency-Key, X-Diag-Id'
-    );
-    // Exponer diag al front para debug
-    res.setHeader('Access-Control-Expose-Headers', 'X-Diag-Id');
+  // seguridad
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'none'; img-src https: data:; connect-src https:; script-src 'none'; style-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+  );
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
 
-    if (allowed.length === 0) {
-      // Lista vacía -> permitir todos
-      res.setHeader('Access-Control-Allow-Origin', '*');
-    } else if (origin && allowed.includes(origin)) {
-      res.setHeader('Access-Control-Allow-Origin', origin);
-      res.setHeader('Vary', 'Origin');
-    }
-    // Si no matchea: no seteamos ACAO (el navegador bloqueará)
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'Content-Type, Idempotency-Key, Authorization'
+  );
+  res.setHeader('Access-Control-Expose-Headers', 'X-Diag-Id');
 
-    if (req.method === 'OPTIONS') {
-      res.status(204).end();
-      return true; // cortocircuito preflight OK SIEMPRE
-    }
-    return false;
-  } catch (e) {
-    // Incluso si algo falla, respondemos preflight
-    res.setHeader('Access-Control-Allow-Origin', origin || '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader(
-      'Access-Control-Allow-Headers',
-      'Content-Type, Idempotency-Key, X-Diag-Id'
-    );
-    res.setHeader('Access-Control-Expose-Headers', 'X-Diag-Id');
+  if (origin && allowed.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+  }
+
+  if (req.method === 'OPTIONS') {
     res.status(204).end();
     return true;
   }
+  return false;
 }
