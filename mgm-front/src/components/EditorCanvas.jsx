@@ -129,7 +129,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         lctx.strokeRect(9*6,9*6,6,6);
       }
       setPickOverlay({ x: clientX + 15, y: clientY + 15, hex });
-      console.log('[COLOR-PICK]', hex, px, py);
+      dlog('[COLOR-PICK]', hex, px, py);
     } catch { /* ignore */ }
   }, [baseScale, viewScale, viewPos.x, viewPos.y, bleedCm, viewPxPerCm, wCm, hCm]);
 
@@ -326,7 +326,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     setMode('cover');
     stickyFitRef.current = 'cover';
     const maxContain = Math.min(workCm.w / denomW, workCm.h / denomH);
-    console.log('[FIT]', 'cover', 1, coverScale, maxContain, coverScale, { w: wCm, h: hCm }, material);
+    dlog('[FIT]', 'cover', 1, coverScale, maxContain, coverScale, { w: wCm, h: hCm }, material);
     didInitRef.current = true;
   }, [imgBaseCm, workCm.w, workCm.h, theta, wCm, hCm, material]);
 
@@ -496,7 +496,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         rotation_deg: prev.rotation_deg,
       }));
       setMode('cover');
-      console.log('[FIT]', 'cover', prevScale, minCover, maxContain, scale, { w: wCm, h: hCm }, material);
+      dlog('[FIT]', 'cover', prevScale, minCover, maxContain, scale, { w: wCm, h: hCm }, material);
       return;
     }
 
@@ -510,7 +510,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         rotation_deg: prev.rotation_deg,
       }));
       setMode('contain');
-      console.log('[FIT]', 'contain', prevScale, minCover, maxContain, scale, { w: wCm, h: hCm }, material);
+      dlog('[FIT]', 'contain', prevScale, minCover, maxContain, scale, { w: wCm, h: hCm }, material);
       return;
     }
 
@@ -535,7 +535,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         rotation_deg: prev.rotation_deg,
       }));
       setMode('stretch');
-      console.log('[FIT]', 'stretch', prevScale, minCover, maxContain, { sx, sy }, { w: wCm, h: hCm }, material);
+      dlog('[FIT]', 'stretch', prevScale, minCover, maxContain, { sx, sy }, { w: wCm, h: hCm }, material);
     }
   }, [imgBaseCm?.w, imgBaseCm?.h, workCm.w, workCm.h, theta, imgTx, wCm, hCm, material]);
 
@@ -579,6 +579,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         if (y > workCm.h - h) y = workCm.h - h;
         if (y < 0) y = 0;
       }
+      if (x === tx.x_cm && y === tx.y_cm) return tx;
       return { ...tx, x_cm: x, y_cm: y };
     });
   }, [imgBaseCm?.w, imgBaseCm?.h, workCm.w, workCm.h]);
@@ -611,13 +612,18 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     setImgTx((tx) => ({ ...tx, rotation_deg: (tx.rotation_deg + deg) % 360 }));
   };
 
+  const applyFitRef = useRef(applyFit);
+  useEffect(() => { applyFitRef.current = applyFit; }, [applyFit]);
+  const normalizeRef = useRef(normalizeIntoBounds);
+  useEffect(() => { normalizeRef.current = normalizeIntoBounds; }, [normalizeIntoBounds]);
   useEffect(() => {
     if (stickyFitRef.current) {
-      applyFit(stickyFitRef.current);
+      applyFitRef.current(stickyFitRef.current);
+      stickyFitRef.current = null;
     } else {
-      normalizeIntoBounds();
+      normalizeRef.current();
     }
-  }, [material, wCm, hCm, applyFit, normalizeIntoBounds]);
+  }, [material, wCm, hCm]);
 
 
   // calidad
@@ -812,9 +818,10 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     layoutChangeRef.current = onLayoutChange;
   }, [onLayoutChange]);
 
+  const prevLayoutRef = useRef(null);
   // export layout
   useEffect(() => {
-    layoutChangeRef.current?.({
+    const next = {
       dpi: Math.round(PX_PER_CM * CM_PER_INCH),
       bleed_mm: bleedMm,
       size_cm: { w: wCm, h: hCm },
@@ -824,12 +831,31 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         y_cm: imgTx.y_cm,
         scaleX: imgTx.scaleX,
         scaleY: imgTx.scaleY,
-        rotation_deg: imgTx.rotation_deg
+        rotation_deg: imgTx.rotation_deg,
       },
       mode,
       background: mode === 'contain' ? bgColor : '#ffffff',
-      corner_radius_cm: cornerRadiusCm
-    });
+      corner_radius_cm: cornerRadiusCm,
+    };
+    const prev = prevLayoutRef.current;
+    const tol = 0.01; // cm tolerance
+    const rotTol = 0.1; // deg tolerance
+    const changed =
+      !prev ||
+      Math.abs(prev.transform.x_cm - next.transform.x_cm) > tol ||
+      Math.abs(prev.transform.y_cm - next.transform.y_cm) > tol ||
+      Math.abs(prev.transform.scaleX - next.transform.scaleX) > tol ||
+      Math.abs(prev.transform.scaleY - next.transform.scaleY) > tol ||
+      Math.abs(prev.transform.rotation_deg - next.transform.rotation_deg) > rotTol ||
+      prev.mode !== next.mode ||
+      prev.background !== next.background ||
+      prev.bleed_mm !== next.bleed_mm ||
+      prev.size_cm.w !== next.size_cm.w ||
+      prev.size_cm.h !== next.size_cm.h;
+    if (changed) {
+      prevLayoutRef.current = next;
+      layoutChangeRef.current?.(next);
+    }
   }, [bleedMm, wCm, hCm, imgEl, imgTx, mode, bgColor, cornerRadiusCm]);
 
   // Confirmar y crear job

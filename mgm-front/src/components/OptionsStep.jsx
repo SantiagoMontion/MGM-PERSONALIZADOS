@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { z } from 'zod';
 import { STANDARD, LIMITS } from '../lib/material.js';
 import { dpiFor, dpiLevel } from '../lib/dpi';
 import styles from './OptionsStep.module.css';
 import { buildSubmitJobBody, prevalidateSubmitBody } from '../lib/jobPayload';
 import { submitJob } from '../lib/submitJob';
+import { dlog } from '../lib/debug';
 
 const Form = z.object({
   material: z.enum(['Classic','PRO','Glasspad']),
@@ -41,21 +42,21 @@ export default function OptionsStep({ uploaded, onSubmitted }) {
     if (material === 'Glasspad') {
       applyPreset(50, 40);
     }
-  }, [material]);
+  }, [material, applyPreset]);
 
   const size = useMemo(() => ({ w: parseFloat(wText || '0'), h: parseFloat(hText || '0') }), [wText, hText]);
   const limits = LIMITS[material];
   const presets = STANDARD[material] || [];
   const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
-  const applySize = (wVal = wText, hVal = hText) => {
+  const applySize = useCallback((wVal = wText, hVal = hText) => {
     const wNum = clamp(parseFloat(wVal || '0'), 1, limits.maxW);
     const hNum = clamp(parseFloat(hVal || '0'), 1, limits.maxH);
     setWText(String(wNum));
     setHText(String(hNum));
-  };
-  const applyPreset = (w, h) => {
+  }, [wText, hText, limits.maxW, limits.maxH]);
+  const applyPreset = useCallback((w, h) => {
     applySize(String(w), String(h));
-  };
+  }, [applySize]);
 
   // DPI estimado
   const dpiVal = useMemo(() => dpiFor(size.w, size.h, imgPx.w, imgPx.h), [size, imgPx]);
@@ -104,7 +105,7 @@ export default function OptionsStep({ uploaded, onSubmitted }) {
     });
 
     const pre = prevalidateSubmitBody(submitBody);
-    console.log('[PREVALIDATE OptionsStep]', pre, submitBody);
+    dlog('[PREVALIDATE OptionsStep]', pre, submitBody);
     if (!pre.ok) {
       setErr('Corregí antes de enviar: ' + pre.problems.join(' | '));
       setBusy(false);
