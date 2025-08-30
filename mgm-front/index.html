@@ -5,7 +5,17 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <link rel="stylesheet" href="/src/index.css" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Vite + React</title>
+
+    <title>MGM Personalizados</title>
+    <meta name="description" content="Personaliza tu mousepad con MGM" />
+    <link rel="canonical" href="https://example.com/" />
+
+    <meta property="og:title" content="MGM Personalizados" />
+    <meta property="og:description" content="Crea tu mousepad personalizado" />
+    <meta property="og:url" content="https://example.com/" />
+    <meta property="og:image" content="https://example.com/preview.png" />
+
+    <link rel="preload" href="/src/main.jsx" as="script" />
     <style>
       #initial-spinner {
         position: fixed;
@@ -14,6 +24,26 @@
         transform: translate(-50%, -50%);
       }
     </style>
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": "MGM GAMERS"
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Product",
+        "name": "Mousepad personalizado",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "ARS"
+        }
+      }
+    </script>
   </head>
   <body>
     <div id="root">
