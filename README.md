@@ -52,3 +52,20 @@ La aplicación utiliza dos buckets de Supabase Storage:
 
 * `uploads`: privado, almacena los archivos originales subidos por el usuario.
 * `outputs`: público, recibe los archivos generados (`preview.jpg`, `print.jpg` y `file.pdf`) por `/api/finalize-assets`.
+
+## Admin search de jobs
+
+El endpoint `GET /api/admin/search-jobs` permite buscar trabajos por `job_id`,
+`design_name`, `customer_email` o `file_hash`. Requiere enviar el header
+`Authorization: Bearer ${WORKER_TOKEN}` y solo responde a los orígenes
+permitidos por CORS.
+
+Variables de entorno adicionales:
+
+```
+WORKER_TOKEN=tu_token_secreto
+```
+
+El frontend incluye una página en `/admin` donde se puede pegar el token una
+sola vez (se guarda en `localStorage`) y realizar búsquedas, paginar y descargar
+los archivos listos para impresión.

@@ -5,6 +5,7 @@ import App from './App.jsx';
 import Home from './pages/Home.jsx';
 import Confirm from './pages/Confirm.jsx';
 import Result from './pages/Result.jsx';
+import Admin from './pages/Admin.jsx';
 import DevRenderPreview from './pages/DevRenderPreview.jsx';
 import DevCanvasPreview from './pages/DevCanvasPreview.jsx';
 import ErrorPage from './ErrorPage.jsx';
@@ -21,7 +22,8 @@ const routes = [
     children: [
       { path: '/', element: <Home /> },
       { path: '/confirm', element: <Confirm /> },
-      { path: '/result/:jobId', element: <Result /> }
+      { path: '/result/:jobId', element: <Result /> },
+      { path: '/admin', element: <Admin /> }
     ]
   }
 ];
