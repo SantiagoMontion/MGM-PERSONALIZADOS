@@ -25,7 +25,8 @@ export default function SizeControls({ material, size, onChange, locked = false 
       setHText('40');
       onChange({ w: 50, h: 40 });
     }
-  }, [material, onChange]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [material]);
 
   const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
   const applySize = () => {
