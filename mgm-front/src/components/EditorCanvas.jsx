@@ -343,9 +343,10 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
   // imán fuerte (centro + AABB rotado)
   const stickRef = useRef({ x: null, y: null, activeX: false, activeY: false });
+  const gestureStartRef = useRef(null);
   const onImgDragStart = () => {
     stickRef.current = { x: null, y: null, activeX: false, activeY: false };
-    pushHistory(imgTx);
+    gestureStartRef.current = imgTx;
     setIsManual(true);
   };
   const dragBoundFunc = useCallback((pos) => {
@@ -435,7 +436,11 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   };
   const onImgDragEnd = () => {
     stickRef.current = { x: null, y: null, activeX: false, activeY: false };
-    normalizeIntoBounds();
+    const next = normalizeIntoBounds();
+    if (gestureStartRef.current) {
+      pushHistory(next);
+      gestureStartRef.current = null;
+    }
   };
 
   // transformer
@@ -450,11 +455,11 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     if (!imgRef.current || !imgBaseCm) return;
     const active = trRef.current?.getActiveAnchor();
     if (!['top-left','top-right','bottom-left','bottom-right'].includes(active)) {
-      pushHistory(imgTx);
+      gestureStartRef.current = imgTx;
       setIsManual(true);
       return;
     }
-    pushHistory(imgTx);
+    gestureStartRef.current = imgTx;
     setIsManual(true);
     const stage = stageRef.current;
     const pointer = pointerWorld(stage);
@@ -527,14 +532,22 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     if (!n || !imgBaseCm) return;
     if (!scaleGestureRef.current) {
       setImgTx((prev) => ({ ...prev, rotation_deg: n.rotation() }));
-      normalizeIntoBounds();
+      const next = normalizeIntoBounds();
+      if (gestureStartRef.current) {
+        pushHistory(next);
+        gestureStartRef.current = null;
+      }
       return;
     }
     if (scaleGestureRef.current.latest) {
       setImgTx((tx) => ({ ...tx, ...scaleGestureRef.current.latest }));
     }
     scaleGestureRef.current = null;
-    normalizeIntoBounds();
+    const next = normalizeIntoBounds();
+    if (gestureStartRef.current) {
+      pushHistory(next);
+      gestureStartRef.current = null;
+    }
   };
 
   // centro actual
@@ -644,7 +657,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   }, [imgBaseCm?.w, imgBaseCm?.h, imgTx.scaleX, imgTx.scaleY, workCm.w, workCm.h]);
 
   const normalizeIntoBounds = useCallback(() => {
-    if (!imgBaseCm) return;
+    if (!imgBaseCm) return imgTx;
+    let nextTx = imgTx;
     setImgTx((tx) => {
       let { x_cm, y_cm, scaleX, scaleY } = tx;
       if (!Number.isFinite(x_cm)) x_cm = 0;
@@ -653,9 +667,11 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       const signY = Math.sign(scaleY) || 1;
       const absX = Math.min(Math.max(Math.abs(scaleX), 0.01), IMG_ZOOM_MAX);
       const absY = Math.min(Math.max(Math.abs(scaleY), 0.01), IMG_ZOOM_MAX);
-      return { ...tx, x_cm, y_cm, scaleX: signX * absX, scaleY: signY * absY };
+      nextTx = { ...tx, x_cm, y_cm, scaleX: signX * absX, scaleY: signY * absY };
+      return nextTx;
     });
-  }, [imgBaseCm]);
+    return nextTx;
+  }, [imgBaseCm, imgTx]);
 
   const alignEdge = (edge) => {
     if (!imgBaseCm) return;
@@ -736,7 +752,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   }, [dpiEffective]);
 
   const fitTip = 'preset inicial; si modificás manualmente, se mantiene hasta reencajar';
-  const modeLabel = mode === 'cover' ? 'Cubrir' : mode === 'contain' ? 'Contener' : 'Estirar';
 
   const getPadRectPx = () => {
     const k = baseScale * viewScale;
@@ -1016,12 +1031,6 @@ async function onConfirmSubmit() {
         </div>
 
         <button onClick={fitStretchCentered} disabled={!imgEl} title={fitTip}>Estirar</button>
-
-        {isManual && (
-          <button onClick={() => applyFit(mode)}>
-            Reencajar a {modeLabel}
-          </button>
-        )}
 
 
         <button onClick={centerHoriz} disabled={!imgEl}>Centrar H</button>
