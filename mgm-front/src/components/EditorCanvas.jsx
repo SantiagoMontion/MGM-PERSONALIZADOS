@@ -12,6 +12,8 @@ import { submitJob } from '../lib/submitJob';
 
 console.assert(Number.isFinite(PX_PER_CM), '[export] PX_PER_CM inválido', PX_PER_CM);
 
+const DEBUG_SCALE = import.meta.env.VITE_DEBUG_SCALE === '1';
+
 const CM_PER_INCH = 2.54;
 const mmToCm = (mm) => mm / 10;
 
@@ -437,9 +439,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   };
   const onImgDragEnd = () => {
     stickRef.current = { x: null, y: null, activeX: false, activeY: false };
-    const next = normalizeIntoBounds();
     if (gestureStartRef.current) {
-      pushHistory(next);
+      pushHistory(imgTx);
       gestureStartRef.current = null;
     }
   };
@@ -452,24 +453,26 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     trRef.current.getLayer()?.batchDraw();
   }, [imgEl, keepRatio, showTransformer]);
 
-  const onTransformStart = () => {
+  const onTransformStart = (e) => {
     if (!imgRef.current || !imgBaseCm) return;
+    const container = stageRef.current?.container();
+    const pointerId = e?.evt?.pointerId;
+    if (container && pointerId != null) {
+      container.setPointerCapture(pointerId);
+    }
+    scaleGestureRef.current = { pointerId };
     const active = trRef.current?.getActiveAnchor();
     if (!['top-left','top-right','bottom-left','bottom-right'].includes(active)) {
       gestureStartRef.current = imgTx;
       setIsManual(true);
+      if (DEBUG_SCALE) console.log('[SCALE] start', { startScaleX: imgTx.scaleX, startScaleY: imgTx.scaleY, startX: imgTx.x_cm, startY: imgTx.y_cm });
       return;
     }
     gestureStartRef.current = imgTx;
     setIsManual(true);
     const stage = stageRef.current;
     const pointer = pointerWorld(stage);
-    const anchorMap = {
-      'top-left': 'bottom-right',
-      'top-right': 'bottom-left',
-      'bottom-left': 'top-right',
-      'bottom-right': 'top-left',
-    };
+    const anchorMap = { 'top-left': 'bottom-right', 'top-right': 'bottom-left', 'bottom-left': 'top-right', 'bottom-right': 'top-left' };
     const anchorName = anchorMap[active] || 'bottom-right';
     const w = imgBaseCm.w * Math.abs(imgTx.scaleX);
     const h = imgBaseCm.h * Math.abs(imgTx.scaleY);
@@ -484,7 +487,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     const v0y = pointer.y - anchorY;
     const proj0x = v0x * dirX.x + v0y * dirX.y;
     const proj0y = v0x * dirY.x + v0y * dirY.y;
-    scaleGestureRef.current = { anchor:{x:anchorX,y:anchorY}, dirX, dirY, proj0x, proj0y, initScaleX: imgTx.scaleX, initScaleY: imgTx.scaleY, anchorName, latest:null };
+    scaleGestureRef.current = { anchor:{x:anchorX,y:anchorY}, dirX, dirY, proj0x, proj0y, initScaleX: imgTx.scaleX, initScaleY: imgTx.scaleY, anchorName, latest:null, pointerId };
+    if (DEBUG_SCALE) console.log('[SCALE] start', { startScaleX: imgTx.scaleX, startScaleY: imgTx.scaleY, startX: imgTx.x_cm, startY: imgTx.y_cm });
   };
 
   const onTransform = () => {
@@ -518,13 +522,18 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     const offsetY = g.anchorName.includes('bottom') ? -h/2 : h/2;
     const cx = g.anchor.x + g.dirX.x * offsetX + g.dirY.x * offsetY;
     const cy = g.anchor.y + g.dirX.y * offsetX + g.dirY.y * offsetY;
-    g.latest = { x_cm: cx - w/2, y_cm: cy - h/2, scaleX, scaleY, rotation_deg: imgTx.rotation_deg };
+    const latest = sanitizeTransform({ x_cm: cx - w/2, y_cm: cy - h/2, scaleX, scaleY, rotation_deg: imgTx.rotation_deg });
+    const delta = { dx: proj1x - g.proj0x, dy: proj1y - g.proj0y };
+    g.latest = latest;
+    g.delta = delta;
     if (!scaleRafRef.current) {
       scaleRafRef.current = true;
       requestAnimationFrame(() => {
         scaleRafRef.current = false;
         if (scaleGestureRef.current?.latest) {
-          setImgTx((tx) => ({ ...tx, ...scaleGestureRef.current.latest }));
+          const l = scaleGestureRef.current.latest;
+          setImgTx((tx) => ({ ...tx, ...l }));
+          if (DEBUG_SCALE) console.log('[SCALE] move', { delta: scaleGestureRef.current.delta, scaleNow: { scaleX: l.scaleX, scaleY: l.scaleY }, anchor: scaleGestureRef.current.anchorName });
         }
       });
     }
@@ -533,23 +542,28 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const onTransformEnd = () => {
     const n = imgRef.current;
     if (!n || !imgBaseCm) return;
-    if (!scaleGestureRef.current) {
-      setImgTx((prev) => ({ ...prev, rotation_deg: n.rotation() }));
-      const next = normalizeIntoBounds();
+    const container = stageRef.current?.container();
+    const pid = scaleGestureRef.current?.pointerId;
+    if (pid != null && container?.hasPointerCapture(pid)) {
+      container.releasePointerCapture(pid);
+    }
+    if (!scaleGestureRef.current?.latest) {
+      const finalTx = sanitizeTransform({ ...imgTx, rotation_deg: n.rotation() });
+      setImgTx(finalTx);
       if (gestureStartRef.current) {
-        pushHistory(next);
+        pushHistory(finalTx);
         gestureStartRef.current = null;
       }
+      if (DEBUG_SCALE) console.log('[SCALE] end', finalTx);
       return;
     }
-    const latest = scaleGestureRef.current?.latest;
-    if (latest) {
-      setImgTx((tx) => ({ ...tx, ...latest }));
-    }
+    const latest = scaleGestureRef.current.latest;
+    const finalTx = sanitizeTransform(latest);
+    setImgTx(finalTx);
+    if (DEBUG_SCALE) console.log('[SCALE] end', finalTx);
     scaleGestureRef.current = null;
-    const next = normalizeIntoBounds();
     if (gestureStartRef.current) {
-      pushHistory(next);
+      pushHistory(finalTx);
       gestureStartRef.current = null;
     }
   };
@@ -660,22 +674,17 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     setImgTx((tx) => ({ ...tx, x_cm: (workCm.w - w)/2, y_cm: (workCm.h - h)/2 }));
   }, [imgBaseCm?.w, imgBaseCm?.h, imgTx.scaleX, imgTx.scaleY, workCm.w, workCm.h]);
 
-  const normalizeIntoBounds = useCallback(() => {
-    if (!imgBaseCm) return imgTx;
-    let nextTx = imgTx;
-    setImgTx((tx) => {
-      let { x_cm, y_cm, scaleX, scaleY } = tx;
-      if (!Number.isFinite(x_cm)) x_cm = 0;
-      if (!Number.isFinite(y_cm)) y_cm = 0;
-      const signX = Math.sign(scaleX) || 1;
-      const signY = Math.sign(scaleY) || 1;
-      const absX = Math.min(Math.max(Math.abs(scaleX), 0.01), IMG_ZOOM_MAX);
-      const absY = Math.min(Math.max(Math.abs(scaleY), 0.01), IMG_ZOOM_MAX);
-      nextTx = { ...tx, x_cm, y_cm, scaleX: signX * absX, scaleY: signY * absY };
-      return nextTx;
-    });
-    return nextTx;
-  }, [imgBaseCm, imgTx]);
+  const sanitizeTransform = useCallback((tx) => {
+    if (!imgBaseCm) return tx;
+    let { x_cm, y_cm, scaleX, scaleY } = tx;
+    if (!Number.isFinite(x_cm)) x_cm = 0;
+    if (!Number.isFinite(y_cm)) y_cm = 0;
+    const signX = Math.sign(scaleX) || 1;
+    const signY = Math.sign(scaleY) || 1;
+    const absX = Math.min(Math.max(Math.abs(scaleX), 0.01), IMG_ZOOM_MAX);
+    const absY = Math.min(Math.max(Math.abs(scaleY), 0.01), IMG_ZOOM_MAX);
+    return { ...tx, x_cm, y_cm, scaleX: signX * absX, scaleY: signY * absY };
+  }, [imgBaseCm]);
 
   const alignEdge = (edge) => {
     if (!imgBaseCm) return;
@@ -709,15 +718,13 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const flipHoriz = () => {
     pushHistory(imgTx);
     setIsManual(true);
-    setImgTx((tx) => ({ ...tx, scaleX: -tx.scaleX }));
-    requestAnimationFrame(() => normalizeIntoBounds());
+    setImgTx((tx) => sanitizeTransform({ ...tx, scaleX: -tx.scaleX }));
   };
 
   const flipVert = () => {
     pushHistory(imgTx);
     setIsManual(true);
-    setImgTx((tx) => ({ ...tx, scaleY: -tx.scaleY }));
-    requestAnimationFrame(() => normalizeIntoBounds());
+    setImgTx((tx) => sanitizeTransform({ ...tx, scaleY: -tx.scaleY }));
   };
 
   const applyFitRef = useRef(applyFit);
