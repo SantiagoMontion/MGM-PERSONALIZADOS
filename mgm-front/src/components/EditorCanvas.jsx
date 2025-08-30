@@ -496,20 +496,22 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     const v1y = pointer.y - g.anchor.y;
     const proj1x = v1x * g.dirX.x + v1y * g.dirX.y;
     const proj1y = v1x * g.dirY.x + v1y * g.dirY.y;
-    let scaleX = g.initScaleX * (proj1x / g.proj0x);
-    let scaleY = g.initScaleY * (proj1y / g.proj0y);
+    const ratioX = proj1x / g.proj0x;
+    const ratioY = proj1y / g.proj0y;
+    let scaleX = Math.abs(g.initScaleX) * Math.abs(ratioX);
+    let scaleY = Math.abs(g.initScaleY) * Math.abs(ratioY);
     if (keepRatio) {
-      const signX = Math.sign(scaleX) || 1;
-      const signY = Math.sign(scaleY) || 1;
-      const uni = Math.min(Math.abs(scaleX), Math.abs(scaleY), IMG_ZOOM_MAX);
-      scaleX = signX * uni;
-      scaleY = signY * uni;
+      const uni = Math.min(scaleX, scaleY, IMG_ZOOM_MAX);
+      scaleX = uni;
+      scaleY = uni;
     } else {
-      const signX = Math.sign(scaleX) || 1;
-      const signY = Math.sign(scaleY) || 1;
-      scaleX = signX * Math.max(Math.abs(scaleX), 0.01);
-      scaleY = signY * Math.max(Math.abs(scaleY), 0.01);
+      scaleX = Math.min(scaleX, IMG_ZOOM_MAX);
+      scaleY = Math.min(scaleY, IMG_ZOOM_MAX);
     }
+    const signX = Math.sign(g.initScaleX) || 1;
+    const signY = Math.sign(g.initScaleY) || 1;
+    scaleX = signX * Math.max(scaleX, 0.01);
+    scaleY = signY * Math.max(scaleY, 0.01);
     const w = imgBaseCm.w * Math.abs(scaleX);
     const h = imgBaseCm.h * Math.abs(scaleY);
     const offsetX = g.anchorName.includes('right') ? -w/2 : w/2;
