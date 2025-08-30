@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { cors } from './_lib/cors.js';
+import { cors } from './lib/cors.js';
 import { withObservability } from './_lib/observability.js';
 
 const routes = {
@@ -14,16 +14,16 @@ const routes = {
   'get /api/job-summary': () => import('./_routes/job-summary.js'),
   'get /api/search-assets': () => import('./_routes/search-assets.js'),
   'get /api/env-check': () => import('./_routes/env-check.js'),
-  'get /api/cors-diagnose': () => import('./_routes/cors-diagnose.js'),
+  'get /api/diag-cors': () => import('./diag-cors.js'),
   'get /api/admin/search-jobs': () => import('./_routes/admin/search-jobs.js'),
   'get /api/user/jobs': () => import('./_routes/user/jobs.js'),
   'post /api/user/login-link': () => import('./_routes/user/login-link.js'),
 };
 
 export default withObservability(async function handler(req, res) {
+  if (cors(req, res)) return;
   const diagId = randomUUID();
   res.setHeader("X-Diag-Id", diagId);
-  if (cors(req, res)) return;
 
   const url = new URL(req.url, `http://${req.headers.host}`);
   let pathname = url.pathname.replace(/\/$/, '');

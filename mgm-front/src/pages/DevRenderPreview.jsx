@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 
+const API_BASE = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '');
+
 export default function DevRenderPreview() {
   const [file, setFile] = useState(null);
   const [renderText, setRenderText] = useState('');
@@ -52,7 +54,7 @@ export default function DevRenderPreview() {
     if (!file || !renderObj) return;
     const buf = await file.arrayBuffer();
     const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
-    const res = await fetch(`${import.meta.env.VITE_API_BASE}/api/render-dryrun`, {
+    const res = await fetch(`${API_BASE}/api/render-dryrun`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ render_v2: renderObj, file_data: b64 })
@@ -103,7 +105,7 @@ export default function DevRenderPreview() {
     if (!renderObj) return;
     const jobId = prompt('job_id?');
     if (!jobId) return;
-    const res = await fetch(`${import.meta.env.VITE_API_BASE}/api/finalize-assets`, {
+    const res = await fetch(`${API_BASE}/api/finalize-assets`, {
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ job_id: jobId, render_v2: renderObj })
