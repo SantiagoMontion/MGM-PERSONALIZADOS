@@ -15,14 +15,18 @@ export function cors(req, res) {
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('X-Content-Type-Options', 'nosniff');
 
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader(
     'Access-Control-Allow-Headers',
-    'Content-Type, Idempotency-Key, Authorization'
+    'Content-Type, Idempotency-Key, Authorization, apikey, x-client-info'
   );
   res.setHeader('Access-Control-Expose-Headers', 'X-Diag-Id');
 
-  if (origin && allowed.includes(origin)) {
+  if (allowed.length === 0) {
+    if (process.env.NODE_ENV !== 'production') {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+    }
+  } else if (origin && allowed.includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Vary', 'Origin');
   }
