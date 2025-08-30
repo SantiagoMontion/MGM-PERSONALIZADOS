@@ -7,16 +7,14 @@ import EditorCanvas from '../components/EditorCanvas';
 import SizeControls from '../components/SizeControls';
 import Calculadora from '../components/Calculadora';
 import LoadingOverlay from '../components/LoadingOverlay';
-import DebugPanel from '../components/DebugPanel';
-
 import { LIMITS, STANDARD } from '../lib/material.js';
 
 import { dpiLevel } from '../lib/dpi';
 import { PX_PER_CM } from '@/lib/export-consts';
 import { sha256Hex } from '../lib/hash.js';
 import { buildSubmitJobBody, prevalidateSubmitBody } from '../lib/jobPayload.js';
-import { submitJob as submitJobApi } from '../lib/submitJob.js';
-import { DEBUG, dlog } from '../lib/debug';
+import checkoutFlow from '../lib/checkoutFlow';
+import { dlog } from '../lib/debug';
 import styles from './Home.module.css';
 
 console.assert(Number.isFinite(PX_PER_CM), '[export] PX_PER_CM inválido', PX_PER_CM);
@@ -58,7 +56,6 @@ export default function Home() {
 
   // layout del canvas
   const [layout, setLayout] = useState(null);
-  const [debugState, setDebugState] = useState(null);
   const [designName, setDesignName] = useState('');
   const [ackLow, setAckLow] = useState(false);
   const [err, setErr] = useState('');
@@ -76,12 +73,6 @@ export default function Home() {
     );
   }, [layout]);
   const level = useMemo(() => (effDpi ? dpiLevel(effDpi, 300, 100) : null), [effDpi]);
-
-  useEffect(() => {
-    if (DEBUG) {
-      setDebugState(canvasRef.current?.getRenderDescriptorV2?.());
-    }
-  }, [layout]);
 
   function handleSizeChange(next) {
     if (next.material && next.material !== material) {
@@ -127,18 +118,6 @@ export default function Home() {
         lastSize.current[material] = nextSize;
       }
     }
-  }
-
-  async function handleAfterSubmit(jobId) {
-    const render = canvasRef.current?.getRenderDescriptor?.();
-    const render_v2 = canvasRef.current?.getRenderDescriptorV2?.();
-    if (import.meta.env.DEV) {
-      const padBlob = await canvasRef.current?.exportPadAsBlob?.();
-      window.__previewData = { padBlob, render_v2, jobId, designName };
-      navigate('/dev/canvas-preview', { state: { jobId } });
-      return;
-    }
-    navigate(`/creating/${jobId}`, { state: { render, render_v2 } });
   }
 
   async function handleContinue() {
@@ -232,10 +211,20 @@ export default function Home() {
         return;
       }
 
-      // 7) submit-job
-      const out = await submitJobApi(API_BASE, submitBody);
-      const jobId = out?.job?.job_id || out?.job_id;
-      await handleAfterSubmit(jobId);
+      const render_v2 = canvasRef.current?.getRenderDescriptorV2?.();
+
+      const result = await checkoutFlow(API_BASE, submitBody, { render_v2 });
+
+      const cartUrl = result.cart_url_follow || result.cart_url;
+      navigate(`/result/${result.job_id}`, {
+        state: {
+          preview_url: result.preview_url,
+          cart_url: cartUrl,
+          checkout_url: result.checkout_url_now || cartUrl,
+          cart_plain: result.cart_plain,
+          checkout_plain: result.checkout_plain,
+        },
+      });
     } catch (e) {
       console.error(e);
       setErr(String(e?.message || e));
@@ -306,8 +295,7 @@ export default function Home() {
 
         {err && <p className={`errorText ${styles.error}`}>{err}</p>}
       </div>
-      <LoadingOverlay show={busy} messages={["Creando tu pedido…"]} />
-      {DEBUG && <DebugPanel data={debugState} />}
+      <LoadingOverlay show={busy} messages={["Guardando tu diseño…","Preparando archivos de impresión…","Creando producto en tienda…","Listo: abre tu carrito"]} />
     </div>
   );
 }
