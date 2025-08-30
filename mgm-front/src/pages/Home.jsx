@@ -7,6 +7,8 @@ import EditorCanvas from '../components/EditorCanvas';
 import SizeControls from '../components/SizeControls';
 import Calculadora from '../components/Calculadora';
 import LoadingOverlay from '../components/LoadingOverlay';
+import DebugPanel from '../components/DebugPanel';
+import { flags } from '../lib/flags';
 import { LIMITS, STANDARD } from '../lib/material.js';
 
 import { dpiLevel } from '../lib/dpi';
@@ -309,6 +311,7 @@ export default function Home() {
         {err && <p className={`errorText ${styles.error}`}>{err}</p>}
       </div>
       <LoadingOverlay show={busy} messages={["Guardando tu diseño…","Preparando archivos de impresión…","Creando producto en tienda…","Listo: abre tu carrito"]} />
+      {flags.showAdvancedTools && <DebugPanel data={{ layout, size, material }} />}
     </div>
   );
 }
