@@ -1,12 +1,10 @@
 import crypto from 'node:crypto';
-import { getEnv, mask } from './_lib/env.js';
-import { cors } from './_lib/cors.js';
+import { getEnv, mask } from '../_lib/env.js';
 
 export default async function handler(req, res) {
   const diagId = crypto.randomUUID?.() ?? require('node:crypto').randomUUID();
   res.setHeader('X-Diag-Id', String(diagId));
 
-  if (cors(req, res)) return;
 
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');

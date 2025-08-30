@@ -1,13 +1,11 @@
 import crypto from 'node:crypto';
-import { supa } from '../../lib/supa.js';
-import { cors } from '../_lib/cors.js';
-import { parseSupabasePath } from '../../lib/storage.js';
+import { supa } from '../../../lib/supa.js';
+import { parseSupabasePath } from '../../../lib/storage.js';
 
 export default async function handler(req, res) {
   const diagId = crypto.randomUUID?.() ?? require('node:crypto').randomUUID();
   res.setHeader('X-Diag-Id', String(diagId));
 
-  if (cors(req, res)) return;
 
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');

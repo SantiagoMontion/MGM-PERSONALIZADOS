@@ -1,12 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import { cors } from '../_lib/cors.js';
-import { withObservability } from '../_lib/observability.js';
-import { createUserToken } from '../_lib/userToken.js';
+import { withObservability } from '../../_lib/observability.js';
+import { createUserToken } from '../../_lib/userToken.js';
 
 async function handler(req, res) {
   const diagId = randomUUID();
   res.setHeader('X-Diag-Id', diagId);
-  if (cors(req, res)) return;
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
     return res.status(405).json({ ok: false, diag_id: diagId, message: 'method_not_allowed' });

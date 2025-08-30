@@ -1,16 +1,14 @@
 // api/submit-job.js
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { cors } from './_lib/cors.js';
-import getSupabaseAdmin from './_lib/supabaseAdmin.js';
-import { getEnv } from './_lib/env.js';
-import { withObservability } from './_lib/observability.js';
+import getSupabaseAdmin from '../_lib/supabaseAdmin.js';
+import { getEnv } from '../_lib/env.js';
+import { withObservability } from '../_lib/observability.js';
 
 async function handler(req, res) {
   const diagId = randomUUID();
   res.setHeader('X-Diag-Id', diagId);
 
-  if (cors(req, res)) return;
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
     return res
