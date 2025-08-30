@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import { supa } from '../lib/supa.js';
 import { shopifyAdmin, shopifyAdminGraphQL } from '../lib/shopify.js';
 import { cors } from './_lib/cors.js';
+import { withObservability } from './_lib/observability.js';
 
 function slugify(s){ return String(s).toLowerCase().trim()
   .replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'').replace(/-+/g,'-').replace(/^-|-$/g,''); }
@@ -16,7 +17,7 @@ function qs(obj) {
   return Object.entries(obj).map(([k,v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v ?? '')}`).join('&');
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   const diagId = crypto.randomUUID?.() ?? require('node:crypto').randomUUID();
   res.setHeader('X-Diag-Id', String(diagId));
 
@@ -210,4 +211,6 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'create_cart_link_failed', detail: String(e?.message || e) });
   }
 }
+
+export default withObservability(handler);
 

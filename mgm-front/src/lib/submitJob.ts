@@ -1,5 +1,6 @@
 // src/lib/submitJob.ts
 import { dlog } from './debug';
+import { setDiagContext } from './diagContext';
 export interface SubmitJobBody {
   job_id: string;
   material: string;
@@ -36,6 +37,7 @@ export async function submitJob(apiBase: string, body: SubmitJobBody): Promise<a
   try { data = await res.json(); } catch {}
 
   if (!res.ok) {
+    setDiagContext({ diag_id: diagId, stage: data?.stage, job_id: body.job_id });
     console.error('[submit-job FAILED]', {
       status: res.status,
       diagId,
@@ -49,6 +51,7 @@ export async function submitJob(apiBase: string, body: SubmitJobBody): Promise<a
     );
   }
 
+  setDiagContext({ diag_id: diagId, job_id: data?.job?.job_id || body.job_id });
   dlog('[submit-job OK]', { diagId, job: data?.job });
   return data?.job;
 }
