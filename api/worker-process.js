@@ -11,10 +11,10 @@ async function readJson(req){
 }
 
 export default async function handler(req, res) {
-  if (cors(req, res)) return;
-  const allowOrigin = res.getHeader('Access-Control-Allow-Origin');
   const diagId = crypto.randomUUID?.() ?? require('node:crypto').randomUUID();
   res.setHeader('X-Diag-Id', String(diagId));
+  if (cors(req, res)) return;
+  const allowOrigin = res.getHeader('Access-Control-Allow-Origin');
 
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');

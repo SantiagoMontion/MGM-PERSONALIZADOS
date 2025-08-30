@@ -36,9 +36,10 @@ async function parseImage(req) {
 }
 
 async function handler(req, res) {
-  if (cors(req, res)) return;
   const diagId = crypto.randomUUID();
   res.setHeader('X-Diag-Id', diagId);
+  if (cors(req, res)) return;
+  const allowOrigin = res.getHeader('Access-Control-Allow-Origin');
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
     return res.status(405).json({ allow: false, reason: 'method_not_allowed', diag_id: diagId });

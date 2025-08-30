@@ -7,7 +7,7 @@ This template provides a minimal setup to get React working in Vite with HMR and
 Antes de iniciar el entorno de desarrollo crea un archivo `.env` con:
 
 ```
-VITE_API_BASE=URL_de_tu_API
+VITE_API_BASE=URL_de_tu_API_sin_slash_final
 VITE_SUPABASE_URL=URL_de_tu_proyecto_Supabase
 VITE_SUPABASE_ANON_KEY=clave_anon_de_Supabase
 VITE_ENABLE_MODERATION=true
