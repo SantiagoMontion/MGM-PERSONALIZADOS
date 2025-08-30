@@ -158,25 +158,32 @@ export default function Home() {
       const ext = (uploaded.file.name.split('.').pop() || 'png').toLowerCase();
       const mime = uploaded.file.type || 'image/png';
       const size_bytes = uploaded.file.size;
-      const uploadUrlRes = await fetch(`${API_BASE}/api/upload-url`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          design_name: designName,
-          ext,
-          mime,
-          size_bytes,
-          material,
-          w_cm: sizeCm.w,
-          h_cm: sizeCm.h,
-          sha256: file_hash,
-        }),
-      });
-      const uploadUrlJson = await uploadUrlRes.json();
-      if (!uploadUrlRes.ok) throw new Error(uploadUrlJson?.error || 'upload_url_failed');
+      let uploadUrlJson;
+      let diagId;
+      try {
+        const now = new Date();
+        const ym = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}`;
+        const objKey = `original/${ym}/job_${jobId || 'local'}/${file_hash}.${ext}`;
+        const uploadUrlRes = await fetch(`${API_BASE}/api/upload-url`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ object_key: objKey, contentType: mime }),
+        });
+        diagId = uploadUrlRes.headers.get('X-Diag-Id') || undefined;
+        if (!uploadUrlRes.ok) {
+          console.info({ msg: 'upload-url fallback local-only', diagId });
+          setBusy(false);
+          return;
+        }
+        uploadUrlJson = await uploadUrlRes.json();
+      } catch (err) {
+        console.info({ msg: 'upload-url fallback local-only', diagId: undefined });
+        setBusy(false);
+        return;
+      }
 
       // 3) PUT binario a signed_url
-      await fetch(uploadUrlJson.upload.signed_url, {
+      await fetch(uploadUrlJson.signed_url, {
         method: 'PUT',
         headers: { 'Content-Type': mime },
         body: uploaded.file,
