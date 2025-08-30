@@ -19,6 +19,8 @@ export interface SubmitJobBody {
   design_name?: string;
   notes?: string;
   source?: string;
+  legal_version?: string;
+  legal_accepted_at?: string;
 }
 
 export async function submitJob(apiBase: string, body: SubmitJobBody): Promise<any> {

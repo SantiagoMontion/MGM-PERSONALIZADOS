@@ -62,6 +62,8 @@ async function handler(req, res) {
     price_currency: z.string().optional(),
     notes: z.string().optional(),
     source: z.string().optional(),
+    legal_version: z.string().optional(),
+    legal_accepted_at: z.string().datetime().optional(),
   });
 
   const parsed = schema.safeParse(body);
@@ -99,6 +101,8 @@ async function handler(req, res) {
     price_currency: input.price_currency ?? null,
     notes: input.notes ?? null,
     source: input.source ?? 'api',
+    legal_version: input.legal_version ?? null,
+    legal_accepted_at: input.legal_accepted_at ?? null,
   };
 
   // TODO: remove when `design_name` column exists in DB (see supabase/migrations/2025-08-25_add_design_name.sql)

@@ -11,6 +11,13 @@ export default function App() {
       <main className={styles.main}>
         <Outlet />
       </main>
+      <footer className={styles.footer}>
+        <a href="/legal/terminos">Términos</a> ·{' '}
+        <a href="/legal/privacidad">Privacidad</a> ·{' '}
+        <a href="/legal/contenido">Contenido</a> ·{' '}
+        <a href="/legal/devoluciones">Devoluciones</a> ·{' '}
+        <a href="/legal/dmca">DMCA</a>
+      </footer>
     </div>
   );
 }
