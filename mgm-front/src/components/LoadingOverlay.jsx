@@ -17,7 +17,9 @@ export default function LoadingOverlay({ show, messages = [] }) {
   return (
     <div className={styles.overlay}>
       <div className={`spinner ${styles.spinnerSpacing}`} />
-      <p className={styles.message}>{messages[index] || 'Cargando…'}</p>
+      <p className={styles.message} aria-live="polite">
+        {messages[index] || 'Cargando…'}
+      </p>
     </div>
   );
 }

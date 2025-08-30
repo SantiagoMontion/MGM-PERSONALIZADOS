@@ -53,6 +53,25 @@ La aplicación utiliza dos buckets de Supabase Storage:
 * `uploads`: privado, almacena los archivos originales subidos por el usuario.
 * `outputs`: público, recibe los archivos generados (`preview.jpg`, `print.jpg` y `file.pdf`) por `/api/finalize-assets`.
 
+## Moderación de imágenes
+
+El endpoint `POST /api/moderate-image` analiza una miniatura (máx. 512px, JPEG) antes de subirla a
+Supabase. Requiere enviar un `multipart/form-data` con el campo `image` y responde:
+
+```
+{ ok: true, diag_id: "...", allow: true|false, reasons: ["real_nudity","hate_symbol"], scores: { ... }, provider: "sightengine" }
+```
+
+Variables de entorno relacionadas:
+
+```
+MOD_PROVIDER=sightengine
+SIGHTENGINE_USER=usuario
+SIGHTENGINE_KEY=clave
+MOD_NUDITY_BLOCK=0.85
+MOD_SEXY_BLOCK=0.9
+```
+
 ## Admin search de jobs
 
 El endpoint `GET /api/admin/search-jobs` permite buscar trabajos por `job_id`,
