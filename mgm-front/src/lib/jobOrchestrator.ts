@@ -67,7 +67,7 @@ export async function createCartLink(apiBase:string, jobId:string){
   return j;
 }
 
-export async function checkoutFlow(apiBase:string, submitBody:any, finalizeOpts?:{ render?:any; render_v2?:any; onTick?:(stage:string)=>void; }){
+export async function orchestrateJob(apiBase:string, submitBody:any, finalizeOpts?:{ render?:any; render_v2?:any; onTick?:(stage:string)=>void; }){
   const job = await submitJob(apiBase, submitBody);
   const jobId = job?.job_id || submitBody.job_id;
   finalizeOpts?.onTick?.('finalize');
@@ -77,5 +77,5 @@ export async function checkoutFlow(apiBase:string, submitBody:any, finalizeOpts?
   return { job_id: jobId, preview_url: finalJob?.preview_url, ...cart };
 }
 
-export default checkoutFlow;
+export default orchestrateJob;
 

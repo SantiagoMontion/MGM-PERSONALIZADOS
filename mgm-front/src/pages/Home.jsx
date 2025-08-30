@@ -13,7 +13,7 @@ import { dpiLevel } from '../lib/dpi';
 import { PX_PER_CM } from '@/lib/export-consts';
 import { sha256Hex } from '../lib/hash.js';
 import { buildSubmitJobBody, prevalidateSubmitBody } from '../lib/jobPayload.js';
-import checkoutFlow from '../lib/checkoutFlow';
+import orchestrateJob from '../lib/jobOrchestrator';
 import { dlog } from '../lib/debug';
 import styles from './Home.module.css';
 
@@ -213,7 +213,7 @@ export default function Home() {
 
       const render_v2 = canvasRef.current?.getRenderDescriptorV2?.();
 
-      const result = await checkoutFlow(API_BASE, submitBody, { render_v2 });
+      const result = await orchestrateJob(API_BASE, submitBody, { render_v2 });
 
       const cartUrl = result.cart_url_follow || result.cart_url;
       navigate(`/result/${result.job_id}`, {
@@ -226,8 +226,11 @@ export default function Home() {
         },
       });
     } catch (e) {
-      console.error(e);
-      setErr(String(e?.message || e));
+      const msg = String(e?.message || e);
+      const diag = msg.match(/diag:([^\s]+)/)?.[1];
+      const stage = msg.match(/stage:([^\s]+)/)?.[1];
+      console.error('[checkout failed]', { msg, diag, stage });
+      setErr('Ocurrió un error al crear el producto. Intenta nuevamente.');
     } finally {
       setBusy(false);
     }
