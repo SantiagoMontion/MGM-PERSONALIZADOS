@@ -5,6 +5,7 @@ import useImage from 'use-image';
 import styles from './EditorCanvas.module.css';
 import ColorPopover from './ColorPopover';
 import { dlog } from '../lib/debug';
+import { getDiagContext } from '@/lib/diagContext';
 import { PX_PER_CM } from '@/lib/export-consts';
 import { exportCanvas } from '@/lib/exportService';
 import { buildSubmitJobBody, prevalidateSubmitBody } from '../lib/jobPayload';
@@ -15,6 +16,7 @@ console.assert(Number.isFinite(PX_PER_CM), '[export] PX_PER_CM inválido', PX_PE
 
 const DEBUG_SCALE = import.meta.env.VITE_DEBUG_SCALE === '1';
 const DEBUG_TRANSFORM = import.meta.env.VITE_DEBUG_TRANSFORM === '1';
+const DEBUG_SIZE = import.meta.env.VITE_DEBUG === '1';
 
 const CM_PER_INCH = 2.54;
 const mmToCm = (mm) => mm / 10;
@@ -263,6 +265,10 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   }, [imgEl]);
 
   const [imgTx, setImgTx] = useState({ x_cm: 0, y_cm: 0, scaleX: 1, scaleY: 1, rotation_deg: 0 });
+  const imgTxRef = useRef(imgTx);
+  useEffect(() => { imgTxRef.current = imgTx; }, [imgTx]);
+  const sizingChangeRef = useRef(false);
+  const sizeChangeTimeoutRef = useRef(null);
   const historyRef = useRef([]); // pila de estados para undo
   const [histIndex, setHistIndex] = useState(-1);
   const pushHistory = useCallback((tx) => {
@@ -316,6 +322,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const [isManual, setIsManual] = useState(false);
   const [bgColor, setBgColor] = useState('#ffffff');
   const theta = (imgTx.rotation_deg * Math.PI) / 180;
+
+  useEffect(() => { sizingChangeRef.current = true; }, [wCm, hCm, bleedMm, material]);
 
   // cover inicial 1 sola vez
   const didInitRef = useRef(false);
@@ -710,6 +718,11 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     setImgTx((tx) => ({ ...tx, x_cm: (workCm.w - w)/2, y_cm: (workCm.h - h)/2 }));
   }, [imgBaseCm?.w, imgBaseCm?.h, imgTx.scaleX, imgTx.scaleY, workCm.w, workCm.h]);
 
+  const centerHorizRef = useRef(centerHoriz);
+  useEffect(() => { centerHorizRef.current = centerHoriz; }, [centerHoriz]);
+  const centerVertRef = useRef(centerVert);
+  useEffect(() => { centerVertRef.current = centerVert; }, [centerVert]);
+
   const sanitizeTransform = useCallback((tx) => {
     if (!imgBaseCm) return tx;
     let { x_cm, y_cm, scaleX, scaleY } = tx;
@@ -765,17 +778,25 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
   const applyFitRef = useRef(applyFit);
   useEffect(() => { applyFitRef.current = applyFit; }, [applyFit]);
-  // re-aplicar preset solo cuando cambian material o tamaño
-  const prevFitDepsRef = useRef({ material, wCm, hCm });
+
   useEffect(() => {
-    const prev = prevFitDepsRef.current;
-    const changed = prev.material !== material || prev.wCm !== wCm || prev.hCm !== hCm;
-    if (changed) {
-      prevFitDepsRef.current = { material, wCm, hCm };
-      setIsManual(false);
-      applyFitRef.current(mode);
-    }
-  }, [material, wCm, hCm, mode]);
+    if (!sizingChangeRef.current || !imgEl) return;
+    if (sizeChangeTimeoutRef.current) clearTimeout(sizeChangeTimeoutRef.current);
+    sizeChangeTimeoutRef.current = setTimeout(async () => {
+      const diagId = getDiagContext().diag_id || '';
+      if (DEBUG_SIZE) {
+        console.debug('[SIZE-CHANGE before]', { diagId, fitMode: mode, tx: imgTxRef.current, size: { w_cm: wCm, h_cm: hCm, material } });
+      }
+      await Promise.resolve(applyFitRef.current(mode));
+      centerHorizRef.current?.();
+      centerVertRef.current?.();
+      sizingChangeRef.current = false;
+      if (DEBUG_SIZE) {
+        console.debug('[SIZE-CHANGE after]', { diagId, fitMode: mode, tx: imgTxRef.current, size: { w_cm: wCm, h_cm: hCm, material } });
+      }
+    }, 120);
+    return () => clearTimeout(sizeChangeTimeoutRef.current);
+  }, [wCm, hCm, bleedMm, material, mode, imgEl]);
 
 
   // calidad
