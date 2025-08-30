@@ -6,13 +6,17 @@ import { getEnv } from '../_lib/env.js';
 import { withObservability } from '../_lib/observability.js';
 import { scanImage } from '../_lib/moderation/adapter.ts';
 import { decideModeration } from '../_lib/moderation/policy.ts';
+import { cors } from '../lib/cors.js';
 
 async function handler(req, res) {
-  const diagId = randomUUID();
+  const diagId = res.getHeader('X-Diag-Id') || randomUUID();
   res.setHeader('X-Diag-Id', diagId);
+  if (cors(req, res)) return;
+  const allowOrigin = res.getHeader('Access-Control-Allow-Origin');
 
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
+    res.setHeader('Access-Control-Allow-Origin', allowOrigin);
     return res
       .status(405)
       .json({ ok: false, diag_id: diagId, stage: 'validate', message: 'method_not_allowed' });
@@ -23,6 +27,7 @@ async function handler(req, res) {
     env = getEnv();
   } catch (err) {
     console.error('submit-job env', { diagId, stage: 'env', error: err.message });
+    res.setHeader('Access-Control-Allow-Origin', allowOrigin);
     return res
       .status(500)
       .json({ ok: false, diag_id: diagId, stage: 'env', message: 'Missing environment variables', missing: err.missing });
@@ -183,6 +188,7 @@ async function handler(req, res) {
     return res.status(200).json({ ok: true, diag_id: diagId, job: data });
   } catch (e) {
     console.error('submit-job unknown', { diagId, stage: 'unknown', error: String(e?.message || e), payloadInsert });
+    res.setHeader('Access-Control-Allow-Origin', allowOrigin);
     return res
       .status(500)
       .json({ ok: false, diag_id: diagId, stage: 'unknown', message: 'Unexpected error' });

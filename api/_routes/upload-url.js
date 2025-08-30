@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { supa } from '../../lib/supa.js';
 import { buildObjectKey } from '../_lib/slug.js';
 import { withObservability } from '../_lib/observability.js';
+import { cors } from '../lib/cors.js';
 
 const BodySchema = z.object({
   design_name: z.string().min(1),
@@ -21,19 +22,23 @@ const MAX_MB = Number(process.env.MAX_UPLOAD_MB || 40);
 const LIMITS = { Classic: { maxW: 140, maxH: 100 }, PRO: { maxW: 120, maxH: 60 } };
 
 async function handler(req, res) {
-  const diagId = crypto.randomUUID?.() ?? require('node:crypto').randomUUID();
+  const diagId =
+    res.getHeader('X-Diag-Id') ||
+    crypto.randomUUID?.() ?? require('node:crypto').randomUUID();
   res.setHeader('X-Diag-Id', String(diagId));
-
-  // CORS + preflight
+  if (cors(req, res)) return;
+  const allowOrigin = res.getHeader('Access-Control-Allow-Origin');
 
   // Solo POST
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
+    res.setHeader('Access-Control-Allow-Origin', allowOrigin);
     return res.status(405).json({ ok: false, diag_id: diagId, message: 'method_not_allowed' });
   }
 
   // Env requeridas
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE) {
+    res.setHeader('Access-Control-Allow-Origin', allowOrigin);
     return res.status(500).json({ error: 'missing_env', diag_id: diagId });
   }
 
@@ -42,12 +47,14 @@ async function handler(req, res) {
 
     // Límites de archivo
     if (body.size_bytes > MAX_MB * 1024 * 1024) {
+      res.setHeader('Access-Control-Allow-Origin', allowOrigin);
       return res.status(400).json({ error: 'file_too_large', max_mb: MAX_MB });
     }
 
     // Límites por material
     const lim = LIMITS[body.material];
     if (body.w_cm > lim.maxW || body.h_cm > lim.maxH) {
+      res.setHeader('Access-Control-Allow-Origin', allowOrigin);
       return res.status(400).json({ error: 'size_out_of_bounds', limits: lim });
     }
 
@@ -69,7 +76,8 @@ async function handler(req, res) {
 
     if (error) {
       console.error('sign_upload_failed', error);
-      return res.status(500).json({ error: 'sign_upload_failed' });
+      res.setHeader('Access-Control-Allow-Origin', allowOrigin);
+      return res.status(500).json({ error: 'sign_upload_failed', diag_id: diagId });
     }
 
     // Respuesta para que el front suba el archivo con supabase-js v2:
@@ -86,10 +94,12 @@ async function handler(req, res) {
     });
   } catch (e) {
     if (e?.issues) {
-      return res.status(400).json({ error: 'invalid_body', details: e.issues });
+      res.setHeader('Access-Control-Allow-Origin', allowOrigin);
+      return res.status(400).json({ error: 'invalid_body', details: e.issues, diag_id: diagId });
     }
     console.error(e);
-    return res.status(500).json({ error: 'internal_error' });
+    res.setHeader('Access-Control-Allow-Origin', allowOrigin);
+    return res.status(500).json({ error: 'internal_error', diag_id: diagId });
   }
 }
 

@@ -21,19 +21,25 @@ const routes = {
 };
 
 export default withObservability(async function handler(req, res) {
-  if (cors(req, res)) return;
   const diagId = randomUUID();
   res.setHeader("X-Diag-Id", diagId);
+  if (cors(req, res)) return;
+  const allowOrigin = res.getHeader('Access-Control-Allow-Origin');
+  try {
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    let pathname = url.pathname.replace(/\/$/, '');
+    const method = (req.method || 'GET').toLowerCase();
+    const key = `${method} ${pathname.toLowerCase()}`;
 
-  const url = new URL(req.url, `http://${req.headers.host}`);
-  let pathname = url.pathname.replace(/\/$/, '');
-  const method = (req.method || 'GET').toLowerCase();
-  const key = `${method} ${pathname.toLowerCase()}`;
-
-  const loader = routes[key];
-  if (loader) {
-    const mod = await loader();
-    return mod.default(req, res);
+    const loader = routes[key];
+    if (loader) {
+      const mod = await loader();
+      return mod.default(req, res);
+    }
+    res.status(404).json({ ok: false, message: 'not_found' });
+  } catch (e) {
+    console.error('index handler', { diagId, error: e?.message || e });
+    res.setHeader('Access-Control-Allow-Origin', allowOrigin);
+    res.status(500).json({ ok: false, diag_id: diagId, stage: 'handler', message: 'internal_error' });
   }
-  res.status(404).json({ ok: false, message: 'not_found' });
 });

@@ -4,6 +4,7 @@ import sharp from 'sharp';
 import { PDFDocument } from 'pdf-lib';
 import composeImage from '../_lib/composeImage.ts';
 import crypto from 'node:crypto';
+import { cors } from '../lib/cors.js';
 
 function parseUploadsObjectKey(url = '') {
   const idx = url.indexOf('/uploads/');
@@ -36,10 +37,13 @@ function isPosFinite(n) {
 }
 
 export default async function handler(req, res) {
-  const diagId = crypto.randomUUID?.() ?? crypto.randomUUID();
+  const diagId = res.getHeader('X-Diag-Id') || crypto.randomUUID?.() ?? crypto.randomUUID();
   res.setHeader('X-Diag-Id', String(diagId));
+  if (cors(req, res)) return;
+  const allowOrigin = res.getHeader('Access-Control-Allow-Origin');
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
+    res.setHeader('Access-Control-Allow-Origin', allowOrigin);
     return err(res, 405, {
       diag_id: diagId,
       stage: 'method',
@@ -57,6 +61,7 @@ export default async function handler(req, res) {
     body =
       typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body || {};
   } catch (e) {
+    res.setHeader('Access-Control-Allow-Origin', allowOrigin);
     return err(res, 400, {
       diag_id: diagId,
       stage,
@@ -80,6 +85,7 @@ export default async function handler(req, res) {
       has_place: !!render_v2?.place_px,
       has_pad: !!render_v2?.pad_px,
     };
+    res.setHeader('Access-Control-Allow-Origin', allowOrigin);
     return err(res, 400, {
       diag_id: diagId,
       stage,
@@ -121,6 +127,7 @@ export default async function handler(req, res) {
       : null;
   if (invalidField) {
     const [field, value] = invalidField;
+    res.setHeader('Access-Control-Allow-Origin', allowOrigin);
     return err(res, 400, {
       diag_id: diagId,
       stage,
@@ -148,7 +155,7 @@ export default async function handler(req, res) {
   const supa = getSupabaseAdmin();
 
   stage = 'load_job';
-    const { data: job, error: jobErr } = await supa
+  const { data: job, error: jobErr } = await supa
       .from('jobs')
       .select(
         'id, job_id, file_original_url, preview_url, print_jpg_url, status, w_cm, h_cm, material'
@@ -156,6 +163,7 @@ export default async function handler(req, res) {
       .eq('job_id', job_id)
       .maybeSingle();
   if (jobErr) {
+    res.setHeader('Access-Control-Allow-Origin', allowOrigin);
     return err(res, 500, {
       diag_id: diagId,
       stage: 'db',
@@ -164,6 +172,7 @@ export default async function handler(req, res) {
     });
   }
   if (!job) {
+    res.setHeader('Access-Control-Allow-Origin', allowOrigin);
     return err(res, 404, {
       diag_id: diagId,
       stage: 'load_job',
@@ -172,6 +181,7 @@ export default async function handler(req, res) {
     });
   }
   if (!job.file_original_url) {
+    res.setHeader('Access-Control-Allow-Origin', allowOrigin);
     return err(res, 400, {
       diag_id: diagId,
       stage,
@@ -194,6 +204,7 @@ export default async function handler(req, res) {
   const objectKey = parseUploadsObjectKey(job.file_original_url);
   const slug = extractSlug(objectKey);
   if (!objectKey) {
+    res.setHeader('Access-Control-Allow-Origin', allowOrigin);
     return err(res, 400, {
       diag_id: diagId,
       stage,
@@ -205,6 +216,7 @@ export default async function handler(req, res) {
     .from('uploads')
     .download(objectKey);
   if (srcErr || !srcDownload) {
+    res.setHeader('Access-Control-Allow-Origin', allowOrigin);
     return err(res, 502, {
       diag_id: diagId,
       stage,
@@ -227,6 +239,7 @@ export default async function handler(req, res) {
   } catch (e) {
     if (e?.message === 'invalid_bbox') {
       debug = e.debug || {};
+      res.setHeader('Access-Control-Allow-Origin', allowOrigin);
       return err(res, 400, { diag_id: diagId, stage, message: 'invalid_bbox', debug });
     }
     throw e;
@@ -465,12 +478,13 @@ export default async function handler(req, res) {
       upload: 'upload_failed',
       db: 'db_failed',
     };
+    res.setHeader('Access-Control-Allow-Origin', allowOrigin);
     return err(res, status, {
       diag_id: diagId,
       stage,
       message: msgMap[stage] || 'internal_error',
       debug,
     });
-  }
+}
 }
 
