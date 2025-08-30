@@ -1,5 +1,5 @@
 // src/components/SizeControls.jsx
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import styles from './SizeControls.module.css';
 import { LIMITS, STANDARD } from '../lib/material.js';
 
@@ -15,6 +15,7 @@ export default function SizeControls({ material, size, onChange, locked = false 
 
   const [wText, setWText] = useState(String(size.w || ''));
   const [hText, setHText] = useState(String(size.h || ''));
+  const debouncedApplyRef = useRef(null);
 
   useEffect(() => { setWText(String(size.w ?? '')); }, [size.w]);
   useEffect(() => { setHText(String(size.h ?? '')); }, [size.h]);
@@ -35,6 +36,12 @@ export default function SizeControls({ material, size, onChange, locked = false 
     setWText(String(wNum));
     setHText(String(hNum));
     onChange({ w: wNum, h: hNum });
+  };
+
+  const scheduleApply = (val) => {
+    if (isNaN(parseFloat(val))) return;
+    clearTimeout(debouncedApplyRef.current);
+    debouncedApplyRef.current = setTimeout(applySize, 150);
   };
 
   const applyPreset = (w, h) => {
@@ -63,7 +70,7 @@ export default function SizeControls({ material, size, onChange, locked = false 
           min={1}
           max={limits.maxW}
           value={wText}
-          onChange={e=>setWText(e.target.value)}
+          onChange={e=>{ setWText(e.target.value); scheduleApply(e.target.value); }}
           onKeyDown={e=>e.key === 'Enter' && applySize()}
           onBlur={applySize}
           inputMode="numeric"
@@ -78,7 +85,7 @@ export default function SizeControls({ material, size, onChange, locked = false 
           min={1}
           max={limits.maxH}
           value={hText}
-          onChange={e=>setHText(e.target.value)}
+          onChange={e=>{ setHText(e.target.value); scheduleApply(e.target.value); }}
           onKeyDown={e=>e.key === 'Enter' && applySize()}
           onBlur={applySize}
           inputMode="numeric"
