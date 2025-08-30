@@ -1,6 +1,6 @@
 /* eslint-disable */
 import { useEffect, useMemo, useRef, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
-import { Stage, Layer, Rect, Group, Image as KonvaImage, Transformer } from 'react-konva';
+import { Stage, Layer, Rect, Group, Image as KonvaImage, Transformer, Circle, Text } from 'react-konva';
 import useImage from 'use-image';
 import styles from './EditorCanvas.module.css';
 import ColorPopover from './ColorPopover';
@@ -9,10 +9,12 @@ import { PX_PER_CM } from '@/lib/export-consts';
 import { exportCanvas } from '@/lib/exportService';
 import { buildSubmitJobBody, prevalidateSubmitBody } from '../lib/jobPayload';
 import { submitJob } from '../lib/submitJob';
+import { screenToCanvas, canvasToLocal, localToCanvas } from '@/lib/transform2d';
 
 console.assert(Number.isFinite(PX_PER_CM), '[export] PX_PER_CM inválido', PX_PER_CM);
 
 const DEBUG_SCALE = import.meta.env.VITE_DEBUG_SCALE === '1';
+const DEBUG_TRANSFORM = import.meta.env.VITE_DEBUG_TRANSFORM === '1';
 
 const CM_PER_INCH = 2.54;
 const mmToCm = (mm) => mm / 10;
@@ -82,7 +84,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const pointerWorld = (stage) => {
     const pt = stage.getPointerPosition();
     const k = baseScale * viewScale;
-    return { x: (pt.x - viewPos.x) / k, y: (pt.y - viewPos.y) / k };
+    return screenToCanvas(pt, viewPos, k);
   };
   const isOutsideWorkArea = (wp) => wp.x < 0 || wp.y < 0 || wp.x > workCm.w || wp.y > workCm.h;
 
@@ -460,9 +462,11 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     if (container && pointerId != null) {
       container.setPointerCapture(pointerId);
     }
-    scaleGestureRef.current = { pointerId };
     const active = trRef.current?.getActiveAnchor();
-    if (!['top-left','top-right','bottom-left','bottom-right'].includes(active)) {
+    const corners = ['top-left','top-right','bottom-left','bottom-right'];
+    const edges = ['top-center','bottom-center','middle-left','middle-right'];
+    if (![...corners, ...edges].includes(active)) {
+      scaleGestureRef.current = { pointerId };
       gestureStartRef.current = imgTx;
       setIsManual(true);
       if (DEBUG_SCALE) console.log('[SCALE] start', { startScaleX: imgTx.scaleX, startScaleY: imgTx.scaleY, startX: imgTx.x_cm, startY: imgTx.y_cm });
@@ -472,60 +476,92 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     setIsManual(true);
     const stage = stageRef.current;
     const pointer = pointerWorld(stage);
-    const anchorMap = { 'top-left': 'bottom-right', 'top-right': 'bottom-left', 'bottom-left': 'top-right', 'bottom-right': 'top-left' };
+    const anchorMap = {
+      'top-left': 'bottom-right',
+      'top-right': 'bottom-left',
+      'bottom-left': 'top-right',
+      'bottom-right': 'top-left',
+      'top-center': 'bottom-center',
+      'bottom-center': 'top-center',
+      'middle-left': 'middle-right',
+      'middle-right': 'middle-left',
+    };
     const anchorName = anchorMap[active] || 'bottom-right';
-    const w = imgBaseCm.w * Math.abs(imgTx.scaleX);
-    const h = imgBaseCm.h * Math.abs(imgTx.scaleY);
-    const cx = imgTx.x_cm + w / 2;
-    const cy = imgTx.y_cm + h / 2;
+    const w = imgBaseCm.w;
+    const h = imgBaseCm.h;
+    const wScaled = w * Math.abs(imgTx.scaleX);
+    const hScaled = h * Math.abs(imgTx.scaleY);
+    const cx = imgTx.x_cm + wScaled / 2;
+    const cy = imgTx.y_cm + hScaled / 2;
     const thetaRad = imgTx.rotation_deg * Math.PI / 180;
-    const dirX = { x: Math.cos(thetaRad), y: Math.sin(thetaRad) };
-    const dirY = { x: -Math.sin(thetaRad), y: Math.cos(thetaRad) };
-    const anchorX = cx + dirX.x * (anchorName.includes('right') ? w/2 : -w/2) + dirY.x * (anchorName.includes('bottom') ? h/2 : -h/2);
-    const anchorY = cy + dirX.y * (anchorName.includes('right') ? w/2 : -w/2) + dirY.y * (anchorName.includes('bottom') ? h/2 : -h/2);
-    const v0x = pointer.x - anchorX;
-    const v0y = pointer.y - anchorY;
-    const proj0x = v0x * dirX.x + v0y * dirX.y;
-    const proj0y = v0x * dirY.x + v0y * dirY.y;
-    scaleGestureRef.current = { anchor:{x:anchorX,y:anchorY}, dirX, dirY, proj0x, proj0y, initScaleX: imgTx.scaleX, initScaleY: imgTx.scaleY, anchorName, latest:null, pointerId };
+    const startTransform = { tx: cx, ty: cy, theta: thetaRad, sx: imgTx.scaleX, sy: imgTx.scaleY };
+    const anchorLocal = {
+      x: anchorName.includes('left') ? -w/2 : anchorName.includes('right') ? w/2 : 0,
+      y: anchorName.includes('top') ? -h/2 : anchorName.includes('bottom') ? h/2 : 0,
+    };
+    const startAnchor = localToCanvas(anchorLocal, startTransform);
+    const startPointerLocal = canvasToLocal(pointer, startTransform);
+    const lockX = active === 'top-center' || active === 'bottom-center';
+    const lockY = active === 'middle-left' || active === 'middle-right';
+    scaleGestureRef.current = {
+      pointerId,
+      startTransform,
+      anchorLocal,
+      startAnchor,
+      startPointerLocal,
+      initScaleX: imgTx.scaleX,
+      initScaleY: imgTx.scaleY,
+      anchorName,
+      lockX,
+      lockY,
+      latest: null,
+    };
     if (DEBUG_SCALE) console.log('[SCALE] start', { startScaleX: imgTx.scaleX, startScaleY: imgTx.scaleY, startX: imgTx.x_cm, startY: imgTx.y_cm });
   };
 
   const onTransform = () => {
     if (!scaleGestureRef.current || !imgBaseCm) return;
+    const g = scaleGestureRef.current;
+    if (!g.anchorLocal) return;
     const stage = stageRef.current;
     const pointer = pointerWorld(stage);
-    const g = scaleGestureRef.current;
-    const v1x = pointer.x - g.anchor.x;
-    const v1y = pointer.y - g.anchor.y;
-    const proj1x = v1x * g.dirX.x + v1y * g.dirX.y;
-    const proj1y = v1x * g.dirY.x + v1y * g.dirY.y;
-    const ratioX = proj1x / g.proj0x;
-    const ratioY = proj1y / g.proj0y;
-    let scaleX = Math.abs(g.initScaleX) * Math.abs(ratioX);
-    let scaleY = Math.abs(g.initScaleY) * Math.abs(ratioY);
+    const pointerLocal = canvasToLocal(pointer, g.startTransform);
+    const dx0 = g.startPointerLocal.x - g.anchorLocal.x;
+    const dy0 = g.startPointerLocal.y - g.anchorLocal.y;
+    let ratioX = dx0 !== 0 ? (pointerLocal.x - g.anchorLocal.x) / dx0 : 1;
+    let ratioY = dy0 !== 0 ? (pointerLocal.y - g.anchorLocal.y) / dy0 : 1;
+    if (g.lockX) ratioX = keepRatio ? ratioY : 1;
+    if (g.lockY) ratioY = keepRatio ? ratioX : 1;
+    let scaleX = g.initScaleX * ratioX;
+    let scaleY = g.initScaleY * ratioY;
     if (keepRatio) {
-      const uni = Math.min(scaleX, scaleY, IMG_ZOOM_MAX);
-      scaleX = uni;
-      scaleY = uni;
+      const uni = Math.min(Math.abs(scaleX), Math.abs(scaleY), IMG_ZOOM_MAX);
+      scaleX = Math.sign(scaleX) * Math.max(uni, 0.01);
+      scaleY = Math.sign(scaleY) * Math.max(uni, 0.01);
     } else {
-      scaleX = Math.min(scaleX, IMG_ZOOM_MAX);
-      scaleY = Math.min(scaleY, IMG_ZOOM_MAX);
+      scaleX = Math.sign(scaleX) * Math.min(Math.abs(scaleX), IMG_ZOOM_MAX);
+      scaleY = Math.sign(scaleY) * Math.min(Math.abs(scaleY), IMG_ZOOM_MAX);
     }
-    const signX = Math.sign(g.initScaleX) || 1;
-    const signY = Math.sign(g.initScaleY) || 1;
-    scaleX = signX * Math.max(scaleX, 0.01);
-    scaleY = signY * Math.max(scaleY, 0.01);
-    const w = imgBaseCm.w * Math.abs(scaleX);
-    const h = imgBaseCm.h * Math.abs(scaleY);
-    const offsetX = g.anchorName.includes('right') ? -w/2 : w/2;
-    const offsetY = g.anchorName.includes('bottom') ? -h/2 : h/2;
-    const cx = g.anchor.x + g.dirX.x * offsetX + g.dirY.x * offsetY;
-    const cy = g.anchor.y + g.dirX.y * offsetX + g.dirY.y * offsetY;
-    const latest = sanitizeTransform({ x_cm: cx - w/2, y_cm: cy - h/2, scaleX, scaleY, rotation_deg: imgTx.rotation_deg });
-    const delta = { dx: proj1x - g.proj0x, dy: proj1y - g.proj0y };
+    const newTransform = {
+      tx: g.startTransform.tx,
+      ty: g.startTransform.ty,
+      theta: g.startTransform.theta,
+      sx: scaleX,
+      sy: scaleY,
+    };
+    const anchorNow = localToCanvas(g.anchorLocal, newTransform);
+    const dx = g.startAnchor.x - anchorNow.x;
+    const dy = g.startAnchor.y - anchorNow.y;
+    newTransform.tx += dx;
+    newTransform.ty += dy;
+    const latest = sanitizeTransform({
+      x_cm: newTransform.tx - imgBaseCm.w * Math.abs(scaleX) / 2,
+      y_cm: newTransform.ty - imgBaseCm.h * Math.abs(scaleY) / 2,
+      scaleX,
+      scaleY,
+      rotation_deg: imgTx.rotation_deg,
+    });
     g.latest = latest;
-    g.delta = delta;
     if (!scaleRafRef.current) {
       scaleRafRef.current = true;
       requestAnimationFrame(() => {
@@ -533,7 +569,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         if (scaleGestureRef.current?.latest) {
           const l = scaleGestureRef.current.latest;
           setImgTx((tx) => ({ ...tx, ...l }));
-          if (DEBUG_SCALE) console.log('[SCALE] move', { delta: scaleGestureRef.current.delta, scaleNow: { scaleX: l.scaleX, scaleY: l.scaleY }, anchor: scaleGestureRef.current.anchorName });
+          if (DEBUG_SCALE) console.log('[SCALE] move', { scaleNow: { scaleX: l.scaleX, scaleY: l.scaleY }, anchor: scaleGestureRef.current.anchorName });
         }
       });
     }
@@ -1156,7 +1192,7 @@ async function onConfirmSubmit() {
                     rotateEnabled
                     rotationSnaps={[0, 90, 180, 270]}
                     keepRatio={keepRatio}
-                    enabledAnchors={['top-left','top-right','bottom-left','bottom-right']}
+                    enabledAnchors={['top-left','top-right','bottom-left','bottom-right','top-center','bottom-center','middle-left','middle-right']}
                     boundBoxFunc={(oldBox, newBox) => {
                       const MIN_W = 0.02 * (imgBaseCm?.w || 1);
                       const MIN_H = 0.02 * (imgBaseCm?.h || 1);
@@ -1179,6 +1215,30 @@ async function onConfirmSubmit() {
                     onTransform={onTransform}
                     onTransformEnd={onTransformEnd}
                   />
+                  {DEBUG_TRANSFORM && (
+                    <Group listening={false}>
+                      {scaleGestureRef.current?.startAnchor && (
+                        <Circle x={scaleGestureRef.current.startAnchor.x} y={scaleGestureRef.current.startAnchor.y} radius={0.5} fill="red" />
+                      )}
+                      <Rect
+                        x={imgTx.x_cm + dispW / 2}
+                        y={imgTx.y_cm + dispH / 2}
+                        width={dispW}
+                        height={dispH}
+                        offsetX={dispW / 2}
+                        offsetY={dispH / 2}
+                        rotation={imgTx.rotation_deg}
+                        stroke="red"
+                      />
+                      <Text
+                        x={1}
+                        y={1}
+                        fontSize={3}
+                        fill="red"
+                        text={`tx:${imgTx.x_cm.toFixed(1)} ty:${imgTx.y_cm.toFixed(1)} sx:${imgTx.scaleX.toFixed(2)} sy:${imgTx.scaleY.toFixed(2)} θ:${imgTx.rotation_deg.toFixed(1)}`}
+                      />
+                    </Group>
+                  )}
                 </>
               ) : (
                 <Group
