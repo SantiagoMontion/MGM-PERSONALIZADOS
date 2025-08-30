@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.54.0",
+    "@sentry/node": "^8.0.0",
     "nanoid": "^5.1.5",
     "pdf-lib": "^1.17.1",
     "sharp": "^0.34.3",

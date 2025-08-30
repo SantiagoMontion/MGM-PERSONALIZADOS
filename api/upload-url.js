@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { supa } from '../lib/supa.js';
 import { cors } from './_lib/cors.js';
 import { buildObjectKey } from './_lib/slug.js';
+import { withObservability } from './_lib/observability.js';
 
 const BodySchema = z.object({
   design_name: z.string().min(1),
@@ -20,7 +21,7 @@ const BodySchema = z.object({
 const MAX_MB = Number(process.env.MAX_UPLOAD_MB || 40);
 const LIMITS = { Classic: { maxW: 140, maxH: 100 }, PRO: { maxW: 120, maxH: 60 } };
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   const diagId = crypto.randomUUID?.() ?? require('node:crypto').randomUUID();
   res.setHeader('X-Diag-Id', String(diagId));
 
@@ -93,3 +94,5 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'internal_error' });
   }
 }
+
+export default withObservability(handler);

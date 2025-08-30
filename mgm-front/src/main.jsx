@@ -8,7 +8,11 @@ import Result from './pages/Result.jsx';
 import DevRenderPreview from './pages/DevRenderPreview.jsx';
 import DevCanvasPreview from './pages/DevCanvasPreview.jsx';
 import ErrorPage from './ErrorPage.jsx';
+import AppErrorBoundary from './components/AppErrorBoundary.jsx';
+import { initSentry } from './sentry';
 import './globals.css';
+
+initSentry();
 
 const routes = [
   {
@@ -31,6 +35,8 @@ const router = createBrowserRouter(routes);
 
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <RouterProvider router={router} />
+    <AppErrorBoundary>
+      <RouterProvider router={router} />
+    </AppErrorBoundary>
   </React.StrictMode>
 );

@@ -1,4 +1,5 @@
 import { dlog } from './debug';
+import { setDiagContext } from './diagContext';
 
 export interface SubmitJobBody {
   job_id: string;
@@ -34,8 +35,10 @@ export async function submitJob(apiBase: string, body: SubmitJobBody): Promise<a
   let data: any = null;
   try { data = await res.json(); } catch {}
   if (!res.ok) {
+    setDiagContext({ diag_id: diagId, stage: 'submit', job_id: body.job_id });
     throw new Error(`submit ${res.status} diag:${diagId} stage:submit`);
   }
+  setDiagContext({ diag_id: diagId, job_id: data?.job?.job_id || body.job_id });
   dlog('[submit-job OK]', { diagId, job: data?.job });
   return data?.job;
 }
@@ -85,8 +88,10 @@ export async function createCartLink(apiBase: string, jobId: string): Promise<an
   let data: any = null;
   try { data = await res.json(); } catch {}
   if (!res.ok) {
+    setDiagContext({ diag_id: diagId, stage: 'cart', job_id: jobId });
     throw new Error(`cart ${res.status} diag:${diagId} stage:cart`);
   }
+  setDiagContext({ diag_id: diagId, job_id: jobId });
   dlog('[create-cart-link OK]', { diagId, cart: data });
   return data;
 }

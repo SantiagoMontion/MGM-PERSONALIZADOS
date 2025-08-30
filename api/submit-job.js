@@ -4,8 +4,9 @@ import { z } from 'zod';
 import { cors } from './_lib/cors.js';
 import getSupabaseAdmin from './_lib/supabaseAdmin.js';
 import { getEnv } from './_lib/env.js';
+import { withObservability } from './_lib/observability.js';
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   const diagId = randomUUID();
   res.setHeader('X-Diag-Id', diagId);
 
@@ -166,3 +167,5 @@ export default async function handler(req, res) {
       .json({ ok: false, diag_id: diagId, stage: 'unknown', message: 'Unexpected error' });
   }
 }
+
+export default withObservability(handler);
