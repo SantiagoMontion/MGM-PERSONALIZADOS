@@ -144,6 +144,12 @@ export default function Home() {
       setErr('');
       setBusy(true);
 
+      if (import.meta.env.VITE_MODERATION_DRYRUN === 'true') {
+        alert('Modo prueba: no se sube a Supabase');
+        setBusy(false);
+        return;
+      }
+
       // 1) calcular hash local
       const file_hash = await sha256Hex(uploaded.file);
 
