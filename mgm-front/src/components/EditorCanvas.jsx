@@ -539,8 +539,9 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       }
       return;
     }
-    if (scaleGestureRef.current.latest) {
-      setImgTx((tx) => ({ ...tx, ...scaleGestureRef.current.latest }));
+    const latest = scaleGestureRef.current?.latest;
+    if (latest) {
+      setImgTx((tx) => ({ ...tx, ...latest }));
     }
     scaleGestureRef.current = null;
     const next = normalizeIntoBounds();
