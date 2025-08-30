@@ -68,20 +68,27 @@ La aplicación utiliza dos buckets de Supabase Storage:
 ## Moderación de imágenes
 
 El endpoint `POST /api/moderate-image` analiza una miniatura (máx. 512px, JPEG) antes de subirla a
-Supabase. Requiere enviar un `multipart/form-data` con el campo `image` y responde:
+Supabase. La política permite videojuegos, marcas, logos y dibujos; sólo se bloquea:
+
+* Desnudez/sexo **explícito** de personas reales.
+* Sexualización de menores.
+* Símbolos u organizaciones de odio (swastika, KKK, ISIS, etc.).
+
+Los anime/hentai y contenido sexy se permiten siempre que no aparenten menores.
+
+La respuesta del endpoint incluye el proveedor, etiquetas normalizadas y la decisión:
 
 ```
-{ ok: true, diag_id: "...", allow: true|false, reasons: ["real_nudity","hate_symbol"], scores: { ... }, provider: "sightengine" }
+{ ok: true, diag_id: "...", allow: true|false, action: "allow|warn|block", reason: "...", scores: { ... }, labels: [ ... ], provider: "openai" }
 ```
 
 Variables de entorno relacionadas:
 
 ```
-MOD_PROVIDER=sightengine
-SIGHTENGINE_USER=usuario
-SIGHTENGINE_KEY=clave
-MOD_NUDITY_BLOCK=0.85
-MOD_SEXY_BLOCK=0.9
+MOD_PROVIDER=openai|hive|gcv|none
+MOD_BLOCK_HATE=true
+MOD_EXPLICIT_THRESHOLD=0.75
+MOD_HATE_THRESHOLD=0.60
 ```
 
 ## Admin search de jobs

@@ -9,3 +9,8 @@
 .error {
   margin-top: 6px;
 }
+
+.warn {
+  margin-top: 6px;
+  color: #b58900;
+}
