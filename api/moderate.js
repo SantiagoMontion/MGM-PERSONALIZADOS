@@ -1,7 +1,7 @@
 // /api/moderate.js
 // Quick moderation endpoint with timeout and no manual review
 import crypto from 'node:crypto';
-import { cors } from './_lib/cors.js';
+import { cors } from './lib/cors.js';
 import { withObservability } from './_lib/observability.js';
 import { scanImage } from './_lib/moderation/adapter.ts';
 
@@ -36,9 +36,9 @@ async function parseImage(req) {
 }
 
 async function handler(req, res) {
+  if (cors(req, res)) return;
   const diagId = crypto.randomUUID();
   res.setHeader('X-Diag-Id', diagId);
-  if (cors(req, res)) return;
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
     return res.status(405).json({ allow: false, reason: 'method_not_allowed', diag_id: diagId });

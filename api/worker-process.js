@@ -1,7 +1,7 @@
 // /api/worker-process.js  (dynamic import + pasos)
 import crypto from 'node:crypto';
 import { supa } from '../lib/supa.js';
-import { cors } from './_lib/cors.js';
+import { cors } from './lib/cors.js';
 import { slugifyName } from './_lib/slug.js';
 
 async function readJson(req){
@@ -11,10 +11,10 @@ async function readJson(req){
 }
 
 export default async function handler(req, res) {
+  if (cors(req, res)) return;
+  const allowOrigin = res.getHeader('Access-Control-Allow-Origin');
   const diagId = crypto.randomUUID?.() ?? require('node:crypto').randomUUID();
   res.setHeader('X-Diag-Id', String(diagId));
-
-  if (cors(req, res)) return;
 
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
@@ -299,6 +299,7 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok:true, step:'done', job_id: job.job_id, print_jpg_url: printUrl, pdf_url: pdfUrl, preview_url: prevUrl });
 
   } catch (e) {
+    res.setHeader('Access-Control-Allow-Origin', allowOrigin);
     return res.status(500).json({ step: 'crash_'+(e?.message?.split(':')[0]||'unknown'), error: String(e?.message || e) });
   }
 

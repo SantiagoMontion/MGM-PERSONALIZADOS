@@ -56,7 +56,7 @@ export async function deepPass(file: File, signal: AbortSignal): Promise<{ allow
     const thumb = await createThumbnail(file);
     const form = new FormData();
     form.append('image', thumb, 'thumb.jpg');
-    const res = await fetch(`${API_BASE}/api/moderate`, { method: 'POST', body: form, signal });
+    const res = await fetch(`${API_BASE}/api/moderate-image`, { method: 'POST', body: form, signal });
     const json = await res.json().catch(() => ({}));
     if (debug) console.log('[deepPass]', json);
     if (!res.ok) return { allow: true, reason: 'provider_error' };

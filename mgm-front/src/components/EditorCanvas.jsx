@@ -984,7 +984,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const [colorOpen, setColorOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [lastDiag, setLastDiag] = useState(null);
-  const API_BASE = import.meta.env.VITE_API_BASE || 'https://mgm-api.vercel.app';
+  const API_BASE = (import.meta.env.VITE_API_BASE || 'https://mgm-api.vercel.app').replace(/\/$/, '');
   const toggleContain = () => { fitContain(); setColorOpen(true); };
   const closeColor = () => setColorOpen(false);
   // track latest callback to avoid effect loops when parent re-renders
@@ -1065,7 +1065,7 @@ async function onConfirmSubmit() {
       return;
     }
 
-    const apiBase = import.meta.env.VITE_API_BASE || 'https://mgm-api.vercel.app';
+    const apiBase = (import.meta.env.VITE_API_BASE || 'https://mgm-api.vercel.app').replace(/\/$/, '');
     const job = await submitJob(apiBase, submitBody);
 
     onDone?.(job);
