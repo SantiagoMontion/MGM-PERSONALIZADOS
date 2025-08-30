@@ -1,4 +1,4 @@
-import { cors } from './_lib/cors.js';
+import { cors } from '../_lib/cors.js';
 
 export default function handler(req, res) {
   const ended = cors(req, res);

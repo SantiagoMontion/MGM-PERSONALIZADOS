@@ -1,9 +1,8 @@
 // api/finalize-assets.js
-import { cors } from './_lib/cors.js';
-import getSupabaseAdmin from './_lib/supabaseAdmin.js';
+import getSupabaseAdmin from '../_lib/supabaseAdmin.js';
 import sharp from 'sharp';
 import { PDFDocument } from 'pdf-lib';
-import composeImage from './_lib/composeImage.ts';
+import composeImage from '../_lib/composeImage.ts';
 import crypto from 'node:crypto';
 
 function parseUploadsObjectKey(url = '') {
@@ -37,7 +36,6 @@ function isPosFinite(n) {
 }
 
 export default async function handler(req, res) {
-  if (cors(req, res)) return;
   const diagId = crypto.randomUUID?.() ?? crypto.randomUUID();
   res.setHeader('X-Diag-Id', String(diagId));
   if (req.method !== 'POST') {
@@ -51,6 +49,8 @@ export default async function handler(req, res) {
 
   let stage = 'validate';
   let debug = {};
+
+  try {
 
   let body;
   try {

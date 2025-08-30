@@ -1,7 +1,6 @@
 import crypto from 'node:crypto';
-import { cors } from './_lib/cors.js';
-import getSupabaseAdmin from './_lib/supabaseAdmin.js';
-import composeImage from './_lib/composeImage.ts';
+import getSupabaseAdmin from '../_lib/supabaseAdmin.js';
+import composeImage from '../_lib/composeImage.ts';
 
 function err(res, status, { diag_id, stage, message, debug = {} }) {
   return res.status(status).json({ ok: false, diag_id, stage, message, debug });
@@ -15,7 +14,6 @@ function parseUploadsObjectKey(url = '') {
 export default async function handler(req, res) {
   const diagId = crypto.randomUUID?.() ?? crypto.randomUUID();
   res.setHeader('X-Diag-Id', String(diagId));
-  if (cors(req, res)) return;
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
     return err(res, 405, { diag_id: diagId, stage: 'method', message: 'method_not_allowed' });

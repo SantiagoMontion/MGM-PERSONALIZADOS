@@ -1,9 +1,7 @@
 // api/job-status.js
-import { cors } from './_lib/cors.js';
-import getSupabaseAdmin from './_lib/supabaseAdmin.js';
+import getSupabaseAdmin from '../_lib/supabaseAdmin.js';
 
 export default async function handler(req, res) {
-  if (cors(req, res)) return;
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');
     return res.status(405).json({ ok:false, error: 'method_not_allowed' });

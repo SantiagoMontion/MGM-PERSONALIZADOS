@@ -1,8 +1,7 @@
 // /api/create-checkout.js
 import crypto from 'node:crypto';
-import { supa } from '../lib/supa.js';
-import { shopifyAdmin } from '../lib/shopify.js';
-import { cors } from './_lib/cors.js';
+import { supa } from '../../lib/supa.js';
+import { shopifyAdmin } from '../../lib/shopify.js';
 
 async function getInvoiceUrl(draftId) {
   // lee el draft y devuelve invoice_url si existe
@@ -14,7 +13,6 @@ export default async function handler(req, res) {
   const diagId = crypto.randomUUID?.() ?? require('node:crypto').randomUUID();
   res.setHeader('X-Diag-Id', String(diagId));
 
-  if (cors(req, res)) return;
 
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');

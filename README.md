@@ -1,5 +1,17 @@
 # MGM API
 
+## Arquitectura de API unificada
+
+Todas las rutas bajo `/api` se resuelven por una única Serverless Function definida en `api/index.js`. Un mini-router interno despacha según `req.method` y `pathname` hacia los handlers en `api/_routes`.
+
+Para agregar una nueva ruta:
+1. Crear el handler en `api/_routes` (puede usar subcarpetas como `admin` o `user`).
+2. Exportar una función `default` con la lógica de la ruta.
+3. Registrar la ruta en `api/index.js` dentro del objeto `routes` usando `import()` dinámico.
+
+No crear archivos sueltos dentro de `api/` fuera de `_routes` o `_lib`, ya que cada archivo generaría una función adicional en Vercel.
+
+
 ## Configuración de CORS
 
 Establece la variable de entorno `ALLOWED_ORIGINS` como una lista separada por comas de orígenes sin barra final.

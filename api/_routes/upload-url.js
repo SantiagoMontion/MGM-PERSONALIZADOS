@@ -2,10 +2,9 @@
 // Requiere: "type": "module" en package.json
 import crypto from 'node:crypto';
 import { z } from 'zod';
-import { supa } from '../lib/supa.js';
-import { cors } from './_lib/cors.js';
-import { buildObjectKey } from './_lib/slug.js';
-import { withObservability } from './_lib/observability.js';
+import { supa } from '../../lib/supa.js';
+import { buildObjectKey } from '../_lib/slug.js';
+import { withObservability } from '../_lib/observability.js';
 
 const BodySchema = z.object({
   design_name: z.string().min(1),
@@ -26,7 +25,6 @@ async function handler(req, res) {
   res.setHeader('X-Diag-Id', String(diagId));
 
   // CORS + preflight
-  if (cors(req, res)) return;
 
   // Solo POST
   if (req.method !== 'POST') {

@@ -1,10 +1,9 @@
 // /api/create-cart-link.js
 // Endpoint idempotente para crear/reutilizar producto y variante en Shopify.
 import crypto from 'node:crypto';
-import { supa } from '../lib/supa.js';
-import { shopifyAdmin, shopifyAdminGraphQL } from '../lib/shopify.js';
-import { cors } from './_lib/cors.js';
-import { withObservability } from './_lib/observability.js';
+import { supa } from '../../lib/supa.js';
+import { shopifyAdmin, shopifyAdminGraphQL } from '../../lib/shopify.js';
+import { withObservability } from '../_lib/observability.js';
 
 function slugify(s){ return String(s).toLowerCase().trim()
   .replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'').replace(/-+/g,'-').replace(/^-|-$/g,''); }
@@ -21,7 +20,6 @@ async function handler(req, res) {
   const diagId = crypto.randomUUID?.() ?? require('node:crypto').randomUUID();
   res.setHeader('X-Diag-Id', String(diagId));
 
-  if (cors(req, res)) return;
 
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
