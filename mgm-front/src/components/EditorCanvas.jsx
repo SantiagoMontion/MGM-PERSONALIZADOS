@@ -1166,6 +1166,8 @@ async function onConfirmSubmit() {
                       const h = Math.max(MIN_H, Math.min(newBox.height, MAX_H));
                       return { ...newBox, width: w, height: h };
                     }}
+                    onTransformStart={onTransformStart}
+                    onTransform={onTransform}
                     onTransformEnd={onTransformEnd}
                   />
                 </>
