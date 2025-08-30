@@ -16,7 +16,7 @@ export default function UploadStep({ onUploaded }) {
   const [err, setErr] = useState('');
   const [diag, setDiag] = useState('');
   const [scores, setScores] = useState(null);
-  const [state, setState] = useState('idle'); // idle|local_ok|server_checking|blocked|allowed
+  const [state, setState] = useState('idle'); // idle|server_checking|blocked|allowed|warn
 
   const openPicker = () => {
     setErr('');
@@ -44,29 +44,21 @@ export default function UploadStep({ onUploaded }) {
     try {
       const local = await runLocalModeration(picked);
       setScores(local.scores);
-      if (local.state === 'blocked') {
-        setState('blocked');
-        setErr('Contenido bloqueado por desnudez real.');
-        return;
-      }
-      if (local.state === 'allowed') {
-        const localUrl = URL.createObjectURL(picked);
-        onUploadedRef.current?.({ file: picked, localUrl });
-        setState('allowed');
-        return;
-      }
       setState('server_checking');
       const server = await runServerModeration(picked);
       setScores(server.scores);
       setDiag(server.diag_id || '');
-      if (!server.allow) {
+      if (server.action === 'block' || !server.allow) {
         setState('blocked');
-        setErr('Bloqueada por política: ' + (server.reasons || []).join(', '));
+        setErr('Bloqueada por política: ' + server.reason);
         return;
+      }
+      if (server.reason === 'provider_error') {
+        alert('No se pudo verificar, continuamos y revisamos manualmente');
       }
       const localUrl = URL.createObjectURL(picked);
       onUploadedRef.current?.({ file: picked, localUrl });
-      setState('allowed');
+      setState(server.action === 'warn' || local.state === 'warn' ? 'warn' : 'allowed');
     } catch (e) {
       console.error(e);
       setErr(String(e?.message || e));
@@ -97,6 +89,10 @@ export default function UploadStep({ onUploaded }) {
         </p>
       )}
 
+      {state === 'warn' && !err && (
+        <p className={styles.warn}>Revisión manual</p>
+      )}
+
       {SHOW_SCORES && scores && (
         <details>
           <summary>Más detalles</summary>
@@ -108,16 +104,13 @@ export default function UploadStep({ onUploaded }) {
 }
 
 async function runLocalModeration(file) {
-  const thresholds = {
-    porn: Number(import.meta.env.VITE_NUDITY_BLOCK || '0.85'),
-    sexy: Number(import.meta.env.VITE_SEXY_BLOCK || '0.9'),
-    anime: Number(import.meta.env.VITE_ANIME_ALLOW || '0.7'),
-    pornForAnime: Number(import.meta.env.VITE_ANIME_PORN_MAX || '0.6'),
-  };
-  const tf = await import(/* @vite-ignore */ 'https://esm.sh/@tensorflow/tfjs');
-  await tf.ready?.();
-  const nsfw = await import(/* @vite-ignore */ 'https://esm.sh/nsfwjs');
-  const model = await nsfw.load();
+  if (!window.__nsfwModel) {
+    const tf = await import(/* @vite-ignore */ 'https://esm.sh/@tensorflow/tfjs');
+    await tf.ready?.();
+    const nsfw = await import(/* @vite-ignore */ 'https://esm.sh/nsfwjs');
+    window.__nsfwModel = await nsfw.load();
+  }
+  const model = window.__nsfwModel;
   const img = document.createElement('img');
   const url = URL.createObjectURL(file);
   try {
@@ -140,29 +133,29 @@ async function runLocalModeration(file) {
       Hentai: get('Hentai'),
       Drawing: get('Drawing'),
     };
-    if (scores.Porn >= thresholds.porn || (scores.Sexy >= thresholds.sexy && (scores.Drawing + scores.Hentai) < 0.4)) {
-      return { state: 'blocked', scores };
-    }
-    if ((scores.Hentai >= thresholds.anime || scores.Drawing >= thresholds.anime) && scores.Porn < thresholds.pornForAnime) {
-      return { state: 'allowed', scores };
-    }
-    return { state: 'local_ok', scores };
+    if (scores.Porn >= 0.5) return { state: 'warn', scores };
+    return { state: 'allow', scores };
   } finally {
     URL.revokeObjectURL(url);
   }
 }
 
 async function runServerModeration(file) {
-  const thumb = await createThumbnail(file);
-  const form = new FormData();
-  form.append('image', thumb, 'thumb.jpg');
-  const res = await fetch(`${API_BASE}/api/moderate-image`, {
-    method: 'POST',
-    body: form,
-  });
-  const json = await res.json();
-  if (!res.ok) throw new Error(json?.message || 'moderation_failed');
-  return json;
+  try {
+    const thumb = await createThumbnail(file);
+    const form = new FormData();
+    form.append('image', thumb, 'thumb.jpg');
+    const res = await fetch(`${API_BASE}/api/moderate-image`, {
+      method: 'POST',
+      body: form,
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(json?.message || 'moderation_failed');
+    return json;
+  } catch (e) {
+    console.error('runServerModeration', e);
+    return { allow: true, action: 'warn', reason: 'provider_error', scores: {}, diag_id: '' };
+  }
 }
 
 async function createThumbnail(file) {

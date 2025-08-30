@@ -4,6 +4,8 @@ import { z } from 'zod';
 import getSupabaseAdmin from '../_lib/supabaseAdmin.js';
 import { getEnv } from '../_lib/env.js';
 import { withObservability } from '../_lib/observability.js';
+import { scanImage } from '../_lib/moderation/adapter.ts';
+import { decideModeration } from '../_lib/moderation/policy.ts';
 
 async function handler(req, res) {
   const diagId = randomUUID();
@@ -81,6 +83,19 @@ async function handler(req, res) {
   const input = parsed.data;
   const designName = typeof body?.design_name === 'string' ? body.design_name : undefined;
 
+  // Moderación de imagen
+  try {
+    const scan = await scanImage(input.file_original_url);
+    const decision = decideModeration({ labels: scan.labels, scores: scan.scores });
+    if (decision.action === 'block') {
+      return res.status(409).json({ ok: false, diag_id: diagId, error: 'blocked', reason: decision.reason });
+    }
+    input._moderation = { scan, decision };
+  } catch (e) {
+    console.error('submit-job moderation', { diagId, error: e?.message || e });
+    input._moderation = { scan: { provider: 'none', scores: {}, labels: ['provider_error'] }, decision: { action: 'warn', reason: 'provider_error' } };
+  }
+
   // whitelist de columnas válidas
   const payloadInsert = {
     job_id: input.job_id,
@@ -101,6 +116,10 @@ async function handler(req, res) {
     source: input.source ?? 'api',
     legal_version: input.legal_version ?? null,
     legal_accepted_at: input.legal_accepted_at ?? null,
+    moderation_flag: input._moderation?.decision.action === 'warn',
+    moderation_reason: input._moderation?.decision.reason || null,
+    moderation_provider: input._moderation?.scan.provider || null,
+    moderation_scores: input._moderation?.scan.scores || null,
   };
 
   // TODO: remove when `design_name` column exists in DB (see supabase/migrations/2025-08-25_add_design_name.sql)
