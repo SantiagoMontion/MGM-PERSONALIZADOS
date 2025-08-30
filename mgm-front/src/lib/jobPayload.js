@@ -84,6 +84,8 @@ export function buildSubmitJobBody(input) {
     price_currency: input?.price?.currency || undefined,
     notes: input?.notes || '',
     source: input?.source || 'front',
+    legal_version: input?.legal_version || undefined,
+    legal_accepted_at: input?.legal_accepted_at || undefined,
   };
 }
 

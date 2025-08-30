@@ -20,6 +20,7 @@ import { dlog } from '../lib/debug';
 import styles from './Home.module.css';
 
 console.assert(Number.isFinite(PX_PER_CM), '[export] PX_PER_CM inválido', PX_PER_CM);
+const LEGAL_VERSION = import.meta.env.PUBLIC_LEGAL_VERSION || '2025-01-01';
 
 export default function Home() {
 
@@ -60,6 +61,7 @@ export default function Home() {
   const [layout, setLayout] = useState(null);
   const [designName, setDesignName] = useState('');
   const [ackLow, setAckLow] = useState(false);
+  const [legalAccepted, setLegalAccepted] = useState(false);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const [jobId, setJobId] = useState(null);
@@ -206,6 +208,8 @@ export default function Home() {
         price: { amount: priceAmount, currency: priceCurrency },
         design_name: designName,
         source: 'web',
+        legal_version: LEGAL_VERSION,
+        legal_accepted_at: new Date().toISOString(),
       });
 
       // 6) prevalidar sin pegarle a la API
@@ -303,7 +307,19 @@ export default function Home() {
         )}
 
         {uploaded && (
-          <button className={styles.continueButton} disabled={busy || priceAmount <= 0} onClick={handleContinue}>
+          <label className={styles.ackLabel}>
+            <input
+              type="checkbox"
+              checked={legalAccepted}
+              onChange={e => setLegalAccepted(e.target.checked)}
+            />{' '}
+            Acepto los <a href="/legal/terminos" target="_blank" rel="noopener noreferrer">Términos</a> y la{' '}
+            <a href="/legal/contenido" target="_blank" rel="noopener noreferrer">Política de Contenidos</a>
+          </label>
+        )}
+
+        {uploaded && (
+          <button className={styles.continueButton} disabled={busy || priceAmount <= 0 || !legalAccepted} onClick={handleContinue}>
             Continuar
           </button>
         )}
