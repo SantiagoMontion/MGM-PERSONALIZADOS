@@ -622,6 +622,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     if (!imgBaseCm) return;
     const w = imgBaseCm.w * Math.abs(imgTx.scaleX);
     pushHistory(imgTx);
+    setIsManual(true);
     setImgTx((tx) => ({ ...tx, x_cm: (workCm.w - w) / 2 }));
   }, [imgBaseCm?.w, workCm.w, imgTx.scaleX]);
 
@@ -629,6 +630,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     if (!imgBaseCm) return;
     const h = imgBaseCm.h * Math.abs(imgTx.scaleY);
     pushHistory(imgTx);
+    setIsManual(true);
     setImgTx((tx) => ({ ...tx, y_cm: (workCm.h - h) / 2 }));
   }, [imgBaseCm?.h, workCm.h, imgTx.scaleY]);
 
@@ -636,6 +638,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     if (!imgBaseCm) return;
     const w = imgBaseCm.w * Math.abs(imgTx.scaleX);
     const h = imgBaseCm.h * Math.abs(imgTx.scaleY);
+    pushHistory(imgTx);
+    setIsManual(true);
     setImgTx((tx) => ({ ...tx, x_cm: (workCm.w - w)/2, y_cm: (workCm.h - h)/2 }));
   }, [imgBaseCm?.w, imgBaseCm?.h, imgTx.scaleX, imgTx.scaleY, workCm.w, workCm.h]);
 
@@ -668,35 +672,47 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     if (edge === 'bottom') cy = workCm.h - halfH;
 
     pushHistory(imgTx);
+    setIsManual(true);
     setImgTx((tx) => ({
       ...tx,
       x_cm: cx - (imgBaseCm.w * Math.abs(tx.scaleX))/2,
       y_cm: cy - (imgBaseCm.h * Math.abs(tx.scaleY))/2,
     }));
   };
-  
+
   const rotate = (deg) => {
     pushHistory(imgTx);
+    setIsManual(true);
     setImgTx((tx) => ({ ...tx, rotation_deg: (tx.rotation_deg + deg) % 360 }));
   };
 
   const flipHoriz = () => {
     pushHistory(imgTx);
+    setIsManual(true);
     setImgTx((tx) => ({ ...tx, scaleX: -tx.scaleX }));
     requestAnimationFrame(() => normalizeIntoBounds());
   };
 
   const flipVert = () => {
     pushHistory(imgTx);
+    setIsManual(true);
     setImgTx((tx) => ({ ...tx, scaleY: -tx.scaleY }));
     requestAnimationFrame(() => normalizeIntoBounds());
   };
 
   const applyFitRef = useRef(applyFit);
   useEffect(() => { applyFitRef.current = applyFit; }, [applyFit]);
+  // re-aplicar preset solo cuando cambian material o tamaño
+  const prevFitDepsRef = useRef({ material, wCm, hCm });
   useEffect(() => {
-    applyFitRef.current(mode);
-  }, [material, wCm, hCm]);
+    const prev = prevFitDepsRef.current;
+    const changed = prev.material !== material || prev.wCm !== wCm || prev.hCm !== hCm;
+    if (changed) {
+      prevFitDepsRef.current = { material, wCm, hCm };
+      setIsManual(false);
+      applyFitRef.current(mode);
+    }
+  }, [material, wCm, hCm, mode]);
 
 
   // calidad
