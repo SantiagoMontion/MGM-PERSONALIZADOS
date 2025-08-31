@@ -185,6 +185,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const [showTransformer, setShowTransformer] = useState(true);
   const scaleGestureRef = useRef(null);
   const scaleRafRef = useRef(false);
+  const dragGestureRef = useRef(null);
+  const dragRafRef = useRef(false);
 
   const isTargetOnImageOrTransformer = (target) => {
     if (!target) return false;
@@ -399,11 +401,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   // imán fuerte (centro + AABB rotado)
   const stickRef = useRef({ x: null, y: null, activeX: false, activeY: false });
   const gestureStartRef = useRef(null);
-  const onImgDragStart = () => {
-    stickRef.current = { x: null, y: null, activeX: false, activeY: false };
-    gestureStartRef.current = imgTx;
-    setIsManual(true);
-  };
   const dragBoundFunc = useCallback((pos) => {
     if (!imgBaseCm) return pos;
     if (scaleGestureRef.current) return pos;
@@ -471,31 +468,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     return { x: cx, y: cy };
   }, [imgBaseCm, imgTx.scaleX, imgTx.scaleY, theta, workCm.w, workCm.h]);
 
-  const onImgMouseDown = () => {
-    isPanningRef.current = false;
-    setShowTransformer(true);
-    if (trRef.current && imgRef.current) {
-      trRef.current.nodes([imgRef.current]);
-      trRef.current.getLayer()?.batchDraw();
-    }
-  };
-  const onImgDragMove = (e) => {
-    if (scaleGestureRef.current) return;
-    isPanningRef.current = false;
-    const n = e.target;
-    setImgTx((prev) => {
-      const w = imgBaseCm.w * Math.abs(prev.scaleX);
-      const h = imgBaseCm.h * Math.abs(prev.scaleY);
-      return { ...prev, x_cm: n.x() - w / 2, y_cm: n.y() - h / 2 };
-    });
-  };
-  const onImgDragEnd = () => {
-    stickRef.current = { x: null, y: null, activeX: false, activeY: false };
-    if (gestureStartRef.current) {
-      pushHistory(imgTx);
-      gestureStartRef.current = null;
-    }
-  };
 
   // transformer
   useEffect(() => {
@@ -726,6 +698,73 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     const absY = Math.min(Math.max(Math.abs(scaleY), MIN_SCALE), IMG_ZOOM_MAX);
     return { ...tx, x_cm, y_cm, scaleX: signX * absX, scaleY: signY * absY };
   }, [imgBaseCm]);
+
+  const onImgPointerDown = (e) => {
+    if (!imgBaseCm) return;
+    e.evt.preventDefault();
+    const stage = e.target.getStage();
+    const pointerId = e.evt.pointerId;
+    const container = stage?.container();
+    if (container && pointerId != null) {
+      container.setPointerCapture(pointerId);
+    }
+    isPanningRef.current = false;
+    stickRef.current = { x: null, y: null, activeX: false, activeY: false };
+    setShowTransformer(true);
+    if (trRef.current && imgRef.current) {
+      trRef.current.nodes([imgRef.current]);
+      trRef.current.getLayer()?.batchDraw();
+    }
+    const world = pointerWorld(stage);
+    dragGestureRef.current = {
+      pointerId,
+      startPointer: world,
+      node0: { ...imgTx },
+      latest: null,
+    };
+    gestureStartRef.current = imgTx;
+    setIsManual(true);
+  };
+
+  const onImgPointerMove = (e) => {
+    const g = dragGestureRef.current;
+    if (!g || !imgBaseCm || scaleGestureRef.current) return;
+    const stage = e.target.getStage();
+    const world = pointerWorld(stage);
+    const dx = world.x - g.startPointer.x;
+    const dy = world.y - g.startPointer.y;
+    const w = imgBaseCm.w * Math.abs(g.node0.scaleX);
+    const h = imgBaseCm.h * Math.abs(g.node0.scaleY);
+    let cx = g.node0.x_cm + dx + w / 2;
+    let cy = g.node0.y_cm + dy + h / 2;
+    ({ x: cx, y: cy } = dragBoundFunc({ x: cx, y: cy }));
+    const latest = { x_cm: cx - w / 2, y_cm: cy - h / 2 };
+    g.latest = latest;
+    if (!dragRafRef.current) {
+      dragRafRef.current = true;
+      requestAnimationFrame(() => {
+        dragRafRef.current = false;
+        if (dragGestureRef.current?.latest) {
+          setImgTx((tx) => ({ ...tx, ...dragGestureRef.current.latest }));
+        }
+      });
+    }
+  };
+
+  const onImgPointerUp = (e) => {
+    const g = dragGestureRef.current;
+    const container = e.target.getStage()?.container();
+    if (g?.pointerId != null && container?.hasPointerCapture(g.pointerId)) {
+      container.releasePointerCapture(g.pointerId);
+    }
+    const finalTx = g?.latest ? sanitizeTransform({ ...imgTx, ...g.latest }) : imgTx;
+    setImgTx(finalTx);
+    dragGestureRef.current = null;
+    if (gestureStartRef.current) {
+      pushHistory(finalTx);
+      gestureStartRef.current = null;
+    }
+  };
 
   const alignEdge = (edge) => {
     if (!imgBaseCm) return;
@@ -1195,12 +1234,11 @@ async function onConfirmSubmit() {
                     offsetX={dispW / 2}
                     offsetY={dispH / 2}
                     rotation={imgTx.rotation_deg}
-                    draggable
-                    dragBoundFunc={dragBoundFunc}
-                    onDragStart={onImgDragStart}
-                    onMouseDown={onImgMouseDown}
-                    onDragMove={onImgDragMove}
-                    onDragEnd={onImgDragEnd}
+                    onPointerDown={onImgPointerDown}
+                    onPointerMove={onImgPointerMove}
+                    onPointerUp={onImgPointerUp}
+                    onPointerLeave={onImgPointerUp}
+                    onPointerCancel={onImgPointerUp}
                   />
                   <Transformer
                     ref={trRef}
@@ -1283,9 +1321,11 @@ async function onConfirmSubmit() {
                     offsetX={dispW / 2}
                     offsetY={dispH / 2}
                     rotation={imgTx.rotation_deg}
-                    draggable={false}
-                    listening={true}
-                    onMouseDown={onImgMouseDown}
+                    onPointerDown={onImgPointerDown}
+                    onPointerMove={onImgPointerMove}
+                    onPointerUp={onImgPointerUp}
+                    onPointerLeave={onImgPointerUp}
+                    onPointerCancel={onImgPointerUp}
                   />
                 </Group>
               )
