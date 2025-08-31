@@ -10,7 +10,7 @@ import { PX_PER_CM } from '@/lib/export-consts';
 import { exportCanvas } from '@/lib/exportService';
 import { buildSubmitJobBody, prevalidateSubmitBody } from '../lib/jobPayload';
 import { submitJob } from '../lib/submitJob';
-import { screenToCanvas, canvasToLocal, localToCanvas } from '@/lib/transform2d';
+import { camera as cameraMatrix, compose as composeMatrix, worldToLocal } from '@/lib/matrix2d';
 import { dpiFor, dpiLevel } from '../lib/dpi';
 
 console.assert(Number.isFinite(PX_PER_CM), '[export] PX_PER_CM inválido', PX_PER_CM);
@@ -88,8 +88,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
   const pointerWorld = (stage) => {
     const pt = stage.getPointerPosition();
-    const k = baseScale * viewScale;
-    return screenToCanvas(pt, viewPos, k);
+    const cam = cameraMatrix({ panX: viewPos.x, panY: viewPos.y, zoom: baseScale * viewScale });
+    return worldToLocal(pt, cam);
   };
   const isOutsideWorkArea = (wp) => wp.x < 0 || wp.y < 0 || wp.x > workCm.w || wp.y > workCm.h;
 
@@ -496,11 +496,11 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     const cx = imgTx.x_cm + wScaled / 2;
     const cy = imgTx.y_cm + hScaled / 2;
     const thetaRad = imgTx.rotation_deg * Math.PI / 180;
-    const startTransform = { tx: cx, ty: cy, theta: thetaRad, sx: imgTx.scaleX, sy: imgTx.scaleY };
-    const startPointerLocal = canvasToLocal(pointer, startTransform);
+    const startMatrix = composeMatrix({ x: cx, y: cy, rotation: thetaRad, scaleX: imgTx.scaleX, scaleY: imgTx.scaleY });
+    const startPointerLocal = worldToLocal(pointer, startMatrix);
     scaleGestureRef.current = {
       pointerId,
-      startTransform,
+      startMatrix,
       startPointerLocal,
       initScaleX: imgTx.scaleX,
       initScaleY: imgTx.scaleY,
@@ -517,7 +517,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     const g = scaleGestureRef.current;
     const stage = stageRef.current;
     const pointer = pointerWorld(stage);
-    const pointerLocal = canvasToLocal(pointer, g.startTransform);
+    const pointerLocal = worldToLocal(pointer, g.startMatrix);
     let ratioX = g.startPointerLocal.x !== 0 ? pointerLocal.x / g.startPointerLocal.x : 1;
     let ratioY = g.startPointerLocal.y !== 0 ? pointerLocal.y / g.startPointerLocal.y : 1;
     if (g.lockX) ratioX = 1;
