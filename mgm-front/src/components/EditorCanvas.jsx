@@ -360,12 +360,13 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
   useEffect(() => {
     if (freeScale) return;
-    const res = clampScaleByDpi(imgTx.scaleX, imgTx.scaleY, false);
+    const { scaleX, scaleY } = imgTxRef.current;
+    const res = clampScaleByDpi(scaleX, scaleY, false);
     if (res.clamped) {
       setImgTx((tx) => ({ ...tx, scaleX: res.sx, scaleY: res.sy }));
       showNotice('Ajustado al máximo por calidad');
     }
-  }, [freeScale, wCm, hCm, material, imgEl, imgBaseCm, imgTx.scaleX, imgTx.scaleY, clampScaleByDpi, showNotice]);
+  }, [freeScale, wCm, hCm, material, imgEl, imgBaseCm, clampScaleByDpi, showNotice]);
 
   useEffect(() => { sizingChangeRef.current = true; }, [wCm, hCm, bleedMm, material]);
 
@@ -498,6 +499,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     const thetaRad = imgTx.rotation_deg * Math.PI / 180;
     const startMatrix = composeMatrix({ x: cx, y: cy, rotation: thetaRad, scaleX: imgTx.scaleX, scaleY: imgTx.scaleY });
     const startPointerLocal = worldToLocal(pointer, startMatrix);
+    const startScreen = stage.getPointerPosition();
     scaleGestureRef.current = {
       pointerId,
       startMatrix,
@@ -507,6 +509,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       pivotWorld: { x: cx, y: cy },
       lockX,
       lockY,
+      startScreen,
+      started: false,
       latest: null,
     };
     if (DEBUG_SCALE) console.log('[SCALE] start', { startScaleX: imgTx.scaleX, startScaleY: imgTx.scaleY, startX: imgTx.x_cm, startY: imgTx.y_cm });
@@ -516,6 +520,13 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     if (!scaleGestureRef.current || !imgBaseCm) return;
     const g = scaleGestureRef.current;
     const stage = stageRef.current;
+    if (!g.started) {
+      const pt = stage.getPointerPosition();
+      const dxs = pt.x - g.startScreen.x;
+      const dys = pt.y - g.startScreen.y;
+      if (dxs * dxs + dys * dys < 9) return;
+      g.started = true;
+    }
     const pointer = pointerWorld(stage);
     const pointerLocal = worldToLocal(pointer, g.startMatrix);
     let ratioX = g.startPointerLocal.x !== 0 ? pointerLocal.x / g.startPointerLocal.x : 1;
@@ -565,15 +576,16 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     if (pid != null && container?.hasPointerCapture(pid)) {
       container.releasePointerCapture(pid);
     }
-    const latest = scaleGestureRef.current?.latest;
-    const finalTx = latest ? sanitizeTransform(latest) : sanitizeTransform({ ...imgTx, rotation_deg: n.rotation() });
-    setImgTx(finalTx);
-    if (DEBUG_SCALE) console.log('[SCALE] end', finalTx);
-    scaleGestureRef.current = null;
-    if (gestureStartRef.current) {
-      pushHistory(finalTx);
-      gestureStartRef.current = null;
+    const g = scaleGestureRef.current;
+    if (g?.started && g.latest) {
+      setImgTx(g.latest);
+      if (DEBUG_SCALE) console.log('[SCALE] end', g.latest);
+      if (gestureStartRef.current) {
+        pushHistory(g.latest);
+      }
     }
+    gestureStartRef.current = null;
+    scaleGestureRef.current = null;
   };
 
   // centro actual
@@ -719,8 +731,10 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     dragGestureRef.current = {
       pointerId,
       startPointer: world,
+      startScreen: { x: e.evt.clientX, y: e.evt.clientY },
       node0: { ...imgTx },
       latest: null,
+      started: false,
     };
     gestureStartRef.current = imgTx;
     setIsManual(true);
@@ -730,6 +744,12 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     const g = dragGestureRef.current;
     if (!g || !imgBaseCm || scaleGestureRef.current) return;
     const stage = e.target.getStage();
+    if (!g.started) {
+      const dxs = e.evt.clientX - g.startScreen.x;
+      const dys = e.evt.clientY - g.startScreen.y;
+      if (dxs * dxs + dys * dys < 9) return;
+      g.started = true;
+    }
     const world = pointerWorld(stage);
     const dx = world.x - g.startPointer.x;
     const dy = world.y - g.startPointer.y;
@@ -757,13 +777,15 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     if (g?.pointerId != null && container?.hasPointerCapture(g.pointerId)) {
       container.releasePointerCapture(g.pointerId);
     }
-    const finalTx = g?.latest ? sanitizeTransform({ ...imgTx, ...g.latest }) : imgTx;
-    setImgTx(finalTx);
-    dragGestureRef.current = null;
-    if (gestureStartRef.current) {
-      pushHistory(finalTx);
-      gestureStartRef.current = null;
+    if (g?.started && g.latest) {
+      const finalTx = { ...imgTxRef.current, ...g.latest };
+      setImgTx(finalTx);
+      if (gestureStartRef.current) {
+        pushHistory(finalTx);
+      }
     }
+    gestureStartRef.current = null;
+    dragGestureRef.current = null;
   };
 
   const alignEdge = (edge) => {
