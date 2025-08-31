@@ -29,6 +29,7 @@ const STAGE_BG = '#e5e7eb';
 const SNAP_LIVE_CM = 2.0;
 const RELEASE_CM   = 3.0;
 const MIN_DPI = 100;
+const MIN_SCALE = 0.05;
 
 // ---------- Editor ----------
 const EditorCanvas = forwardRef(function EditorCanvas(
@@ -727,8 +728,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       } else {
         sx = sy = minCover;
       }
-      sx = Math.max(sx, 0.02);
-      sy = Math.max(sy, 0.02);
+      sx = Math.max(sx, MIN_SCALE);
+      sy = Math.max(sy, MIN_SCALE);
       const newW = w * sx, newH = h * sy;
       pushHistory(imgTx);
       setImgTx((prev) => ({
@@ -783,8 +784,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     if (!Number.isFinite(y_cm)) y_cm = 0;
     const signX = Math.sign(scaleX) || 1;
     const signY = Math.sign(scaleY) || 1;
-    const absX = Math.min(Math.max(Math.abs(scaleX), 0.01), IMG_ZOOM_MAX);
-    const absY = Math.min(Math.max(Math.abs(scaleY), 0.01), IMG_ZOOM_MAX);
+    const absX = Math.min(Math.max(Math.abs(scaleX), MIN_SCALE), IMG_ZOOM_MAX);
+    const absY = Math.min(Math.max(Math.abs(scaleY), MIN_SCALE), IMG_ZOOM_MAX);
     return { ...tx, x_cm, y_cm, scaleX: signX * absX, scaleY: signY * absY };
   }, [imgBaseCm]);
 
@@ -1271,8 +1272,8 @@ async function onConfirmSubmit() {
                     keepRatio={false}
                     enabledAnchors={['top-left','top-right','bottom-left','bottom-right','top-center','bottom-center','middle-left','middle-right']}
                     boundBoxFunc={(oldBox, newBox) => {
-                      const MIN_W = 0.02 * (imgBaseCm?.w || 1);
-                      const MIN_H = 0.02 * (imgBaseCm?.h || 1);
+                      const MIN_W = MIN_SCALE * (imgBaseCm?.w || 1);
+                      const MIN_H = MIN_SCALE * (imgBaseCm?.h || 1);
                       const MAX_W = (imgBaseCm?.w || 1) * IMG_ZOOM_MAX;
                       const MAX_H = (imgBaseCm?.h || 1) * IMG_ZOOM_MAX;
                       const w = Math.max(MIN_W, Math.min(newBox.width,  MAX_W));
