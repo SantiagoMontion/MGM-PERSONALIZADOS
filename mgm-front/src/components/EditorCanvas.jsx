@@ -11,6 +11,7 @@ import { exportCanvas } from '@/lib/exportService';
 import { buildSubmitJobBody, prevalidateSubmitBody } from '../lib/jobPayload';
 import { submitJob } from '../lib/submitJob';
 import { screenToCanvas, canvasToLocal, localToCanvas } from '@/lib/transform2d';
+import { dpiFor, dpiLevel } from '../lib/dpi';
 
 console.assert(Number.isFinite(PX_PER_CM), '[export] PX_PER_CM inválido', PX_PER_CM);
 
@@ -27,6 +28,7 @@ const IMG_ZOOM_MAX  = 50;   // límite cuando mantengo proporción
 const STAGE_BG = '#e5e7eb';
 const SNAP_LIVE_CM = 2.0;
 const RELEASE_CM   = 3.0;
+const MIN_DPI = 100;
 
 // ---------- Editor ----------
 const EditorCanvas = forwardRef(function EditorCanvas(
@@ -319,7 +321,48 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const [mode, setMode] = useState('cover'); // 'cover' | 'contain' | 'stretch'
   const [isManual, setIsManual] = useState(false);
   const [bgColor, setBgColor] = useState('#ffffff');
+  const [freeScale, setFreeScale] = useState(false);
+  const [notice, setNotice] = useState('');
+  const noticeRef = useRef(null);
   const theta = (imgTx.rotation_deg * Math.PI) / 180;
+
+  const showNotice = useCallback((msg) => {
+    setNotice(msg);
+    clearTimeout(noticeRef.current);
+    noticeRef.current = setTimeout(() => setNotice(''), 1500);
+  }, []);
+
+  useEffect(() => () => clearTimeout(noticeRef.current), []);
+
+  const clampScaleByDpi = useCallback((sx, sy, keepRatio) => {
+    if (!imgEl || !imgBaseCm) return { sx, sy, clamped: false };
+    const maxScaleX = (imgEl.naturalWidth * CM_PER_INCH) / (MIN_DPI * imgBaseCm.w);
+    const maxScaleY = (imgEl.naturalHeight * CM_PER_INCH) / (MIN_DPI * imgBaseCm.h);
+    let nx = sx;
+    let ny = sy;
+    let clamped = false;
+    if (keepRatio) {
+      const signX = Math.sign(nx);
+      const signY = Math.sign(ny);
+      const uni = Math.min(Math.abs(nx), Math.abs(ny), maxScaleX, maxScaleY);
+      clamped = uni < Math.abs(nx) || uni < Math.abs(ny);
+      nx = signX * uni;
+      ny = signY * uni;
+    } else {
+      if (Math.abs(nx) > maxScaleX) { nx = Math.sign(nx) * maxScaleX; clamped = true; }
+      if (Math.abs(ny) > maxScaleY) { ny = Math.sign(ny) * maxScaleY; clamped = true; }
+    }
+    return { sx: nx, sy: ny, clamped };
+  }, [imgEl, imgBaseCm]);
+
+  useEffect(() => {
+    if (freeScale) return;
+    const res = clampScaleByDpi(imgTx.scaleX, imgTx.scaleY, false);
+    if (res.clamped) {
+      setImgTx((tx) => ({ ...tx, scaleX: res.sx, scaleY: res.sy }));
+      showNotice('Ajustado al máximo por calidad');
+    }
+  }, [freeScale, wCm, hCm, material, imgEl, imgBaseCm, imgTx.scaleX, imgTx.scaleY, clampScaleByDpi, showNotice]);
 
   useEffect(() => { sizingChangeRef.current = true; }, [wCm, hCm, bleedMm, material]);
 
@@ -553,6 +596,12 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     } else {
       scaleX = Math.sign(scaleX) * Math.min(Math.abs(scaleX), IMG_ZOOM_MAX);
       scaleY = Math.sign(scaleY) * Math.min(Math.abs(scaleY), IMG_ZOOM_MAX);
+    }
+    if (!freeScale) {
+      const res = clampScaleByDpi(scaleX, scaleY, keepRatio);
+      if (res.clamped) showNotice('Límite por calidad');
+      scaleX = res.sx;
+      scaleY = res.sy;
     }
     const newTransform = {
       tx: g.startTransform.tx,
@@ -809,17 +858,14 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     const printedWcm = imgBaseCm.w * Math.abs(imgTx.scaleX);
     const printedHcm = imgBaseCm.h * Math.abs(imgTx.scaleY);
     if (printedWcm <= 0 || printedHcm <= 0) return null;
-    const printedWin = printedWcm / CM_PER_INCH;
-    const printedHin = printedHcm / CM_PER_INCH;
-    const dpiX = imgEl.naturalWidth  / printedWin;
-    const dpiY = imgEl.naturalHeight / printedHin;
-    return Math.max(1, Math.min(1000, Math.min(dpiX, dpiY)));
+    return dpiFor(printedWcm, printedHcm, imgEl.naturalWidth, imgEl.naturalHeight);
   }, [imgEl, imgBaseCm, imgTx.scaleX, imgTx.scaleY]);
 
   const quality = useMemo(() => {
     if (dpiEffective == null) return { label:'—', color:'#9ca3af' };
-    if (dpiEffective < 80)    return { label:`Baja (${dpiEffective|0} DPI)`,  color:'#ef4444' };
-    if (dpiEffective < 200)   return { label:`Buena (${dpiEffective|0} DPI)`, color:'#f59e0b' };
+    const level = dpiLevel(dpiEffective, 300, MIN_DPI);
+    if (level === 'bad') return { label:`Baja (${dpiEffective|0} DPI)`,  color:'#ef4444' };
+    if (level === 'warn') return { label:`Buena (${dpiEffective|0} DPI)`, color:'#f59e0b' };
     return { label:`Excelente (${Math.min(300, dpiEffective|0)} DPI)`, color:'#10b981' };
   }, [dpiEffective]);
 
@@ -1115,8 +1161,19 @@ async function onConfirmSubmit() {
         <button onClick={flipHoriz} disabled={!imgEl}>Espejo H</button>
         <button onClick={flipVert} disabled={!imgEl}>Espejo V</button>
 
+        <label
+          className={styles.freeScale}
+          title="Permite estirar sin límites (puede bajar la calidad)"
+        >
+          <input
+            type="checkbox"
+            checked={freeScale}
+            onChange={e => setFreeScale(e.target.checked)}
+          />
+          Escalar libre
+        </label>
 
-                <span className={`${styles.qualityBadge} ${
+        <span className={`${styles.qualityBadge} ${
           quality.color === '#ef4444' ? styles.qualityBad :
           quality.color === '#f59e0b' ? styles.qualityWarn :
           quality.color === '#10b981' ? styles.qualityOk :
@@ -1131,6 +1188,7 @@ async function onConfirmSubmit() {
         >{busy ? 'Creando…' : 'Crear job'}</button>
       </div>
 
+      {notice && <p className={styles.notice}>{notice}</p>}
       {lastDiag && <p className={styles.errorBox}>{lastDiag}</p>}
 
       {/* Canvas */}

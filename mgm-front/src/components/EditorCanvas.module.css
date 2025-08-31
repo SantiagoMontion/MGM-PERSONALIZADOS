@@ -145,6 +145,12 @@
   gap: 6px;
 }
 
+.notice {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
 .qualityBadge {
   padding: 6px 10px;
   border-radius: 999px;
