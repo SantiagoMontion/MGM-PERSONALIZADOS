@@ -1,12 +1,16 @@
 import { randomUUID } from 'node:crypto';
 import { withObservability } from '../../_lib/observability.js';
 import { createUserToken } from '../../_lib/userToken.js';
+import { cors } from '../../lib/cors.js';
 
 async function handler(req, res) {
-  const diagId = randomUUID();
+  const diagId = randomUUID?.() || Date.now().toString();
   res.setHeader('X-Diag-Id', diagId);
+  if (cors(req, res)) return;
+  const allowOrigin = res.getHeader('Access-Control-Allow-Origin');
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
+    res.setHeader('Access-Control-Allow-Origin', allowOrigin);
     return res.status(405).json({ ok: false, diag_id: diagId, message: 'method_not_allowed' });
   }
   const { email } = req.body || {};

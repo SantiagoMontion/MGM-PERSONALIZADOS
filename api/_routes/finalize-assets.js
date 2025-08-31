@@ -3,7 +3,7 @@ import getSupabaseAdmin from '../_lib/supabaseAdmin.js';
 import sharp from 'sharp';
 import { PDFDocument } from 'pdf-lib';
 import composeImage from '../_lib/composeImage.ts';
-import crypto from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { cors } from '../lib/cors.js';
 
 function parseUploadsObjectKey(url = '') {
@@ -37,8 +37,8 @@ function isPosFinite(n) {
 }
 
 export default async function handler(req, res) {
-  const diagId = res.getHeader('X-Diag-Id') || crypto.randomUUID?.() ?? crypto.randomUUID();
-  res.setHeader('X-Diag-Id', String(diagId));
+  const diagId = randomUUID?.() || Date.now().toString();
+  res.setHeader('X-Diag-Id', diagId);
   if (cors(req, res)) return;
   const allowOrigin = res.getHeader('Access-Control-Allow-Origin');
   if (req.method !== 'POST') {

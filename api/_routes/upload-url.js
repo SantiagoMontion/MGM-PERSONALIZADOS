@@ -1,6 +1,6 @@
 // /api/upload-url.js
 // Requiere: "type": "module" en package.json
-import crypto from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { supa } from '../../lib/supa.js';
 import { buildObjectKey } from '../_lib/slug.js';
@@ -22,10 +22,8 @@ const MAX_MB = Number(process.env.MAX_UPLOAD_MB || 40);
 const LIMITS = { Classic: { maxW: 140, maxH: 100 }, PRO: { maxW: 120, maxH: 60 } };
 
 async function handler(req, res) {
-  const diagId =
-    res.getHeader('X-Diag-Id') ||
-    crypto.randomUUID?.() ?? require('node:crypto').randomUUID();
-  res.setHeader('X-Diag-Id', String(diagId));
+  const diagId = randomUUID?.() || Date.now().toString();
+  res.setHeader('X-Diag-Id', diagId);
   if (cors(req, res)) return;
   const allowOrigin = res.getHeader('Access-Control-Allow-Origin');
 

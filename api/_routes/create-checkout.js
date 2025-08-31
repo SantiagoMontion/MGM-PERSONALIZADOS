@@ -1,7 +1,8 @@
 // /api/create-checkout.js
-import crypto from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { supa } from '../../lib/supa.js';
 import { shopifyAdmin } from '../../lib/shopify.js';
+import { cors } from '../lib/cors.js';
 
 async function getInvoiceUrl(draftId) {
   // lee el draft y devuelve invoice_url si existe
@@ -10,12 +11,13 @@ async function getInvoiceUrl(draftId) {
 }
 
 export default async function handler(req, res) {
-  const diagId = crypto.randomUUID?.() ?? require('node:crypto').randomUUID();
-  res.setHeader('X-Diag-Id', String(diagId));
-
-
+  const diagId = randomUUID?.() || Date.now().toString();
+  res.setHeader('X-Diag-Id', diagId);
+  if (cors(req, res)) return;
+  const allowOrigin = res.getHeader('Access-Control-Allow-Origin');
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
+    res.setHeader('Access-Control-Allow-Origin', allowOrigin);
     return res.status(405).json({ ok: false, diag_id: diagId, message: 'method_not_allowed' });
   }
 
@@ -95,6 +97,7 @@ export default async function handler(req, res) {
 
   } catch (e) {
     console.error('create_checkout_error', e);
+    res.setHeader('Access-Control-Allow-Origin', allowOrigin);
     return res.status(500).json({
       error: 'create_checkout_failed',
       detail: String(e?.message || e),

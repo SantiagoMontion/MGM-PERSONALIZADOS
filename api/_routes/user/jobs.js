@@ -2,12 +2,16 @@ import { randomUUID } from 'node:crypto';
 import { withObservability } from '../../_lib/observability.js';
 import getSupabaseAdmin from '../../_lib/supabaseAdmin.js';
 import { verifyUserToken } from '../../_lib/userToken.js';
+import { cors } from '../../lib/cors.js';
 
 async function handler(req, res) {
-  const diagId = randomUUID();
+  const diagId = randomUUID?.() || Date.now().toString();
   res.setHeader('X-Diag-Id', diagId);
+  if (cors(req, res)) return;
+  const allowOrigin = res.getHeader('Access-Control-Allow-Origin');
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');
+    res.setHeader('Access-Control-Allow-Origin', allowOrigin);
     return res.status(405).json({ ok: false, diag_id: diagId, message: 'method_not_allowed' });
   }
   const { q, email: emailParam, token, page = '1', page_size = '20' } = req.query || {};
@@ -29,6 +33,7 @@ async function handler(req, res) {
     .range(from, to);
   if (error) {
     console.error('user/jobs', { diagId, error: error.message });
+    res.setHeader('Access-Control-Allow-Origin', allowOrigin);
     return res.status(500).json({ ok: false, diag_id: diagId, message: 'db_error' });
   }
   return res.status(200).json({ ok: true, diag_id: diagId, jobs: data || [] });
