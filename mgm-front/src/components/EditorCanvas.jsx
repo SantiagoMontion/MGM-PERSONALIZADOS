@@ -513,112 +513,61 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       container.setPointerCapture(pointerId);
     }
     const active = trRef.current?.getActiveAnchor();
-    const corners = ['top-left','top-right','bottom-left','bottom-right'];
-    const edges = ['top-center','bottom-center','middle-left','middle-right'];
-    if (![...corners, ...edges].includes(active)) {
-      scaleGestureRef.current = { pointerId };
-      gestureStartRef.current = imgTx;
-      setIsManual(true);
-      if (DEBUG_SCALE) console.log('[SCALE] start', { startScaleX: imgTx.scaleX, startScaleY: imgTx.scaleY, startX: imgTx.x_cm, startY: imgTx.y_cm });
-      return;
-    }
+    const lockX = active === 'top-center' || active === 'bottom-center';
+    const lockY = active === 'middle-left' || active === 'middle-right';
     gestureStartRef.current = imgTx;
     setIsManual(true);
     const stage = stageRef.current;
     const pointer = pointerWorld(stage);
-    const shiftKey = e?.evt?.shiftKey;
-    const altKey = e?.evt?.altKey || e?.evt?.metaKey;
-    const anchorMap = {
-      'top-left': 'bottom-right',
-      'top-right': 'bottom-left',
-      'bottom-left': 'top-right',
-      'bottom-right': 'top-left',
-      'top-center': 'bottom-center',
-      'bottom-center': 'top-center',
-      'middle-left': 'middle-right',
-      'middle-right': 'middle-left',
-    };
-    const anchorName = altKey ? 'center' : anchorMap[active] || 'bottom-right';
-    const w = imgBaseCm.w;
-    const h = imgBaseCm.h;
-    const wScaled = w * Math.abs(imgTx.scaleX);
-    const hScaled = h * Math.abs(imgTx.scaleY);
+    const wScaled = imgBaseCm.w * Math.abs(imgTx.scaleX);
+    const hScaled = imgBaseCm.h * Math.abs(imgTx.scaleY);
     const cx = imgTx.x_cm + wScaled / 2;
     const cy = imgTx.y_cm + hScaled / 2;
     const thetaRad = imgTx.rotation_deg * Math.PI / 180;
     const startTransform = { tx: cx, ty: cy, theta: thetaRad, sx: imgTx.scaleX, sy: imgTx.scaleY };
-    const anchorLocal = altKey ? { x: 0, y: 0 } : {
-      x: anchorName.includes('left') ? -w/2 : anchorName.includes('right') ? w/2 : 0,
-      y: anchorName.includes('top') ? -h/2 : anchorName.includes('bottom') ? h/2 : 0,
-    };
-    const startAnchor = localToCanvas(anchorLocal, startTransform);
     const startPointerLocal = canvasToLocal(pointer, startTransform);
-    const lockX = active === 'top-center' || active === 'bottom-center';
-    const lockY = active === 'middle-left' || active === 'middle-right';
     scaleGestureRef.current = {
       pointerId,
       startTransform,
-      anchorLocal,
-      startAnchor,
       startPointerLocal,
       initScaleX: imgTx.scaleX,
       initScaleY: imgTx.scaleY,
-      anchorName,
+      pivotWorld: { x: cx, y: cy },
       lockX,
       lockY,
-      shiftKey,
-      altKey,
       latest: null,
     };
     if (DEBUG_SCALE) console.log('[SCALE] start', { startScaleX: imgTx.scaleX, startScaleY: imgTx.scaleY, startX: imgTx.x_cm, startY: imgTx.y_cm });
   };
 
-  const onTransform = (e) => {
+  const onTransform = () => {
     if (!scaleGestureRef.current || !imgBaseCm) return;
     const g = scaleGestureRef.current;
-    if (!g.anchorLocal) return;
-    g.shiftKey = e?.evt?.shiftKey;
     const stage = stageRef.current;
     const pointer = pointerWorld(stage);
     const pointerLocal = canvasToLocal(pointer, g.startTransform);
-    const dx0 = g.startPointerLocal.x - g.anchorLocal.x;
-    const dy0 = g.startPointerLocal.y - g.anchorLocal.y;
-    let ratioX = dx0 !== 0 ? (pointerLocal.x - g.anchorLocal.x) / dx0 : 1;
-    let ratioY = dy0 !== 0 ? (pointerLocal.y - g.anchorLocal.y) / dy0 : 1;
-    const keepRatio = g.shiftKey;
-    if (g.lockX) ratioX = keepRatio ? ratioY : 1;
-    if (g.lockY) ratioY = keepRatio ? ratioX : 1;
+    let ratioX = g.startPointerLocal.x !== 0 ? pointerLocal.x / g.startPointerLocal.x : 1;
+    let ratioY = g.startPointerLocal.y !== 0 ? pointerLocal.y / g.startPointerLocal.y : 1;
+    if (g.lockX) ratioX = 1;
+    if (g.lockY) ratioY = 1;
+    if (!freeScale) {
+      const uni = Math.max(Math.abs(ratioX), Math.abs(ratioY));
+      ratioX = Math.sign(ratioX) * uni;
+      ratioY = Math.sign(ratioY) * uni;
+    }
     let scaleX = g.initScaleX * ratioX;
     let scaleY = g.initScaleY * ratioY;
-    if (keepRatio) {
-      const uni = Math.min(Math.abs(scaleX), Math.abs(scaleY), IMG_ZOOM_MAX);
-      scaleX = Math.sign(scaleX) * Math.max(uni, 0.01);
-      scaleY = Math.sign(scaleY) * Math.max(uni, 0.01);
-    } else {
-      scaleX = Math.sign(scaleX) * Math.min(Math.abs(scaleX), IMG_ZOOM_MAX);
-      scaleY = Math.sign(scaleY) * Math.min(Math.abs(scaleY), IMG_ZOOM_MAX);
-    }
-    if (!freeScale) {
-      const res = clampScaleByDpi(scaleX, scaleY, keepRatio);
-      if (res.clamped) showNotice('Límite por calidad');
-      scaleX = res.sx;
-      scaleY = res.sy;
-    }
-    const newTransform = {
-      tx: g.startTransform.tx,
-      ty: g.startTransform.ty,
-      theta: g.startTransform.theta,
-      sx: scaleX,
-      sy: scaleY,
-    };
-    const anchorNow = localToCanvas(g.anchorLocal, newTransform);
-    const dx = g.startAnchor.x - anchorNow.x;
-    const dy = g.startAnchor.y - anchorNow.y;
-    newTransform.tx += dx;
-    newTransform.ty += dy;
+    const res = clampScaleByDpi(scaleX, scaleY, !freeScale);
+    if (!freeScale && res.clamped) showNotice('Límite por calidad');
+    scaleX = res.sx;
+    scaleY = res.sy;
+    scaleX = Math.sign(scaleX) * Math.max(Math.abs(scaleX), MIN_SCALE);
+    scaleY = Math.sign(scaleY) * Math.max(Math.abs(scaleY), MIN_SCALE);
+    scaleX = Math.sign(scaleX) * Math.min(Math.abs(scaleX), IMG_ZOOM_MAX);
+    scaleY = Math.sign(scaleY) * Math.min(Math.abs(scaleY), IMG_ZOOM_MAX);
     const latest = sanitizeTransform({
-      x_cm: newTransform.tx - imgBaseCm.w * Math.abs(scaleX) / 2,
-      y_cm: newTransform.ty - imgBaseCm.h * Math.abs(scaleY) / 2,
+      x_cm: g.pivotWorld.x - imgBaseCm.w * Math.abs(scaleX) / 2,
+      y_cm: g.pivotWorld.y - imgBaseCm.h * Math.abs(scaleY) / 2,
       scaleX,
       scaleY,
       rotation_deg: imgTx.rotation_deg,
@@ -629,9 +578,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       requestAnimationFrame(() => {
         scaleRafRef.current = false;
         if (scaleGestureRef.current?.latest) {
-          const l = scaleGestureRef.current.latest;
-          setImgTx((tx) => ({ ...tx, ...l }));
-          if (DEBUG_SCALE) console.log('[SCALE] move', { scaleNow: { scaleX: l.scaleX, scaleY: l.scaleY }, anchor: scaleGestureRef.current.anchorName });
+          setImgTx((tx) => ({ ...tx, ...scaleGestureRef.current.latest }));
+          if (DEBUG_SCALE) console.log('[SCALE] move', scaleGestureRef.current.latest);
         }
       });
     }
@@ -645,18 +593,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     if (pid != null && container?.hasPointerCapture(pid)) {
       container.releasePointerCapture(pid);
     }
-    if (!scaleGestureRef.current?.latest) {
-      const finalTx = sanitizeTransform({ ...imgTx, rotation_deg: n.rotation() });
-      setImgTx(finalTx);
-      if (gestureStartRef.current) {
-        pushHistory(finalTx);
-        gestureStartRef.current = null;
-      }
-      if (DEBUG_SCALE) console.log('[SCALE] end', finalTx);
-      return;
-    }
-    const latest = scaleGestureRef.current.latest;
-    const finalTx = sanitizeTransform(latest);
+    const latest = scaleGestureRef.current?.latest;
+    const finalTx = latest ? sanitizeTransform(latest) : sanitizeTransform({ ...imgTx, rotation_deg: n.rotation() });
     setImgTx(finalTx);
     if (DEBUG_SCALE) console.log('[SCALE] end', finalTx);
     scaleGestureRef.current = null;
@@ -1164,7 +1102,7 @@ async function onConfirmSubmit() {
 
         <label
           className={styles.freeScale}
-          title="Permite estirar sin límites (puede bajar la calidad)"
+          title="Permite deformar sin mantener proporción."
         >
           <input
             type="checkbox"
