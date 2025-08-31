@@ -1,9 +1,10 @@
 // /api/create-cart-link.js
 // Endpoint idempotente para crear/reutilizar producto y variante en Shopify.
-import crypto from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { supa } from '../../lib/supa.js';
 import { shopifyAdmin, shopifyAdminGraphQL } from '../../lib/shopify.js';
 import { withObservability } from '../_lib/observability.js';
+import { cors } from '../lib/cors.js';
 
 function slugify(s){ return String(s).toLowerCase().trim()
   .replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'').replace(/-+/g,'-').replace(/^-|-$/g,''); }
@@ -17,12 +18,13 @@ function qs(obj) {
 }
 
 async function handler(req, res) {
-  const diagId = crypto.randomUUID?.() ?? require('node:crypto').randomUUID();
-  res.setHeader('X-Diag-Id', String(diagId));
-
-
+  const diagId = randomUUID?.() || Date.now().toString();
+  res.setHeader('X-Diag-Id', diagId);
+  if (cors(req, res)) return;
+  const allowOrigin = res.getHeader('Access-Control-Allow-Origin');
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
+    res.setHeader('Access-Control-Allow-Origin', allowOrigin);
     return res.status(405).json({ ok: false, diag_id: diagId, message: 'method_not_allowed' });
   }
 
@@ -206,6 +208,7 @@ async function handler(req, res) {
     });
   } catch (e) {
     console.error('create_cart_link_error', e);
+    res.setHeader('Access-Control-Allow-Origin', allowOrigin);
     return res.status(500).json({ error: 'create_cart_link_failed', detail: String(e?.message || e) });
   }
 }

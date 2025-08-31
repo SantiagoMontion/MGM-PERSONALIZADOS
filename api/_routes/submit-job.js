@@ -9,7 +9,7 @@ import { decideModeration } from '../_lib/moderation/policy.ts';
 import { cors } from '../lib/cors.js';
 
 async function handler(req, res) {
-  const diagId = res.getHeader('X-Diag-Id') || randomUUID();
+  const diagId = randomUUID?.() || Date.now().toString();
   res.setHeader('X-Diag-Id', diagId);
   if (cors(req, res)) return;
   const allowOrigin = res.getHeader('Access-Control-Allow-Origin');

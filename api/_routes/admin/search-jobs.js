@@ -1,14 +1,16 @@
-import crypto from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { supa } from '../../../lib/supa.js';
 import { parseSupabasePath } from '../../../lib/storage.js';
+import { cors } from '../../lib/cors.js';
 
 export default async function handler(req, res) {
-  const diagId = crypto.randomUUID?.() ?? require('node:crypto').randomUUID();
-  res.setHeader('X-Diag-Id', String(diagId));
-
-
+  const diagId = randomUUID?.() || Date.now().toString();
+  res.setHeader('X-Diag-Id', diagId);
+  if (cors(req, res)) return;
+  const allowOrigin = res.getHeader('Access-Control-Allow-Origin');
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');
+    res.setHeader('Access-Control-Allow-Origin', allowOrigin);
     return res.status(405).json({ error: 'method_not_allowed', diag_id: diagId });
   }
 
@@ -121,6 +123,7 @@ export default async function handler(req, res) {
     });
   } catch (e) {
     console.error('admin_search', diagId, e);
+    res.setHeader('Access-Control-Allow-Origin', allowOrigin);
     return res.status(500).json({ error: 'search_failed', diag_id: diagId });
   }
 }

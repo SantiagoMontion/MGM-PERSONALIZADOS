@@ -1,5 +1,5 @@
 // /api/worker-process.js  (dynamic import + pasos)
-import crypto from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { supa } from '../lib/supa.js';
 import { cors } from './lib/cors.js';
 import { slugifyName } from './_lib/slug.js';
@@ -11,8 +11,8 @@ async function readJson(req){
 }
 
 export default async function handler(req, res) {
-  const diagId = crypto.randomUUID?.() ?? require('node:crypto').randomUUID();
-  res.setHeader('X-Diag-Id', String(diagId));
+  const diagId = randomUUID?.() || Date.now().toString();
+  res.setHeader('X-Diag-Id', diagId);
   if (cors(req, res)) return;
   const allowOrigin = res.getHeader('Access-Control-Allow-Origin');
 

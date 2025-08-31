@@ -3,7 +3,7 @@ import { cors } from './lib/cors.js';
 import { randomUUID } from 'node:crypto';
 
 export default async function submitJob(req, res) {
-  const diagId = randomUUID();
+  const diagId = randomUUID?.() || Date.now().toString();
   res.setHeader('X-Diag-Id', diagId);
   if (cors(req, res)) return;
   const allowOrigin = res.getHeader('Access-Control-Allow-Origin');
