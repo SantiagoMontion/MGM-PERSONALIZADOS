@@ -598,7 +598,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   };
 
   // cover/contain/estirar con rotación
-  const applyFit = useCallback((mode) => {
+  const legacyApplyFit = useCallback((mode) => {
     if (!imgBaseCm) return;
     setIsManual(false);
     const prevScale = Math.abs(imgTx.scaleX);
@@ -667,11 +667,11 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     }
   }, [imgBaseCm?.w, imgBaseCm?.h, workCm.w, workCm.h, theta, imgTx, wCm, hCm, material]);
 
-  const fitCover = useCallback(() => { applyFit('cover'); }, [applyFit]);
-  const fitContain = useCallback(() => { applyFit('contain'); }, [applyFit]);
-  const fitStretchCentered = useCallback(() => { applyFit('stretch'); }, [applyFit]);
+  const legacyFitCover = useCallback(() => { legacyApplyFit('cover'); }, [legacyApplyFit]);
+  const legacyFitContain = useCallback(() => { legacyApplyFit('contain'); }, [legacyApplyFit]);
+  const legacyFitStretchCentered = useCallback(() => { legacyApplyFit('stretch'); }, [legacyApplyFit]);
 
-  const centerHoriz = useCallback(() => {
+  const legacyCenterHoriz = useCallback(() => {
     if (!imgBaseCm) return;
     const w = imgBaseCm.w * Math.abs(imgTx.scaleX);
     pushHistory(imgTx);
@@ -679,7 +679,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     setImgTx((tx) => ({ ...tx, x_cm: (workCm.w - w) / 2 }));
   }, [imgBaseCm?.w, workCm.w, imgTx.scaleX]);
 
-  const centerVert = useCallback(() => {
+  const legacyCenterVert = useCallback(() => {
     if (!imgBaseCm) return;
     const h = imgBaseCm.h * Math.abs(imgTx.scaleY);
     pushHistory(imgTx);
@@ -687,7 +687,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     setImgTx((tx) => ({ ...tx, y_cm: (workCm.h - h) / 2 }));
   }, [imgBaseCm?.h, workCm.h, imgTx.scaleY]);
 
-  const centerBoth = useCallback(() => {
+  const legacyCenterBoth = useCallback(() => {
     if (!imgBaseCm) return;
     const w = imgBaseCm.w * Math.abs(imgTx.scaleX);
     const h = imgBaseCm.h * Math.abs(imgTx.scaleY);
@@ -696,10 +696,10 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     setImgTx((tx) => ({ ...tx, x_cm: (workCm.w - w)/2, y_cm: (workCm.h - h)/2 }));
   }, [imgBaseCm?.w, imgBaseCm?.h, imgTx.scaleX, imgTx.scaleY, workCm.w, workCm.h]);
 
-  const centerHorizRef = useRef(centerHoriz);
-  useEffect(() => { centerHorizRef.current = centerHoriz; }, [centerHoriz]);
-  const centerVertRef = useRef(centerVert);
-  useEffect(() => { centerVertRef.current = centerVert; }, [centerVert]);
+  const legacyCenterHorizRef = useRef(legacyCenterHoriz);
+  useEffect(() => { legacyCenterHorizRef.current = legacyCenterHoriz; }, [legacyCenterHoriz]);
+  const legacyCenterVertRef = useRef(legacyCenterVert);
+  useEffect(() => { legacyCenterVertRef.current = legacyCenterVert; }, [legacyCenterVert]);
 
   const sanitizeTransform = useCallback((tx) => {
     if (!imgBaseCm) return tx;
@@ -832,8 +832,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     setImgTx((tx) => sanitizeTransform({ ...tx, scaleY: -tx.scaleY }));
   };
 
-  const applyFitRef = useRef(applyFit);
-  useEffect(() => { applyFitRef.current = applyFit; }, [applyFit]);
+  const legacyApplyFitRef = useRef(legacyApplyFit);
+  useEffect(() => { legacyApplyFitRef.current = legacyApplyFit; }, [legacyApplyFit]);
 
   useEffect(() => {
     if (!sizingChangeRef.current || !imgEl) return;
@@ -843,9 +843,9 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       if (DEBUG_SIZE) {
         console.debug('[SIZE-CHANGE before]', { diagId, fitMode: mode, tx: imgTxRef.current, size: { w_cm: wCm, h_cm: hCm, material } });
       }
-      await Promise.resolve(applyFitRef.current(mode));
-      centerHorizRef.current?.();
-      centerVertRef.current?.();
+      await Promise.resolve(legacyApplyFitRef.current(mode));
+      legacyCenterHorizRef.current?.();
+      legacyCenterVertRef.current?.();
       sizingChangeRef.current = false;
       if (DEBUG_SIZE) {
         console.debug('[SIZE-CHANGE after]', { diagId, fitMode: mode, tx: imgTxRef.current, size: { w_cm: wCm, h_cm: hCm, material } });
@@ -872,7 +872,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     return { label:`Excelente (${Math.min(300, dpiEffective|0)} DPI)`, color:'#10b981' };
   }, [dpiEffective]);
 
-  const fitTip = 'preset inicial; si modificás manualmente, se mantiene hasta reencajar';
+  const legacyFitTip = 'preset inicial; si modificás manualmente, se mantiene hasta reencajar';
 
   const getPadRectPx = () => {
     const k = baseScale * viewScale;
@@ -1038,7 +1038,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const [busy, setBusy] = useState(false);
   const [lastDiag, setLastDiag] = useState(null);
   const API_BASE = (import.meta.env.VITE_API_BASE || 'https://mgm-api.vercel.app').replace(/\/$/, '');
-  const toggleContain = () => { fitContain(); setColorOpen(true); };
+  const toggleContain = () => { legacyFitContain(); setColorOpen(true); };
   const closeColor = () => setColorOpen(false);
   // track latest callback to avoid effect loops when parent re-renders
   const layoutChangeRef = useRef(onLayoutChange);
@@ -1132,10 +1132,10 @@ async function onConfirmSubmit() {
     <div className={styles.colorWrapper}>
       {/* Toolbar */}
       <div className={styles.toolbar}>
-        <button onClick={fitCover} disabled={!imgEl} title={fitTip}>Cubrir</button>
+        <button onClick={legacyFitCover} disabled={!imgEl} title={legacyFitTip}>Cubrir</button>
 
         <div className={styles.colorWrapper}>
-          <button onClick={toggleContain} disabled={!imgEl} title={fitTip}>Contener</button>
+          <button onClick={toggleContain} disabled={!imgEl} title={legacyFitTip}>Contener</button>
           {mode === 'contain' && imgEl && (
             <div className={styles.colorPopoverWrap}>
               <ColorPopover
@@ -1149,11 +1149,11 @@ async function onConfirmSubmit() {
           )}
         </div>
 
-        <button onClick={fitStretchCentered} disabled={!imgEl} title={fitTip}>Estirar</button>
+        <button onClick={legacyFitStretchCentered} disabled={!imgEl} title={legacyFitTip}>Estirar</button>
 
 
-        <button onClick={centerHoriz} disabled={!imgEl}>Centrar H</button>
-        <button onClick={centerVert} disabled={!imgEl}>Centrar V</button>
+        <button onClick={legacyCenterHoriz} disabled={!imgEl}>Centrar H</button>
+        <button onClick={legacyCenterVert} disabled={!imgEl}>Centrar V</button>
         <button onClick={() => alignEdge('left')} disabled={!imgEl}>Izq</button>
         <button onClick={() => alignEdge('right')} disabled={!imgEl}>Der</button>
         <button onClick={() => alignEdge('top')} disabled={!imgEl}>Arriba</button>
