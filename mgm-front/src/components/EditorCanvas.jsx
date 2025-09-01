@@ -533,13 +533,13 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     const pointerLocal = worldToLocal(pointer, g.startMatrix);
     let ratioX = g.startPointerLocal.x !== 0 ? Math.abs(pointerLocal.x / g.startPointerLocal.x) : 1;
     let ratioY = g.startPointerLocal.y !== 0 ? Math.abs(pointerLocal.y / g.startPointerLocal.y) : 1;
-    if (g.lockX) ratioX = 1;
-    if (g.lockY) ratioY = 1;
     if (!freeScale) {
       const uni = Math.max(ratioX, ratioY);
       ratioX = uni;
       ratioY = uni;
     }
+    if (g.lockX) ratioX = 1;
+    if (g.lockY) ratioY = 1;
     const signX = Math.sign(g.initScaleX) || 1;
     const signY = Math.sign(g.initScaleY) || 1;
     let scaleX = signX * Math.abs(g.initScaleX) * ratioX;
@@ -1272,7 +1272,7 @@ async function onConfirmSubmit() {
                     visible={showTransformer}
                     rotateEnabled
                     rotationSnaps={[0, 90, 180, 270]}
-                    keepRatio={false}
+                    keepRatio={!freeScale}
                     enabledAnchors={['top-left','top-right','bottom-left','bottom-right','top-center','bottom-center','middle-left','middle-right']}
                     boundBoxFunc={(oldBox, newBox) => {
                       const MIN_W = MIN_SCALE * (imgBaseCm?.w || 1);
