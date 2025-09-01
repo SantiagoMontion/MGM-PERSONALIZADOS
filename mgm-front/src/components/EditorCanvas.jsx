@@ -120,6 +120,32 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     if (isPanning) setIsPanning(false);
   };
 
+  const handleWheel = (e) => {
+    e.evt.preventDefault();
+    if (!image || !stageRef.current) return;
+    const pointer = stageRef.current.getPointerPosition();
+    if (!pointer) return;
+    const scaleBy = 1.05;
+    const direction = e.evt.deltaY > 0 ? 1 : -1;
+    const prevScale = tx.scaleX;
+    let nextScale = direction > 0 ? prevScale / scaleBy : prevScale * scaleBy;
+    nextScale = Math.min(Math.max(nextScale, MIN_SCALE), IMG_ZOOM_MAX);
+    const scale = nextScale / prevScale;
+    const mouse = { x: pointer.x / SCREEN_PX_PER_CM, y: pointer.y / SCREEN_PX_PER_CM };
+    const newPos = {
+      x_cm: mouse.x - (mouse.x - tx.x_cm) * scale,
+      y_cm: mouse.y - (mouse.y - tx.y_cm) * scale,
+    };
+    const bounded = boundPosition(newPos);
+    setTx({
+      x_cm: bounded.x,
+      y_cm: bounded.y,
+      scaleX: nextScale,
+      scaleY: nextScale,
+      rotation_deg: tx.rotation_deg,
+    });
+  };
+
   return (
     <div className={`${styles.canvasWrapper} ${isPanning ? styles.grabbing : ''}`}>
       <Stage
@@ -132,9 +158,10 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         onMouseMove={panMove}
         onMouseUp={endPan}
         onMouseLeave={endPan}
+        onWheel={handleWheel}
       >
         <Layer>
-          <Rect x={0} y={0} width={workCm.w} height={workCm.h} stroke="#ef4444" />
+          <Rect x={0} y={0} width={workCm.w} height={workCm.h} stroke="#d1d5db" fill="#fff" />
           <Rect
             x={bleedCm}
             y={bleedCm}
