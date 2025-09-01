@@ -22,6 +22,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const workCm = { w: sizeCm.w + bleedCm * 2, h: sizeCm.h + bleedCm * 2 };
 
   const [tx, setTx] = useState({ x_cm: bleedCm, y_cm: bleedCm, scaleX: 1, scaleY: 1, rotation_deg: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const lastPosRef = useRef({ x: 0, y: 0 });
 
   useImperativeHandle(ref, () => ({ getStage: () => stageRef.current }));
 
@@ -93,17 +95,55 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     });
   };
 
+  const startPan = (e) => {
+    if (e.target !== stageRef.current) return;
+    const pos = stageRef.current.getPointerPosition();
+    if (!pos) return;
+    lastPosRef.current = pos;
+    setIsPanning(true);
+  };
+
+  const panMove = () => {
+    if (!isPanning) return;
+    const pos = stageRef.current.getPointerPosition();
+    if (!pos) return;
+    const dx = (pos.x - lastPosRef.current.x) / SCREEN_PX_PER_CM;
+    const dy = (pos.y - lastPosRef.current.y) / SCREEN_PX_PER_CM;
+    lastPosRef.current = pos;
+    setTx((prev) => {
+      const bounded = boundPosition({ x: prev.x_cm + dx, y: prev.y_cm + dy });
+      return { ...prev, x_cm: bounded.x, y_cm: bounded.y };
+    });
+  };
+
+  const endPan = () => {
+    if (isPanning) setIsPanning(false);
+  };
+
   return (
-    <div className={styles.canvasWrapper}>
+    <div className={`${styles.canvasWrapper} ${isPanning ? styles.grabbing : ''}`}>
       <Stage
         ref={stageRef}
         width={workCm.w * SCREEN_PX_PER_CM}
         height={workCm.h * SCREEN_PX_PER_CM}
         scaleX={SCREEN_PX_PER_CM}
         scaleY={SCREEN_PX_PER_CM}
+        onMouseDown={startPan}
+        onMouseMove={panMove}
+        onMouseUp={endPan}
+        onMouseLeave={endPan}
       >
         <Layer>
           <Rect x={0} y={0} width={workCm.w} height={workCm.h} stroke="#ef4444" />
+          <Rect
+            x={bleedCm}
+            y={bleedCm}
+            width={sizeCm.w}
+            height={sizeCm.h}
+            stroke="#9ca3af"
+            dash={[0.5, 0.5]}
+            strokeWidth={0.1}
+          />
           {image && (
             <>
               <KonvaImage
