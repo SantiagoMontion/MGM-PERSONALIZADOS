@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useRef, useState, useImperativeHandle } from 'react';
-import { Stage, Layer, Rect, Image as KonvaImage, Transformer } from 'react-konva';
+import { Stage, Layer, Rect, Group, Image as KonvaImage, Transformer } from 'react-konva';
 import useImage from 'use-image';
 import styles from './EditorCanvas.module.css';
 import { PX_PER_CM } from '@/lib/export-consts';
@@ -8,6 +8,7 @@ const CM_PER_INCH = 2.54;
 const SCREEN_PX_PER_CM = 10;
 const MIN_SCALE = 0.05;
 const IMG_ZOOM_MAX = 50;
+const CANVAS_MARGIN_CM = 10;
 
 const EditorCanvas = forwardRef(function EditorCanvas(
   { imageUrl, sizeCm = { w: 90, h: 40 }, bleedMm = 3, onLayoutChange },
@@ -20,6 +21,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
   const bleedCm = bleedMm / 10;
   const workCm = { w: sizeCm.w + bleedCm * 2, h: sizeCm.h + bleedCm * 2 };
+  const stageCm = { w: workCm.w + CANVAS_MARGIN_CM * 2, h: workCm.h + CANVAS_MARGIN_CM * 2 };
 
   const [tx, setTx] = useState({ x_cm: bleedCm, y_cm: bleedCm, scaleX: 1, scaleY: 1, rotation_deg: 0 });
   const [isPanning, setIsPanning] = useState(false);
@@ -64,10 +66,10 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     if (!image) return pos;
     const w = (image.naturalWidth / PX_PER_CM) * tx.scaleX;
     const h = (image.naturalHeight / PX_PER_CM) * tx.scaleY;
-    const minX = 0;
-    const minY = 0;
-    const maxX = workCm.w - w;
-    const maxY = workCm.h - h;
+    const minX = -CANVAS_MARGIN_CM;
+    const minY = -CANVAS_MARGIN_CM;
+    const maxX = workCm.w + CANVAS_MARGIN_CM - w;
+    const maxY = workCm.h + CANVAS_MARGIN_CM - h;
     return {
       x: Math.min(Math.max(pos.x, minX), maxX),
       y: Math.min(Math.max(pos.y, minY), maxY),
@@ -79,7 +81,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     const scaleX = node.scaleX();
     const scaleY = node.scaleY();
     node.scale({ x: 1, y: 1 });
-    const pos = boundPosition({ x: node.x() / SCREEN_PX_PER_CM, y: node.y() / SCREEN_PX_PER_CM });
+    const pos = boundPosition({ x: node.x() / SCREEN_PX_PER_CM - CANVAS_MARGIN_CM, y: node.y() / SCREEN_PX_PER_CM - CANVAS_MARGIN_CM });
     const nextScaleX = tx.scaleX * scaleX;
     const nextScaleY = tx.scaleY * scaleY;
     const signX = Math.sign(nextScaleX) || 1;
@@ -131,7 +133,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     let nextScale = direction > 0 ? prevScale / scaleBy : prevScale * scaleBy;
     nextScale = Math.min(Math.max(nextScale, MIN_SCALE), IMG_ZOOM_MAX);
     const scale = nextScale / prevScale;
-    const mouse = { x: pointer.x / SCREEN_PX_PER_CM, y: pointer.y / SCREEN_PX_PER_CM };
+    const mouse = { x: pointer.x / SCREEN_PX_PER_CM - CANVAS_MARGIN_CM, y: pointer.y / SCREEN_PX_PER_CM - CANVAS_MARGIN_CM };
     const newPos = {
       x_cm: mouse.x - (mouse.x - tx.x_cm) * scale,
       y_cm: mouse.y - (mouse.y - tx.y_cm) * scale,
@@ -150,8 +152,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     <div className={`${styles.canvasWrapper} ${isPanning ? styles.grabbing : ''}`}>
       <Stage
         ref={stageRef}
-        width={workCm.w * SCREEN_PX_PER_CM}
-        height={workCm.h * SCREEN_PX_PER_CM}
+        width={stageCm.w * SCREEN_PX_PER_CM}
+        height={stageCm.h * SCREEN_PX_PER_CM}
         scaleX={SCREEN_PX_PER_CM}
         scaleY={SCREEN_PX_PER_CM}
         onMouseDown={startPan}
@@ -161,23 +163,15 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         onWheel={handleWheel}
       >
         <Layer>
-          <Rect x={0} y={0} width={workCm.w} height={workCm.h} stroke="#d1d5db" fill="#fff" />
-          <Rect
-            x={bleedCm}
-            y={bleedCm}
-            width={sizeCm.w}
-            height={sizeCm.h}
-            stroke="#9ca3af"
-            dash={[0.5, 0.5]}
-            strokeWidth={0.1}
-          />
-          {image && (
-            <>
+          <Rect x={0} y={0} width={stageCm.w} height={stageCm.h} fill="#f3f4f6" />
+          <Group clip={{ x: CANVAS_MARGIN_CM, y: CANVAS_MARGIN_CM, width: workCm.w, height: workCm.h }}>
+            <Rect x={CANVAS_MARGIN_CM} y={CANVAS_MARGIN_CM} width={workCm.w} height={workCm.h} fill="#fff" />
+            {image && (
               <KonvaImage
                 ref={imageRef}
                 image={image}
-                x={tx.x_cm}
-                y={tx.y_cm}
+                x={tx.x_cm + CANVAS_MARGIN_CM}
+                y={tx.y_cm + CANVAS_MARGIN_CM}
                 width={image.naturalWidth / PX_PER_CM}
                 height={image.naturalHeight / PX_PER_CM}
                 scaleX={tx.scaleX}
@@ -185,34 +179,53 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                 rotation={tx.rotation_deg}
                 draggable
                 dragBoundFunc={(pos) => {
-                  const bounded = boundPosition({ x: pos.x / SCREEN_PX_PER_CM, y: pos.y / SCREEN_PX_PER_CM });
-                  return { x: bounded.x * SCREEN_PX_PER_CM, y: bounded.y * SCREEN_PX_PER_CM };
+                  const bounded = boundPosition({ x: pos.x / SCREEN_PX_PER_CM - CANVAS_MARGIN_CM, y: pos.y / SCREEN_PX_PER_CM - CANVAS_MARGIN_CM });
+                  return { x: (bounded.x + CANVAS_MARGIN_CM) * SCREEN_PX_PER_CM, y: (bounded.y + CANVAS_MARGIN_CM) * SCREEN_PX_PER_CM };
                 }}
                 onDragEnd={(e) => {
-                  const bounded = boundPosition({ x: e.target.x() / SCREEN_PX_PER_CM, y: e.target.y() / SCREEN_PX_PER_CM });
+                  const bounded = boundPosition({ x: e.target.x() / SCREEN_PX_PER_CM - CANVAS_MARGIN_CM, y: e.target.y() / SCREEN_PX_PER_CM - CANVAS_MARGIN_CM });
                   setTx((prev) => ({ ...prev, x_cm: bounded.x, y_cm: bounded.y }));
                 }}
                 onTransformEnd={handleTransformEnd}
               />
-              <Transformer
-                ref={trRef}
-                rotateEnabled
-                keepRatio
-                boundBoxFunc={(oldBox, newBox) => {
-                  const w = newBox.width;
-                  const h = newBox.height;
-                  const baseW = image.naturalWidth / PX_PER_CM;
-                  const baseH = image.naturalHeight / PX_PER_CM;
-                  const maxW = baseW * IMG_ZOOM_MAX;
-                  const maxH = baseH * IMG_ZOOM_MAX;
-                  if (w < baseW * MIN_SCALE || h < baseH * MIN_SCALE || w > maxW || h > maxH) {
-                    return oldBox;
-                  }
-                  return newBox;
-                }}
-                onTransformEnd={handleTransformEnd}
-              />
-            </>
+            )}
+          </Group>
+          <Rect
+            x={CANVAS_MARGIN_CM}
+            y={CANVAS_MARGIN_CM}
+            width={workCm.w}
+            height={workCm.h}
+            stroke="#d1d5db"
+            strokeWidth={0.1}
+          />
+          <Rect
+            x={CANVAS_MARGIN_CM + bleedCm}
+            y={CANVAS_MARGIN_CM + bleedCm}
+            width={sizeCm.w}
+            height={sizeCm.h}
+            stroke="#9ca3af"
+            dash={[0.5, 0.5]}
+            strokeWidth={0.1}
+          />
+          {image && (
+            <Transformer
+              ref={trRef}
+              rotateEnabled
+              keepRatio
+              boundBoxFunc={(oldBox, newBox) => {
+                const w = newBox.width;
+                const h = newBox.height;
+                const baseW = image.naturalWidth / PX_PER_CM;
+                const baseH = image.naturalHeight / PX_PER_CM;
+                const maxW = baseW * IMG_ZOOM_MAX;
+                const maxH = baseH * IMG_ZOOM_MAX;
+                if (w < baseW * MIN_SCALE || h < baseH * MIN_SCALE || w > maxW || h > maxH) {
+                  return oldBox;
+                }
+                return newBox;
+              }}
+              onTransformEnd={handleTransformEnd}
+            />
           )}
         </Layer>
       </Stage>
