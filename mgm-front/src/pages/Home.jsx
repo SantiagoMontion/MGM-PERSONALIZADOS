@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom';
 
 import UploadStep from '../components/UploadStep';
 import EditorCanvas from '../components/EditorCanvas';
-import EditorCanvasV2 from '../components/EditorCanvasV2';
 import SizeControls from '../components/SizeControls';
 import Calculadora from '../components/Calculadora';
 import LoadingOverlay from '../components/LoadingOverlay';
@@ -300,25 +299,14 @@ export default function Home() {
       <div className={styles.main}>
         <UploadStep onUploaded={file => { setUploaded(file); setAckLow(false); }} />
 
-        {import.meta.env.VITE_CANVAS_V2 === '1' ? (
-          <EditorCanvasV2
-            ref={canvasRef}
-            imageUrl={imageUrl}
-            imageFile={uploaded?.file}
-            sizeCm={sizeCm}
-            bleedMm={3}
-            onLayoutChange={setLayout}
-          />
-        ) : (
-          <EditorCanvas
-            ref={canvasRef}
-            imageUrl={imageUrl}
-            imageFile={uploaded?.file}
-            sizeCm={sizeCm}
-            bleedMm={3}
-            onLayoutChange={setLayout}
-          />
-        )}
+        <EditorCanvas
+          ref={canvasRef}
+          imageUrl={imageUrl}
+          imageFile={uploaded?.file}
+          sizeCm={sizeCm}
+          bleedMm={3}
+          onLayoutChange={setLayout}
+        />
 
         {uploaded && level === 'bad' && (
           <label className={styles.ackLabel}>
