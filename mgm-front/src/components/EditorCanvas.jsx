@@ -1355,10 +1355,10 @@ async function onConfirmSubmit() {
                     ctx.arcTo(0, 0, rr, 0, rr);
                     ctx.closePath();
                   }}
-                ><Rect x={0} y={0} width={workCm.w} height={workCm.h} fill="transparent" />
+                ><Rect x={0} y={0} width={workCm.w} height={workCm.h} fill="transparent" listening={false} />
   {/* si estás en 'contain', pintar el color debajo del arte */}
   {mode === 'contain' && (
-    <Rect x={0} y={0} width={workCm.w} height={workCm.h} fill={bgColor} />
+    <Rect x={0} y={0} width={workCm.w} height={workCm.h} fill={bgColor} listening={false} />
   )}
                   <KonvaImage
                     ref={imgRef}
