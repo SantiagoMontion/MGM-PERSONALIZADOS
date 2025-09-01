@@ -169,7 +169,10 @@
   overflow: hidden;
   background: #f3f4f6;
   position: relative;
-  cursor: default;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
 }
 
 .grabbing {
