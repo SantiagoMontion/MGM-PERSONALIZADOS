@@ -6,9 +6,9 @@ import { PX_PER_CM } from '@/lib/export-consts';
 
 const CM_PER_INCH = 2.54;
 const SCREEN_PX_PER_CM = 10;
+const CANVAS_MARGIN_CM = 10;
 const MIN_SCALE = 0.05;
 const IMG_ZOOM_MAX = 50;
-const CANVAS_MARGIN_CM = 10;
 
 const EditorCanvas = forwardRef(function EditorCanvas(
   { imageUrl, sizeCm = { w: 90, h: 40 }, bleedMm = 3, onLayoutChange },
@@ -24,8 +24,11 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const stageCm = { w: workCm.w + CANVAS_MARGIN_CM * 2, h: workCm.h + CANVAS_MARGIN_CM * 2 };
 
   const [tx, setTx] = useState({ x_cm: bleedCm, y_cm: bleedCm, scaleX: 1, scaleY: 1, rotation_deg: 0 });
+
+  const [stageZoom, setStageZoom] = useState(1);
+  const [stagePos, setStagePos] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
-  const lastPosRef = useRef({ x: 0, y: 0 });
+  const lastPointer = useRef({ x: 0, y: 0 });
 
   useImperativeHandle(ref, () => ({ getStage: () => stageRef.current }));
 
@@ -43,10 +46,16 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     const scale = Math.max(workCm.w / base.w, workCm.h / base.h);
     const w = base.w * scale;
     const h = base.h * scale;
-    setTx({ x_cm: (workCm.w - w) / 2, y_cm: (workCm.h - h) / 2, scaleX: scale, scaleY: scale, rotation_deg: 0 });
+    setTx({
+      x_cm: (workCm.w - w) / 2,
+      y_cm: (workCm.h - h) / 2,
+      scaleX: scale,
+      scaleY: scale,
+      rotation_deg: 0,
+    });
   }, [image, workCm.w, workCm.h]);
 
-  // notify parent
+  // notify parent about layout
   useEffect(() => {
     if (!onLayoutChange || !image) return;
     const layout = {
@@ -62,89 +71,77 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     onLayoutChange(layout);
   }, [tx, onLayoutChange, image, sizeCm.w, sizeCm.h, bleedMm]);
 
-  const boundPosition = (pos) => {
-    if (!image) return pos;
-    const w = (image.naturalWidth / PX_PER_CM) * tx.scaleX;
-    const h = (image.naturalHeight / PX_PER_CM) * tx.scaleY;
-    const minX = -CANVAS_MARGIN_CM;
-    const minY = -CANVAS_MARGIN_CM;
-    const maxX = workCm.w + CANVAS_MARGIN_CM - w;
-    const maxY = workCm.h + CANVAS_MARGIN_CM - h;
-    return {
-      x: Math.min(Math.max(pos.x, minX), maxX),
-      y: Math.min(Math.max(pos.y, minY), maxY),
+  // zoom with mouse wheel
+  const handleWheel = (e) => {
+    e.evt.preventDefault();
+    const stage = stageRef.current;
+    if (!stage) return;
+    const pointer = stage.getPointerPosition();
+    if (!pointer) return;
+
+    const scaleBy = 1.05;
+    const direction = e.evt.deltaY > 0 ? 1 : -1;
+    let newZoom = direction > 0 ? stageZoom / scaleBy : stageZoom * scaleBy;
+    newZoom = Math.min(Math.max(newZoom, 0.1), 10);
+
+    const mousePointTo = {
+      x: (pointer.x - stagePos.x) / (stageZoom * SCREEN_PX_PER_CM),
+      y: (pointer.y - stagePos.y) / (stageZoom * SCREEN_PX_PER_CM),
     };
+
+    const newPos = {
+      x: pointer.x - mousePointTo.x * newZoom * SCREEN_PX_PER_CM,
+      y: pointer.y - mousePointTo.y * newZoom * SCREEN_PX_PER_CM,
+    };
+
+    setStageZoom(newZoom);
+    setStagePos(newPos);
   };
 
-  const handleTransformEnd = () => {
-    const node = imageRef.current;
-    const scaleX = node.scaleX();
-    const scaleY = node.scaleY();
-    node.scale({ x: 1, y: 1 });
-    const pos = boundPosition({ x: node.x() / SCREEN_PX_PER_CM - CANVAS_MARGIN_CM, y: node.y() / SCREEN_PX_PER_CM - CANVAS_MARGIN_CM });
-    const nextScaleX = tx.scaleX * scaleX;
-    const nextScaleY = tx.scaleY * scaleY;
-    const signX = Math.sign(nextScaleX) || 1;
-    const signY = Math.sign(nextScaleY) || 1;
-    const absX = Math.min(Math.max(Math.abs(nextScaleX), MIN_SCALE), IMG_ZOOM_MAX);
-    const absY = Math.min(Math.max(Math.abs(nextScaleY), MIN_SCALE), IMG_ZOOM_MAX);
-    setTx({
-      x_cm: pos.x,
-      y_cm: pos.y,
-      scaleX: signX * absX,
-      scaleY: signY * absY,
-      rotation_deg: node.rotation(),
-    });
-  };
-
+  // stage panning
   const startPan = (e) => {
     if (e.target !== stageRef.current) return;
-    const pos = stageRef.current.getPointerPosition();
-    if (!pos) return;
-    lastPosRef.current = pos;
     setIsPanning(true);
+    lastPointer.current = { x: e.evt.clientX, y: e.evt.clientY };
   };
 
-  const panMove = () => {
+  const panMove = (e) => {
     if (!isPanning) return;
-    const pos = stageRef.current.getPointerPosition();
-    if (!pos) return;
-    const dx = (pos.x - lastPosRef.current.x) / SCREEN_PX_PER_CM;
-    const dy = (pos.y - lastPosRef.current.y) / SCREEN_PX_PER_CM;
-    lastPosRef.current = pos;
-    setTx((prev) => {
-      const bounded = boundPosition({ x: prev.x_cm + dx, y: prev.y_cm + dy });
-      return { ...prev, x_cm: bounded.x, y_cm: bounded.y };
-    });
+    const pos = { x: e.evt.clientX, y: e.evt.clientY };
+    const dx = pos.x - lastPointer.current.x;
+    const dy = pos.y - lastPointer.current.y;
+    lastPointer.current = pos;
+    setStagePos((prev) => ({ x: prev.x + dx, y: prev.y + dy }));
   };
 
   const endPan = () => {
     if (isPanning) setIsPanning(false);
   };
 
-  const handleWheel = (e) => {
-    e.evt.preventDefault();
-    if (!image || !stageRef.current) return;
-    const pointer = stageRef.current.getPointerPosition();
-    if (!pointer) return;
-    const scaleBy = 1.05;
-    const direction = e.evt.deltaY > 0 ? 1 : -1;
-    const prevScale = tx.scaleX;
-    let nextScale = direction > 0 ? prevScale / scaleBy : prevScale * scaleBy;
-    nextScale = Math.min(Math.max(nextScale, MIN_SCALE), IMG_ZOOM_MAX);
-    const scale = nextScale / prevScale;
-    const mouse = { x: pointer.x / SCREEN_PX_PER_CM - CANVAS_MARGIN_CM, y: pointer.y / SCREEN_PX_PER_CM - CANVAS_MARGIN_CM };
-    const newPos = {
-      x_cm: mouse.x - (mouse.x - tx.x_cm) * scale,
-      y_cm: mouse.y - (mouse.y - tx.y_cm) * scale,
-    };
-    const bounded = boundPosition(newPos);
+  const handleImageDragEnd = (e) => {
+    setTx((prev) => ({
+      ...prev,
+      x_cm: e.target.x() / (SCREEN_PX_PER_CM * stageZoom) - CANVAS_MARGIN_CM,
+      y_cm: e.target.y() / (SCREEN_PX_PER_CM * stageZoom) - CANVAS_MARGIN_CM,
+    }));
+  };
+
+  const handleTransformEnd = () => {
+    const node = imageRef.current;
+    if (!node) return;
+    const scaleX = node.scaleX();
+    const scaleY = node.scaleY();
+    node.scale({ x: 1, y: 1 });
+    const nextScaleX = tx.scaleX * scaleX;
+    const nextScaleY = tx.scaleY * scaleY;
+    const absX = Math.min(Math.max(Math.abs(nextScaleX), MIN_SCALE), IMG_ZOOM_MAX);
+    const absY = Math.min(Math.max(Math.abs(nextScaleY), MIN_SCALE), IMG_ZOOM_MAX);
     setTx({
-      x_cm: bounded.x,
-      y_cm: bounded.y,
-      scaleX: nextScale,
-      scaleY: nextScale,
-      rotation_deg: tx.rotation_deg,
+      x_cm: node.x() / (SCREEN_PX_PER_CM * stageZoom) - CANVAS_MARGIN_CM,
+      y_cm: node.y() / (SCREEN_PX_PER_CM * stageZoom) - CANVAS_MARGIN_CM,
+      scaleX: Math.sign(nextScaleX) * absX,
+      scaleY: Math.sign(nextScaleY) * absY,
+      rotation_deg: node.rotation(),
     });
   };
 
@@ -154,13 +151,15 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         ref={stageRef}
         width={stageCm.w * SCREEN_PX_PER_CM}
         height={stageCm.h * SCREEN_PX_PER_CM}
-        scaleX={SCREEN_PX_PER_CM}
-        scaleY={SCREEN_PX_PER_CM}
+        scaleX={stageZoom * SCREEN_PX_PER_CM}
+        scaleY={stageZoom * SCREEN_PX_PER_CM}
+        x={stagePos.x}
+        y={stagePos.y}
+        onWheel={handleWheel}
         onMouseDown={startPan}
         onMouseMove={panMove}
         onMouseUp={endPan}
         onMouseLeave={endPan}
-        onWheel={handleWheel}
       >
         <Layer>
           <Rect x={0} y={0} width={stageCm.w} height={stageCm.h} fill="#f3f4f6" />
@@ -178,14 +177,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                 scaleY={tx.scaleY}
                 rotation={tx.rotation_deg}
                 draggable
-                dragBoundFunc={(pos) => {
-                  const bounded = boundPosition({ x: pos.x / SCREEN_PX_PER_CM - CANVAS_MARGIN_CM, y: pos.y / SCREEN_PX_PER_CM - CANVAS_MARGIN_CM });
-                  return { x: (bounded.x + CANVAS_MARGIN_CM) * SCREEN_PX_PER_CM, y: (bounded.y + CANVAS_MARGIN_CM) * SCREEN_PX_PER_CM };
-                }}
-                onDragEnd={(e) => {
-                  const bounded = boundPosition({ x: e.target.x() / SCREEN_PX_PER_CM - CANVAS_MARGIN_CM, y: e.target.y() / SCREEN_PX_PER_CM - CANVAS_MARGIN_CM });
-                  setTx((prev) => ({ ...prev, x_cm: bounded.x, y_cm: bounded.y }));
-                }}
+                onDragEnd={handleImageDragEnd}
                 onTransformEnd={handleTransformEnd}
               />
             )}
@@ -213,13 +205,16 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               rotateEnabled
               keepRatio
               boundBoxFunc={(oldBox, newBox) => {
-                const w = newBox.width;
-                const h = newBox.height;
                 const baseW = image.naturalWidth / PX_PER_CM;
                 const baseH = image.naturalHeight / PX_PER_CM;
                 const maxW = baseW * IMG_ZOOM_MAX;
                 const maxH = baseH * IMG_ZOOM_MAX;
-                if (w < baseW * MIN_SCALE || h < baseH * MIN_SCALE || w > maxW || h > maxH) {
+                if (
+                  newBox.width < baseW * MIN_SCALE ||
+                  newBox.height < baseH * MIN_SCALE ||
+                  newBox.width > maxW ||
+                  newBox.height > maxH
+                ) {
                   return oldBox;
                 }
                 return newBox;
