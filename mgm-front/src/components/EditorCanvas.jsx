@@ -531,17 +531,19 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     const pointer = pointerWorld(stage);
     if (DEBUG_OVERLAY) debugPointerRef.current = pointer;
     const pointerLocal = worldToLocal(pointer, g.startMatrix);
-    let ratioX = g.startPointerLocal.x !== 0 ? pointerLocal.x / g.startPointerLocal.x : 1;
-    let ratioY = g.startPointerLocal.y !== 0 ? pointerLocal.y / g.startPointerLocal.y : 1;
+    let ratioX = g.startPointerLocal.x !== 0 ? Math.abs(pointerLocal.x / g.startPointerLocal.x) : 1;
+    let ratioY = g.startPointerLocal.y !== 0 ? Math.abs(pointerLocal.y / g.startPointerLocal.y) : 1;
     if (g.lockX) ratioX = 1;
     if (g.lockY) ratioY = 1;
     if (!freeScale) {
-      const uni = Math.max(Math.abs(ratioX), Math.abs(ratioY));
-      ratioX = Math.sign(ratioX) * uni;
-      ratioY = Math.sign(ratioY) * uni;
+      const uni = Math.max(ratioX, ratioY);
+      ratioX = uni;
+      ratioY = uni;
     }
-    let scaleX = g.initScaleX * ratioX;
-    let scaleY = g.initScaleY * ratioY;
+    const signX = Math.sign(g.initScaleX) || 1;
+    const signY = Math.sign(g.initScaleY) || 1;
+    let scaleX = signX * Math.abs(g.initScaleX) * ratioX;
+    let scaleY = signY * Math.abs(g.initScaleY) * ratioY;
     const res = clampScaleByDpi(scaleX, scaleY, !freeScale);
     if (!freeScale && res.clamped) showNotice('Límite por calidad');
     scaleX = res.sx;
