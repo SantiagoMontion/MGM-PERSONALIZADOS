@@ -1,6 +1,6 @@
 /* eslint-disable */
 import { useEffect, useMemo, useRef, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
-import { Stage, Layer, Rect, Group, Image as KonvaImage, Transformer, Circle, Text } from 'react-konva';
+import { Stage, Layer, Rect, Group, Image as KonvaImage, Transformer, Circle, Text, Line } from 'react-konva';
 import useImage from 'use-image';
 import styles from './EditorCanvas.module.css';
 import ColorPopover from './ColorPopover';
@@ -16,7 +16,7 @@ import { dpiFor, dpiLevel } from '../lib/dpi';
 console.assert(Number.isFinite(PX_PER_CM), '[export] PX_PER_CM inválido', PX_PER_CM);
 
 const DEBUG_SCALE = import.meta.env.VITE_DEBUG_SCALE === '1';
-const DEBUG_TRANSFORM = import.meta.env.VITE_DEBUG_TRANSFORM === '1';
+const DEBUG_OVERLAY = import.meta.env.VITE_DEBUG_OVERLAY === '1';
 const DEBUG_SIZE = import.meta.env.VITE_DEBUG === '1';
 
 const CM_PER_INCH = 2.54;
@@ -85,6 +85,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const loupeRef = useRef(null);
   const currentHexRef = useRef('#000000');
   const [pickOverlay, setPickOverlay] = useState({ x: 0, y: 0, hex: '#000000' });
+  const debugPointerRef = useRef(null);
 
   const pointerWorld = (stage) => {
     const pt = stage.getPointerPosition();
@@ -528,6 +529,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       g.started = true;
     }
     const pointer = pointerWorld(stage);
+    if (DEBUG_OVERLAY) debugPointerRef.current = pointer;
     const pointerLocal = worldToLocal(pointer, g.startMatrix);
     let ratioX = g.startPointerLocal.x !== 0 ? pointerLocal.x / g.startPointerLocal.x : 1;
     let ratioY = g.startPointerLocal.y !== 0 ? pointerLocal.y / g.startPointerLocal.y : 1;
@@ -751,6 +753,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       g.started = true;
     }
     const world = pointerWorld(stage);
+    if (DEBUG_OVERLAY) debugPointerRef.current = world;
     const dx = world.x - g.startPointer.x;
     const dy = world.y - g.startPointer.y;
     const w = imgBaseCm.w * Math.abs(g.node0.scaleX);
@@ -1282,10 +1285,34 @@ async function onConfirmSubmit() {
                     onTransform={onTransform}
                     onTransformEnd={onTransformEnd}
                   />
-                  {DEBUG_TRANSFORM && (
+                  {DEBUG_OVERLAY && (
                     <Group listening={false}>
-                      {scaleGestureRef.current?.startAnchor && (
-                        <Circle x={scaleGestureRef.current.startAnchor.x} y={scaleGestureRef.current.startAnchor.y} radius={0.5} fill="red" />
+                      {scaleGestureRef.current?.pivotWorld && (
+                        <>
+                          <Line
+                            points={[
+                              scaleGestureRef.current.pivotWorld.x - 2,
+                              scaleGestureRef.current.pivotWorld.y,
+                              scaleGestureRef.current.pivotWorld.x + 2,
+                              scaleGestureRef.current.pivotWorld.y,
+                            ]}
+                            stroke="red"
+                            strokeWidth={0.2}
+                          />
+                          <Line
+                            points={[
+                              scaleGestureRef.current.pivotWorld.x,
+                              scaleGestureRef.current.pivotWorld.y - 2,
+                              scaleGestureRef.current.pivotWorld.x,
+                              scaleGestureRef.current.pivotWorld.y + 2,
+                            ]}
+                            stroke="red"
+                            strokeWidth={0.2}
+                          />
+                        </>
+                      )}
+                      {debugPointerRef.current && (
+                        <Circle x={debugPointerRef.current.x} y={debugPointerRef.current.y} radius={0.5} fill="blue" />
                       )}
                       <Rect
                         x={imgTx.x_cm + dispW / 2}
