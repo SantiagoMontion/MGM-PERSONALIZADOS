@@ -11,6 +11,9 @@ interface Props {
   onChangeImage: (s: ImageState) => void;
   fitMode: FitMode;
   fillColor: string;
+  isSelected: boolean;
+  onSelectImage: () => void;
+  onDeselect: () => void;
   innerRef?: any;
 }
 
@@ -22,12 +25,39 @@ export default function Artboard({
   onChangeImage,
   fitMode,
   fillColor,
+  isSelected,
+  onSelectImage,
+  onDeselect,
   innerRef,
 }: Props) {
   return (
-    <Group ref={innerRef} x={0} y={0} clip={{ x: 0, y: 0, width, height }}>
-      <Rect width={width} height={height} fill={fitMode === 'contain' ? fillColor : '#fff'} />
-      <ImageNode image={image} state={imageState} onChange={onChangeImage} />
+    <Group
+      ref={innerRef}
+      x={0}
+      y={0}
+      // Cuando la imagen no está seleccionada recortamos para ocultar desbordes
+      clip={isSelected ? undefined : { x: 0, y: 0, width, height }}
+    >
+      <Rect
+        width={width}
+        height={height}
+        fill={fitMode === 'contain' ? fillColor : '#fff'}
+        onMouseDown={(e) => {
+          onDeselect();
+          e.cancelBubble = true;
+        }}
+        onTap={(e) => {
+          onDeselect();
+          e.cancelBubble = true;
+        }}
+      />
+      <ImageNode
+        image={image}
+        state={imageState}
+        onChange={onChangeImage}
+        isSelected={isSelected}
+        onSelect={onSelectImage}
+      />
     </Group>
   );
 }

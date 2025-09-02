@@ -11,8 +11,8 @@ export interface StageState {
 export interface ImageState {
   x: number;
   y: number;
-  scaleX: number;
-  scaleY: number;
+  width: number;
+  height: number;
   rotation: number;
   src?: string;
 }
@@ -22,13 +22,15 @@ interface CanvasState {
   image: ImageState;
   fitMode: FitMode;
   fillColor: string;
+  selected: boolean;
 }
 
 const DEFAULT_STATE: CanvasState = {
   stage: { scale: 1, x: 0, y: 0 },
-  image: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0, src: '' },
+  image: { x: 0, y: 0, width: 0, height: 0, rotation: 0, src: '' },
   fitMode: 'manual',
   fillColor: '#ffffff',
+  selected: false,
 };
 
 /**
@@ -39,6 +41,7 @@ export function useCanvasState(storageKey: string = STORAGE_KEY) {
   const [image, setImage] = useState<ImageState>(DEFAULT_STATE.image);
   const [fitMode, setFitMode] = useState<FitMode>(DEFAULT_STATE.fitMode);
   const [fillColor, setFillColor] = useState<string>(DEFAULT_STATE.fillColor);
+  const [selected, setSelected] = useState<boolean>(DEFAULT_STATE.selected);
   const [restored, setRestored] = useState(false);
   const stateRef = useRef<CanvasState>(DEFAULT_STATE);
   const saveTimer = useRef<NodeJS.Timeout | null>(null);
@@ -54,11 +57,13 @@ export function useCanvasState(storageKey: string = STORAGE_KEY) {
           setImage(parsed.image);
           setFitMode(parsed.fitMode || 'manual');
           setFillColor(parsed.fillColor || '#ffffff');
+          setSelected(parsed.selected || false);
           stateRef.current = {
             stage: parsed.stage,
             image: parsed.image,
             fitMode: parsed.fitMode || 'manual',
             fillColor: parsed.fillColor || '#ffffff',
+            selected: parsed.selected || false,
           };
         }
       }
@@ -103,6 +108,12 @@ export function useCanvasState(storageKey: string = STORAGE_KEY) {
     persist();
   };
 
+  const updateSelected = (s: boolean) => {
+    setSelected(s);
+    stateRef.current.selected = s;
+    persist();
+  };
+
   return {
     stage,
     image,
@@ -112,6 +123,8 @@ export function useCanvasState(storageKey: string = STORAGE_KEY) {
     updateImage,
     updateFitMode,
     updateFillColor,
+    selected,
+    updateSelected,
     restored,
   };
 }

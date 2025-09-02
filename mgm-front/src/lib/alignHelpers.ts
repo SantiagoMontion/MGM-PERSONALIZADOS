@@ -1,30 +1,24 @@
 export interface ImageDimensions {
-  imgW: number;
-  imgH: number;
-  scaleX: number;
-  scaleY: number;
+  width: number;
+  height: number;
 }
 
-export function alignCenter({ imgW, imgH, scaleX, scaleY }: ImageDimensions, boardW: number, boardH: number) {
-  const w = imgW * scaleX;
-  const h = imgH * scaleY;
-  return { x: (boardW - w) / 2, y: (boardH - h) / 2 };
+export function alignCenter({ width, height }: ImageDimensions, boardW: number, boardH: number) {
+  return { x: (boardW - width) / 2, y: (boardH - height) / 2 };
 }
 
-export function alignLeft({ imgW, scaleX }: ImageDimensions) {
+export function alignLeft() {
   return { x: 0 };
 }
 
-export function alignRight({ imgW, scaleX }: ImageDimensions, boardW: number) {
-  const w = imgW * scaleX;
-  return { x: boardW - w };
+export function alignRight({ width }: ImageDimensions, boardW: number) {
+  return { x: boardW - width };
 }
 
-export function alignTop({ imgH, scaleY }: ImageDimensions) {
+export function alignTop() {
   return { y: 0 };
 }
 
-export function alignBottom({ imgH, scaleY }: ImageDimensions, boardH: number) {
-  const h = imgH * scaleY;
-  return { y: boardH - h };
+export function alignBottom({ height }: ImageDimensions, boardH: number) {
+  return { y: boardH - height };
 }

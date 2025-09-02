@@ -25,7 +25,19 @@ const EditorCanvas = forwardRef<any, Props>(function EditorCanvas(
   ref
 ) {
   const stageRef = useRef<Konva.Stage>(null);
-  const { stage, image, fitMode, fillColor, updateStage, updateImage, updateFitMode, updateFillColor, restored } = useCanvasState();
+  const {
+    stage,
+    image,
+    fitMode,
+    fillColor,
+    selected,
+    updateStage,
+    updateImage,
+    updateFitMode,
+    updateFillColor,
+    updateSelected,
+    restored,
+  } = useCanvasState();
   const [img] = useImage(image.src || imageUrl || undefined);
   const [isPanning, setIsPanning] = useState(false);
   const lastPos = useRef({ x: 0, y: 0 });
@@ -74,7 +86,7 @@ const EditorCanvas = forwardRef<any, Props>(function EditorCanvas(
   // el ajuste automático se ejecute solo una vez al montar.
   useEffect(() => {
     if (!img || initialized.current) return;
-    if (image.x === 0 && image.y === 0 && image.scaleX === 1 && image.scaleY === 1) {
+    if (image.width === 0 && image.height === 0) {
       const r = fitContain(img.naturalWidth, img.naturalHeight, workPx.w, workPx.h);
       updateImage({ ...image, ...r, rotation: 0, src: image.src || imageUrl || '' });
       updateFitMode('contain');
@@ -117,10 +129,15 @@ const EditorCanvas = forwardRef<any, Props>(function EditorCanvas(
   }, []);
 
   const handleMouseDown = (e: any) => {
-    if (!spacePressed.current) return;
-    setIsPanning(true);
-    const pos = stageRef.current?.getPointerPosition();
-    if (pos) lastPos.current = pos;
+    if (spacePressed.current) {
+      setIsPanning(true);
+      const pos = stageRef.current?.getPointerPosition();
+      if (pos) lastPos.current = pos;
+      return;
+    }
+    if (e.target === stageRef.current || e.target.name() === 'stage-bg') {
+      updateSelected(false);
+    }
   };
   const handleMouseMove = (e: any) => {
     if (!isPanning) return;
@@ -176,11 +193,11 @@ const EditorCanvas = forwardRef<any, Props>(function EditorCanvas(
   // alignments
   const handleAlign = (type: string) => {
     if (!img) return;
-    const dims = { imgW: img.naturalWidth, imgH: img.naturalHeight, scaleX: image.scaleX, scaleY: image.scaleY };
+    const dims = { width: image.width, height: image.height };
     if (type === 'center') updateImage({ ...image, ...alignCenter(dims, workPx.w, workPx.h) });
-    if (type === 'left') updateImage({ ...image, ...alignLeft(dims) });
+    if (type === 'left') updateImage({ ...image, ...alignLeft() });
     if (type === 'right') updateImage({ ...image, ...alignRight(dims, workPx.w) });
-    if (type === 'top') updateImage({ ...image, ...alignTop(dims) });
+    if (type === 'top') updateImage({ ...image, ...alignTop() });
     if (type === 'bottom') updateImage({ ...image, ...alignBottom(dims, workPx.h) });
   };
 
@@ -201,7 +218,7 @@ const EditorCanvas = forwardRef<any, Props>(function EditorCanvas(
 
   return (
     <>
-      <div className={styles.toolbar}>
+      <div className={styles.toolbar} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
         <span>Alineación:</span>
         <button onClick={() => handleAlign('center')}>Centro</button>
         <button onClick={() => handleAlign('left')}>Izquierda</button>
@@ -217,7 +234,7 @@ const EditorCanvas = forwardRef<any, Props>(function EditorCanvas(
         )}
         <span>Vista:</span>
         <button onClick={() => zoomBy(1.1)}>+Zoom</button>
-        <button onClick={() => zoomBy(1/1.1)}>-Zoom</button>
+        <button onClick={() => zoomBy(1 / 1.1)}>-Zoom</button>
         <button onClick={handleAdjustView}>Ajustar a pantalla</button>
         <button onClick={handleResetImage}>Reset imagen</button>
       </div>
@@ -238,7 +255,7 @@ const EditorCanvas = forwardRef<any, Props>(function EditorCanvas(
           onMouseLeave={endPan}
         >
           <Layer>
-            <Rect x={0} y={0} width={stagePx.w} height={stagePx.h} fill="#f3f4f6" />
+            <Rect name="stage-bg" x={0} y={0} width={stagePx.w} height={stagePx.h} fill="#f3f4f6" />
             <Artboard
               width={workPx.w}
               height={workPx.h}
@@ -247,6 +264,9 @@ const EditorCanvas = forwardRef<any, Props>(function EditorCanvas(
               onChangeImage={updateImage}
               fitMode={fitMode}
               fillColor={fillColor}
+              isSelected={selected}
+              onSelectImage={() => updateSelected(true)}
+              onDeselect={() => updateSelected(false)}
             />
             <Rect
               x={VIEW_MARGIN}
