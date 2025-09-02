@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useState } from "react";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 
 export default function Result() {
   const { jobId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const apiBase = import.meta.env.VITE_API_BASE || 'https://mgm-api.vercel.app';
+  const apiBase = import.meta.env.VITE_API_BASE || "https://mgm-api.vercel.app";
 
   const [urls, setUrls] = useState({
     cart_url_follow: location.state?.cart_url_follow,
@@ -14,15 +14,21 @@ export default function Result() {
     checkout_plain: location.state?.checkout_plain,
   });
   const [job, setJob] = useState(null);
-  const [added, setAdded] = useState(() => localStorage.getItem(`MGM_jobAdded:${jobId}`) === 'true');
+  const [added, setAdded] = useState(
+    () => localStorage.getItem(`MGM_jobAdded:${jobId}`) === "true",
+  );
 
   useEffect(() => {
     async function fetchJob() {
       try {
-        const res = await fetch(`${apiBase}/api/job-status?job_id=${encodeURIComponent(jobId)}`);
+        const res = await fetch(
+          `${apiBase}/api/job-status?job_id=${encodeURIComponent(jobId)}`,
+        );
         const j = await res.json();
         if (res.ok && j.ok) setJob(j.job);
-      } catch { /* ignore */ }
+      } catch (err) {
+        /* ignore */
+      }
     }
     fetchJob();
   }, [apiBase, jobId]);
@@ -32,8 +38,8 @@ export default function Result() {
       async function ensureUrls() {
         try {
           const res = await fetch(`${apiBase}/api/create-cart-link`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ job_id: jobId }),
           });
           const j = await res.json();
@@ -45,7 +51,9 @@ export default function Result() {
               checkout_plain: j.checkout_plain,
             });
           }
-        } catch { /* ignore */ }
+        } catch (err) {
+          /* ignore */
+        }
       }
       ensureUrls();
     }
@@ -57,26 +65,44 @@ export default function Result() {
 
   const hrefCart = added ? urls.cart_plain : urls.cart_url_follow;
   const hrefCheckout = added ? urls.checkout_plain : urls.checkout_url_now;
-  const openNew = (u) => window.open(u, '_blank', 'noopener,noreferrer');
+  const openNew = (u) => window.open(u, "_blank", "noopener,noreferrer");
 
   return (
     <div>
       {job?.preview_url && (
-        <img src={job.preview_url} alt="preview" style={{ maxWidth: '300px' }} />
+        <img
+          src={job.preview_url}
+          alt="preview"
+          style={{ maxWidth: "300px" }}
+        />
       )}
       <div>
-        <button onClick={() => { openNew(hrefCart); localStorage.setItem(`MGM_jobAdded:${jobId}`,'true'); setAdded(true); }}>
+        <button
+          onClick={() => {
+            openNew(hrefCart);
+            localStorage.setItem(`MGM_jobAdded:${jobId}`, "true");
+            setAdded(true);
+          }}
+        >
           Agregar al carrito y seguir comprando
         </button>
-        <button onClick={() => { openNew(hrefCheckout); localStorage.setItem(`MGM_jobAdded:${jobId}`,'true'); setAdded(true); }}>
+        <button
+          onClick={() => {
+            openNew(hrefCheckout);
+            localStorage.setItem(`MGM_jobAdded:${jobId}`, "true");
+            setAdded(true);
+          }}
+        >
           Pagar ahora
         </button>
-        <button onClick={() => {
-          openNew(hrefCart);
-          localStorage.setItem(`MGM_jobAdded:${jobId}`,'true');
-          setAdded(true);
-          navigate('/');
-        }}>
+        <button
+          onClick={() => {
+            openNew(hrefCart);
+            localStorage.setItem(`MGM_jobAdded:${jobId}`, "true");
+            setAdded(true);
+            navigate("/");
+          }}
+        >
           Crear otro
         </button>
       </div>
