@@ -1,5 +1,5 @@
 // api/finalize-assets.js
-import { cors } from './_lib/cors.js';
+import { withCors } from '../lib/cors.ts';
 import getSupabaseAdmin from './_lib/supabaseAdmin.js';
 import sharp from 'sharp';
 import { PDFDocument } from 'pdf-lib';
@@ -29,41 +29,44 @@ function buildOutputPaths({ job_id, slug, w_cm, h_cm, material }) {
 }
 
 function err(res, status, { diag_id, stage, message, hints = [], debug = {} }) {
-  return res.status(status).json({ ok: false, diag_id, stage, message, hints, debug });
+  return res.status(status).json({
+    error: message,
+    details: { diag_id, stage, hints, debug },
+  });
 }
 
 function isPosFinite(n) {
   return typeof n === 'number' && Number.isFinite(n) && n > 0;
 }
 
-export default async function handler(req, res) {
-  if (cors(req, res)) return;
+async function handler(req, res) {
   const diagId = crypto.randomUUID?.() ?? crypto.randomUUID();
   res.setHeader('X-Diag-Id', String(diagId));
-  if (req.method !== 'POST') {
-    res.setHeader('Allow', 'POST');
-    return err(res, 405, {
-      diag_id: diagId,
-      stage: 'method',
-      message: 'method_not_allowed',
-    });
-  }
-
-  let stage = 'validate';
-  let debug = {};
-
-  let body;
   try {
-    body =
-      typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body || {};
-  } catch (e) {
-    return err(res, 400, {
-      diag_id: diagId,
-      stage,
-      message: 'bad_json',
-      debug: { body: req.body },
-    });
-  }
+    if (req.method !== 'POST') {
+      res.setHeader('Allow', 'POST');
+      return err(res, 405, {
+        diag_id: diagId,
+        stage: 'method',
+        message: 'method_not_allowed',
+      });
+    }
+
+    let stage = 'validate';
+    let debug = {};
+
+    let body;
+    try {
+      body =
+        typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body || {};
+    } catch (e) {
+      return err(res, 400, {
+        diag_id: diagId,
+        stage,
+        message: 'bad_json',
+        debug: { body: req.body },
+      });
+    }
 
   const { job_id, render_v2 } = body;
   if (
@@ -472,5 +475,17 @@ export default async function handler(req, res) {
       debug,
     });
   }
+  } catch (error) {
+    console.error('finalize-assets unexpected', {
+      requestId: diagId,
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return res.status(500).json({
+      error: 'internal_error',
+      details: { requestId: diagId },
+    });
+  }
 }
+
+export default withCors(handler);
 
