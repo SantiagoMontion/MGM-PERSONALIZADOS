@@ -13,11 +13,17 @@ export default function DevCanvasPreview() {
   const designName = window.__previewData?.designName || 'Diseño';
   const [imgUrl, setImgUrl] = useState(null);
   const [onlyPreview, setOnlyPreview] = useState(false);
+  const [img, setImg] = useState(null);
+  const [imgSize, setImgSize] = useState({ w: 0, h: 0 });
+  const [imgPos, setImgPos] = useState({ x: 0, y: 0 });
+  const [centerH, setCenterH] = useState(true);
+  const [centerW, setCenterW] = useState(true);
+  const canvasW = render_v2?.canvas_px?.w || 0;
+  const canvasH = render_v2?.canvas_px?.h || 0;
 
   useEffect(() => {
     if (padBlob) {
-      const url = URL.createObjectURL(padBlob);
-      setImgUrl(url);
+      const url = handleUpload(padBlob);
       return () => URL.revokeObjectURL(url);
     }
   }, [padBlob]);
@@ -80,6 +86,31 @@ export default function DevCanvasPreview() {
     }, "image/png");
   }
 
+  function handleUpload(file) {
+    const url = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      const renderW = image.width;
+      const renderH = image.height;
+      setImg(image);
+      setImgSize({ w: renderW, h: renderH });
+      setCenterH(true);
+      setCenterW(true);
+    };
+    setImgUrl(url);
+    image.src = url;
+    return url;
+  }
+
+  useEffect(() => {
+    if (!img) return;
+    let x = imgPos.x;
+    let y = imgPos.y;
+    if (centerW) x = Math.round((canvasW - imgSize.w) / 2);
+    if (centerH) y = Math.round((canvasH - imgSize.h) / 2);
+    setImgPos({ x, y });
+  }, [img, imgSize, canvasW, canvasH, centerW, centerH]);
+
   function continueFlow() {
     navigate(`/creating/${jobId}`, { state: { render_v2, skipFinalize: onlyPreview } });
   }
@@ -104,9 +135,31 @@ export default function DevCanvasPreview() {
       <h3>Canvas Preview</h3>
       <button onClick={exportPadDocument}>Exportar lienzo</button>
       {imgUrl && (
-        <div>
-          <img src={imgUrl} alt="preview" style={{ maxWidth: '100%' }} />
+        <div style={{ position: 'relative', width: canvasW, height: canvasH }}>
+          <img
+            src={imgUrl}
+            alt="preview"
+            style={{ position: 'absolute', left: imgPos.x, top: imgPos.y }}
+          />
           <div><button onClick={downloadMockup}>Descargar PNG</button></div>
+          <div style={{ marginTop: '10px' }}>
+            <label style={{ marginRight: '10px' }}>
+              <input
+                type="checkbox"
+                checked={centerW}
+                onChange={e => setCenterW(e.target.checked)}
+              />{' '}
+              Centrar H
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={centerH}
+                onChange={e => setCenterH(e.target.checked)}
+              />{' '}
+              Centrar V
+            </label>
+          </div>
         </div>
       )}
       {render_v2 && (
