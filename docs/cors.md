@@ -6,32 +6,49 @@ This project exposes API routes under `/api`. Reusable CORS helpers live in [`li
 Edit `ALLOWED_ORIGINS` inside `lib/cors.ts` to modify permitted origins.
 
 ## Adding CORS to new endpoints
-For Pages API style handlers (`api/*.js`), wrap the handler:
+For Pages API style handlers (`api/*.js`), compute CORS headers per request:
 
 ```js
-import { withCors } from '../lib/cors.ts';
+import { buildCorsHeaders } from '../lib/cors.ts';
 
-async function handler(req, res) {
+export default async function handler(req, res) {
+  const origin = req.headers.origin || null;
+  const cors = buildCorsHeaders(origin);
+  if (req.method === 'OPTIONS') {
+    if (!cors) return res.status(403).json({ error: 'origin_not_allowed' });
+    Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v));
+    return res.status(204).end();
+  }
+  if (!cors) return res.status(403).json({ error: 'origin_not_allowed' });
+  Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v));
   // ...
 }
-
-export default withCors(handler);
 ```
-
-`withCors` automatically responds to `OPTIONS` requests.
 
 For App Router routes (`app/api/**`), use:
 
 ```ts
-import { handlePreflight, applyCorsToResponse } from '@/lib/cors';
+import { buildCorsHeaders, preflight, withCorsJson } from '@/lib/cors';
 
 export async function OPTIONS(req: Request) {
-  return handlePreflight(req);
+  return preflight(req.headers.get('origin'));
 }
 
 export async function POST(req: Request) {
-  const res = new Response('ok');
-  return applyCorsToResponse(res, req.headers.get('origin'));
+  const origin = req.headers.get('origin');
+  const cors = buildCorsHeaders(origin);
+  if (!cors) {
+    return new Response(JSON.stringify({ error: 'origin_not_allowed' }), {
+      status: 403,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+  const res = new Response(JSON.stringify({ ok: true }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  });
+  Object.entries(cors).forEach(([k, v]) => res.headers.set(k, String(v)));
+  return res;
 }
 ```
 

@@ -1,57 +1,52 @@
 export const ALLOWED_ORIGINS = new Set([
   'https://mgmgamers.store',
   'https://www.mgmgamers.store',
+  'https://mgmgamers-store.myshopify.com',
   'http://localhost:3000',
   'http://127.0.0.1:3000',
   'http://localhost:5173',
 ]);
 
-const ALLOWED_METHODS = 'GET,POST,PUT,PATCH,DELETE,OPTIONS';
-const ALLOWED_HEADERS = 'Content-Type, Authorization, X-Requested-With';
+const ALLOW_METHODS = 'GET,POST,PUT,PATCH,DELETE,OPTIONS';
+const ALLOW_HEADERS =
+  'Content-Type, Authorization, X-Requested-With, X-Shopify-Access-Token, X-Shopify-Shop-Domain';
 
 export function buildCorsHeaders(origin: string | null) {
-  if (!origin || !ALLOWED_ORIGINS.has(origin.replace(/\/$/, ''))) {
+  if (!origin || !ALLOWED_ORIGINS.has(origin)) {
     return null;
   }
   return {
     'Access-Control-Allow-Origin': origin,
-    Vary: 'Origin',
-    'Access-Control-Allow-Methods': ALLOWED_METHODS,
-    'Access-Control-Allow-Headers': ALLOWED_HEADERS,
+    'Access-Control-Allow-Methods': ALLOW_METHODS,
+    'Access-Control-Allow-Headers': ALLOW_HEADERS,
     'Access-Control-Allow-Credentials': 'true',
+    Vary: 'Origin',
   } as Record<string, string>;
 }
 
-export function handlePreflight(req: Request) {
-  if (req.method !== 'OPTIONS') return null;
-  const origin = req.headers.get('origin');
+export function preflight(origin: string | null) {
   const headers = buildCorsHeaders(origin);
   if (!headers) {
-    return new Response('Forbidden', { status: 403 });
+    return new Response(JSON.stringify({ error: 'origin_not_allowed' }), {
+      status: 403,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
-  return new Response(null, { status: 204, headers });
+  return new Response(null, {
+    status: 204,
+    headers: { ...headers, 'Content-Length': '0' },
+  });
 }
 
-export function withCors(handler: any) {
-  return async function (req: any, res: any) {
-    const origin = (req.headers.origin || null) as string | null;
-    const headers = buildCorsHeaders(origin);
-    if (!headers) {
-      res.statusCode = 403;
-      return res.end();
-    }
-    Object.entries(headers).forEach(([k, v]) => res.setHeader(k, v));
-    if (req.method === 'OPTIONS') {
-      res.statusCode = 204;
-      return res.end();
-    }
-    return handler(req, res);
-  };
-}
-
-export function applyCorsToResponse(res: Response, origin: string | null) {
+export function withCorsJson(resInit: ResponseInit | undefined, origin: string | null) {
   const headers = buildCorsHeaders(origin);
-  if (!headers) return null;
-  Object.entries(headers).forEach(([k, v]) => res.headers.set(k, v));
-  return res;
+  if (!headers) return resInit;
+  const current =
+    resInit && resInit.headers
+      ? resInit.headers instanceof Headers
+        ? Object.fromEntries(resInit.headers.entries())
+        : (resInit.headers as Record<string, string>)
+      : {};
+  return { ...(resInit || {}), headers: { ...current, ...headers } } as ResponseInit;
 }
+
