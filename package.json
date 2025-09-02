@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node api/upload-url.js",
     "test": "node --test",
-    "api:smoke": "node scripts/api-smoke.js"
+    "api:smoke": "node scripts/api-smoke.js",
+    "check:runtimes": "grep -Rni \"runtime.*nodejs20\" . || true && grep -Rni \"nodejs20\\.x\" . || true && grep -Rni \"export const runtime\" . || true && grep -Rni \\\"functions\\\" vercel.json || true"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.54.0",
@@ -15,8 +16,11 @@
     "sharp": "^0.34.3",
     "zod": "^3.23.8"
   },
+  "engines": {
+    "node": "20.x"
+  },
   "functions": {
-    "api/**.js": { "runtime": "nodejs20.x" },
-    "api/worker-process.js": { "runtime": "nodejs20.x", "memory": 1536, "maxDuration": 60 }
+    "api/**.js": { "runtime": "nodejs" },
+    "api/worker-process.js": { "runtime": "nodejs", "memory": 1536, "maxDuration": 60 }
   }
 }
