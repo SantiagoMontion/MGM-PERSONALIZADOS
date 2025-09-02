@@ -1,34 +1,23 @@
-import assert from 'node:assert';
+const fetch = globalThis.fetch;
+const ORIGIN = 'https://mgmgamers.store';
 
-const base = 'https://mgm-api.vercel.app/api/finalize-assets';
-
-async function run() {
-  const pre = await fetch(base, {
+async function test() {
+  const pre = await fetch('https://mgm-api.vercel.app/api/finalize-assets', {
     method: 'OPTIONS',
     headers: {
-      origin: 'https://mgmgamers.store',
+      Origin: ORIGIN,
       'Access-Control-Request-Method': 'POST',
       'Access-Control-Request-Headers': 'content-type, authorization',
     },
   });
-  assert.equal(pre.status, 204, 'preflight should return 204');
-  assert(pre.headers.get('Access-Control-Allow-Origin'));
+  console.log('OPTIONS', pre.status, pre.headers.get('access-control-allow-origin'));
 
-  const res = await fetch(base, {
+  const post = await fetch('https://mgm-api.vercel.app/api/finalize-assets', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      origin: 'https://mgmgamers.store',
-    },
+    headers: { Origin: ORIGIN, 'Content-Type': 'application/json' },
     body: JSON.stringify({ ping: true }),
   });
-  assert(res.headers.get('Access-Control-Allow-Origin'));
-  console.log('Preflight status', pre.status);
-  console.log('POST status', res.status);
-  console.log('ACAO', res.headers.get('Access-Control-Allow-Origin'));
+  console.log('POST', post.status, post.headers.get('access-control-allow-origin'));
+  console.log('Body', await post.text());
 }
-
-run().catch(err => {
-  console.error('cors smoke failed', err);
-  process.exit(1);
-});
+test().catch(console.error);

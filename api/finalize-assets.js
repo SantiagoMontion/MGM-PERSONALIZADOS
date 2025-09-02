@@ -1,10 +1,12 @@
 // api/finalize-assets.js
-import { withCors } from '../lib/cors.ts';
+import { buildCorsHeaders } from '../lib/cors.ts';
 import getSupabaseAdmin from './_lib/supabaseAdmin.js';
 import sharp from 'sharp';
 import { PDFDocument } from 'pdf-lib';
 import composeImage from './_lib/composeImage.ts';
 import crypto from 'node:crypto';
+
+export const config = { runtime: 'nodejs', api: { bodyParser: { sizeLimit: '10mb' } } };
 
 function parseUploadsObjectKey(url = '') {
   const idx = url.indexOf('/uploads/');
@@ -40,18 +42,29 @@ function isPosFinite(n) {
 }
 
 async function handler(req, res) {
+  const origin = req.headers.origin || null;
+  const cors = buildCorsHeaders(origin);
+
+  if (req.method === 'OPTIONS') {
+    if (!cors) return res.status(403).json({ error: 'origin_not_allowed' });
+    Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v));
+    res.setHeader('Content-Length', '0');
+    return res.status(204).end();
+  }
+
+  if (!cors) {
+    return res.status(403).json({ error: 'origin_not_allowed' });
+  }
+  Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v));
+
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', 'POST');
+    return res.status(405).json({ error: 'method_not_allowed' });
+  }
+
   const diagId = crypto.randomUUID?.() ?? crypto.randomUUID();
   res.setHeader('X-Diag-Id', String(diagId));
   try {
-    if (req.method !== 'POST') {
-      res.setHeader('Allow', 'POST');
-      return err(res, 405, {
-        diag_id: diagId,
-        stage: 'method',
-        message: 'method_not_allowed',
-      });
-    }
-
     let stage = 'validate';
     let debug = {};
 
@@ -487,5 +500,5 @@ async function handler(req, res) {
   }
 }
 
-export default withCors(handler);
+export default handler;
 
