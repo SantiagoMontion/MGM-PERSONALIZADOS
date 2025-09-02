@@ -9,10 +9,12 @@ interface ExportOpts {
   mime?: string;
   quality?: number;
   pixelRatio?: number;
+  backgroundColor?: string;
+  asBlob?: boolean;
 }
 
 /**
- * Export a region of the stage to a Blob.
+ * Export a region of the stage. Returns a DataURL or Blob.
  */
 export async function exportArtboard(stage: Konva.Stage, {
   x,
@@ -23,6 +25,8 @@ export async function exportArtboard(stage: Konva.Stage, {
   mime = 'image/png',
   quality = 1,
   pixelRatio = 1,
+  backgroundColor,
+  asBlob = false,
 }: ExportOpts) {
   const url = stage.toDataURL({
     x,
@@ -32,8 +36,11 @@ export async function exportArtboard(stage: Konva.Stage, {
     pixelRatio: scale * pixelRatio,
     mimeType: mime,
     quality,
+    backgroundColor,
   });
-  const res = await fetch(url);
-  return await res.blob();
+  if (asBlob) {
+    const res = await fetch(url);
+    return await res.blob();
+  }
+  return url;
 }
-
