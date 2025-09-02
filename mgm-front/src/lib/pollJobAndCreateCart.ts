@@ -11,19 +11,28 @@ export interface JobStatus {
   h_cm?: number | null;
 }
 
-async function sleep(ms:number) { return new Promise(r => setTimeout(r, ms)); }
+async function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
+}
 
-export async function pollJobAndCreateCart(apiBase: string, jobId: string, opts?: {
-  maxAttempts?: number;
-  intervalMs?: number;
-  onTick?: (attempt:number, job?:JobStatus) => void;
-}) {
-  const maxAttempts = opts?.maxAttempts ?? 45;   // ~90s si interval=2000
-  const intervalMs  = opts?.intervalMs  ?? 2000;
+export async function pollJobAndCreateCart(
+  apiBase: string,
+  jobId: string,
+  opts?: {
+    maxAttempts?: number;
+    intervalMs?: number;
+    onTick?: (attempt: number, job?: JobStatus) => void;
+  },
+) {
+  const maxAttempts = opts?.maxAttempts ?? 45; // ~90s si interval=2000
+  const intervalMs = opts?.intervalMs ?? 2000;
 
   // función para consultar estado
   async function fetchStatus(): Promise<JobStatus | undefined> {
-    const res = await fetch(`${apiBase}/api/job-status?job_id=${encodeURIComponent(jobId)}`, { method: 'GET' });
+    const res = await fetch(
+      `${apiBase}/api/job-status?job_id=${encodeURIComponent(jobId)}`,
+      { method: "GET" },
+    );
     if (!res.ok) throw new Error(`job-status ${res.status}`);
     const j = await res.json();
     if (!j?.ok) return undefined;
@@ -46,7 +55,7 @@ export async function pollJobAndCreateCart(apiBase: string, jobId: string, opts?
       opts?.onTick?.(i, last);
       if (isReady(last)) break;
     } catch (e) {
-      console.warn('[poll job-status warn]', e);
+      console.warn("[poll job-status warn]", e);
     }
     await sleep(intervalMs);
   }
@@ -54,17 +63,17 @@ export async function pollJobAndCreateCart(apiBase: string, jobId: string, opts?
   // Si no está listo, intentar igual create-cart-link (puede preparar producto/variante)
   const createCart = async () => {
     const res = await fetch(`${apiBase}/api/create-cart-link`, {
-      method: 'POST',
-      headers: { 'Content-Type':'application/json' },
-      body: JSON.stringify({ job_id: jobId })
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ job_id: jobId }),
     });
     const j = await res.json();
     if (!res.ok) {
       // Si falta algo, seguir esperando si hay intentos restantes
-      const code = j?.error || 'unknown';
-      return { ok:false, code, detail: j?.detail, raw: j };
+      const code = j?.error || "unknown";
+      return { ok: false, code, detail: j?.detail, raw: j };
     }
-    return { ok:true, cart_url: j.cart_url, raw: j };
+    return { ok: true, cart_url: j.cart_url, raw: j };
   };
 
   // primer intento crear carrito
@@ -72,14 +81,18 @@ export async function pollJobAndCreateCart(apiBase: string, jobId: string, opts?
   if (attempt.ok) return attempt;
 
   // si falló por assets_not_ready o invalid_price, seguimos poll
-  const retriable = new Set(['assets_not_ready','invalid_price','job_not_found']);
+  const retriable = new Set([
+    "assets_not_ready",
+    "invalid_price",
+    "job_not_found",
+  ]);
   for (let i = 1; i <= maxAttempts; i++) {
     if (!retriable.has(String(attempt.code))) break;
     await sleep(intervalMs);
     try {
       last = await fetchStatus();
       opts?.onTick?.(maxAttempts + i, last);
-    } catch {}
+    } catch (err) {}
     attempt = await createCart();
     if (attempt.ok) break;
   }
