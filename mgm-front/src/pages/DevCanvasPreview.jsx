@@ -4,6 +4,12 @@ import { PDFDocument } from 'pdf-lib';
 import { buildExportBaseName } from '../lib/filename';
 import { renderMockup1080, downloadBlob } from '../lib/mockup';
 
+function getCenteredPos(targetRect, imgW, imgH) {
+  const x = Math.round(targetRect.x + (targetRect.w - imgW) / 2);
+  const y = Math.round(targetRect.y + (targetRect.h - imgH) / 2);
+  return { x, y };
+}
+
 export default function DevCanvasPreview() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -18,6 +24,7 @@ export default function DevCanvasPreview() {
   const [imgPos, setImgPos] = useState({ x: 0, y: 0 });
   const [centerH, setCenterH] = useState(true);
   const [centerW, setCenterW] = useState(true);
+  const [wasAutoCentered, setWasAutoCentered] = useState(false);
   const canvasW = render_v2?.canvas_px?.w || 0;
   const canvasH = render_v2?.canvas_px?.h || 0;
 
@@ -109,7 +116,30 @@ export default function DevCanvasPreview() {
     if (centerW) x = Math.round((canvasW - imgSize.w) / 2);
     if (centerH) y = Math.round((canvasH - imgSize.h) / 2);
     setImgPos({ x, y });
-  }, [img, imgSize, canvasW, canvasH, centerW, centerH]);
+  }, [img, imgSize, canvasW, canvasH, centerW, centerH, imgPos.x, imgPos.y]);
+
+  useEffect(() => {
+    if (!img || !imgSize?.w || !imgSize?.h || wasAutoCentered) return;
+
+    const targetRect = render_v2?.pad_px ?? render_v2?.canvas_px;
+    if (!targetRect?.w || !targetRect?.h) return;
+
+    const { x, y } = getCenteredPos(targetRect, imgSize.w, imgSize.h);
+
+    setCenterH(true);
+    setCenterW(true);
+
+    setImgPos(prev => ({ ...prev, x, y }));
+
+    setWasAutoCentered(true);
+  }, [
+    img,
+    imgSize?.w,
+    imgSize?.h,
+    render_v2?.pad_px,
+    render_v2?.canvas_px,
+    wasAutoCentered,
+  ]);
 
   function continueFlow() {
     navigate(`/creating/${jobId}`, { state: { render_v2, skipFinalize: onlyPreview } });
