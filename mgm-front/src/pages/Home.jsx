@@ -148,6 +148,8 @@ export default function Home() {
       const ext = (uploaded.file.name.split('.').pop() || 'png').toLowerCase();
       const mime = uploaded.file.type || 'image/png';
       const size_bytes = uploaded.file.size;
+      // API /api/upload-url solo acepta Classic o PRO; mapear Glasspad -> PRO
+      const materialApi = material === 'Glasspad' ? 'PRO' : material;
       const uploadUrlRes = await fetch(`${API_BASE}/api/upload-url`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -156,7 +158,7 @@ export default function Home() {
           ext,
           mime,
           size_bytes,
-          material,
+          material: materialApi,
           w_cm: sizeCm.w,
           h_cm: sizeCm.h,
           sha256: file_hash,
