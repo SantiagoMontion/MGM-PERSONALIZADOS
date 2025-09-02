@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node api/upload-url.js"
+    "start": "node api/upload-url.js",
+    "test": "node --test",
+    "api:smoke": "node scripts/api-smoke.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.54.0",
