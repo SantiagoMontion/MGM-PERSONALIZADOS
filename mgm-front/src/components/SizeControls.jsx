@@ -1,7 +1,7 @@
 // src/components/SizeControls.jsx
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import styles from './SizeControls.module.css';
-import { LIMITS, STANDARD } from '../lib/material.js';
+import { LIMITS, STANDARD, GLASSPAD_SIZE_CM } from '../lib/material.js';
 
 /**
  * Props:
@@ -12,6 +12,7 @@ import { LIMITS, STANDARD } from '../lib/material.js';
 export default function SizeControls({ material, size, onChange, locked = false }) {
   const limits = LIMITS[material] || { maxW: size.w, maxH: size.h };
   const presets = STANDARD[material] || [];
+  const isGlasspad = material === 'Glasspad';
 
   const [wText, setWText] = useState(String(size.w || ''));
   const [hText, setHText] = useState(String(size.h || ''));
@@ -19,12 +20,17 @@ export default function SizeControls({ material, size, onChange, locked = false 
   useEffect(() => { setWText(String(size.w ?? '')); }, [size.w]);
   useEffect(() => { setHText(String(size.h ?? '')); }, [size.h]);
 
+  const glasspadInitRef = useRef(false);
   useEffect(() => {
-    if (material === 'Glasspad') {
-      setWText('50');
-      setHText('40');
-      onChange({ w: 50, h: 40 });
+    if (material !== 'Glasspad') {
+      glasspadInitRef.current = false;
+      return;
     }
+    if (glasspadInitRef.current) return;
+    setWText(String(GLASSPAD_SIZE_CM.w));
+    setHText(String(GLASSPAD_SIZE_CM.h));
+    onChange?.({ w: GLASSPAD_SIZE_CM.w, h: GLASSPAD_SIZE_CM.h });
+    glasspadInitRef.current = true;
   }, [material, onChange]);
 
   const numPattern = /^[0-9]{0,3}(\.[0-9]{0,2})?$/;
@@ -70,23 +76,23 @@ export default function SizeControls({ material, size, onChange, locked = false 
 
       <label>Ancho (cm)
         <input
-          value={wText}
-          onChange={handleWChange}
-          onBlur={handleWBlur}
+          value={isGlasspad ? GLASSPAD_SIZE_CM.w : wText}
+          onChange={!isGlasspad ? handleWChange : undefined}
+          onBlur={!isGlasspad ? handleWBlur : undefined}
           inputMode="decimal"
           pattern="[0-9]*"
-          disabled={locked || material === 'Glasspad'}
+          disabled={locked || isGlasspad}
         />
       </label>
 
       <label>Alto (cm)
         <input
-          value={hText}
-          onChange={handleHChange}
-          onBlur={handleHBlur}
+          value={isGlasspad ? GLASSPAD_SIZE_CM.h : hText}
+          onChange={!isGlasspad ? handleHChange : undefined}
+          onBlur={!isGlasspad ? handleHBlur : undefined}
           inputMode="decimal"
           pattern="[0-9]*"
-          disabled={locked || material === 'Glasspad'}
+          disabled={locked || isGlasspad}
         />
       </label>
 
@@ -98,14 +104,14 @@ export default function SizeControls({ material, size, onChange, locked = false 
         ))}
       </div>
 
-      {!locked && material !== 'Glasspad' && (
+      {!locked && !isGlasspad && (
         <small className={styles.helper}>
           Máximo {limits.maxW}×{limits.maxH} cm para {material}
         </small>
       )}
 
       {locked && (
-        <small className={styles.helper}>Medida fija 50×40 cm</small>
+        <small className={styles.helper}>Medida fija {GLASSPAD_SIZE_CM.w}×{GLASSPAD_SIZE_CM.h} cm</small>
       )}
     </div>
   );

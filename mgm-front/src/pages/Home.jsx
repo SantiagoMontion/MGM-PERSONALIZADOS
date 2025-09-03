@@ -8,7 +8,7 @@ import SizeControls from '../components/SizeControls';
 import Calculadora from '../components/Calculadora';
 import LoadingOverlay from '../components/LoadingOverlay';
 
-import { LIMITS, STANDARD } from '../lib/material.js';
+import { LIMITS, STANDARD, GLASSPAD_SIZE_CM } from '../lib/material.js';
 
 import { dpiLevel } from '../lib/dpi';
 import { sha256Hex } from '../lib/hash.js';
@@ -37,15 +37,24 @@ export default function Home() {
   const [mode, setMode] = useState('standard');
   const [size, setSize] = useState({ w: 90, h: 40 });
   const sizeCm = useMemo(() => ({ w: Number(size.w) || 90, h: Number(size.h) || 40 }), [size.w, size.h]);
+  const isGlasspad = material === 'Glasspad';
+  const activeWcm = isGlasspad ? GLASSPAD_SIZE_CM.w : sizeCm.w;
+  const activeHcm = isGlasspad ? GLASSPAD_SIZE_CM.h : sizeCm.h;
+  const activeSizeCm = useMemo(() => ({ w: activeWcm, h: activeHcm }), [activeWcm, activeHcm]);
   const lastSize = useRef({
     Classic: { w: 90, h: 40 },
     PRO: { w: 90, h: 40 },
   });
 
+  const glasspadInitRef = useRef(false);
   useEffect(() => {
-    if (material === 'Glasspad') {
-      setSize({ w: 50, h: 40 });
+    if (material !== 'Glasspad') {
+      glasspadInitRef.current = false;
+      return;
     }
+    if (glasspadInitRef.current) return;
+    setSize({ w: GLASSPAD_SIZE_CM.w, h: GLASSPAD_SIZE_CM.h });
+    glasspadInitRef.current = true;
   }, [material]);
 
   const [priceAmount, setPriceAmount] = useState(0);
@@ -79,7 +88,7 @@ export default function Home() {
       if (next.material === 'Glasspad') {
         setMaterial('Glasspad');
         setMode('standard');
-        setSize({ w: 50, h: 40 });
+        setSize({ w: GLASSPAD_SIZE_CM.w, h: GLASSPAD_SIZE_CM.h });
         return;
       }
       const lim = LIMITS[next.material];
@@ -163,8 +172,8 @@ export default function Home() {
           mime,
           size_bytes,
           material,
-          w_cm: sizeCm.w,
-          h_cm: sizeCm.h,
+          w_cm: activeWcm,
+          h_cm: activeHcm,
           sha256: file_hash,
         }),
       });
@@ -193,14 +202,14 @@ export default function Home() {
       // 5) construir payload submit-job
       console.log('[PRICE DEBUG]', {
         material,
-        width_cm: Number(size.w),
-        height_cm: Number(size.h),
+        width_cm: activeWcm,
+        height_cm: activeHcm,
         priceAmount,
       });
 
       const submitBody = buildSubmitJobBody({
         material,
-        size: { w: sizeCm.w, h: sizeCm.h, bleed_mm: 3 },
+        size: { w: activeWcm, h: activeHcm, bleed_mm: 3 },
         fit_mode: 'cover',
         bg: '#ffffff',
         dpi: 300,
@@ -255,8 +264,8 @@ export default function Home() {
               locked={material === 'Glasspad'}
             />
             <Calculadora
-              width={Number(size.w)}
-              height={Number(size.h)}
+              width={activeWcm}
+              height={activeHcm}
               material={material}
               setPrice={setPriceAmount}
             />
@@ -271,7 +280,7 @@ export default function Home() {
           ref={canvasRef}
           imageUrl={imageUrl}
           imageFile={uploaded?.file}
-          sizeCm={sizeCm}
+          sizeCm={activeSizeCm}
           bleedMm={3}
           dpi={300}
           onLayoutChange={setLayout}
