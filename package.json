@@ -6,7 +6,7 @@
   "packageManager": "npm@10",
   "scripts": {
     "start": "node api/upload-url.js",
-    "build": "next build",
+    "build": "echo \"no build\"",
     "test": "node --test",
     "api:smoke": "node scripts/api-smoke.js",
     "check:runtimes": "grep -Rni \"runtime.*nodejs20\" . || true && grep -Rni \"nodejs20\\.x\" . || true && grep -Rni \"export const runtime\" . || true && grep -Rni \\\"functions\\\" vercel.json || true",
