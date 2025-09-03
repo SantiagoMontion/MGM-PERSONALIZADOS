@@ -22,6 +22,7 @@ import ColorPopover from "./ColorPopover";
 
 import { buildSubmitJobBody, prevalidateSubmitBody } from "../lib/jobPayload";
 import { submitJob } from "../lib/submitJob";
+import { renderGlasspadPNG } from "../lib/renderGlasspadEffect";
 
 const CM_PER_INCH = 2.54;
 const mmToCm = (mm) => mm / 10;
@@ -733,10 +734,19 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     const pixelRatioX = inner_w_px / pad_px.w;
     const pixelRatioY = inner_h_px / pad_px.h;
     const pixelRatio = Math.min(pixelRatioX, pixelRatioY);
-    const blob = await exportStageRef.current.toBlob({
-      mimeType: "image/png",
-      pixelRatio,
-    });
+    const baseCanvas = exportStageRef.current.toCanvas({ pixelRatio });
+    let uploadCanvas = baseCanvas;
+    if (material === "Glasspad") {
+      const bmp = await createImageBitmap(baseCanvas);
+      uploadCanvas = renderGlasspadPNG(bmp, baseCanvas.width, baseCanvas.height, {
+        blurPx: 2,
+        whiteAlpha: 0.28,
+        highlightAlpha: 0.14,
+      });
+    }
+    const blob = await new Promise((resolve) =>
+      uploadCanvas.toBlob((b) => resolve(b), "image/png", 1)
+    );
     const outBitmap = await new Promise((resolve) => {
       const i = new Image();
       i.onload = () => resolve({ width: i.width, height: i.height });
