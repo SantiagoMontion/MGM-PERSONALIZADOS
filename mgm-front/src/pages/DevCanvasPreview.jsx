@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { PDFDocument } from 'pdf-lib';
 import { buildExportBaseName } from '../lib/filename';
@@ -27,6 +27,33 @@ export default function DevCanvasPreview() {
   const [wasAutoCentered, setWasAutoCentered] = useState(false);
   const canvasW = render_v2?.canvas_px?.w || 0;
   const canvasH = render_v2?.canvas_px?.h || 0;
+
+  const onCenterW = () => setCenterW(true);
+  const onCenterH = () => setCenterH(true);
+
+  const autoCenterDoneRef = useRef(null); // guarda un id de imagen para no repetir
+
+  function autoCenterOnce({ fireCenterW, fireCenterH, fallbackCenter }) {
+    // evitá loops si la misma imagen ya se centró
+    if (!img) return;
+    const imgId = (img?.src || img?.id || Date.now()).toString();
+    if (autoCenterDoneRef.current === imgId) return;
+
+    // esperar a layout para que canvas/pad tengan medidas definitivas
+    requestAnimationFrame(() => {
+      // 1) intentar con los handlers reales de la UI
+      let fired = false;
+      try { if (typeof fireCenterW === 'function') { fireCenterW(); fired = true; } } catch {}
+      try { if (typeof fireCenterH === 'function') { fireCenterH(); fired = true; } } catch {}
+
+      // 2) si no hay handlers, usar fallback directo
+      if (!fired && typeof fallbackCenter === 'function') {
+        fallbackCenter();
+      }
+
+      autoCenterDoneRef.current = imgId;
+    });
+  }
 
   useEffect(() => {
     if (padBlob) {
@@ -101,8 +128,28 @@ export default function DevCanvasPreview() {
       const renderH = image.height;
       setImg(image);
       setImgSize({ w: renderW, h: renderH });
-      setCenterH(true);
-      setCenterW(true);
+      requestAnimationFrame(() => {
+        autoCenterOnce({
+          fireCenterW: onCenterW,
+          fireCenterH: onCenterH,
+          fallbackCenter: () => {
+            // Fallback directo: centrar en el PAD si existe; si no, en el CANVAS
+            const pad = render_v2?.pad_px;
+            const can = render_v2?.canvas_px;
+            const tgt = pad?.w && pad?.h ? pad : can;
+            if (!tgt?.w || !tgt?.h || !renderW || !renderH) return;
+
+            const x = Math.round((tgt.x ?? 0) + (tgt.w - renderW) / 2);
+            const y = Math.round((tgt.y ?? 0) + (tgt.h - renderH) / 2);
+
+            // respetar tu estado/shape actual de posición
+            setImgPos(prev => ({ ...prev, x, y }));
+            // si tenés toggles de centrado, activarlos
+            setCenterW(true);
+            setCenterH(true);
+          },
+        });
+      });
     };
     setImgUrl(url);
     image.src = url;
