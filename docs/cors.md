@@ -28,7 +28,7 @@ export default async function handler(req, res) {
 For App Router routes (`app/api/**`), use:
 
 ```ts
-import { buildCorsHeaders, preflight, applyCorsToResponse } from '@/lib/cors';
+import { buildCorsHeaders, preflight, applyCorsToResponse } from '../lib/cors';
 
 export async function OPTIONS(req: Request) {
   return preflight(req.headers.get('origin'));
