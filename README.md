@@ -52,3 +52,8 @@ La aplicación utiliza dos buckets de Supabase Storage:
 
 * `uploads`: privado, almacena los archivos originales subidos por el usuario.
 * `outputs`: público, recibe los archivos generados (`preview.jpg`, `print.jpg` y `file.pdf`) por `/api/finalize-assets`.
+
+## Moderación
+
+Moderación **GRATIS**: `nsfwjs` en el cliente y `tesseract.js` en el servidor. No se requieren claves ni APIs externas. Anime o
+dibujos siempre están permitidos. Sólo se bloquea contenido con texto de odio explícito detectado mediante OCR.
