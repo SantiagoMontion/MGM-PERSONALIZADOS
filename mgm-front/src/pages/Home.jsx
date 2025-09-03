@@ -173,41 +173,18 @@ export default function Home() {
       setBusy(true);
       const API_BASE = (import.meta.env.VITE_API_BASE || 'https://mgm-api.vercel.app').replace(/\/$/, '');
 
-      // Moderación server rápida con preview
+      // Moderación final antes de crear el producto
       const previewUrl = canvasRef.current?.exportPreviewDataURL?.();
       if (previewUrl) {
         const r = await fetch(`${API_BASE}/api/moderate-image`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ image_dataurl: previewUrl, strict: needsStrictServerCheck }),
+          body: JSON.stringify({ image_dataurl: previewUrl }),
         });
         const j = await r.json();
         console.log('[moderate preview]', j);
         if (!j.allow) {
-          setErr('Se detectó contenido bloqueado');
-          setBusy(false);
-          return;
-        }
-      }
-
-      // Moderación final con master PNG
-      let masterDataUrl = null;
-      const masterBlob = await canvasRef.current?.exportPadAsBlob?.();
-      if (masterBlob) {
-        masterDataUrl = await new Promise(resolve => {
-          const fr = new FileReader();
-          fr.onloadend = () => resolve(typeof fr.result === 'string' ? fr.result : '');
-          fr.readAsDataURL(masterBlob);
-        });
-        const r2 = await fetch(`${API_BASE}/api/moderate-image`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ image_dataurl: masterDataUrl, strict: true }),
-        });
-        const j2 = await r2.json();
-        console.log('[moderate master]', j2);
-        if (!j2.allow) {
-          setErr('Se detectó contenido bloqueado');
+          setErr('Bloqueado por contenido de odio');
           setBusy(false);
           return;
         }

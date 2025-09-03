@@ -1,23 +1,23 @@
 # Moderación de imágenes
 
-Este proyecto incluye un filtro rápido en el cliente (`nsfwjs`) y una verificación final en el servidor.
+Este proyecto usa moderación **100% gratuita**: filtro rápido en el cliente con `nsfwjs` y verificación final en el servidor con `tesseract.js`.
 
 ## Cliente
-- Se usa `nsfwjs` para descartar rápidamente contenido NSFW de personas reales.
-- Anime/dibujos se permiten.
-- Si el chequeo rápido detecta posible desnudez real, se envía `strict: true` al servidor.
+- `nsfwjs` (TensorFlow.js 3.x) se carga de forma perezosa.
+- Anime o dibujos siempre se permiten.
+- Si parece sexual pero no es claro, se marca para revisión en el servidor (no se bloquea aquí).
 
 ## Servidor
 - Endpoint: `POST /api/moderate-image`.
-- Proveedor seleccionable vía `MOD_PROVIDER` (`HIVE` o `SIGHTENGINE`).
-- Variables de entorno necesarias:
-  - `HIVE_API_KEY`
-  - `SIGHTENGINE_USER` y `SIGHTENGINE_SECRET`
-- Umbrales configurables:
-  - `NUDE_REAL_THRESHOLD` (default `0.75`)
-  - `HATE_SYMBOL_THRESHOLD` (default `0.80`)
-  - `HATE_SPEECH_EXPLICIT_THRESHOLD` (default `0.85`)
+- No requiere claves externas ni proveedores pagos.
+- Se realiza OCR local con `tesseract.js` y se busca texto de odio explícito.
+- Sólo se bloquea si hay coincidencias claras con términos racistas o nazis.
 
-El endpoint bloquea únicamente desnudez de personas reales, actividad sexual explícita, símbolos extremistas y discurso de odio explícito.
+Variables opcionales en `.env`:
 
-Para cambiar de proveedor, ajusta `MOD_PROVIDER` en tu entorno y configura las claves correspondientes.
+```
+NUDE_REAL_THRESHOLD=0.75
+HATE_SPEECH_EXPLICIT_THRESHOLD=0.85
+```
+
+Anime/dibujo siempre permitido. El objetivo es bloquear únicamente discurso de odio textual detectado mediante OCR.
