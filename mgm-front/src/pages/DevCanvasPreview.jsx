@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { PDFDocument } from 'pdf-lib';
 import { buildExportBaseName } from '../lib/filename';
 import { renderMockup1080, downloadBlob } from '../lib/mockup';
+import { renderGlasspadPNG } from '../lib/renderGlasspadEffect';
 
 export default function DevCanvasPreview() {
   const navigate = useNavigate();
@@ -88,6 +89,22 @@ export default function DevCanvasPreview() {
     }, "image/png");
   }
 
+  async function previewGlasspadPNG() {
+    if (!padBlob) return;
+    const bmp = await createImageBitmap(padBlob);
+    const canvas = renderGlasspadPNG(bmp, bmp.width, bmp.height, {
+      blurPx: 2,
+      whiteAlpha: 0.28,
+      highlightAlpha: 0.14,
+    });
+    canvas.toBlob(b => {
+      if (b) {
+        const url = URL.createObjectURL(b);
+        window.open(url, '_blank');
+      }
+    }, 'image/png', 1);
+  }
+
   function handleUpload(file) {
     const url = URL.createObjectURL(file);
     const image = new Image();
@@ -165,42 +182,55 @@ export default function DevCanvasPreview() {
       <button onClick={exportPadDocument}>Exportar lienzo</button>
       {imgUrl && (
         <div style={{ position: 'relative', width: canvasW, height: canvasH }}>
-          <img
-            src={imgUrl}
-            alt="preview"
-            style={{ position: 'absolute', left: imgPos.x, top: imgPos.y }}
-          />
+          <div
+            style={{
+              position: 'absolute',
+              left: imgPos.x,
+              top: imgPos.y,
+              width: imgSize.w,
+              height: imgSize.h,
+            }}
+          >
+            <img
+              src={imgUrl}
+              alt="preview"
+              style={{
+                position: 'absolute',
+                inset: 0,
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+              }}
+            />
+            {isGlasspad && (
+              <>
+                <div
+                  aria-hidden
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    background: 'rgba(255,255,255,0.28)',
+                    backdropFilter: 'blur(2px) saturate(1.03)',
+                    WebkitBackdropFilter: 'blur(2px) saturate(1.03)',
+                    pointerEvents: 'none',
+                  }}
+                />
+                <div
+                  aria-hidden
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    background:
+                      'linear-gradient(135deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.06) 55%, rgba(255,255,255,0) 100%)',
+                    mixBlendMode: 'screen',
+                    pointerEvents: 'none',
+                  }}
+                />
+              </>
+            )}
+          </div>
           {isGlasspad && (
-            <>
-              <div
-                aria-hidden
-                style={{
-                  position: 'absolute',
-                  left: imgPos.x,
-                  top: imgPos.y,
-                  width: imgSize.w,
-                  height: imgSize.h,
-                  background: 'rgba(255,255,255,0.35)',
-                  backdropFilter: 'blur(3px) saturate(1.05)',
-                  WebkitBackdropFilter: 'blur(3px) saturate(1.05)',
-                  boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.25)',
-                  pointerEvents: 'none',
-                }}
-              />
-              <div
-                style={{
-                  position: 'absolute',
-                  left: imgPos.x,
-                  top: imgPos.y,
-                  width: imgSize.w,
-                  height: imgSize.h,
-                  background:
-                    'linear-gradient(135deg, rgba(255,255,255,0.20) 0%, rgba(255,255,255,0.05) 60%, rgba(255,255,255,0) 100%)',
-                  mixBlendMode: 'screen',
-                  pointerEvents: 'none',
-                }}
-              />
-            </>
+            <div><button onClick={previewGlasspadPNG}>Preview Glasspad PNG</button></div>
           )}
           <div><button onClick={downloadMockup}>Descargar PNG</button></div>
           <div style={{ marginTop: '10px' }}>
