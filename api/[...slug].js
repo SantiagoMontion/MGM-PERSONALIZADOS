@@ -3,8 +3,6 @@ import { cors } from './_lib/cors.js';
 import { envCheck, corsDiagnose } from '../lib/api/handlers/system.js';
 import { searchAssets } from '../lib/api/handlers/assets.js';
 
-export const config = { runtime: 'nodejs' };
-
 const routes = [
   { method: 'GET', pattern: /^env-check$/, handler: envCheck },
   { method: 'GET', pattern: /^cors-diagnose$/, handler: corsDiagnose },
