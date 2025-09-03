@@ -720,6 +720,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       w_cm: wCm,
       h_cm: hCm,
       bleed_mm: bleedMm,
+      material,
     };
   };
 
