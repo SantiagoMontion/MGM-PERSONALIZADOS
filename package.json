@@ -6,9 +6,10 @@
   "packageManager": "npm@10",
   "scripts": {
     "build": "echo \"no build\"",
-    "start": "echo \"vercel runs functions\"",
     "doctor:vercel": "node -e \"console.log(require('./vercel.json'))\"",
-    "find:file-runtime": "grep -RniE \"export const config\\s*=\\s*\\{\\s*runtime\" api || true"
+    "find:legacy": "grep -RniE '\\b(builds|routes)\\b' vercel.json now.json || true",
+    "find:bad-runtime": "grep -RniE '\"runtime\"\\s*:\\s*\"nodejs(?!20\\.x)\"' vercel.json package.json now.json || true",
+    "find:now-files": "ls -1 now.json project.json 2>/dev/null || true"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.54.0",
