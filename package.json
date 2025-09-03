@@ -20,8 +20,5 @@
   },
   "engines": {
     "node": "20.x"
-  },
-  "devDependencies": {
-    "@vercel/node": "^3.0.0"
   }
 }
