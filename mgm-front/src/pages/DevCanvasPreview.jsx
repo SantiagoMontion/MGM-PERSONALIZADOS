@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { PDFDocument } from 'pdf-lib';
 import { buildExportBaseName } from '../lib/filename';
 import { renderMockup1080, downloadBlob } from '../lib/mockup';
-import { renderGlasspadPNG } from '../lib/renderGlasspadEffect';
+import { renderGlasspadPNG } from '../lib/renderGlasspadPNG';
 
 export default function DevCanvasPreview() {
   const navigate = useNavigate();
@@ -93,10 +93,14 @@ export default function DevCanvasPreview() {
   async function previewGlasspadPNG() {
     if (!padBlob) return;
     const bmp = await createImageBitmap(padBlob);
-    const canvas = renderGlasspadPNG(bmp, bmp.width, bmp.height, {
+    const baseCanvas = document.createElement('canvas');
+    baseCanvas.width = bmp.width;
+    baseCanvas.height = bmp.height;
+    baseCanvas.getContext('2d')?.drawImage(bmp, 0, 0);
+    const canvas = renderGlasspadPNG(baseCanvas, {
       blurPx: 2,
-      whiteAlpha: 0.28,
-      highlightAlpha: 0.14,
+      whiteA: 0.28,
+      hiA: 0.14,
     });
     canvas.toBlob(b => {
       if (b) {
