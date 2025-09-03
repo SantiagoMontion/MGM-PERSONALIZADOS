@@ -17,16 +17,25 @@ export default function Creating() {
   const run = useCallback(async () => {
     setNeedsRetry(false);
     try {
+      const mode = render_v2?.material || render?.material || "Classic";
+      const isGlasspad = mode === "Glasspad";
+      const payload = {
+        job_id: jobId,
+        mode,
+        width_cm: isGlasspad ? 49 : Number(render_v2?.w_cm ?? render?.w_cm ?? 0),
+        height_cm: isGlasspad ? 42 : Number(render_v2?.h_cm ?? render?.h_cm ?? 0),
+        design_url: render_v2?.design_url ?? render?.design_url ?? null,
+        bleed_mm: Number(render_v2?.bleed_mm ?? render?.bleed_mm ?? 0),
+        rotate_deg: Number(render_v2?.rotate_deg ?? render?.rotate_deg ?? 0),
+        glasspad_effect: isGlasspad
+          ? { blur_px: 2, white_alpha: 0.26, highlight_alpha: 0.12 }
+          : null,
+      };
+      console.log('[FINALIZE PAYLOAD]', payload);
       const resp = await fetch(`${apiBase}/api/finalize-assets`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(
-          render_v2
-            ? { job_id: jobId, render_v2 }
-            : render
-              ? { job_id: jobId, render }
-              : { job_id: jobId },
-        ),
+        body: JSON.stringify(payload),
       });
       console.log("finalize diag", resp.headers.get("X-Diag-Id"));
 
@@ -39,7 +48,7 @@ export default function Creating() {
               const r = await fetch(`${apiBase}/api/finalize-assets`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ job_id: jobId }),
+                body: JSON.stringify(payload),
               });
               console.log("retry finalize diag", r.headers.get("X-Diag-Id"));
             } catch (e) {
@@ -59,7 +68,7 @@ export default function Creating() {
       } else {
         setNeedsRetry(true);
       }
-    } catch (err) {
+    } catch {
       setNeedsRetry(true);
     }
   }, [apiBase, jobId, render, render_v2, navigate]);

@@ -22,7 +22,8 @@ export default function DevCanvasPreview() {
   const wasAutoCentered = useRef(false);
   const canvasW = render_v2?.canvas_px?.w || 0;
   const canvasH = render_v2?.canvas_px?.h || 0;
-  const isGlasspad = render_v2?.material === 'Glasspad';
+  const mode = render_v2?.material;
+  const isGlasspad = mode === 'Glasspad';
 
   useEffect(() => {
     if (padBlob) {
@@ -209,7 +210,7 @@ export default function DevCanvasPreview() {
                   style={{
                     position: 'absolute',
                     inset: 0,
-                    background: 'rgba(255,255,255,0.28)',
+                    background: 'rgba(255,255,255,0.26)',
                     backdropFilter: 'blur(2px) saturate(1.03)',
                     WebkitBackdropFilter: 'blur(2px) saturate(1.03)',
                     pointerEvents: 'none',
@@ -221,7 +222,7 @@ export default function DevCanvasPreview() {
                     position: 'absolute',
                     inset: 0,
                     background:
-                      'linear-gradient(135deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.06) 55%, rgba(255,255,255,0) 100%)',
+                      'linear-gradient(135deg, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0.06) 55%, rgba(255,255,255,0) 100%)',
                     mixBlendMode: 'screen',
                     pointerEvents: 'none',
                   }}
