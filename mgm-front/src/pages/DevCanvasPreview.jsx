@@ -4,12 +4,6 @@ import { PDFDocument } from 'pdf-lib';
 import { buildExportBaseName } from '../lib/filename';
 import { renderMockup1080, downloadBlob } from '../lib/mockup';
 
-function getCenteredPos(targetRect, imgW, imgH) {
-  const x = Math.round(targetRect.x + (targetRect.w - imgW) / 2);
-  const y = Math.round(targetRect.y + (targetRect.h - imgH) / 2);
-  return { x, y };
-}
-
 export default function DevCanvasPreview() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -24,36 +18,10 @@ export default function DevCanvasPreview() {
   const [imgPos, setImgPos] = useState({ x: 0, y: 0 });
   const [centerH, setCenterH] = useState(true);
   const [centerW, setCenterW] = useState(true);
-  const [wasAutoCentered, setWasAutoCentered] = useState(false);
+  const wasAutoCentered = useRef(false);
   const canvasW = render_v2?.canvas_px?.w || 0;
   const canvasH = render_v2?.canvas_px?.h || 0;
-
-  const onCenterW = () => setCenterW(true);
-  const onCenterH = () => setCenterH(true);
-
-  const autoCenterDoneRef = useRef(null); // guarda un id de imagen para no repetir
-
-  function autoCenterOnce({ fireCenterW, fireCenterH, fallbackCenter }) {
-    // evitá loops si la misma imagen ya se centró
-    if (!img) return;
-    const imgId = (img?.src || img?.id || Date.now()).toString();
-    if (autoCenterDoneRef.current === imgId) return;
-
-    // esperar a layout para que canvas/pad tengan medidas definitivas
-    requestAnimationFrame(() => {
-      // 1) intentar con los handlers reales de la UI
-      let fired = false;
-      try { if (typeof fireCenterW === 'function') { fireCenterW(); fired = true; } } catch {}
-      try { if (typeof fireCenterH === 'function') { fireCenterH(); fired = true; } } catch {}
-
-      // 2) si no hay handlers, usar fallback directo
-      if (!fired && typeof fallbackCenter === 'function') {
-        fallbackCenter();
-      }
-
-      autoCenterDoneRef.current = imgId;
-    });
-  }
+  const isGlasspad = render_v2?.material === 'Glasspad';
 
   useEffect(() => {
     if (padBlob) {
@@ -128,28 +96,6 @@ export default function DevCanvasPreview() {
       const renderH = image.height;
       setImg(image);
       setImgSize({ w: renderW, h: renderH });
-      requestAnimationFrame(() => {
-        autoCenterOnce({
-          fireCenterW: onCenterW,
-          fireCenterH: onCenterH,
-          fallbackCenter: () => {
-            // Fallback directo: centrar en el PAD si existe; si no, en el CANVAS
-            const pad = render_v2?.pad_px;
-            const can = render_v2?.canvas_px;
-            const tgt = pad?.w && pad?.h ? pad : can;
-            if (!tgt?.w || !tgt?.h || !renderW || !renderH) return;
-
-            const x = Math.round((tgt.x ?? 0) + (tgt.w - renderW) / 2);
-            const y = Math.round((tgt.y ?? 0) + (tgt.h - renderH) / 2);
-
-            // respetar tu estado/shape actual de posición
-            setImgPos(prev => ({ ...prev, x, y }));
-            // si tenés toggles de centrado, activarlos
-            setCenterW(true);
-            setCenterH(true);
-          },
-        });
-      });
     };
     setImgUrl(url);
     image.src = url;
@@ -158,34 +104,40 @@ export default function DevCanvasPreview() {
 
   useEffect(() => {
     if (!img) return;
-    let x = imgPos.x;
-    let y = imgPos.y;
-    if (centerW) x = Math.round((canvasW - imgSize.w) / 2);
-    if (centerH) y = Math.round((canvasH - imgSize.h) / 2);
-    setImgPos({ x, y });
-  }, [img, imgSize, canvasW, canvasH, centerW, centerH, imgPos.x, imgPos.y]);
+    setImgPos(prev => {
+      let x = prev.x;
+      let y = prev.y;
+      if (centerW) x = Math.round((canvasW - imgSize.w) / 2);
+      if (centerH) y = Math.round((canvasH - imgSize.h) / 2);
+      return { x, y };
+    });
+  }, [img, imgSize.w, imgSize.h, canvasW, canvasH, centerW, centerH]);
 
   useEffect(() => {
-    if (!img || !imgSize?.w || !imgSize?.h || wasAutoCentered) return;
+    if (!img || wasAutoCentered.current) return;
+    const tgt = render_v2?.pad_px ?? render_v2?.canvas_px;
+    if (!tgt?.w || !tgt?.h || !imgSize?.w || !imgSize?.h) return;
 
-    const targetRect = render_v2?.pad_px ?? render_v2?.canvas_px;
-    if (!targetRect?.w || !targetRect?.h) return;
-
-    const { x, y } = getCenteredPos(targetRect, imgSize.w, imgSize.h);
-
-    setCenterH(true);
-    setCenterW(true);
-
+    const x = Math.round((tgt.x ?? 0) + (tgt.w - imgSize.w) / 2);
+    const y = Math.round((tgt.y ?? 0) + (tgt.h - imgSize.h) / 2);
     setImgPos(prev => ({ ...prev, x, y }));
-
-    setWasAutoCentered(true);
+    setCenterW(true);
+    setCenterH(true);
+    wasAutoCentered.current = true;
   }, [
     img,
     imgSize?.w,
     imgSize?.h,
+    render_v2?.pad_px?.w,
+    render_v2?.pad_px?.h,
+    render_v2?.pad_px?.x,
+    render_v2?.pad_px?.y,
     render_v2?.pad_px,
+    render_v2?.canvas_px?.w,
+    render_v2?.canvas_px?.h,
+    render_v2?.canvas_px?.x,
+    render_v2?.canvas_px?.y,
     render_v2?.canvas_px,
-    wasAutoCentered,
   ]);
 
   function continueFlow() {
@@ -218,6 +170,38 @@ export default function DevCanvasPreview() {
             alt="preview"
             style={{ position: 'absolute', left: imgPos.x, top: imgPos.y }}
           />
+          {isGlasspad && (
+            <>
+              <div
+                aria-hidden
+                style={{
+                  position: 'absolute',
+                  left: imgPos.x,
+                  top: imgPos.y,
+                  width: imgSize.w,
+                  height: imgSize.h,
+                  background: 'rgba(255,255,255,0.35)',
+                  backdropFilter: 'blur(3px) saturate(1.05)',
+                  WebkitBackdropFilter: 'blur(3px) saturate(1.05)',
+                  boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.25)',
+                  pointerEvents: 'none',
+                }}
+              />
+              <div
+                style={{
+                  position: 'absolute',
+                  left: imgPos.x,
+                  top: imgPos.y,
+                  width: imgSize.w,
+                  height: imgSize.h,
+                  background:
+                    'linear-gradient(135deg, rgba(255,255,255,0.20) 0%, rgba(255,255,255,0.05) 60%, rgba(255,255,255,0) 100%)',
+                  mixBlendMode: 'screen',
+                  pointerEvents: 'none',
+                }}
+              />
+            </>
+          )}
           <div><button onClick={downloadMockup}>Descargar PNG</button></div>
           <div style={{ marginTop: '10px' }}>
             <label style={{ marginRight: '10px' }}>
