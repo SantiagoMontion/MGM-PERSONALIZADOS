@@ -6,7 +6,9 @@
   "packageManager": "npm@10",
   "scripts": {
     "build": "echo \"no build\"",
-    "start": "echo \"vercel runs functions\""
+    "start": "echo \"vercel runs functions\"",
+    "doctor:vercel": "node -e \"console.log(require('./vercel.json'))\"",
+    "find:file-runtime": "grep -RniE \"export const config\\s*=\\s*\\{\\s*runtime\" api || true"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.54.0",
