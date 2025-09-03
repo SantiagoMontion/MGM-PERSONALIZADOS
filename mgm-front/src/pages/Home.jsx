@@ -7,6 +7,7 @@ import EditorCanvas from '../components/EditorCanvas';
 import SizeControls from '../components/SizeControls';
 import Calculadora from '../components/Calculadora';
 import LoadingOverlay from '../components/LoadingOverlay';
+import { quickExplicitCheck } from '../moderation/nsfwQuick';
 
 import { LIMITS, STANDARD, GLASSPAD_SIZE_CM } from '../lib/material.js';
 
@@ -20,6 +21,7 @@ export default function Home() {
 
   // archivo subido
   const [uploaded, setUploaded] = useState(null);
+  const [needsStrictServerCheck, setNeedsStrictServerCheck] = useState(false);
 
   // crear ObjectURL una sola vez
   const [imageUrl, setImageUrl] = useState(null);
@@ -31,6 +33,21 @@ export default function Home() {
       setImageUrl(null);
     }
   }, [uploaded?.localUrl]);
+
+  useEffect(() => {
+    if (!imageUrl) return;
+    let cancelled = false;
+    const img = new Image();
+    img.onload = async () => {
+      const qc = await quickExplicitCheck(img);
+      console.log('[nsfw quick]', qc);
+      if (!cancelled) setNeedsStrictServerCheck(qc.reason === 'server_check_required');
+    };
+    img.src = imageUrl;
+    return () => {
+      cancelled = true;
+    };
+  }, [imageUrl]);
 
   // medidas y material (source of truth)
   const [material, setMaterial] = useState('Classic');
@@ -154,12 +171,52 @@ export default function Home() {
       }
       setErr('');
       setBusy(true);
+      const API_BASE = (import.meta.env.VITE_API_BASE || 'https://mgm-api.vercel.app').replace(/\/$/, '');
+
+      // Moderación server rápida con preview
+      const previewUrl = canvasRef.current?.exportPreviewDataURL?.();
+      if (previewUrl) {
+        const r = await fetch(`${API_BASE}/api/moderate-image`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image_dataurl: previewUrl, strict: needsStrictServerCheck }),
+        });
+        const j = await r.json();
+        console.log('[moderate preview]', j);
+        if (!j.allow) {
+          setErr('Se detectó contenido bloqueado');
+          setBusy(false);
+          return;
+        }
+      }
+
+      // Moderación final con master PNG
+      let masterDataUrl = null;
+      const masterBlob = await canvasRef.current?.exportPadAsBlob?.();
+      if (masterBlob) {
+        masterDataUrl = await new Promise(resolve => {
+          const fr = new FileReader();
+          fr.onloadend = () => resolve(typeof fr.result === 'string' ? fr.result : '');
+          fr.readAsDataURL(masterBlob);
+        });
+        const r2 = await fetch(`${API_BASE}/api/moderate-image`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image_dataurl: masterDataUrl, strict: true }),
+        });
+        const j2 = await r2.json();
+        console.log('[moderate master]', j2);
+        if (!j2.allow) {
+          setErr('Se detectó contenido bloqueado');
+          setBusy(false);
+          return;
+        }
+      }
 
       // 1) calcular hash local
       const file_hash = await sha256Hex(uploaded.file);
 
       // 2) pedir signed URL
-      const API_BASE = (import.meta.env.VITE_API_BASE || 'https://mgm-api.vercel.app').replace(/\/$/, '');
       const ext = (uploaded.file.name.split('.').pop() || 'png').toLowerCase();
       const mime = uploaded.file.type || 'image/png';
       const size_bytes = uploaded.file.size;
