@@ -19,7 +19,9 @@
     "react-konva": "^19.0.7",
     "react-router-dom": "^7.8.0",
     "use-image": "^1.1.4",
-    "zod": "^4.0.17"
+    "zod": "^4.0.17",
+    "nsfwjs": "^2.4.0",
+    "@tensorflow/tfjs": "^4.19.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",

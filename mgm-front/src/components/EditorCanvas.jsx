@@ -772,6 +772,15 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     return blob;
   };
 
+  const exportPreviewDataURL = () => {
+    if (!exportStageRef.current) return null;
+    try {
+      return exportStageRef.current.toDataURL({ pixelRatio: 0.5 });
+    } catch (e) {
+      return null;
+    }
+  };
+
   useImperativeHandle(ref, () => ({
     getRenderDescriptor: () => {
       if (!imgEl || !imgBaseCm) return null;
@@ -829,6 +838,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     getPadRect,
     getPadRectPx,
     exportPadAsBlob,
+    exportPreviewDataURL,
     startPickColor,
   }));
 
