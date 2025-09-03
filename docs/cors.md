@@ -9,7 +9,7 @@ Edit `ALLOWED_ORIGINS` inside `lib/cors.ts` to modify permitted origins.
 For Pages API style handlers (`api/*.js`), compute CORS headers per request:
 
 ```js
-import { buildCorsHeaders } from '../lib/cors.ts';
+import { buildCorsHeaders } from '../lib/cors';
 
 export default async function handler(req, res) {
   const origin = req.headers.origin || null;
@@ -28,7 +28,7 @@ export default async function handler(req, res) {
 For App Router routes (`app/api/**`), use:
 
 ```ts
-import { buildCorsHeaders, preflight, withCorsJson } from '@/lib/cors';
+import { buildCorsHeaders, preflight, applyCorsToResponse } from '@/lib/cors';
 
 export async function OPTIONS(req: Request) {
   return preflight(req.headers.get('origin'));
@@ -47,8 +47,7 @@ export async function POST(req: Request) {
     status: 200,
     headers: { 'Content-Type': 'application/json' },
   });
-  Object.entries(cors).forEach(([k, v]) => res.headers.set(k, String(v)));
-  return res;
+  return applyCorsToResponse(res, origin);
 }
 ```
 

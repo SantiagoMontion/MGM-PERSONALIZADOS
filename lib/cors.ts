@@ -38,15 +38,25 @@ export function preflight(origin: string | null) {
   });
 }
 
-export function withCorsJson(resInit: ResponseInit | undefined, origin: string | null) {
+export function applyCorsToResponse(res: Response, origin: string | null) {
   const headers = buildCorsHeaders(origin);
-  if (!headers) return resInit;
-  const current =
-    resInit && resInit.headers
-      ? resInit.headers instanceof Headers
-        ? Object.fromEntries(resInit.headers.entries())
-        : (resInit.headers as Record<string, string>)
-      : {};
-  return { ...(resInit || {}), headers: { ...current, ...headers } } as ResponseInit;
+  if (!headers) return res;
+  Object.entries(headers).forEach(([k, v]) => res.headers.set(k, String(v)));
+  return res;
 }
 
+export function withCors(handler: (req: any, res: any) => any) {
+  return async function corsWrapped(req: any, res: any) {
+    const origin = req.headers?.origin || null;
+    const cors = buildCorsHeaders(origin);
+    if (req.method === 'OPTIONS') {
+      if (!cors) return res.status(403).json({ error: 'origin_not_allowed' });
+      Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v));
+      res.setHeader('Content-Length', '0');
+      return res.status(204).end();
+    }
+    if (!cors) return res.status(403).json({ error: 'origin_not_allowed' });
+    Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v));
+    return handler(req, res);
+  };
+}

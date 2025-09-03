@@ -10,7 +10,8 @@
     "check:runtimes": "grep -Rni \"runtime.*nodejs20\" . || true && grep -Rni \"nodejs20\\.x\" . || true && grep -Rni \"export const runtime\" . || true && grep -Rni \\\"functions\\\" vercel.json || true",
     "cors:smoke": "node scripts/cors-smoke.mjs",
     "syntax:check": "node ./scripts/syntax-check.mjs",
-    "syntax:check:build": "node --check .next/server/**/*.js || true"
+    "syntax:check:build": "node --check .next/server/**/*.js || true",
+    "find:bad-imports": "grep -RniE \"from '(/|.*\\.ts')\" --include=*.{ts,tsx,js,jsx} . || true"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.54.0",
