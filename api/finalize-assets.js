@@ -1,9 +1,9 @@
 // api/finalize-assets.js
-import { buildCorsHeaders } from "../lib/cors.ts";
+import { buildCorsHeaders } from "../lib/cors";
 import getSupabaseAdmin from "./_lib/supabaseAdmin.js";
 import sharp from "sharp";
 import { PDFDocument } from "pdf-lib";
-import composeImage from "./_lib/composeImage.ts";
+import composeImage from "./_lib/composeImage";
 import crypto from "node:crypto";
 
 export const config = {

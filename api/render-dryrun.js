@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { cors } from "./_lib/cors.js";
 import getSupabaseAdmin from "./_lib/supabaseAdmin.js";
-import composeImage from "./_lib/composeImage.ts";
+import composeImage from "./_lib/composeImage";
 
 function err(res, status, { diag_id, stage, message, debug = {} }) {
   return res.status(status).json({ ok: false, diag_id, stage, message, debug });
