@@ -27,16 +27,19 @@ export default function Creating() {
         design_url: render_v2?.design_url ?? render?.design_url ?? null,
         bleed_mm: Number(render_v2?.bleed_mm ?? render?.bleed_mm ?? 0),
         rotate_deg: Number(render_v2?.rotate_deg ?? render?.rotate_deg ?? 0),
-        glasspad_effect: isGlasspad
-          ? { blur_px: 2, white_alpha: 0.26, highlight_alpha: 0.12 }
-          : null,
+        ...(isGlasspad ? { glasspad: { effect: true } } : {}),
       };
-      console.log('[FINALIZE PAYLOAD]', payload);
       const resp = await fetch(`${apiBase}/api/finalize-assets`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+      console.log(
+        "[FINALIZE PAYLOAD]",
+        payload,
+        resp.status,
+        await resp.clone().text().catch(() => ""),
+      );
       console.log("finalize diag", resp.headers.get("X-Diag-Id"));
 
       let retried = false;

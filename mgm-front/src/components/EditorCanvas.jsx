@@ -16,13 +16,14 @@ import {
   Image as KonvaImage,
   Transformer,
 } from "react-konva";
+import Konva from "konva";
 import useImage from "use-image";
 import styles from "./EditorCanvas.module.css";
 import ColorPopover from "./ColorPopover";
 
 import { buildSubmitJobBody, prevalidateSubmitBody } from "../lib/jobPayload";
 import { submitJob } from "../lib/submitJob";
-import { renderGlasspadPNG } from "../lib/renderGlasspadEffect";
+import { renderGlasspadPNG } from "../lib/renderGlasspadPNG";
 
 const CM_PER_INCH = 2.54;
 const mmToCm = (mm) => mm / 10;
@@ -738,11 +739,10 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     const baseCanvas = exportStageRef.current.toCanvas({ pixelRatio });
     let uploadCanvas = baseCanvas;
     if (material === "Glasspad") {
-      const bmp = await createImageBitmap(baseCanvas);
-      uploadCanvas = renderGlasspadPNG(bmp, baseCanvas.width, baseCanvas.height, {
+      uploadCanvas = renderGlasspadPNG(baseCanvas, {
         blurPx: 2,
-        whiteAlpha: 0.28,
-        highlightAlpha: 0.14,
+        whiteA: 0.28,
+        hiA: 0.14,
       });
     }
     const blob = await new Promise((resolve) =>
@@ -1170,7 +1170,49 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               ))}
 
             {/* máscara fuera del área */}
-
+          </Layer>
+          {material === "Glasspad" && (
+            <Layer id="glasspadOverlayLayer" listening={false}>
+              <Group
+                id="glassOverlayGroup"
+                x={bleedCm}
+                y={bleedCm}
+                width={wCm}
+                height={hCm}
+                clipFunc={(ctx) => {
+                  ctx.rect(0, 0, wCm, hCm);
+                }}
+                ref={(node) => {
+                  if (!node) return;
+                  const k = baseScale * viewScale;
+                  node.cache({ pixelRatio: 2 * k });
+                  node.filters([Konva.Filters.Blur]);
+                  node.blurRadius(2);
+                }}
+              >
+                <Rect width={wCm} height={hCm} fill="rgba(255,255,255,0.28)" />
+                <Rect
+                  width={wCm}
+                  height={hCm}
+                  fillLinearGradientStartPoint={{ x: 0, y: 0 }}
+                  fillLinearGradientEndPoint={{ x: wCm, y: hCm }}
+                  fillLinearGradientColorStops={[
+                    0, 'rgba(255,255,255,0.16)',
+                    0.45, 'rgba(255,255,255,0.06)',
+                    1, 'rgba(255,255,255,0)',
+                  ]}
+                  globalCompositeOperation="lighter"
+                />
+                <Rect
+                  width={wCm}
+                  height={hCm}
+                  stroke="rgba(255,255,255,0.22)"
+                  strokeWidth={1}
+                />
+              </Group>
+            </Layer>
+          )}
+          <Layer listening={false}>
             {/* guías */}
             <Rect
               x={0}
@@ -1180,7 +1222,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               stroke="#ef4444"
               strokeWidth={0.04}
               cornerRadius={cornerRadiusCm + bleedCm}
-              listening={false}
             />
             <Rect
               x={bleedCm}
@@ -1191,7 +1232,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               dash={[0.4, 0.4]}
               strokeWidth={0.04}
               cornerRadius={cornerRadiusCm}
-              listening={false}
             />
             <Rect
               x={bleedCm + 1}
@@ -1202,7 +1242,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               dash={[0.3, 0.3]}
               strokeWidth={0.03}
               cornerRadius={Math.max(0, cornerRadiusCm - 1)}
-              listening={false}
             />
           </Layer>
         </Stage>
