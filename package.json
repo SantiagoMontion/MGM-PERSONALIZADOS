@@ -6,10 +6,10 @@
   "packageManager": "npm@10",
   "scripts": {
     "build": "cd mgm-front && npm ci && npm run build",
-    "doctor:vercel": "node -e \"try{console.log(require('./vercel.json'))}catch(e){console.log('NO vercel.json en root')}\"",
-    "find:legacy": "git ls-files \"**/vercel.json\" | xargs -I{} bash -lc 'echo --- {}; grep -nE \"\\b(builds|routes)\\b\" {} || true'; test -f now.json && echo 'tiene now.json' && true || true",
-    "find:bad-runtime": "git grep -nE '\"runtime\"\\s*:\\s*\"nodejs(?!20\\.x)\"' -- **/vercel.json package.json || true",
+    "doctor:vercel": "node -e \"console.log(require('./vercel.json'))\"",
+    "find:legacy": "git grep -nE '\"version\"\\s*:\\s*1|\"(builds|routes)\"' -- **/vercel.json || true",
     "find:file-runtime": "git grep -nE 'export const config\\s*=\\s*\\{\\s*runtime' -- api || true",
+    "find:now": "git grep -n 'now-' -- . || true",
     "lint": "eslint .",
     "format": "prettier -w .",
     "doctor:env": "node -e \"console.log(process.version)\"",
