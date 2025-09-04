@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrderFlow } from '../store/orderFlow';
 import SeoJsonLd from '../components/SeoJsonLd';
+import { apiFetch } from '@/lib/api';
 
 const MAX_W = 720;
 const MAX_H = 520;
@@ -45,11 +46,11 @@ export default function Mockup() {
     setLoading(true);
     setError(null);
     try {
-      const mod = await fetch('/api/moderate-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image_dataurl: master_png_dataurl }),
-      }).then((r) => r.json());
+        const mod = await apiFetch('/api/moderate-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image_dataurl: master_png_dataurl }),
+        }).then((r) => r.json());
       if (!mod.allow) {
         setError('La imagen contiene contenido no permitido.');
         setLoading(false);
@@ -64,11 +65,11 @@ export default function Mockup() {
         rotate_deg: Number(rotate_deg),
         image_dataurl: master_png_dataurl,
       };
-      const res = await fetch('/api/shopify/create-product', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
+        const res = await apiFetch('/api/shopify/create-product', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
       const data = await res.json();
       if (!res.ok || !data?.ok)
         throw new Error(data?.message || 'Error al crear el producto');

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { api } from '../lib/api';
+import { apiFetch } from '@/lib/api';
 import styles from './Confirm.module.css';
 
 export default function Confirm() {
@@ -12,16 +12,17 @@ export default function Confirm() {
   useEffect(() => {
     let t;
     async function tick() {
-      try {
-        const json = await api(`/api/job-summary?id=${encodeURIComponent(jobId)}`);
-        setData(json);
-        if (!json.cart_url || (json.status !== 'READY_FOR_PRODUCTION' && json.status !== 'SHOPIFY_CREATED')) {
-          t = setTimeout(tick, 2000);
+        try {
+          const res = await apiFetch(`/api/job-summary?id=${encodeURIComponent(jobId)}`);
+          const json = await res.json();
+          setData(json);
+          if (!json.cart_url || (json.status !== 'READY_FOR_PRODUCTION' && json.status !== 'SHOPIFY_CREATED')) {
+            t = setTimeout(tick, 2000);
+          }
+        } catch (e) {
+          setErr(String(e?.message || e));
+          t = setTimeout(tick, 3000);
         }
-      } catch (e) {
-        setErr(String(e?.body?.error || e?.message || e));
-        t = setTimeout(tick, 3000);
-      }
     }
     if (jobId) tick();
     return () => clearTimeout(t);

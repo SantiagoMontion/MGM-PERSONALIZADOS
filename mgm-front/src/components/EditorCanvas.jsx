@@ -880,8 +880,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const [colorOpen, setColorOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [lastDiag, setLastDiag] = useState(null);
-  const API_BASE =
-    import.meta.env.VITE_API_BASE || "https://mgm-api.vercel.app";
   const toggleContain = () => {
     fitContain();
     setColorOpen(true);
@@ -943,9 +941,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         return;
       }
 
-      const apiBase =
-        import.meta.env.VITE_API_BASE || "https://mgm-api.vercel.app";
-      const job = await submitJob(apiBase, submitBody);
+        const job = await submitJob(submitBody);
 
       onDone?.(job);
     } catch (err) {

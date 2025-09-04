@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import LoadingOverlay from "../components/LoadingOverlay";
 import { pollJobAndCreateCart } from "../lib/pollJobAndCreateCart";
+import { apiFetch } from "@/lib/api";
 
 export default function Creating() {
   const { jobId } = useParams();
@@ -10,8 +11,6 @@ export default function Creating() {
   const render = location.state?.render;
   const render_v2 = location.state?.render_v2;
   const skipFinalize = location.state?.skipFinalize;
-  const apiBase = import.meta.env.VITE_API_BASE || "https://mgm-api.vercel.app";
-
   const [needsRetry, setNeedsRetry] = useState(false);
 
   const run = useCallback(async () => {
@@ -29,11 +28,11 @@ export default function Creating() {
         rotate_deg: Number(render_v2?.rotate_deg ?? render?.rotate_deg ?? 0),
         ...(isGlasspad ? { glasspad: { effect: true } } : {}),
       };
-      const resp = await fetch(`${apiBase}/api/finalize-assets`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+        const resp = await apiFetch(`/api/finalize-assets`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
       console.log(
         "[FINALIZE PAYLOAD]",
         payload,
@@ -42,24 +41,24 @@ export default function Creating() {
       );
       console.log("finalize diag", resp.headers.get("X-Diag-Id"));
 
-      let retried = false;
-      const res = await pollJobAndCreateCart(apiBase, jobId, {
-        onTick: async (attempt, job) => {
-          if (!retried && attempt >= 10 && job?.status === "CREATED") {
-            retried = true;
-            try {
-              const r = await fetch(`${apiBase}/api/finalize-assets`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload),
-              });
-              console.log("retry finalize diag", r.headers.get("X-Diag-Id"));
-            } catch (e) {
-              console.warn(e);
+        let retried = false;
+        const res = await pollJobAndCreateCart(jobId, {
+          onTick: async (attempt, job) => {
+            if (!retried && attempt >= 10 && job?.status === "CREATED") {
+              retried = true;
+              try {
+                const r = await apiFetch(`/api/finalize-assets`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(payload),
+                });
+                console.log("retry finalize diag", r.headers.get("X-Diag-Id"));
+              } catch (e) {
+                console.warn(e);
+              }
             }
-          }
-        },
-      });
+          },
+        });
 
       if (res.ok) {
         navigate(`/result/${jobId}`, {
@@ -74,7 +73,7 @@ export default function Creating() {
     } catch {
       setNeedsRetry(true);
     }
-  }, [apiBase, jobId, render, render_v2, navigate]);
+  }, [jobId, render, render_v2, navigate]);
 
   useEffect(() => {
     if (jobId && !skipFinalize) run();

@@ -19,12 +19,10 @@ export interface SubmitJobBody {
   source?: string;
 }
 
-export async function submitJob(
-  apiBase: string,
-  body: SubmitJobBody,
-): Promise<any> {
-  const base = (apiBase || "https://mgm-api.vercel.app").replace(/\/$/, "");
-  const res = await fetch(`${base}/api/submit-job`, {
+import { apiFetch } from "./api";
+
+export async function submitJob(body: SubmitJobBody): Promise<any> {
+  const res = await apiFetch("/api/submit-job", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
