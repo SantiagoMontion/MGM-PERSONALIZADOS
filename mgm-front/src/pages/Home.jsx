@@ -1,6 +1,7 @@
 // src/pages/Home.jsx
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Helmet } from 'react-helmet';
 
 import UploadStep from '../components/UploadStep';
 import EditorCanvas from '../components/EditorCanvas';
@@ -180,8 +181,16 @@ export default function Home() {
   }
 
 
+  const title = 'Tu Mousepad Personalizado — MGMGAMERS';
+  const description = 'Mousepad Profesionales Personalizados, Gamers, diseño y medida que quieras. Perfectos para gaming control y speed.';
+  const url = 'https://www.mgmgamers.store/';
   return (
     <div className={styles.container}>
+      <Helmet>
+        <title>{title}</title>
+        <meta name="description" content={description} />
+        <link rel="canonical" href={url} />
+      </Helmet>
       <div className={styles.sidebar}>
         {uploaded && (
           <>

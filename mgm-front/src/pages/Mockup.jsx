@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Helmet } from 'react-helmet';
 import { useOrderFlow } from '../store/orderFlow';
+import SeoJsonLd from '../components/SeoJsonLd';
 
 const MAX_W = 720;
 const MAX_H = 520;
@@ -87,6 +89,11 @@ export default function Mockup() {
       className="mockup-wrap"
       style={{ display: 'grid', placeItems: 'center', padding: '24px' }}
     >
+      <Helmet>
+        <title>Vista previa del producto — MGMGAMERS</title>
+        <link rel="canonical" href="https://www.mgmgamers.store/mockup" />
+      </Helmet>
+      <SeoJsonLd product={{ image: preview, price: 0 }} includeBase={false} />
       <div
         className="mockup-frame"
         style={{
@@ -101,7 +108,7 @@ export default function Mockup() {
       >
         <img
           src="/mockups/mousepad_base.png"
-          alt=""
+          alt="Base de mousepad para vista previa"
           style={{
             position: 'absolute',
             inset: 12,
