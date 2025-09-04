@@ -1,10 +1,5 @@
-# Vercel deployment
+Este proyecto (APIs) se despliega desde la RAÍZ.
 
-Este proyecto utiliza **Node.js 20** para las funciones en `/api/**` y un frontend Vite en `mgm-front`.
+En Vercel → Framework: "Other", Build Command: vacío o `echo no-build`, Output Directory: `.`, Node.js: 20.x.
 
-- **Root Directory:** raíz del repo (`.`)
-- **Install Command:** `npm install`
-- **Build Command:** `npm run build`
-- **Output Directory:** `mgm-front/dist`
-
-El archivo `vercel.json` en la raíz define `nodejs20.x` como runtime para todas las funciones.
+Recomendación: separar Front (proyecto aparte con Root = mgm-front) para evitar conflictos.
