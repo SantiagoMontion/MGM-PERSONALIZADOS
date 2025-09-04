@@ -1,9 +1,9 @@
 // /api/create-cart-link.js
 // Endpoint idempotente para crear/reutilizar producto y variante en Shopify.
 import crypto from 'node:crypto';
-import { supa } from '../lib/supa.js';
-import { shopifyAdmin, shopifyAdminGraphQL } from '../lib/shopify.js';
-import { cors } from './_lib/cors.js';
+import { supa } from '../lib/supa';
+import { shopifyAdmin, shopifyAdminGraphQL } from '../lib/shopify';
+import { buildCorsHeaders, preflight, applyCorsToResponse } from '../lib/cors';
 
 function slugify(s){ return String(s).toLowerCase().trim()
   .replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'').replace(/-+/g,'-').replace(/^-|-$/g,''); }
@@ -20,7 +20,15 @@ export default async function handler(req, res) {
   const diagId = crypto.randomUUID?.() ?? require('node:crypto').randomUUID();
   res.setHeader('X-Diag-Id', String(diagId));
 
-  if (cors(req, res)) return;
+  const origin = req.headers.origin || null;
+  const cors = buildCorsHeaders(origin);
+  if (req.method === 'OPTIONS') {
+    if (!cors) return res.status(403).json({ error: 'origin_not_allowed' });
+    Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v));
+    return res.status(204).end();
+  }
+  if (!cors) return res.status(403).json({ error: 'origin_not_allowed' });
+  Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v));
 
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');

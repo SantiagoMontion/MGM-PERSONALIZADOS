@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
-import { cors } from './_lib/cors.js';
-import { envCheck, corsDiagnose } from '../lib/api/handlers/system.js';
-import { searchAssets } from '../lib/api/handlers/assets.js';
+import { buildCorsHeaders, preflight, applyCorsToResponse } from '../lib/cors';
+import { envCheck, corsDiagnose } from '../lib/api/handlers/system';
+import { searchAssets } from '../lib/api/handlers/assets';
 
 const routes = [
   { method: 'GET', pattern: /^env-check$/, handler: envCheck },
@@ -26,7 +26,15 @@ async function parseBody(req) {
 }
 
 export default async function handler(req, res) {
-  if (cors(req, res)) return;
+  const origin = req.headers.origin || null;
+  const cors = buildCorsHeaders(origin);
+  if (req.method === 'OPTIONS') {
+    if (!cors) return res.status(403).json({ error: 'origin_not_allowed' });
+    Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v));
+    return res.status(204).end();
+  }
+  if (!cors) return res.status(403).json({ error: 'origin_not_allowed' });
+  Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v));
 
   const url = new URL(req.url, `http://${req.headers.host}`);
   const slug = url.pathname.replace(/^\/api\//, '').replace(/\/$/, '');
