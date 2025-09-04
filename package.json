@@ -7,7 +7,7 @@
   "scripts": {
     "build": "cd mgm-front && npm ci && npm run build",
     "doctor:vercel": "node -e \"console.log(require('./vercel.json'))\"",
-    "find:legacy": "git grep -nE '\"version\"\\s*:\\s*1|\"(builds|routes)\"' -- **/vercel.json || true",
+    "find:legacy": "git grep -nE '\"version\"\\s*:\\s*1|\"(builds|routes)\"|now-' -- **/vercel.json || true",
     "find:file-runtime": "git grep -nE 'export const config\\s*=\\s*\\{\\s*runtime' -- api || true",
     "find:now": "git grep -n 'now-' -- . || true",
     "lint": "eslint .",
