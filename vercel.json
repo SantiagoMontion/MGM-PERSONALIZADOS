@@ -1,8 +1,8 @@
 {
+  "version": 2,
   "framework": null,
   "functions": {
     "api/**/*.ts": { "runtime": "nodejs20.x", "memory": 512, "maxDuration": 15 },
-    "api/**/*.js": { "runtime": "nodejs20.x", "memory": 512, "maxDuration": 15 },
-    "api/worker-process.js": { "runtime": "nodejs20.x", "memory": 1536, "maxDuration": 60 }
+    "api/**/*.js": { "runtime": "nodejs20.x", "memory": 512, "maxDuration": 15 }
   }
 }
