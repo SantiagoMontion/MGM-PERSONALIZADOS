@@ -1,8 +1,12 @@
 node_modules/
-assets-local/
+dist/
+build/
+.next/
+.cache/
+coverage/
 *.log
+*.map
+*.zip
+assets-local/
 *.tmp
 .DS_Store
-.next/
-dist/
-.cache/
