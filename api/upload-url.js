@@ -2,9 +2,9 @@
 // Requiere: "type": "module" en package.json
 import crypto from 'node:crypto';
 import { z } from 'zod';
-import { supa } from '../lib/supa.js';
+import { supa } from '../lib/supa';
 import { buildCorsHeaders, preflight, applyCorsToResponse } from '../lib/cors';
-import { buildObjectKey } from './_lib/slug.js';
+import { buildObjectKey } from './_lib/slug';
 
 const BodySchema = z.object({
   design_name: z.string().min(1),

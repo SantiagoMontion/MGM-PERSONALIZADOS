@@ -1,7 +1,7 @@
 // /api/create-checkout.js
 import crypto from 'node:crypto';
-import { supa } from '../lib/supa.js';
-import { shopifyAdmin } from '../lib/shopify.js';
+import { supa } from '../lib/supa';
+import { shopifyAdmin } from '../lib/shopify';
 import { buildCorsHeaders, preflight, applyCorsToResponse } from '../lib/cors';
 
 async function getInvoiceUrl(draftId) {

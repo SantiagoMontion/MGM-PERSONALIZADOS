@@ -2,8 +2,8 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { buildCorsHeaders, preflight, applyCorsToResponse } from '../lib/cors';
-import getSupabaseAdmin from "./_lib/supabaseAdmin.js";
-import { getEnv } from "./_lib/env.js";
+import getSupabaseAdmin from "./_lib/supabaseAdmin";
+import { getEnv } from "./_lib/env";
 
 export default async function handler(req, res) {
   const diagId = randomUUID();

@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { supa } from '../lib/supa.js';
+import { supa } from '../lib/supa';
 import { buildCorsHeaders, preflight, applyCorsToResponse } from '../lib/cors';
 
 export default async function handler(req, res) {

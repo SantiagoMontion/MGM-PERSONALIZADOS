@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { buildCorsHeaders, preflight, applyCorsToResponse } from '../lib/cors';
-import getSupabaseAdmin from "./_lib/supabaseAdmin.js";
+import getSupabaseAdmin from "./_lib/supabaseAdmin";
 import composeImage from "./_lib/composeImage";
 
 function err(res, status, { diag_id, stage, message, debug = {} }) {

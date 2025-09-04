@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { buildCorsHeaders, preflight, applyCorsToResponse } from '../lib/cors';
-import { envCheck, corsDiagnose } from '../lib/api/handlers/system.js';
-import { searchAssets } from '../lib/api/handlers/assets.js';
+import { envCheck, corsDiagnose } from '../lib/api/handlers/system';
+import { searchAssets } from '../lib/api/handlers/assets';
 
 const routes = [
   { method: 'GET', pattern: /^env-check$/, handler: envCheck },

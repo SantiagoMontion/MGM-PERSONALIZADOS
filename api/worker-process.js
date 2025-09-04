@@ -1,8 +1,8 @@
 // /api/worker-process.js  (dynamic import + pasos)
 import crypto from 'node:crypto';
-import { supa } from '../lib/supa.js';
+import { supa } from '../lib/supa';
 import { buildCorsHeaders, preflight, applyCorsToResponse } from '../lib/cors';
-import { slugifyName } from './_lib/slug.js';
+import { slugifyName } from './_lib/slug';
 
 async function readJson(req){
   const chunks=[]; for await (const c of req) chunks.push(c);
