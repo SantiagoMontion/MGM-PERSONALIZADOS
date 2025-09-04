@@ -2,7 +2,7 @@ Este proyecto (APIs) se despliega desde la **raíz**.
 
 En Vercel configura:
 - Framework: "Other"
-- Build Command: vacío o `npm run vercel-build`
+- Build Command: (vacío)
 - Output Directory: `.`
 - Node.js: 20.x
 
