@@ -781,6 +781,15 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     }
   };
 
+  const exportPadDataURL = (pixelRatio = 1) => {
+    if (!exportStageRef.current) return null;
+    try {
+      return exportStageRef.current.toDataURL({ pixelRatio, mimeType: 'image/png' });
+    } catch (e) {
+      return null;
+    }
+  };
+
   useImperativeHandle(ref, () => ({
     getRenderDescriptor: () => {
       if (!imgEl || !imgBaseCm) return null;
@@ -839,6 +848,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     getPadRectPx,
     exportPadAsBlob,
     exportPreviewDataURL,
+    exportPadDataURL,
     startPickColor,
   }));
 

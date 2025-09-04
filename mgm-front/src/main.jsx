@@ -8,6 +8,8 @@ import Creating from './pages/Creating.jsx';
 import Result from './pages/Result.jsx';
 import DevRenderPreview from './pages/DevRenderPreview.jsx';
 import DevCanvasPreview from './pages/DevCanvasPreview.jsx';
+import Mockup from './pages/Mockup.jsx';
+import { OrderFlowProvider } from './store/orderFlow';
 import './globals.css';
 
 const routes = [
@@ -16,6 +18,7 @@ const routes = [
     children: [
       { path: '/', element: <Home /> },
       { path: '/confirm', element: <Confirm /> },
+      { path: '/mockup', element: <Mockup /> },
       { path: '/creating/:jobId', element: <Creating /> },
       { path: '/result/:jobId', element: <Result /> }
     ]
@@ -31,6 +34,8 @@ const router = createBrowserRouter(routes);
 
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <RouterProvider router={router} />
+    <OrderFlowProvider>
+      <RouterProvider router={router} />
+    </OrderFlowProvider>
   </React.StrictMode>
 );

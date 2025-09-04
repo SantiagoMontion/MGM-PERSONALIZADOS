@@ -12,10 +12,8 @@ import { quickExplicitCheck } from '../moderation/nsfwQuick';
 import { LIMITS, STANDARD, GLASSPAD_SIZE_CM } from '../lib/material.js';
 
 import { dpiLevel } from '../lib/dpi';
-import { sha256Hex } from '../lib/hash.js';
-import { buildSubmitJobBody, prevalidateSubmitBody } from '../lib/jobPayload.js';
-import { submitJob as submitJobApi } from '../lib/submitJob.js';
 import styles from './Home.module.css';
+import { useOrderFlow } from '../store/orderFlow';
 
 export default function Home() {
 
@@ -85,6 +83,7 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const navigate = useNavigate();
   const canvasRef = useRef(null);
+  const { set: setFlow } = useOrderFlow();
 
   const effDpi = useMemo(() => {
     if (!layout) return null;
@@ -143,131 +142,35 @@ export default function Home() {
     }
   }
 
-  async function handleAfterSubmit(jobId) {
-    const render = canvasRef.current?.getRenderDescriptor?.();
-    const render_v2 = canvasRef.current?.getRenderDescriptorV2?.();
-    if (import.meta.env.DEV) {
-      const padBlob = await canvasRef.current?.exportPadAsBlob?.();
-      window.__previewData = { padBlob, render_v2, jobId, designName };
-      navigate('/dev/canvas-preview', { state: { jobId } });
-      return;
-    }
-    navigate(`/creating/${jobId}`, { state: { render, render_v2 } });
-  }
 
   async function handleContinue() {
-    if (!uploaded?.file || !layout) {
+    if (!layout || !canvasRef.current) {
       setErr('Falta imagen o layout');
       return;
     }
-    if (!designName.trim()) {
-      setErr('Falta el nombre del modelo');
-      return;
-    }
     try {
-      if (priceAmount <= 0) {
-        setErr('Precio no disponible');
-        return;
-      }
       setErr('');
       setBusy(true);
-      const API_BASE = (import.meta.env.VITE_API_BASE || 'https://mgm-api.vercel.app').replace(/\/$/, '');
-
-      // Moderación final antes de crear el producto
-      const previewUrl = canvasRef.current?.exportPreviewDataURL?.();
-      if (previewUrl) {
-        const r = await fetch(`${API_BASE}/api/moderate-image`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ image_dataurl: previewUrl }),
-        });
-        const j = await r.json();
-        console.log('[moderate preview]', j);
-        if (!j.allow) {
-          setErr('Bloqueado por contenido de odio');
-          setBusy(false);
-          return;
-        }
-      }
-
-      // 1) calcular hash local
-      const file_hash = await sha256Hex(uploaded.file);
-
-      // 2) pedir signed URL
-      const ext = (uploaded.file.name.split('.').pop() || 'png').toLowerCase();
-      const mime = uploaded.file.type || 'image/png';
-      const size_bytes = uploaded.file.size;
-      const uploadUrlRes = await fetch(`${API_BASE}/api/upload-url`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          design_name: designName,
-          ext,
-          mime,
-          size_bytes,
-          material,
-          w_cm: activeWcm,
-          h_cm: activeHcm,
-          sha256: file_hash,
-        }),
-      });
-      const uploadUrlJson = await uploadUrlRes.json();
-      if (!uploadUrlRes.ok) throw new Error(uploadUrlJson?.error || 'upload_url_failed');
-
-      // 3) PUT binario a signed_url
-      await fetch(uploadUrlJson.upload.signed_url, {
-        method: 'PUT',
-        headers: { 'Content-Type': mime },
-        body: uploaded.file,
-      });
-
-      // 4) construir URL canónica
-      const supaBase = (import.meta.env.VITE_SUPABASE_URL || '').trim();
-      const file_original_url = `${supaBase.replace(/\/$/, '')}/storage/v1/object/uploads/${uploadUrlJson.object_key}`;
-
-      // 4b) actualizar estado uploaded
-      setUploaded(prev => ({
-        ...(prev || {}),
-        object_key: uploadUrlJson.object_key,
-        file_original_url,
-        file_hash,
-      }));
-
-      // 5) construir payload submit-job
-      console.log('[PRICE DEBUG]', {
-        material,
-        width_cm: activeWcm,
-        height_cm: activeHcm,
-        priceAmount,
-      });
-
-      const submitBody = buildSubmitJobBody({
-        material,
-        size: { w: activeWcm, h: activeHcm, bleed_mm: 3 },
-        fit_mode: 'cover',
-        bg: '#ffffff',
-        dpi: 300,
-        uploads: { canonical: file_original_url },
-        file_hash,
-        price: { amount: priceAmount, currency: priceCurrency },
-        design_name: designName,
-        notes: designName,
-        source: 'web',
-      });
-
-      // 6) prevalidar sin pegarle a la API
-      const pre = prevalidateSubmitBody(submitBody);
-      console.log('[PREVALIDATE]', { ok: pre.ok, problems: pre.problems, submitBody });
-      if (!pre.ok) {
-        setErr('Corrige antes de continuar: ' + pre.problems.join(' | '));
+      const preview = canvasRef.current.exportPadDataURL?.(1);
+      const master = canvasRef.current.exportPadDataURL?.(2);
+      if (!preview || !master) {
+        setErr('No se pudo generar la imagen');
         setBusy(false);
         return;
       }
-
-      // 7) submit-job
-      const out = await submitJobApi(API_BASE, submitBody);
-      const jobId = out?.job?.job_id || out?.job_id;
-      await handleAfterSubmit(jobId);
+      const rotationDeg = Number(layout?.transform?.rotation_deg || 0);
+      const bleed = 3;
+      const modeForStore = material === 'PRO' ? 'Pro' : material;
+      setFlow({
+        preview_png_dataurl: preview,
+        master_png_dataurl: master,
+        mode: modeForStore,
+        width_cm: activeWcm,
+        height_cm: activeHcm,
+        bleed_mm: bleed,
+        rotate_deg: rotationDeg,
+      });
+      navigate('/mockup');
     } catch (e) {
       console.error(e);
       setErr(String(e?.message || e));
