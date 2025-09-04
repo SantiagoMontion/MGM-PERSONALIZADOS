@@ -1,7 +1,7 @@
 // src/pages/Home.jsx
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Helmet } from 'react-helmet';
+import SeoJsonLd from '../components/SeoJsonLd';
 
 import UploadStep from '../components/UploadStep';
 import EditorCanvas from '../components/EditorCanvas';
@@ -186,11 +186,18 @@ export default function Home() {
   const url = 'https://www.mgmgamers.store/';
   return (
     <div className={styles.container}>
-      <Helmet>
-        <title>{title}</title>
-        <meta name="description" content={description} />
-        <link rel="canonical" href={url} />
-      </Helmet>
+      <SeoJsonLd
+        title={title}
+        description={description}
+        canonical={url}
+        jsonLd={{
+          '@context': 'https://schema.org',
+          '@type': 'Organization',
+          name: 'MGMGAMERS',
+          url: 'https://www.mgmgamers.store',
+          sameAs: ['https://www.instagram.com/mgmgamers.store']
+        }}
+      />
       <div className={styles.sidebar}>
         {uploaded && (
           <>

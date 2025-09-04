@@ -15,6 +15,7 @@ import PreguntasFrecuentes from './pages/PreguntasFrecuentes.jsx';
 import Contacto from './pages/Contacto.jsx';
 import { OrderFlowProvider } from './store/orderFlow';
 import './globals.css';
+import { HelmetProvider } from 'react-helmet-async';
 
 const routes = [
   {
@@ -42,8 +43,10 @@ const router = createBrowserRouter(routes);
 
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <OrderFlowProvider>
-      <RouterProvider router={router} />
-    </OrderFlowProvider>
+    <HelmetProvider>
+      <OrderFlowProvider>
+        <RouterProvider router={router} />
+      </OrderFlowProvider>
+    </HelmetProvider>
   </React.StrictMode>
 );

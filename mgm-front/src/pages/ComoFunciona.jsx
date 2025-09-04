@@ -1,4 +1,4 @@
-import { Helmet } from 'react-helmet';
+import SeoJsonLd from '../components/SeoJsonLd';
 
 export default function ComoFunciona() {
   const title = 'Cómo funciona — MGMGAMERS';
@@ -6,11 +6,18 @@ export default function ComoFunciona() {
   const url = 'https://www.mgmgamers.store/como-funciona';
   return (
     <>
-      <Helmet>
-        <title>{title}</title>
-        <meta name="description" content={description} />
-        <link rel="canonical" href={url} />
-      </Helmet>
+      <SeoJsonLd
+        title={title}
+        description={description}
+        canonical={url}
+        jsonLd={{
+          '@context': 'https://schema.org',
+          '@type': 'Organization',
+          name: 'MGMGAMERS',
+          url: 'https://www.mgmgamers.store',
+          sameAs: ['https://www.instagram.com/mgmgamers.store']
+        }}
+      />
       <h1>Cómo funciona</h1>
       <p>Próximamente la explicación del proceso.</p>
     </>
