@@ -1,9 +1,17 @@
 // api/job-status.js
-import { cors } from './_lib/cors.js';
+import { buildCorsHeaders, preflight, applyCorsToResponse } from '../lib/cors';
 import getSupabaseAdmin from './_lib/supabaseAdmin.js';
 
 export default async function handler(req, res) {
-  if (cors(req, res)) return;
+  const origin = req.headers.origin || null;
+  const cors = buildCorsHeaders(origin);
+  if (req.method === 'OPTIONS') {
+    if (!cors) return res.status(403).json({ error: 'origin_not_allowed' });
+    Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v));
+    return res.status(204).end();
+  }
+  if (!cors) return res.status(403).json({ error: 'origin_not_allowed' });
+  Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v));
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');
     return res.status(405).json({ ok:false, error: 'method_not_allowed' });

@@ -3,7 +3,7 @@
 import crypto from 'node:crypto';
 import { z } from 'zod';
 import { supa } from '../lib/supa.js';
-import { cors } from './_lib/cors.js';
+import { buildCorsHeaders, preflight, applyCorsToResponse } from '../lib/cors';
 import { buildObjectKey } from './_lib/slug.js';
 
 const BodySchema = z.object({
@@ -25,7 +25,15 @@ export default async function handler(req, res) {
   res.setHeader('X-Diag-Id', String(diagId));
 
   // CORS + preflight
-  if (cors(req, res)) return;
+  const origin = req.headers.origin || null;
+  const cors = buildCorsHeaders(origin);
+  if (req.method === 'OPTIONS') {
+    if (!cors) return res.status(403).json({ error: 'origin_not_allowed' });
+    Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v));
+    return res.status(204).end();
+  }
+  if (!cors) return res.status(403).json({ error: 'origin_not_allowed' });
+  Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v));
 
   // Solo POST
   if (req.method !== 'POST') {
