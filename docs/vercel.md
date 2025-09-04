@@ -1,5 +1,9 @@
-Este proyecto (APIs) se despliega desde la RAÍZ.
+Este proyecto (APIs) se despliega desde la **raíz**.
 
-En Vercel → Framework: "Other", Build Command: vacío o `echo no-build`, Output Directory: `.`, Node.js: 20.x.
+En Vercel configura:
+- Framework: "Other"
+- Build Command: vacío o `npm run vercel-build`
+- Output Directory: `.`
+- Node.js: 20.x
 
-Recomendación: separar Front (proyecto aparte con Root = mgm-front) para evitar conflictos.
+El front (`mgm-front`) se despliega en otro proyecto con Root Directory=`mgm-front`.
