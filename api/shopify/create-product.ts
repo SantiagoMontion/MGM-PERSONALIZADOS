@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { buildCorsHeaders } from '../../lib/cors';
-import { shopifyAdmin } from '../../lib/shopify.js';
+import { shopifyAdmin } from '../../lib/shopify';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const origin = (req.headers.origin as string) || null;

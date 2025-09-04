@@ -1,6 +1,6 @@
 // api/job-status.js
 import { buildCorsHeaders, preflight, applyCorsToResponse } from '../lib/cors';
-import getSupabaseAdmin from './_lib/supabaseAdmin.js';
+import getSupabaseAdmin from './_lib/supabaseAdmin';
 
 export default async function handler(req, res) {
   const origin = req.headers.origin || null;

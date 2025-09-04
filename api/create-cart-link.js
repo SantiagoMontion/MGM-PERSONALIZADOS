@@ -1,8 +1,8 @@
 // /api/create-cart-link.js
 // Endpoint idempotente para crear/reutilizar producto y variante en Shopify.
 import crypto from 'node:crypto';
-import { supa } from '../lib/supa.js';
-import { shopifyAdmin, shopifyAdminGraphQL } from '../lib/shopify.js';
+import { supa } from '../lib/supa';
+import { shopifyAdmin, shopifyAdminGraphQL } from '../lib/shopify';
 import { buildCorsHeaders, preflight, applyCorsToResponse } from '../lib/cors';
 
 function slugify(s){ return String(s).toLowerCase().trim()
