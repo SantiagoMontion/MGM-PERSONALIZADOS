@@ -59,7 +59,7 @@ export default function DevRenderPreview() {
     const buf = await file.arrayBuffer();
     const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
     const res = await fetch(
-      `${import.meta.env.VITE_API_BASE}/api/render-dryrun`,
+        `${import.meta.env.VITE_API_URL}/api/render-dryrun`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -118,7 +118,7 @@ export default function DevRenderPreview() {
     const jobId = prompt("job_id?");
     if (!jobId) return;
     const res = await fetch(
-      `${import.meta.env.VITE_API_BASE}/api/finalize-assets`,
+        `${import.meta.env.VITE_API_URL}/api/finalize-assets`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

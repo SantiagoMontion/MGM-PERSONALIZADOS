@@ -15,8 +15,9 @@ async function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+import { apiFetch } from "./api";
+
 export async function pollJobAndCreateCart(
-  apiBase: string,
   jobId: string,
   opts?: {
     maxAttempts?: number;
@@ -29,8 +30,8 @@ export async function pollJobAndCreateCart(
 
   // función para consultar estado
   async function fetchStatus(): Promise<JobStatus | undefined> {
-    const res = await fetch(
-      `${apiBase}/api/job-status?job_id=${encodeURIComponent(jobId)}`,
+    const res = await apiFetch(
+      `/api/job-status?job_id=${encodeURIComponent(jobId)}`,
       { method: "GET" },
     );
     if (!res.ok) throw new Error(`job-status ${res.status}`);
@@ -60,21 +61,21 @@ export async function pollJobAndCreateCart(
     await sleep(intervalMs);
   }
 
-  // Si no está listo, intentar igual create-cart-link (puede preparar producto/variante)
-  const createCart = async () => {
-    const res = await fetch(`${apiBase}/api/create-cart-link`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ job_id: jobId }),
-    });
-    const j = await res.json();
-    if (!res.ok) {
-      // Si falta algo, seguir esperando si hay intentos restantes
-      const code = j?.error || "unknown";
-      return { ok: false, code, detail: j?.detail, raw: j };
-    }
-    return { ok: true, cart_url: j.cart_url, raw: j };
-  };
+    // Si no está listo, intentar igual create-cart-link (puede preparar producto/variante)
+    const createCart = async () => {
+      const res = await apiFetch(`/api/create-cart-link`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ job_id: jobId }),
+      });
+      const j = await res.json();
+      if (!res.ok) {
+        // Si falta algo, seguir esperando si hay intentos restantes
+        const code = j?.error || "unknown";
+        return { ok: false, code, detail: j?.detail, raw: j };
+      }
+      return { ok: true, cart_url: j.cart_url, raw: j };
+    };
 
   // primer intento crear carrito
   let attempt = await createCart();

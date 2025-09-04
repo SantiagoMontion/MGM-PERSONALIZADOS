@@ -1,12 +1,11 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { apiFetch } from "@/lib/api";
 
 export default function Result() {
   const { jobId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const apiBase = import.meta.env.VITE_API_BASE || "https://mgm-api.vercel.app";
-
   const [urls, setUrls] = useState({
     cart_url_follow: location.state?.cart_url_follow,
     checkout_url_now: location.state?.checkout_url_now,
@@ -21,9 +20,9 @@ export default function Result() {
   useEffect(() => {
     async function fetchJob() {
       try {
-        const res = await fetch(
-          `${apiBase}/api/job-status?job_id=${encodeURIComponent(jobId)}`,
-        );
+          const res = await apiFetch(
+            `/api/job-status?job_id=${encodeURIComponent(jobId)}`,
+          );
         const j = await res.json();
         if (res.ok && j.ok) setJob(j.job);
       } catch (err) {
@@ -31,17 +30,17 @@ export default function Result() {
       }
     }
     fetchJob();
-  }, [apiBase, jobId]);
+    }, [jobId]);
 
   useEffect(() => {
     if (!urls.cart_url_follow || !urls.checkout_url_now) {
       async function ensureUrls() {
         try {
-          const res = await fetch(`${apiBase}/api/create-cart-link`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ job_id: jobId }),
-          });
+            const res = await apiFetch(`/api/create-cart-link`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ job_id: jobId }),
+            });
           const j = await res.json();
           if (res.ok) {
             setUrls({
@@ -57,7 +56,7 @@ export default function Result() {
       }
       ensureUrls();
     }
-  }, [urls, apiBase, jobId]);
+    }, [urls, jobId]);
 
   if (!urls.cart_url_follow || !urls.checkout_url_now) {
     return <p>Preparando tu carrito…</p>;

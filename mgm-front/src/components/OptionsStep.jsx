@@ -124,8 +124,7 @@ export default function OptionsStep({ uploaded, onSubmitted }) {
       return;
     }
 
-    const apiBase = import.meta.env.VITE_API_BASE || 'https://mgm-api.vercel.app';
-    const job = await submitJob(apiBase, submitBody);
+      const job = await submitJob(submitBody);
 
     onSubmitted({ job_id: job?.job_id || submitBody.job_id });
   } catch (e) {
