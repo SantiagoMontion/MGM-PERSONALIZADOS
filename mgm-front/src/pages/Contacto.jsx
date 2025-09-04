@@ -1,4 +1,4 @@
-import { Helmet } from 'react-helmet';
+import SeoJsonLd from '../components/SeoJsonLd';
 
 export default function Contacto() {
   const title = 'Contacto — MGMGAMERS';
@@ -6,11 +6,18 @@ export default function Contacto() {
   const url = 'https://www.mgmgamers.store/contacto';
   return (
     <>
-      <Helmet>
-        <title>{title}</title>
-        <meta name="description" content={description} />
-        <link rel="canonical" href={url} />
-      </Helmet>
+      <SeoJsonLd
+        title={title}
+        description={description}
+        canonical={url}
+        jsonLd={{
+          '@context': 'https://schema.org',
+          '@type': 'Organization',
+          name: 'MGMGAMERS',
+          url: 'https://www.mgmgamers.store',
+          sameAs: ['https://www.instagram.com/mgmgamers.store']
+        }}
+      />
       <h1>Contacto</h1>
       <p>Próximamente información de contacto.</p>
     </>

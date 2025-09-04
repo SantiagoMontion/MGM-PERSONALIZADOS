@@ -1,47 +1,60 @@
-import { Helmet } from 'react-helmet';
+import React from 'react';
+import { Helmet } from 'react-helmet-async';
 
-const BASE_DATA = [
-  {
-    "@context": "https://schema.org",
-    "@type": "Organization",
-    "name": "MGMGAMERS",
-    "url": "https://www.mgmgamers.store",
-    "logo": "/icons/icon-512.png",
-    "sameAs": ["https://www.instagram.com/mgmgamers.store"]
-  },
-  {
-    "@context": "https://schema.org",
-    "@type": "WebSite",
-    "url": "https://www.mgmgamers.store",
-    "name": "MGMGAMERS"
-  }
-];
+const BASE = {
+  siteName: 'MGMGAMERS',
+  canonical: 'https://www.mgmgamers.store',
+  title: 'Tu Mousepad Personalizado — MGMGAMERS',
+  description:
+    'Mousepad Profesionales Personalizados, Gamers, diseño y medida que quieras. Perfectos para gaming control y speed.',
+  ogImage: '/og/og-default.png',
+  locale: 'es_AR'
+};
 
-export default function SeoJsonLd({ product, includeBase = true }) {
-  const data = [];
-  if (includeBase) data.push(...BASE_DATA);
-  if (product) {
-    data.push({
-      "@context": "https://schema.org",
-      "@type": "Product",
-      "name": "Mousepad Personalizado",
-      "brand": "MGMGAMERS",
-      "description": "Mousepad Profesionales Personalizados, Gamers, diseño y medida que quieras. Perfectos para gaming control y speed.",
-      "image": product.image,
-      "offers": {
-        "@type": "Offer",
-        "priceCurrency": "ARS",
-        "price": String(product.price ?? 0),
-        "availability": "https://schema.org/InStock"
-      }
-    });
-  }
-  if (!data.length) return null;
+export default function SeoJsonLd({
+  title = BASE.title,
+  description = BASE.description,
+  canonical = BASE.canonical,
+  ogImage = BASE.ogImage,
+  noIndex = false,
+  jsonLd = null
+}) {
+  const ld = jsonLd ? JSON.stringify(jsonLd) : null;
+
   return (
-    <Helmet>
-      <script type="application/ld+json">
-        {JSON.stringify(data.length === 1 ? data[0] : data)}
-      </script>
-    </Helmet>
+    <>
+      <Helmet prioritizeSeoTags>
+        <title>{title}</title>
+        <meta name="description" content={description} />
+        <link rel="canonical" href={canonical} />
+        {noIndex && <meta name="robots" content="noindex,nofollow" />}
+
+        {/* Open Graph */}
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content={BASE.siteName} />
+        <meta property="og:locale" content={BASE.locale} />
+        <meta property="og:title" content={title} />
+        <meta property="og:description" content={description} />
+        <meta property="og:url" content={canonical} />
+        <meta property="og:image" content={ogImage} />
+
+        {/* Twitter */}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={title} />
+        <meta name="twitter:description" content={description} />
+        <meta name="twitter:image" content={ogImage} />
+
+        {/* Idioma */}
+        <html lang="es-AR" />
+      </Helmet>
+
+      {ld && (
+        <script
+          type="application/ld+json"
+          // eslint-disable-next-line react/no-danger
+          dangerouslySetInnerHTML={{ __html: ld }}
+        />
+      )}
+    </>
   );
 }

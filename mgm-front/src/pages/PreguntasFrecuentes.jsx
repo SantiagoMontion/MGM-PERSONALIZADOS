@@ -1,4 +1,4 @@
-import { Helmet } from 'react-helmet';
+import SeoJsonLd from '../components/SeoJsonLd';
 
 export default function PreguntasFrecuentes() {
   const title = 'Preguntas frecuentes — MGMGAMERS';
@@ -6,11 +6,18 @@ export default function PreguntasFrecuentes() {
   const url = 'https://www.mgmgamers.store/preguntas-frecuentes';
   return (
     <>
-      <Helmet>
-        <title>{title}</title>
-        <meta name="description" content={description} />
-        <link rel="canonical" href={url} />
-      </Helmet>
+      <SeoJsonLd
+        title={title}
+        description={description}
+        canonical={url}
+        jsonLd={{
+          '@context': 'https://schema.org',
+          '@type': 'Organization',
+          name: 'MGMGAMERS',
+          url: 'https://www.mgmgamers.store',
+          sameAs: ['https://www.instagram.com/mgmgamers.store']
+        }}
+      />
       <h1>Preguntas frecuentes</h1>
       <p>Próximamente preguntas y respuestas.</p>
     </>
