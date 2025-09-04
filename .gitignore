@@ -5,3 +5,4 @@ assets-local/
 .DS_Store
 .next/
 dist/
+.cache/
