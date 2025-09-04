@@ -1,0 +1,7 @@
+node_modules/
+assets-local/
+*.log
+*.tmp
+.DS_Store
+.next/
+dist/
