@@ -9,6 +9,10 @@ import Result from './pages/Result.jsx';
 import DevRenderPreview from './pages/DevRenderPreview.jsx';
 import DevCanvasPreview from './pages/DevCanvasPreview.jsx';
 import Mockup from './pages/Mockup.jsx';
+import MousepadsPersonalizados from './pages/MousepadsPersonalizados.jsx';
+import ComoFunciona from './pages/ComoFunciona.jsx';
+import PreguntasFrecuentes from './pages/PreguntasFrecuentes.jsx';
+import Contacto from './pages/Contacto.jsx';
 import { OrderFlowProvider } from './store/orderFlow';
 import './globals.css';
 
@@ -17,6 +21,10 @@ const routes = [
     element: <App />,
     children: [
       { path: '/', element: <Home /> },
+      { path: '/mousepads-personalizados', element: <MousepadsPersonalizados /> },
+      { path: '/como-funciona', element: <ComoFunciona /> },
+      { path: '/preguntas-frecuentes', element: <PreguntasFrecuentes /> },
+      { path: '/contacto', element: <Contacto /> },
       { path: '/confirm', element: <Confirm /> },
       { path: '/mockup', element: <Mockup /> },
       { path: '/creating/:jobId', element: <Creating /> },
