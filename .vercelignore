@@ -4,3 +4,4 @@
 !lib/**
 !package.json
 !package-lock.json
+!public/**
