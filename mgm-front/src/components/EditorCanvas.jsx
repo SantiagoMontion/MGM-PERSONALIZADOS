@@ -62,6 +62,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const wrapRef = useRef(null);
   const stageRef = useRef(null);
   const exportStageRef = useRef(null);
+  const padGroupRef = useRef(null);
   const [wrapSize, setWrapSize] = useState({ w: 960, h: 540 });
   useEffect(() => {
     const ro = new ResizeObserver(() => {
@@ -773,6 +774,16 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   };
 
   const exportPreviewDataURL = () => {
+    if (padGroupRef.current) {
+      try {
+        return padGroupRef.current.toDataURL({
+          pixelRatio: 0.5,
+          mimeType: 'image/png',
+        });
+      } catch (e) {
+        /* ignore */
+      }
+    }
     if (!exportStageRef.current) return null;
     try {
       return exportStageRef.current.toDataURL({ pixelRatio: 0.5 });
@@ -782,9 +793,22 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   };
 
   const exportPadDataURL = (pixelRatio = 1) => {
+    if (padGroupRef.current) {
+      try {
+        return padGroupRef.current.toDataURL({
+          pixelRatio,
+          mimeType: 'image/png',
+        });
+      } catch (e) {
+        /* ignore */
+      }
+    }
     if (!exportStageRef.current) return null;
     try {
-      return exportStageRef.current.toDataURL({ pixelRatio, mimeType: 'image/png' });
+      return exportStageRef.current.toDataURL({
+        pixelRatio,
+        mimeType: 'image/png',
+      });
     } catch (e) {
       return null;
     }
@@ -1272,29 +1296,31 @@ const EditorCanvas = forwardRef(function EditorCanvas(
           style={{ display: "none" }}
         >
           <Layer>
-            {mode === "contain" && (
-              <Rect
-                x={0}
-                y={0}
-                width={padRectPx.w}
-                height={padRectPx.h}
-                fill={bgColor}
-                listening={false}
-              />
-            )}
-            {imgEl && imgBaseCm && (
-              <KonvaImage
-                image={imgEl}
-                x={(imgTx.x_cm - bleedCm + dispW / 2) * exportScale}
-                y={(imgTx.y_cm - bleedCm + dispH / 2) * exportScale}
-                width={dispW * exportScale}
-                height={dispH * exportScale}
-                offsetX={(dispW * exportScale) / 2}
-                offsetY={(dispH * exportScale) / 2}
-                rotation={imgTx.rotation_deg}
-                listening={false}
-              />
-            )}
+            <Group ref={padGroupRef}>
+              {mode === "contain" && (
+                <Rect
+                  x={0}
+                  y={0}
+                  width={padRectPx.w}
+                  height={padRectPx.h}
+                  fill={bgColor}
+                  listening={false}
+                />
+              )}
+              {imgEl && imgBaseCm && (
+                <KonvaImage
+                  image={imgEl}
+                  x={(imgTx.x_cm - bleedCm + dispW / 2) * exportScale}
+                  y={(imgTx.y_cm - bleedCm + dispH / 2) * exportScale}
+                  width={dispW * exportScale}
+                  height={dispH * exportScale}
+                  offsetX={(dispW * exportScale) / 2}
+                  offsetY={(dispH * exportScale) / 2}
+                  rotation={imgTx.rotation_deg}
+                  listening={false}
+                />
+              )}
+            </Group>
           </Layer>
         </Stage>
         {imageUrl && imgStatus !== "loaded" && (
