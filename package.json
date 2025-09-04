@@ -5,8 +5,8 @@
   "type": "module",
   "packageManager": "npm@10",
   "scripts": {
-    "vercel-build": "echo no-build",
-    "build": "echo no-build",
+    "vercel-build": "mkdir -p public && echo OK > public/index.html && echo no-build",
+    "build": "mkdir -p public && echo OK > public/index.html && echo no-build",
     "doctor:vercel": "node -e \"console.log(require('./vercel.json'))\"",
     "find:legacy": "git grep -nE '\"version\"\\s*:\\s*1|\"(builds|routes)\"|now-' -- **/vercel.json || true",
     "find:file-runtime": "git grep -nE 'export const config\\s*=\\s*\\{\\s*runtime' -- api || true",
