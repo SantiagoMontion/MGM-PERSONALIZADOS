@@ -16,7 +16,9 @@
     "doctor:env": "node -e \"console.log(process.version)\"",
     "doctor:imports": "grep -RniE \"from '(/|.*\\\\.ts')\" --include=*.{ts,tsx,js,jsx} . || true",
     "doctor:big": "git diff --name-only main...HEAD | xargs -I{} bash -lc 'test -f {} && wc -c <{} || true' | awk '{sum+=$1} END {printf \"Total bytes: %d\\n\", sum}'",
-    "doctor:ignored": "git check-ignore -v dist build .next .cache coverage || true"
+    "doctor:ignored": "git check-ignore -v dist build .next .cache coverage || true",
+    "dev:api": "vercel dev --listen 3001",
+    "doctor:api": "node -e \"fetch('http://localhost:3001/api/healthcheck').then(r=>r.text()).then(console.log).catch(e=>{console.error('API DOWN',e.message);process.exit(1)})\""
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.54.0",
@@ -34,5 +36,3 @@
     "node": "20.x"
   }
 }
-    "dev:api": "vercel dev --listen 3001",
-    "doctor:api": "node -e \"fetch('http://localhost:3001/api/healthcheck').then(r=>r.text()).then(console.log).catch(e=>{console.error('API DOWN',e.message);process.exit(1)})\"",
