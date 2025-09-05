@@ -1,13 +1,21 @@
 import { withCors } from '../lib/cors';
 import { shopifyAdmin } from '../lib/shopify.js';
 
+function ensureBody(req) {
+  let b = req.body;
+  if (!b || typeof b !== 'object') {
+    try { b = JSON.parse(b || '{}'); } catch { b = {}; }
+  }
+  return b;
+}
+
 export default withCors(async (req, res) => {
   if (req.method !== 'POST') {
     res.statusCode = 405;
     return res.json({ ok: false, error: 'method_not_allowed' });
   }
   try {
-    const { mockupDataUrl, productType, title, tags } = req.body || {};
+    const { mockupDataUrl, productType, title, tags } = ensureBody(req);
     if (typeof mockupDataUrl !== 'string') {
       return res.status(400).json({ ok: false, error: 'invalid_mockup' });
     }

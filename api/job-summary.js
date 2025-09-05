@@ -1,20 +1,10 @@
 import crypto from 'node:crypto';
 import { supa } from '../lib/supa';
-import { buildCorsHeaders, preflight, applyCorsToResponse } from '../lib/cors';
+import { withCors } from '../lib/cors';
 
-export default async function handler(req, res) {
+export default withCors(async function handler(req, res) {
   const diagId = crypto.randomUUID?.() ?? require('node:crypto').randomUUID();
   res.setHeader('X-Diag-Id', String(diagId));
-
-  const origin = req.headers.origin || null;
-  const cors = buildCorsHeaders(origin);
-  if (req.method === 'OPTIONS') {
-    if (!cors) return res.status(403).json({ error: 'origin_not_allowed' });
-    Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v));
-    return res.status(204).end();
-  }
-  if (!cors) return res.status(403).json({ error: 'origin_not_allowed' });
-  Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v));
 
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');
@@ -39,4 +29,4 @@ export default async function handler(req, res) {
   }
   if (!data) return res.status(404).json({ error: 'not_found' });
   res.status(200).json(data);
-}
+});

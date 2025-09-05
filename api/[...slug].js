@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { buildCorsHeaders, preflight, applyCorsToResponse } from '../lib/cors';
+import { withCors } from '../lib/cors';
 import { envCheck, corsDiagnose } from '../lib/api/handlers/system';
 import { searchAssets } from '../lib/api/handlers/assets';
 
@@ -25,16 +25,7 @@ async function parseBody(req) {
   });
 }
 
-export default async function handler(req, res) {
-  const origin = req.headers.origin || null;
-  const cors = buildCorsHeaders(origin);
-  if (req.method === 'OPTIONS') {
-    if (!cors) return res.status(403).json({ error: 'origin_not_allowed' });
-    Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v));
-    return res.status(204).end();
-  }
-  if (!cors) return res.status(403).json({ error: 'origin_not_allowed' });
-  Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v));
+export default withCors(async function handler(req, res) {
 
   const url = new URL(req.url, `http://${req.headers.host}`);
   const slug = url.pathname.replace(/^\/api\//, '').replace(/\/$/, '');
@@ -86,4 +77,4 @@ export default async function handler(req, res) {
     res.setHeader('Content-Type', 'application/json');
     res.end(JSON.stringify({ error: 'internal_error', diag_id: diagId }));
   }
-}
+});
