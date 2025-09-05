@@ -1,59 +1,44 @@
 # MGM API
 
-## Configuración de CORS
+## Dev setup (two terminals)
 
-Establece la variable de entorno `ALLOWED_ORIGINS` como una lista separada por comas de orígenes sin barra final.
+Terminal 1 (API):
 
-En Vercel debe contener **exactamente**:
+`
+npm run dev:api
+`
 
-```
-ALLOWED_ORIGINS=http://localhost:5173,https://<tu-front>.vercel.app
-```
+Terminal 2 (Front):
 
-Reemplaza `<tu-front>` con el nombre de tu deploy del front-end en Vercel.
+`
+cd mgm-front
+npm run dev
+`
+
+With this setup:
+- Front: http://localhost:5173
+- API:   http://localhost:3001
+
+The front uses a small API wrapper and a Vite proxy in dev to avoid CORS issues.
+
+## CORS configuration
+
+Set ALLOWED_ORIGINS to the list of explicit origins (no trailing slash).
+
+`
+ALLOWED_ORIGINS=http://localhost:5173,https://www.mgmgamers.store,https://mgm-api.vercel.app
+`
 
 ## Upload de archivos
 
-El endpoint `/api/upload-url` genera una URL firmada de Supabase Storage para subir el archivo original. El `object_key` sigue el formato:
-
-```
-original/YYYY/MM/<slug>-<WxH>-<MATERIAL>-<hash8>.<ext>
-```
-
-* `slug` es el `design_name` en minúsculas y sin acentos, con espacios reemplazados por `-`.
-* `WxH` son las medidas en centímetros.
-* `MATERIAL` es el material en mayúsculas.
-* `hash8` son los primeros 8 caracteres del SHA-256 del archivo.
-
-### Campos del POST `/api/upload-url`
-
-```
-{
-  design_name: "Gato Surfista",
-  ext: "png",
-  mime: "image/png",
-  size_bytes: 123456,
-  material: "PRO",
-  w_cm: 100,
-  h_cm: 50,
-  sha256: "<64 hex>"
-}
-```
-
-La respuesta incluye `object_key` y la `signed_url` para realizar el `PUT` binario. La URL canónica del archivo original puede construirse como:
-
-```
-${VITE_SUPABASE_URL}/storage/v1/object/uploads/${object_key}
-```
+El endpoint /api/upload-url genera una URL firmada de Supabase Storage para subir el archivo original.
 
 ## Buckets
 
-La aplicación utiliza dos buckets de Supabase Storage:
+* uploads: privado
+* outputs: p�blico
 
-* `uploads`: privado, almacena los archivos originales subidos por el usuario.
-* `outputs`: público, recibe los archivos generados (`preview.jpg`, `print.jpg` y `file.pdf`) por `/api/finalize-assets`.
+## Moderation
 
-## Moderación
-
-Moderación **GRATIS**: `nsfwjs` en el cliente y `tesseract.js` en el servidor. No se requieren claves ni APIs externas. Anime o
-dibujos siempre están permitidos. Sólo se bloquea contenido con texto de odio explícito detectado mediante OCR.
+Server-side only: 
+sfwjs + @tensorflow/tfjs in the API and OCR with 	esseract.js. No paid services.

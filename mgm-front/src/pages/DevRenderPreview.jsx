@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { apiFetch } from "@/lib/api";
 
 export default function DevRenderPreview() {
   const [file, setFile] = useState(null);
@@ -58,14 +59,11 @@ export default function DevRenderPreview() {
     if (!file || !renderObj) return;
     const buf = await file.arrayBuffer();
     const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
-    const res = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/render-dryrun`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ render_v2: renderObj, file_data: b64 }),
-      },
-    );
+    const res = await apiFetch('/api/render-dryrun', {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ render_v2: renderObj, file_data: b64 }),
+    });
     const json = await res.json();
     if (json.ok) {
       setServerInner(json.inner);
@@ -117,14 +115,11 @@ export default function DevRenderPreview() {
     if (!renderObj) return;
     const jobId = prompt("job_id?");
     if (!jobId) return;
-    const res = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/finalize-assets`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ job_id: jobId, render_v2: renderObj }),
-      },
-    );
+    const res = await apiFetch('/api/finalize-assets', {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ job_id: jobId, render_v2: renderObj }),
+    });
     const json = await res.json();
     if (!json.ok) alert(JSON.stringify(json));
     else alert("ok");
