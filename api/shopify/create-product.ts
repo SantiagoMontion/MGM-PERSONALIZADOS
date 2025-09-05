@@ -17,7 +17,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v as string));
 
   try {
-    const { mode, width_cm, height_cm, bleed_mm, rotate_deg, image_dataurl } = req.body || {};
+    const { mode, width_cm, height_cm, bleed_mm, rotate_deg, image_dataurl, mockup_dataurl } = req.body || {};
     const modeOk = ['Classic', 'Pro', 'Glasspad'].includes(mode);
     const width = Number(width_cm);
     const height = Number(height_cm);
@@ -26,10 +26,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!modeOk || Number.isNaN(width) || Number.isNaN(height) || Number.isNaN(bleed) || Number.isNaN(rotate)) {
       return res.status(400).json({ ok: false, message: 'invalid_fields' });
     }
-    if (typeof image_dataurl !== 'string' || !image_dataurl.startsWith('data:image/')) {
-      return res.status(400).json({ ok: false, message: 'invalid_image' });
+    if (typeof mockup_dataurl !== 'string' || !mockup_dataurl.startsWith('data:image/')) {
+      return res.status(400).json({ ok: false, message: 'invalid_mockup' });
     }
-    const base64 = image_dataurl.split(',')[1];
+    const base64 = mockup_dataurl.split(',')[1];
     const payload = {
       product: {
         title: `Mousepad Personalizado - ${mode}`,
