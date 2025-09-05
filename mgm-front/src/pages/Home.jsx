@@ -8,22 +8,19 @@ import EditorCanvas from '../components/EditorCanvas';
 import SizeControls from '../components/SizeControls';
 import Calculadora from '../components/Calculadora';
 import LoadingOverlay from '../components/LoadingOverlay';
-import { quickExplicitCheck } from '../moderation/nsfwQuick';
 
 import { LIMITS, STANDARD, GLASSPAD_SIZE_CM } from '../lib/material.js';
 
 import { dpiLevel } from '../lib/dpi';
 import styles from './Home.module.css';
-import { useOrderFlow } from '../store/orderFlow';
 import { renderMockup1080 } from '../lib/mockup';
-import { blobToDataURL } from '@/lib/blob';
+import { useFlow } from '@/state/flow';
+import { apiFetch } from '@/lib/api';
 
 export default function Home() {
 
   // archivo subido
   const [uploaded, setUploaded] = useState(null);
-  const [needsStrictServerCheck, setNeedsStrictServerCheck] = useState(false);
-
   // crear ObjectURL una sola vez
   const [imageUrl, setImageUrl] = useState(null);
   useEffect(() => {
@@ -35,20 +32,7 @@ export default function Home() {
     }
   }, [uploaded?.localUrl]);
 
-  useEffect(() => {
-    if (!imageUrl) return;
-    let cancelled = false;
-    const img = new Image();
-    img.onload = async () => {
-      const qc = await quickExplicitCheck(img);
-      console.log('[nsfw quick]', qc);
-      if (!cancelled) setNeedsStrictServerCheck(qc.reason === 'server_check_required');
-    };
-    img.src = imageUrl;
-    return () => {
-      cancelled = true;
-    };
-  }, [imageUrl]);
+  // No se ejecutan filtros rápidos al subir imagen
 
   // medidas y material (source of truth)
   const [material, setMaterial] = useState('Classic');
@@ -86,7 +70,7 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const navigate = useNavigate();
   const canvasRef = useRef(null);
-  const { set: setFlow } = useOrderFlow();
+  const flow = useFlow();
 
   const effDpi = useMemo(() => {
     if (!layout) return null;
@@ -161,7 +145,18 @@ export default function Home() {
         return;
       }
 
-      // create mockup from final artwork
+      const resp = await apiFetch('/api/moderate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dataUrl: master, filename: uploaded?.file?.name || 'image.png' })
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        setErr(`Bloqueado por moderación: ${err.reason || 'desconocido'}`);
+        setBusy(false);
+        return;
+      }
+
       const img = new Image();
       img.src = master;
       await img.decode();
@@ -170,19 +165,14 @@ export default function Home() {
         composition: { image: img },
         background: '#f5f5f5',
       });
-      const mockupDataUrl = await blobToDataURL(blob);
+      const mockupUrl = URL.createObjectURL(blob);
 
-      const rotationDeg = Number(layout?.transform?.rotation_deg || 0);
-      const bleed = 3;
-      const modeForStore = material === 'PRO' ? 'Pro' : material;
-      setFlow({
-        mockup_png_dataurl: mockupDataUrl,
-        master_png_dataurl: master,
-        mode: modeForStore,
-        width_cm: activeWcm,
-        height_cm: activeHcm,
-        bleed_mm: bleed,
-        rotate_deg: rotationDeg,
+      flow.set({
+        productType: material === 'Glasspad' ? 'glasspad' : 'mousepad',
+        editorState: layout,
+        mockupBlob: blob,
+        mockupUrl,
+        printFullResDataUrl: master,
       });
       navigate('/mockup');
     } catch (e) {
