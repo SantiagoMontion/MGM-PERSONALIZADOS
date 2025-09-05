@@ -1,7 +1,10 @@
 
 import { withCors } from '../lib/cors.js';
 import { checkNSFW } from '../lib/moderation/nsfw.js';
-import { checkHate } from '../lib/moderation/hate.js';
+import { checkHate, initHateTemplates } from '../lib/moderation/hate.js';
+
+// precalentar plantillas de odio, pero no abortar si falla
+initHateTemplates().catch(() => {});
 
 function toBufferFromDataUrl(dataUrl) {
   const m = /^data:(.+?);base64,(.+)$/.exec(dataUrl || '');
