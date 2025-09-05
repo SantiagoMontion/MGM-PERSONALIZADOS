@@ -1,45 +1,55 @@
-const Tesseract = require('tesseract.js');
-const { withCors } = require('../lib/cors');
 
-const HATE_TERMS = [
-  /\bnazi(s)?\b/i,
-  /\bhitler\b/i,
-  /\bkkk\b/i,
-  /\bneo-?nazi\b/i,
-  /\bwhite\s*power\b/i,
-  /\bsieg\s*heil\b/i,
-  /\bheil\b/i,
-  /\bswastika\b/i,
-];
+import { withCors } from '../lib/cors.js';
+import { checkNSFW } from '../lib/moderation/nsfw.js';
+import { checkHate } from '../lib/moderation/hate.js';
 
-module.exports = withCors(async (req, res) => {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed' });
+function toBufferFromDataUrl(dataUrl) {
+  const m = /^data:(.+?);base64,(.+)$/.exec(dataUrl || '');
+  if (!m) return null;
+  return Buffer.from(m[2], 'base64');
+}
+
+async function readBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    req.on('data', (c) => (body += c));
+    req.on('end', () => resolve(body));
+    req.on('error', reject);
+  });
+}
+
+export default withCors(async (req, res) => {
+  if (req.method !== 'POST') return res.status(405).end();
+
+  const raw = await readBody(req);
+  let data = {};
   try {
-    const { image_dataurl } = req.body || {};
-    if (typeof image_dataurl !== 'string' || !image_dataurl.startsWith('data:image/')) {
-      return res.status(400).json({ allow: true, reason: 'skip_no_image' });
-    }
-    const base64 = image_dataurl.split(',')[1];
-    const buf = Buffer.from(base64, 'base64');
-
-    const result = await Tesseract.recognize(buf, 'eng', { logger: () => {} });
-    const text = (result?.data?.text || '')
-      .toLowerCase()
-      .replace(/\s+/g, ' ')
-      .trim();
-
-    let blocked = false;
-    const reasons = [];
-    for (const rx of HATE_TERMS) {
-      if (rx.test(text)) {
-        blocked = true;
-        reasons.push('hate_speech_explicit');
-        break;
-      }
-    }
-
-    return res.status(200).json({ allow: !blocked, reasons, textSample: text.slice(0, 200) });
-  } catch (e) {
-    return res.status(200).json({ allow: true, reasons: ['ocr_error'], error: e?.message });
+    data = JSON.parse(raw || '{}');
+  } catch (_) {
+    /* noop */
   }
+
+  let buffer = null;
+  let filename = data.filename || '';
+  if (data.dataUrl) buffer = toBufferFromDataUrl(data.dataUrl);
+  if (!buffer && data.imageBase64)
+    buffer = Buffer.from(data.imageBase64, 'base64');
+
+  if (!buffer) return res.status(400).json({ ok: false, error: 'invalid_body' });
+
+  const nsfw = await checkNSFW(buffer);
+  if (nsfw.block) {
+    return res.status(400).json({ ok: false, reason: 'nsfw_real', preds: nsfw.preds });
+  }
+
+  const hate = await checkHate(buffer, filename);
+  if (hate.block) {
+    return res
+      .status(400)
+      .json({ ok: false, reason: 'hate_symbol', via: hate.reason });
+  }
+
+  return res.status(200).json({ ok: true });
 });
+
+

@@ -14,7 +14,7 @@
     "@tensorflow/tfjs": "3.21.0",
     "konva": "^9.3.22",
     "nanoid": "^5.1.5",
-    "nsfwjs": "^4.2.1",
+    "nsfwjs": "2.4.2",
     "react": "^18.3.1",
     "react-colorful": "^5.6.1",
     "react-dom": "^18.3.1",
