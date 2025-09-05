@@ -14,7 +14,7 @@ import ComoFunciona from './pages/ComoFunciona.jsx';
 import PreguntasFrecuentes from './pages/PreguntasFrecuentes.jsx';
 import Contacto from './pages/Contacto.jsx';
 import { OrderFlowProvider } from './store/orderFlow';
-import { FlowProvider } from './state/flow';
+import { FlowProvider } from './state/flow.js';
 import './globals.css';
 import { HelmetProvider } from 'react-helmet-async';
 

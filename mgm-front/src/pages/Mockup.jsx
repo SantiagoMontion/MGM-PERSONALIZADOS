@@ -1,7 +1,8 @@
 import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
-import { useFlow } from '@/state/flow';
-import { createJobAndProduct } from '@/lib/shopify';
+import { useFlow } from '@/state/flow.js';
+import { apiFetch } from '@/lib/api.js';
+import { blobToDataURL } from '@/lib/blob.js';
 
 export default function Mockup() {
   const flow = useFlow();
@@ -17,17 +18,47 @@ export default function Mockup() {
     );
   }
 
-  async function handle(mode: 'checkout' | 'cart') {
+  async function handle(mode) {
+    if (mode !== 'checkout' && mode !== 'cart') return;
     try {
       setBusy(true);
-      const res = await createJobAndProduct(mode, flow);
-      if (mode === 'checkout' && res.checkoutUrl) {
-        window.location.assign(res.checkoutUrl);
+      const mockupDataUrl = await blobToDataURL(flow.mockupBlob);
+      const pub = await apiFetch('/api/publish-product', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mockupDataUrl,
+          productType: flow.productType || 'mousepad',
+          title: 'Mousepad personalizado',
+        }),
+      }).then((r) => r.json()).catch(() => null);
+
+      if (!pub || !pub.ok) {
+        alert('No se pudo publicar el producto');
+        return;
       }
-      if (mode === 'cart' && res.cartUrl) {
-        window.open(res.cartUrl, '_blank', 'noopener,noreferrer');
-        flow.reset();
-        navigate('/');
+
+      if (mode === 'checkout') {
+        const ck = await apiFetch('/api/create-checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ variantId: pub.variantId, quantity: 1 }),
+        }).then((r) => r.json()).catch(() => null);
+        if (ck?.url) window.location.assign(ck.url);
+        return;
+      }
+
+      if (mode === 'cart') {
+        const cl = await apiFetch('/api/create-cart-link', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ variantId: pub.variantId, quantity: 1 }),
+        }).then((r) => r.json()).catch(() => null);
+        if (cl?.url) {
+          window.open(cl.url, '_blank', 'noopener,noreferrer');
+          flow.reset();
+          navigate('/');
+        }
       }
     } catch (e) {
       alert(e?.message || 'Error');
@@ -46,10 +77,11 @@ export default function Mockup() {
         alt="Mockup"
       />
       <div style={{ marginTop: 16, display: 'flex', gap: 12, justifyContent: 'center' }}>
-        <button disabled={busy} onClick={() => { flow.reset(); navigate('/'); }}>Volver</button>
-        <button disabled={busy} onClick={() => handle('checkout')}>Comprar directo</button>
-        <button disabled={busy} onClick={() => handle('cart')}>Agregar al carrito y seguir</button>
+        <button disabled={busy} onClick={() => { flow.reset(); navigate('/'); }}>Cancelar y volver</button>
+        <button disabled={busy} onClick={() => handle('cart')}>Agregar al carrito y seguir creando</button>
+        <button disabled={busy} onClick={() => handle('checkout')}>Comprar ahora</button>
       </div>
     </div>
   );
 }
+

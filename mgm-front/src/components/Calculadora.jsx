@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useMemo } from "react";
 
 const rolloData = {
   Pro:    { width: 125, pricePerMeter: 36145, multiplier: 3.2, baselineArea: 0.26 },
@@ -24,97 +24,89 @@ function mapMode(material) {
 const Calculadora = ({ width, height, material, setPrice }) => {
   const mode = mapMode(material);
 
-  // --- Glasspad: precio fijo ---
-  if (mode === "Glasspad") {
-    const transferPrice = GLASSPAD_TRANSFER_PRICE;               // $110.000 con transferencia
-    const normalFromTransfer = Math.round(transferPrice * 1.25); // +25% → $137.500 lista
-    // Enviamos transferencia al backend
-    if (typeof setPrice === "function") setPrice(transferPrice);
-
-    return (
-      <div>
-        <p className="p-calcu">${formatARS(normalFromTransfer)}</p>
-        <p className="minitext">20% OFF con transferencia: {formatARS(transferPrice)}</p>
-      </div>
-    );
-  }
-
-  // --- Pro / Clasic ---
-  if (!rolloData[mode]) {
-    if (typeof setPrice === "function") setPrice(0);
-    return <p>Modo no válido</p>;
-  }
-
-  const { width: rolloWidth, pricePerMeter, multiplier, baselineArea } = rolloData[mode];
-  const rolloWidthM = rolloWidth / 100;
-
-  const normalizedWidthCm  = Number(width)  || 0;
+  // Normalize sizes
+  const normalizedWidthCm = Number(width) || 0;
   const normalizedHeightCm = Number(height) || 0;
 
-  const pieceWidthM  = normalizedWidthCm / 100;
-  const pieceHeightM = normalizedHeightCm / 100;
+  // Compute pricing memoized by inputs
+  const computed = useMemo(() => {
+    // Glasspad: fixed price
+    if (mode === "Glasspad") {
+      const transferPrice = GLASSPAD_TRANSFER_PRICE;
+      const normalFromTransfer = Math.round(transferPrice * 1.25);
+      return { valid: true, transfer: transferPrice, normal: normalFromTransfer };
+    }
 
-  const unitsHorizontal =
-    Math.floor(rolloWidthM / pieceWidthM) * Math.floor(1 / pieceHeightM);
-  const unitsRotated =
-    Math.floor(rolloWidthM / pieceHeightM) * Math.max(Math.floor(1 / pieceWidthM), 1);
-  const unitsPerMeter = Math.max(unitsHorizontal, unitsRotated, 1);
+    // Pro / Clasic
+    const rollo = rolloData[mode];
+    if (!rollo) return { valid: false, transfer: 0, normal: 0 };
 
-  const defaultPricePerUnit = pricePerMeter / unitsPerMeter;
+    const { width: rolloWidth, pricePerMeter, multiplier, baselineArea } = rollo;
+    const rolloWidthM = rolloWidth / 100;
 
-  // Modelo rotado si conviene
-  const useRotatedModel =
-    !(pieceWidthM === 1.4 && pieceHeightM === 1) &&
-    pieceWidthM > 1 &&
-    pieceWidthM < rolloWidthM;
+    const pieceWidthM = normalizedWidthCm / 100;
+    const pieceHeightM = normalizedHeightCm / 100;
+    if (pieceWidthM <= 0 || pieceHeightM <= 0) return { valid: true, transfer: 0, normal: 0 };
 
-  let finalCostPerUnit;
-  if (useRotatedModel) {
-    const piecesPerRow = Math.floor(rolloWidthM / pieceHeightM);
-    const baseCostPerUnit = pricePerMeter / piecesPerRow;
-    const extraCost = ((pieceWidthM - 1) * pricePerMeter) / piecesPerRow;
-    finalCostPerUnit = baseCostPerUnit + extraCost;
-  } else {
-    finalCostPerUnit = defaultPricePerUnit;
-  }
+    const unitsHorizontal = Math.floor(rolloWidthM / pieceWidthM) * Math.floor(1 / pieceHeightM);
+    const unitsRotated = Math.floor(rolloWidthM / pieceHeightM) * Math.max(Math.floor(1 / pieceWidthM), 1);
+    const unitsPerMeter = Math.max(unitsHorizontal, unitsRotated, 1);
 
-  const yieldPrice = finalCostPerUnit * multiplier;
-  const costPerM2  = pricePerMeter / rolloWidthM;
-  const area       = pieceWidthM * pieceHeightM;
-  const areaPrice  = area * costPerM2 * multiplier;
+    const defaultPricePerUnit = pricePerMeter / unitsPerMeter;
+    const useRotatedModel = !(pieceWidthM === 1.4 && pieceHeightM === 1) && pieceWidthM > 1 && pieceWidthM < rolloWidthM;
 
-  let baseFinalPrice = Math.min(yieldPrice, areaPrice);
+    const finalCostPerUnit = useRotatedModel
+      ? (() => {
+          const piecesPerRow = Math.floor(rolloWidthM / pieceHeightM);
+          const baseCostPerUnit = pricePerMeter / piecesPerRow;
+          const extraCost = ((pieceWidthM - 1) * pricePerMeter) / piecesPerRow;
+          return baseCostPerUnit + extraCost;
+        })()
+      : defaultPricePerUnit;
 
-  const surchargeFactor = 5000;
-  const extraArea = Math.max(0, area - baselineArea);
-  const areaSurcharge = surchargeFactor * extraArea;
+    const yieldPrice = finalCostPerUnit * multiplier;
+    const costPerM2 = pricePerMeter / rolloWidthM;
+    const area = pieceWidthM * pieceHeightM;
+    const areaPrice = area * costPerM2 * multiplier;
 
-  // recargos menores
-  if (normalizedWidthCm < 40 && normalizedHeightCm < 40) {
-    baseFinalPrice *= 1.3;
-  }
+    let baseFinalPrice = Math.min(yieldPrice, areaPrice);
 
-  const roundTo500 = (p) => Math.ceil(p / 500) * 500;
-  const basePriceRounded = roundTo500(baseFinalPrice + areaSurcharge);
+    const surchargeFactor = 5000;
+    const extraArea = Math.max(0, area - baselineArea);
+    const areaSurcharge = surchargeFactor * extraArea;
 
-  // Lista (tarjeta) = transferencia * 1.25; transferencia = lista * 0.8
-  let clientFinalPrice = Math.round(basePriceRounded * 1.25);
+    if (normalizedWidthCm < 40 && normalizedHeightCm < 40) {
+      baseFinalPrice *= 1.3;
+    }
 
-  // Ajuste transferencia: +$2.000 para Classic
-  const isClassic = mode === "Clasic";
-  const transferBase = Math.round(clientFinalPrice * 0.8);
-  const transferWithExtra = isClassic ? transferBase + 2000 : transferBase;
-  const normalFromTransfer = Math.round(transferWithExtra / 0.8);
+    const roundTo500 = (p) => Math.ceil(p / 500) * 500;
+    const basePriceRounded = roundTo500(baseFinalPrice + areaSurcharge);
 
-  // Enviamos transferencia (con extra para Classic) al backend
-  if (typeof setPrice === "function") {
-    setPrice(transferWithExtra);
+    const clientFinalPrice = Math.round(basePriceRounded * 1.25);
+    const isClassic = mode === "Clasic";
+    const transferBase = Math.round(clientFinalPrice * 0.8);
+    const transferWithExtra = isClassic ? transferBase + 2000 : transferBase;
+    const normalFromTransfer = Math.round(transferWithExtra / 0.8);
+
+    return { valid: true, transfer: transferWithExtra, normal: normalFromTransfer };
+  }, [mode, normalizedWidthCm, normalizedHeightCm]);
+
+  // Push price to parent AFTER render
+  useEffect(() => {
+    if (typeof setPrice === "function") {
+      const v = computed.valid ? computed.transfer : 0;
+      setPrice(v);
+    }
+  }, [setPrice, computed]);
+
+  if (!computed.valid && mode !== "Glasspad") {
+    return <p>Modo no válido</p>;
   }
 
   return (
     <div>
-      <p className="p-calcu">${formatARS(normalFromTransfer)}</p>
-      <p className="minitext">20% OFF con transferencia: {formatARS(transferWithExtra)}</p>
+      <p className="p-calcu">${formatARS(computed.normal)}</p>
+      <p className="minitext">20% OFF con transferencia: {formatARS(computed.transfer)}</p>
     </div>
   );
 };

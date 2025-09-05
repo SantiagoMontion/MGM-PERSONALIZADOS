@@ -13,9 +13,9 @@ import { LIMITS, STANDARD, GLASSPAD_SIZE_CM } from '../lib/material.js';
 
 import { dpiLevel } from '../lib/dpi';
 import styles from './Home.module.css';
-import { renderMockup1080 } from '../lib/mockup';
-import { useFlow } from '@/state/flow';
-import { apiFetch } from '@/lib/api';
+import { renderMockup1080 } from '../lib/mockup.js';
+import { useFlow } from '@/state/flow.js';
+import { apiFetch } from '@/lib/api.js';
 
 export default function Home() {
 
@@ -60,7 +60,7 @@ export default function Home() {
   }, [material]);
 
   const [priceAmount, setPriceAmount] = useState(0);
-  const priceCurrency = 'ARS';
+  const PRICE_CURRENCY = 'ARS';
 
   // layout del canvas
   const [layout, setLayout] = useState(null);
@@ -145,11 +145,14 @@ export default function Home() {
         return;
       }
 
+      const moderationUrl = `${import.meta.env.VITE_API_URL || ''}/api/moderate-image`;
+      console.info('[continue] POST', moderationUrl);
       const resp = await apiFetch('/api/moderate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dataUrl: master, filename: uploaded?.file?.name || 'image.png' })
       });
+      console.info('[continue] response', resp.ok, resp.status);
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}));
         setErr(`Bloqueado por moderación: ${err.reason || 'desconocido'}`);

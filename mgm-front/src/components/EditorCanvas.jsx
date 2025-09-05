@@ -1028,13 +1028,15 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         >
           Calidad: {quality.label}
         </span>
-        <button
-          onClick={onConfirmSubmit}
-          disabled={busy || !imgEl || !imageFile}
-          className={styles.confirmButton}
-        >
-          {busy ? "Creando…" : "Crear job"}
-        </button>
+        {false && (
+          <button
+            onClick={onConfirmSubmit}
+            disabled={busy || !imgEl || !imageFile}
+            className={styles.confirmButton}
+          >
+            {busy ? "Creando…" : "Crear job"}
+          </button>
+        )}
       </div>
 
       {lastDiag && <p className={styles.errorBox}>{lastDiag}</p>}
