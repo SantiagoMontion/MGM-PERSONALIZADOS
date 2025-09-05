@@ -11,7 +11,7 @@ const MAX_H = 520;
 export default function Mockup() {
   const navigate = useNavigate();
   const {
-    preview_png_dataurl,
+    mockup_png_dataurl,
     master_png_dataurl,
     mode,
     width_cm,
@@ -24,7 +24,7 @@ export default function Mockup() {
   const [links, setLinks] = useState(null);
   const [dim, setDim] = useState(null);
 
-  if (!preview_png_dataurl) {
+  if (!mockup_png_dataurl) {
     return (
       <div style={{ padding: 32 }}>
         <p>No hay imagen para mostrar.</p>
@@ -71,13 +71,14 @@ export default function Mockup() {
         return;
       }
 
-      const payload = {
+  const payload = {
         mode,
         width_cm: Number(width_cm),
         height_cm: Number(height_cm),
         bleed_mm: Number(bleed_mm),
         rotate_deg: Number(rotate_deg),
         image_dataurl: master_png_dataurl,
+        mockup_dataurl: mockup_png_dataurl,
       };
         const res = await apiFetch('/api/shopify/create-product', {
           method: 'POST',
@@ -95,7 +96,7 @@ export default function Mockup() {
     }
   }
 
-  const preview = preview_png_dataurl;
+  const preview = mockup_png_dataurl;
   const isGlasspad = mode === 'Glasspad';
 
   return (

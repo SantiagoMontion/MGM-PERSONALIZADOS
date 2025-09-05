@@ -15,6 +15,7 @@ import { LIMITS, STANDARD, GLASSPAD_SIZE_CM } from '../lib/material.js';
 import { dpiLevel } from '../lib/dpi';
 import styles from './Home.module.css';
 import { useOrderFlow } from '../store/orderFlow';
+import { renderMockup1080 } from '../lib/mockup';
 
 export default function Home() {
 
@@ -152,18 +153,33 @@ export default function Home() {
     try {
       setErr('');
       setBusy(true);
-      const preview = canvasRef.current.exportPadDataURL?.(1);
       const master = canvasRef.current.exportPadDataURL?.(2);
-      if (!preview || !master) {
+      if (!master) {
         setErr('No se pudo generar la imagen');
         setBusy(false);
         return;
       }
+
+      // create mockup from final artwork
+      const img = new Image();
+      img.src = master;
+      await img.decode();
+      const blob = await renderMockup1080({
+        productType: material === 'Glasspad' ? 'glasspad' : 'mousepad',
+        composition: { image: img },
+        background: '#f5f5f5',
+      });
+      const mockupDataUrl: string = await new Promise((resolve) => {
+        const r = new FileReader();
+        r.onloadend = () => resolve(r.result as string);
+        r.readAsDataURL(blob);
+      });
+
       const rotationDeg = Number(layout?.transform?.rotation_deg || 0);
       const bleed = 3;
       const modeForStore = material === 'PRO' ? 'Pro' : material;
       setFlow({
-        preview_png_dataurl: preview,
+        mockup_png_dataurl: mockupDataUrl,
         master_png_dataurl: master,
         mode: modeForStore,
         width_cm: activeWcm,

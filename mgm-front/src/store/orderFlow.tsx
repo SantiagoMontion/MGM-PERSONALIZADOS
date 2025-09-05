@@ -6,7 +6,7 @@ export type FlowState = {
   height_cm: number;
   bleed_mm: number;
   rotate_deg: number;
-  preview_png_dataurl: string | null;
+  mockup_png_dataurl: string | null;
   master_png_dataurl: string | null;
   set: (p: Partial<FlowState>) => void;
   reset: () => void;
@@ -18,7 +18,7 @@ const defaultState: Omit<FlowState, 'set' | 'reset'> = {
   height_cm: 0,
   bleed_mm: 0,
   rotate_deg: 0,
-  preview_png_dataurl: null,
+  mockup_png_dataurl: null,
   master_png_dataurl: null,
 };
 
