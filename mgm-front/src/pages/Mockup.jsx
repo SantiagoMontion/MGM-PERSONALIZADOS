@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useOrderFlow } from '../store/orderFlow';
 import SeoJsonLd from '../components/SeoJsonLd';
 import { apiFetch } from '@/lib/api';
+import { quickCheckRealNudity } from '@/lib/moderation';
 
 const MAX_W = 720;
 const MAX_H = 520;
@@ -46,13 +47,26 @@ export default function Mockup() {
     setLoading(true);
     setError(null);
     try {
-        const mod = await apiFetch('/api/moderate-image', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ image_dataurl: master_png_dataurl }),
-        }).then((r) => r.json());
-      if (!mod.allow) {
-        setError('La imagen contiene contenido no permitido.');
+      const img = new Image();
+      img.src = master_png_dataurl;
+      await new Promise((resolve) => {
+        img.onload = resolve;
+        img.onerror = resolve;
+      });
+      if (await quickCheckRealNudity(img)) {
+        setError('La imagen parece contener desnudez real.');
+        setLoading(false);
+        return;
+      }
+
+      const resp = await apiFetch('/api/moderate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dataUrl: master_png_dataurl, filename: 'image.png' })
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        setError(`Bloqueado por moderación: ${err.reason || 'desconocido'}`);
         setLoading(false);
         return;
       }
