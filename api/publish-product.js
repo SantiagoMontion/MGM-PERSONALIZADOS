@@ -1,49 +1,38 @@
-import crypto from 'node:crypto';
-import { supa } from '../lib/supa';
-import { shopifyAdmin } from '../lib/shopify';
-import { buildCorsHeaders, preflight, applyCorsToResponse } from '../lib/cors';
+import { withCors } from '../lib/cors.js';
+import { shopifyAdmin } from '../lib/shopify.js';
 
-export default async function handler(req, res) {
-  const diagId = crypto.randomUUID?.() ?? require('node:crypto').randomUUID();
-  res.setHeader('X-Diag-Id', String(diagId));
-
-  const origin = req.headers.origin || null;
-  const cors = buildCorsHeaders(origin);
-  if (req.method === 'OPTIONS') {
-    if (!cors) return res.status(403).json({ error: 'origin_not_allowed' });
-    Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v));
-    return res.status(204).end();
-  }
-  if (!cors) return res.status(403).json({ error: 'origin_not_allowed' });
-  Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v));
-
+export default withCors(async (req, res) => {
   if (req.method !== 'POST') {
-    res.setHeader('Allow', 'POST');
-    return res.status(405).json({ ok: false, diag_id: diagId, message: 'method_not_allowed' });
+    res.statusCode = 405;
+    return res.json({ ok: false, error: 'method_not_allowed' });
   }
-
   try {
-    const { job_id } = req.body || {};
-    if (!job_id) return res.status(400).json({ error: 'missing_job_id' });
-
-    const { data: job, error } = await supa.from('jobs').select('*').eq('job_id', job_id).single();
-    if (error || !job) return res.status(404).json({ error: 'job_not_found' });
-    if (!job.shopify_product_id) return res.status(409).json({ error: 'missing_product_id' });
-
-    await shopifyAdmin(`/products/${job.shopify_product_id}.json`, {
-      method: 'PUT',
-      body: JSON.stringify({ product: { id: job.shopify_product_id, status: 'active' } })
+    const { mockupDataUrl, productType, title, tags } = req.body || {};
+    if (typeof mockupDataUrl !== 'string') {
+      return res.status(400).json({ ok: false, error: 'invalid_mockup' });
+    }
+    const base64 = mockupDataUrl.split(',')[1] || '';
+    const payload = {
+      product: {
+        title: title || `Personalizado ${productType || ''}`,
+        body_html: '<p>Producto personalizado</p>',
+        tags: tags || '',
+        images: [{ attachment: base64 }],
+        variants: [{ price: '0.00' }],
+        status: 'draft',
+      },
+    };
+    const { product } = await shopifyAdmin('/products.json', {
+      method: 'POST',
+      body: JSON.stringify(payload),
     });
-
-    const { product } = await shopifyAdmin(`/products/${job.shopify_product_id}.json`, { method: 'GET' });
-    const pubBase = process.env.SHOPIFY_PUBLIC_BASE || `https://${process.env.SHOPIFY_STORE_DOMAIN}`;
-    const productUrl = `${pubBase}/products/${product.handle}`;
-
-    await supa.from('jobs').update({ shopify_product_url: productUrl }).eq('id', job.id);
-
-    return res.status(200).json({ ok: true, job_id: job.job_id, product_url: productUrl });
+    return res.status(200).json({
+      ok: true,
+      productId: String(product.id),
+      variantId: String(product.variants?.[0]?.id || ''),
+    });
   } catch (e) {
     console.error('publish_product_error', e);
-    return res.status(500).json({ error: 'publish_product_failed', detail: String(e?.message || e) });
+    return res.status(500).json({ ok: false, error: 'publish_failed' });
   }
-}
+});
