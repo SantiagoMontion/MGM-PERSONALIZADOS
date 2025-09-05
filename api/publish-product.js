@@ -1,4 +1,4 @@
-import { withCors } from '../lib/cors.js';
+import { withCors } from '../lib/cors';
 import { shopifyAdmin } from '../lib/shopify.js';
 
 export default withCors(async (req, res) => {

@@ -1,4 +1,4 @@
-import { withCors } from '../lib/cors.js';
+import { withCors } from '../lib/cors';
 
 export default withCors(async (req, res) => {
   if (req.method !== 'POST') {
