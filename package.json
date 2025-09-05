@@ -34,3 +34,5 @@
     "node": "20.x"
   }
 }
+    "dev:api": "vercel dev --listen 3001",
+    "doctor:api": "node -e \"fetch('http://localhost:3001/api/healthcheck').then(r=>r.text()).then(console.log).catch(e=>{console.error('API DOWN',e.message);process.exit(1)})\"",
