@@ -18,6 +18,7 @@
     "doctor:big": "git diff --name-only main...HEAD | xargs -I{} bash -lc 'test -f {} && wc -c <{} || true' | awk '{sum+=$1} END {printf \"Total bytes: %d\\n\", sum}'",
     "doctor:ignored": "git check-ignore -v dist build .next .cache coverage || true",
     "dev:api": "vercel dev --listen 3001",
+    "dev:all": "node scripts/dev-all.js",
     "doctor:api": "node -e \"fetch('http://localhost:3001/api/healthcheck').then(r=>r.text()).then(console.log).catch(e=>{console.error('API DOWN',e.message);process.exit(1)})\""
   },
   "dependencies": {

@@ -1,23 +1,13 @@
 // api/submit-job.js
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { buildCorsHeaders, preflight, applyCorsToResponse } from '../lib/cors';
+import { withCors } from '../lib/cors';
 import getSupabaseAdmin from "./_lib/supabaseAdmin";
 import { getEnv } from "./_lib/env";
 
-export default async function handler(req, res) {
+export default withCors(async function handler(req, res) {
   const diagId = randomUUID();
   res.setHeader("X-Diag-Id", diagId);
-
-  const origin = req.headers.origin || null;
-  const cors = buildCorsHeaders(origin);
-  if (req.method === 'OPTIONS') {
-    if (!cors) return res.status(403).json({ error: 'origin_not_allowed' });
-    Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v));
-    return res.status(204).end();
-  }
-  if (!cors) return res.status(403).json({ error: 'origin_not_allowed' });
-  Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v));
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res
@@ -231,4 +221,4 @@ export default async function handler(req, res) {
         message: "Unexpected error",
       });
   }
-}
+});

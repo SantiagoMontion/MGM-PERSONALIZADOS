@@ -3,7 +3,7 @@
 import crypto from 'node:crypto';
 import { z } from 'zod';
 import { supa } from '../lib/supa';
-import { buildCorsHeaders, preflight, applyCorsToResponse } from '../lib/cors';
+import { withCors } from '../lib/cors';
 import { buildObjectKey } from './_lib/slug';
 
 const BodySchema = z.object({
@@ -20,20 +20,9 @@ const BodySchema = z.object({
 const MAX_MB = Number(process.env.MAX_UPLOAD_MB || 40);
 const LIMITS = { Classic: { maxW: 140, maxH: 100 }, PRO: { maxW: 120, maxH: 60 } };
 
-export default async function handler(req, res) {
+export default withCors(async function handler(req, res) {
   const diagId = crypto.randomUUID?.() ?? require('node:crypto').randomUUID();
   res.setHeader('X-Diag-Id', String(diagId));
-
-  // CORS + preflight
-  const origin = req.headers.origin || null;
-  const cors = buildCorsHeaders(origin);
-  if (req.method === 'OPTIONS') {
-    if (!cors) return res.status(403).json({ error: 'origin_not_allowed' });
-    Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v));
-    return res.status(204).end();
-  }
-  if (!cors) return res.status(403).json({ error: 'origin_not_allowed' });
-  Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v));
 
   // Solo POST
   if (req.method !== 'POST') {
@@ -47,7 +36,11 @@ export default async function handler(req, res) {
   }
 
   try {
-    const body = BodySchema.parse(req.body);
+    let raw = req.body;
+    if (!raw || typeof raw !== 'object') {
+      try { raw = JSON.parse(raw || '{}'); } catch { raw = {}; }
+    }
+    const body = BodySchema.parse(raw);
 
     // Límites de archivo
     if (body.size_bytes > MAX_MB * 1024 * 1024) {
@@ -100,4 +93,4 @@ export default async function handler(req, res) {
     console.error(e);
     return res.status(500).json({ error: 'internal_error' });
   }
-}
+});
