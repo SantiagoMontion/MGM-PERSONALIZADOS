@@ -16,6 +16,7 @@ import { dpiLevel } from '../lib/dpi';
 import styles from './Home.module.css';
 import { useOrderFlow } from '../store/orderFlow';
 import { renderMockup1080 } from '../lib/mockup';
+import { blobToDataURL } from '@/lib/blob';
 
 export default function Home() {
 
@@ -169,11 +170,7 @@ export default function Home() {
         composition: { image: img },
         background: '#f5f5f5',
       });
-      const mockupDataUrl: string = await new Promise((resolve) => {
-        const r = new FileReader();
-        r.onloadend = () => resolve(r.result as string);
-        r.readAsDataURL(blob);
-      });
+      const mockupDataUrl = await blobToDataURL(blob);
 
       const rotationDeg = Number(layout?.transform?.rotation_deg || 0);
       const bleed = 3;
