@@ -1,3 +1,4 @@
+
 import { withCors } from '../lib/cors.js';
 import { checkNSFW } from '../lib/moderation/nsfw.js';
 import { checkHate } from '../lib/moderation/hate.js';
@@ -50,4 +51,5 @@ export default withCors(async (req, res) => {
 
   return res.status(200).json({ ok: true });
 });
+
 
