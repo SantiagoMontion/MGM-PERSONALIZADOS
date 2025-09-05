@@ -1,5 +1,5 @@
 
-import { withCors } from '../lib/cors.js';
+import { withCors } from '../lib/cors';
 import { checkNSFW } from '../lib/moderation/nsfw.js';
 import { checkHate, initHateTemplates } from '../lib/moderation/hate.js';
 
