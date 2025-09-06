@@ -3,36 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "packageManager": "npm@10",
+  "engines": { "node": "20.x" },
   "scripts": {
     "vercel-build": "node -e \"const fs=require('fs');fs.mkdirSync('public',{recursive:true});fs.writeFileSync('public/index.html','OK');console.log('no-build');\"",
-    "build": "mkdir -p public && echo OK > public/index.html && echo no-build",
-    "doctor:vercel": "node -e \"console.log(require('./vercel.json'))\"",
-    "find:legacy": "git grep -nE '\\"(builds|routes)\\"' -- **/vercel.json || true",
-    "find:now-key": "git grep -nE '\\"use\\"\\s*:\\s*\\"now-' -- . || true",
-    "find:php": "git grep -nE 'now-php|vercel-php|\\bphp\\b' -- . || true",
-    "find:file-runtime": "git grep -nE 'export const config\\s*=\\s*\\{\\s*runtime' -- api || true",
-    "lint": "eslint .",
-    "format": "prettier -w .",
-    "doctor:env": "node -e \"console.log(process.version)\"",
-    "doctor:imports": "grep -RniE \"from '(/|.*\\\\.ts')\" --include=*.{ts,tsx,js,jsx} . || true",
-    "doctor:big": "git diff --name-only main...HEAD | xargs -I{} bash -lc 'test -f {} && wc -c <{} || true' | awk '{sum+=$1} END {printf \"Total bytes: %d\\n\", sum}'",
-    "doctor:ignored": "git check-ignore -v dist build .next .cache coverage || true",
     "dev:api": "vercel dev --listen 3001",
-    "dev:all": "node scripts/dev-all.js",
+    "doctor:vercel": "node -e \"console.log(JSON.parse(require('fs').readFileSync('vercel.json','utf8')));\"",
     "doctor:api": "node -e \"fetch('http://localhost:3001/api/healthcheck').then(r=>r.text()).then(console.log).catch(e=>{console.error('API DOWN',e.message);process.exit(1)})\""
   },
-  "dependencies": {
-    "@supabase/supabase-js": "^2.54.0",
-    "nanoid": "^5.1.5",
-    "pdf-lib": "^1.17.1",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "sharp": "^0.33.4",
-    "tesseract.js": "^5.0.5",
-    "zod": "^3.23.8"
-  },
-  "engines": {
-    "node": "20.x"
-  }
+  "dependencies": {},
+  "devDependencies": {}
 }
