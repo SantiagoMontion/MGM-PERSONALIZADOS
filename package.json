@@ -6,7 +6,8 @@
   "engines": { "node": "20.x" },
   "scripts": {
     "vercel-build": "node -e \"const fs=require('fs');fs.mkdirSync('public',{recursive:true});fs.writeFileSync('public/index.html','OK');console.log('no-build');\"",
-    "dev:api": "vercel dev --listen 3001"
+    "dev:api": "vercel dev --listen 3001",
+    "doctor:shopify-env": "node -e \"const r=['SHOPIFY_STORE_DOMAIN','SHOPIFY_ADMIN_TOKEN','SHOPIFY_API_VERSION'];const m=r.filter(k=>!process.env[k]);console.log({missing:m});process.exit(m.length?1:0)\""
   },
   "dependencies": {},
   "devDependencies": {}

@@ -41,8 +41,8 @@ export default withCors(async function handler(req, res) {
         }
       }
       case 'POST publish-product': {
-        const m = await import('../lib/handlers/publishProduct.js');
-        return m.default(req, res);
+        const { publishProduct } = await import('../lib/handlers/publishProduct.js');
+        return publishProduct(req, res);
       }
       case 'POST create-cart-link': {
         const m = await import('../lib/handlers/createCartLink.js');
