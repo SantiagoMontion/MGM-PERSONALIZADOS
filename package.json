@@ -8,7 +8,11 @@
     "vercel-build": "node -e \"const fs=require('fs');fs.mkdirSync('public',{recursive:true});fs.writeFileSync('public/index.html','OK');console.log('no-build');\"",
     "dev:api": "vercel dev --listen 3001",
     "doctor:vercel": "node -e \"console.log(JSON.parse(require('fs').readFileSync('vercel.json','utf8')));\"",
-    "doctor:api": "node -e \"fetch('http://localhost:3001/api/healthcheck').then(r=>r.text()).then(console.log).catch(e=>{console.error('API DOWN',e.message);process.exit(1)})\""
+    "find:legacy": "node scripts/find-legacy.cjs",
+    "find:now-key": "node scripts/find-now-key.cjs",
+    "find:file-runtime": "node scripts/find-file-runtime.cjs",
+    "doctor:api": "node -e \"fetch('http://localhost:3001/api/healthcheck').then(r=>r.text()).then(console.log).catch(e=>{console.error('API DOWN',e.message);process.exit(1)})\"",
+    "prebuild": "node scripts/guard-vercel-config.cjs"
   },
   "dependencies": {},
   "devDependencies": {}
