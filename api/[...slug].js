@@ -22,23 +22,8 @@ export default withCors(async function handler(req, res) {
   try {
     switch (key) {
       case 'POST moderate-image': {
-        // Minimal server moderation: text-only hate check (no image libs)
-        try {
-          const bufs = await new Promise((resolve) => {
-            let b = ''; req.on('data', c => b += c); req.on('end', () => resolve(b));
-          });
-          let body = {};
-          try { body = JSON.parse(String(bufs || '{}')); } catch { body = {}; }
-          const { hateTextCheck } = await import('../lib/moderation/hate.js');
-          const resCheck = hateTextCheck({ filename: body?.filename, textHints: body?.textHints });
-          if (resCheck?.blocked) {
-            return res.status(400).json({ ok: false, reason: resCheck.reason || 'blocked' });
-          }
-          return res.status(200).json({ ok: true });
-        } catch (e) {
-          try { console.error('[moderate-image]', e); } catch {}
-          return res.status(500).json({ ok: false });
-        }
+        const m = await import('../lib/handlers/moderateImage.js');
+        return m.default(req, res);
       }
       case 'POST publish-product': {
         const { publishProduct } = await import('../lib/handlers/publishProduct.js');

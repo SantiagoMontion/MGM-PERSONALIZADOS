@@ -10,10 +10,16 @@ export async function scanNudityClient(dataUrl) {
 
     const model = await nsfwjs.load();
     const preds = await model.classify(img);
-    const pornish = preds.some(p => (p.className === 'Porn' || p.className === 'Hentai') && p.probability >= 0.75);
-    const sexy = preds.some(p => p.className === 'Sexy' && p.probability >= 0.85);
-    const blocked = pornish || sexy;
-    return blocked ? { blocked: true, reason: 'nsfw_real' } : { blocked: false };
+    preds.sort((a,b) => b.probability - a.probability);
+    const top = preds[0] || { className: '', probability: 0 };
+    const hentai = preds.find(p => p.className === 'Hentai')?.probability || 0;
+    if (top.className === 'Porn' && top.probability >= 0.85 && hentai < 0.60) {
+      return { blocked: true, reason: 'client_real_nudity' };
+    }
+    if (hentai >= 0.60) {
+      return { blocked: false, reason: 'client_hentai_allowed' };
+    }
+    return { blocked: false };
   } catch (e) {
     // On failure to load ML libs in browser, default to allow (server will gate as needed)
     console.warn('[scanNudityClient] failed', e?.message || e);

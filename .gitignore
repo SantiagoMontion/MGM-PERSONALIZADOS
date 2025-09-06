@@ -11,3 +11,4 @@ assets-local/
 *.tmp
 .DS_Store
 .vercel
+tests/fixtures/
