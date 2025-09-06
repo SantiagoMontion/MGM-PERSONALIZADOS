@@ -11,6 +11,7 @@
     "find:legacy": "node scripts/find-legacy.cjs",
     "find:now-key": "node scripts/find-now-key.cjs",
     "find:file-runtime": "node scripts/find-file-runtime.cjs",
+    "doctor:ts": "git grep -nE \"from '.*\\.ts'|from \\\".*\\.ts\\\"|require\\(.*\\.ts\\)\" -- api lib || true",
     "doctor:api": "node -e \"fetch('http://localhost:3001/api/healthcheck').then(r=>r.text()).then(console.log).catch(e=>{console.error('API DOWN',e.message);process.exit(1)})\"",
     "prebuild": "node scripts/guard-vercel-config.cjs"
   },
