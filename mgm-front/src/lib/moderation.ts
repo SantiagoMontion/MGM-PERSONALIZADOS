@@ -1,24 +1,16 @@
-import * as tf from '@tensorflow/tfjs';
-import * as nsfw from 'nsfwjs';
-
-let modelPromise: Promise<nsfw.NSFWJS> | null = null;
-function getModel() {
-  if (!modelPromise) modelPromise = nsfw.load();
-  return modelPromise;
+// Lazy client-side moderation to keep tfjs/nsfwjs out of the API build
+export async function quickNsfwCheck(imgEl: HTMLImageElement | HTMLCanvasElement) {
+  const nsfwjs: any = await import('nsfwjs');
+  await import('@tensorflow/tfjs');
+  const model = await nsfwjs.load();
+  const preds = await model.classify(imgEl);
+  const pornish = preds.some((p: any) => (p.className === 'Porn' || p.className === 'Hentai') && p.probability >= 0.75);
+  const sexy = preds.some((p: any) => p.className === 'Sexy' && p.probability >= 0.85);
+  return pornish || sexy;
 }
 
-export async function quickCheckRealNudity(
-  imgEl: HTMLImageElement | HTMLCanvasElement
-) {
-  const model = await getModel();
-  const preds = await model.classify(imgEl);
-  const map: Record<string, number> = Object.fromEntries(
-    preds.map((p) => [p.className.toLowerCase(), p.probability])
-  );
-  const porn = map.porn || 0,
-    sexy = map.sexy || 0,
-    hentai = map.hentai || 0,
-    drawing = map.drawing || 0;
-  return (porn >= 0.8 || sexy >= 0.9) && hentai + drawing < 0.6;
+export function quickHateSymbolCheck(nameOrAlt: string | null | undefined) {
+  const s = (nameOrAlt || '').toLowerCase();
+  return /(\bnazi\b|\bswastika\b|\bhitler\b)/.test(s);
 }
 

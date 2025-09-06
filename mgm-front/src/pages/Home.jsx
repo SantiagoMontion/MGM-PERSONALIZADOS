@@ -14,6 +14,7 @@ import { LIMITS, STANDARD, GLASSPAD_SIZE_CM } from '../lib/material.js';
 import { dpiLevel } from '../lib/dpi';
 import styles from './Home.module.css';
 import { renderMockup1080 } from '../lib/mockup.js';
+import { quickNsfwCheck, quickHateSymbolCheck } from '@/lib/moderation.ts';
 import { useFlow } from '@/state/flow.js';
 import { apiFetch } from '@/lib/api.js';
 
@@ -144,6 +145,27 @@ export default function Home() {
         setBusy(false);
         return;
       }
+
+      // client-side gate: filename keywords
+      const badName = quickHateSymbolCheck(uploaded?.file?.name);
+      if (badName) {
+        setErr('Contenido no permitido (palabras prohibidas)');
+        setBusy(false);
+        return;
+      }
+
+      // client-side gate: quick NSFW check before server
+      try {
+        const probe = new Image();
+        probe.src = master;
+        await probe.decode();
+        const flagged = await quickNsfwCheck(probe);
+        if (flagged) {
+          setErr('Contenido adulto detectado.');
+          setBusy(false);
+          return;
+        }
+      } catch (_) { /* best-effort */ }
 
       const moderationUrl = `${import.meta.env.VITE_API_URL || ''}/api/moderate-image`;
       console.info('[continue] POST', moderationUrl);

@@ -11,7 +11,9 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.54.0",
+    "@tensorflow/tfjs": "^4.22.0",
     "konva": "^9.3.22",
+    "nsfwjs": "^4.2.1",
     "nanoid": "^5.1.5",
     "react": "^18.3.1",
     "react-colorful": "^5.6.1",
