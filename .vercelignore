@@ -5,3 +5,6 @@
 !package.json
 !package-lock.json
 !public/**
+mgm-front/
+node_modules/
+.git/
