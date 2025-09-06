@@ -1,10 +1,9 @@
 import { withCors } from '../lib/cors';
 
-export default withCors(async (req, res) => {
-  if (req.method !== 'GET') {
-    res.statusCode = 405;
-    return res.json({ ok: false, error: 'method_not_allowed' });
-  }
-  return res.status(200).json({ ok: true, ts: Date.now() });
+export default withCors((req, res) => {
+  // CORS preflight handled in withCors (204)
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.statusCode = 200;
+  res.end(JSON.stringify({ ok: true, ts: Date.now() }));
 });
 
