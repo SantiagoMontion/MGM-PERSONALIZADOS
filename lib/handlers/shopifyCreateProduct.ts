@@ -1,8 +1,7 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { buildCorsHeaders } from '../../lib/cors';
-import { shopifyAdmin } from '../../lib/shopify';
+import { buildCorsHeaders } from '../cors';
+import { shopifyAdmin } from '../shopify';
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: any, res: any) {
   const origin = (req.headers.origin as string) || null;
   const cors = buildCorsHeaders(origin);
   if (req.method === 'OPTIONS') {
@@ -53,3 +52,4 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(status).json({ ok: false, message: e?.message || 'shopify_error' });
   }
 }
+
