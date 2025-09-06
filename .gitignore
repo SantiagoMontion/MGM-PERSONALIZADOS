@@ -10,3 +10,4 @@ coverage/
 assets-local/
 *.tmp
 .DS_Store
+.vercel

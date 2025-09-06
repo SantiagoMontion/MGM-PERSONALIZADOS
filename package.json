@@ -5,7 +5,7 @@
   "type": "module",
   "packageManager": "npm@10",
   "scripts": {
-    "vercel-build": "mkdir -p public && echo OK > public/index.html && echo no-build",
+    "vercel-build": "node -e \"const fs=require('fs');fs.mkdirSync('public',{recursive:true});fs.writeFileSync('public/index.html','OK');console.log('no-build');\"",
     "build": "mkdir -p public && echo OK > public/index.html && echo no-build",
     "doctor:vercel": "node -e \"console.log(require('./vercel.json'))\"",
     "find:legacy": "git grep -nE '\"version\"\\s*:\\s*1|\"(builds|routes)\"|now-' -- **/vercel.json || true",
