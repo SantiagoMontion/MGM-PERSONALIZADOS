@@ -1,16 +1,1 @@
-{
-  "projectId": "prj_fXCaCWJZ98aa5iYer5YEUZEOs6CB",
-  "orgId": "team_CTlNxmgBY0TfAoTACQgK9rUX",
-  "projectName": "mgm-api",
-  "settings": {
-    "createdAt": 1754790895125,
-    "framework": null,
-    "devCommand": null,
-    "installCommand": null,
-    "buildCommand": null,
-    "outputDirectory": null,
-    "rootDirectory": null,
-    "directoryListing": false,
-    "nodeVersion": "22.x"
-  }
-}
+{"projectId":"prj_fXCaCWJZ98aa5iYer5YEUZEOs6CB","orgId":"team_CTlNxmgBY0TfAoTACQgK9rUX","projectName":"mgm-api"}
