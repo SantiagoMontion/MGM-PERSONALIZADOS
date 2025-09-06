@@ -6,10 +6,7 @@
   "engines": { "node": "20.x" },
   "scripts": {
     "vercel-build": "node -e \"const fs=require('fs');fs.mkdirSync('public',{recursive:true});fs.writeFileSync('public/index.html','OK');console.log('no-build');\"",
-    "dev:api": "vercel dev --listen 3001",
-    "doctor:api": "node -e \"fetch('http://localhost:3001/api/healthcheck').then(r=>r.text()).then(console.log).catch(e=>{console.error('API DOWN',e.message);process.exit(1)})\"",
-    "doctor:ts": "git grep -nE \"from '.*\\.ts'|require\\(.*\\.ts\\)\" -- api lib || true",
-    "doctor:zod": "git grep -n \"from 'zod'\\|require('zod')\" -- api lib || true"
+    "dev:api": "vercel dev --listen 3001"
   },
   "dependencies": {},
   "devDependencies": {}
