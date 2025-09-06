@@ -14,7 +14,8 @@ import { LIMITS, STANDARD, GLASSPAD_SIZE_CM } from '../lib/material.js';
 import { dpiLevel } from '../lib/dpi';
 import styles from './Home.module.css';
 import { renderMockup1080 } from '../lib/mockup.js';
-import { quickNsfwCheck, quickHateSymbolCheck } from '@/lib/moderation.ts';
+import { quickHateSymbolCheck } from '@/lib/moderation.ts';
+import { scanNudityClient } from '@/lib/moderation/nsfw.client.js';
 import { useFlow } from '@/state/flow.js';
 import { apiFetch } from '@/lib/api.js';
 
@@ -154,13 +155,10 @@ export default function Home() {
         return;
       }
 
-      // client-side gate: quick NSFW check before server
+      // client-side gate: NSFW scan in browser (no server TFJS)
       try {
-        const probe = new Image();
-        probe.src = master;
-        await probe.decode();
-        const flagged = await quickNsfwCheck(probe);
-        if (flagged) {
+        const res = await scanNudityClient(master);
+        if (res?.blocked) {
           setErr('Contenido adulto detectado.');
           setBusy(false);
           return;
