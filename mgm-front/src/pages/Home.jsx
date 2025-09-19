@@ -148,9 +148,10 @@ export default function Home() {
       }
 
       // client-side gate: filename keywords
-      const badName = quickHateSymbolCheck(uploaded?.file?.name);
-      if (badName) {
-        setErr('Contenido no permitido (palabras prohibidas)');
+      const trimmedDesignName = (designName || '').trim();
+      const metaForCheck = [uploaded?.file?.name, trimmedDesignName].filter(Boolean).join(' ');
+      if (quickHateSymbolCheck(metaForCheck)) {
+        setErr('Contenido no permitido (odio nazi detectado)');
         setBusy(false);
         return;
       }
@@ -170,7 +171,11 @@ export default function Home() {
       const resp = await apiFetch('/api/moderate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dataUrl: master, filename: uploaded?.file?.name || 'image.png' })
+        body: JSON.stringify({
+          dataUrl: master,
+          filename: uploaded?.file?.name || 'image.png',
+          designName: trimmedDesignName,
+        })
       });
       console.info('[continue] response', resp.ok, resp.status);
       if (!resp.ok) {
