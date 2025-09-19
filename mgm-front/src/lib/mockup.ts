@@ -58,9 +58,16 @@ export async function renderMockup1080(opts: MockupOptions): Promise<Blob> {
   }
 
   const longestCm = Math.max(widthCm, heightCm);
-  let targetLongestPx = Math.round((longestCm / 90) * maxContent);
+  const safeLongestCm = Number.isFinite(longestCm) ? Math.max(0, longestCm) : 0;
+  const norm = safeLongestCm / 140;
+  let ratio = Number.isFinite(norm) ? Math.pow(Math.max(norm, 0), 0.6) : 0;
+  if (!Number.isFinite(ratio)) {
+    ratio = 0;
+  }
+  ratio = Math.min(1, Math.max(0.26, ratio));
+  let targetLongestPx = Math.round(maxContent * ratio);
   if (!Number.isFinite(targetLongestPx) || targetLongestPx <= 0) {
-    targetLongestPx = maxContent;
+    targetLongestPx = Math.round(maxContent * 0.26);
   }
   targetLongestPx = Math.min(maxContent, Math.max(1, targetLongestPx));
 
@@ -93,14 +100,43 @@ export async function renderMockup1080(opts: MockupOptions): Promise<Blob> {
 
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
+
+  const clipRoundedRect = (
+    context: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    radius: number
+  ) => {
+    const r = Math.max(0, Math.min(radius, Math.min(width, height) / 2));
+    context.beginPath();
+    if (typeof context.roundRect === 'function') {
+      context.roundRect(x, y, width, height, r);
+    } else {
+      context.moveTo(x + r, y);
+      context.lineTo(x + width - r, y);
+      context.arcTo(x + width, y, x + width, y + r, r);
+      context.lineTo(x + width, y + height - r);
+      context.arcTo(x + width, y + height, x + width - r, y + height, r);
+      context.lineTo(x + r, y + height);
+      context.arcTo(x, y + height, x, y + height - r, r);
+      context.lineTo(x, y + r);
+      context.arcTo(x, y, x + r, y, r);
+      context.closePath();
+    }
+    context.clip();
+  };
+
+  ctx.save();
+  clipRoundedRect(ctx, dx, dy, drawW, drawH, 12);
   ctx.drawImage(image, dx, dy, drawW, drawH);
 
   if (opts.productType === 'glasspad') {
-    ctx.save();
     ctx.fillStyle = 'rgba(255,255,255,0.18)';
     ctx.fillRect(dx, dy, drawW, drawH);
-    ctx.restore();
   }
+  ctx.restore();
 
   return toBlob();
 }
