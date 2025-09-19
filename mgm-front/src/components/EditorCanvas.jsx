@@ -283,15 +283,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     [imgTx, pushHistory],
   );
 
-  const moveBy = useCallback(
-    (dx, dy) => {
-      pushHistory(imgTx);
-      stickyFitRef.current = null;
-      setImgTx((tx) => ({ ...tx, x_cm: tx.x_cm + dx, y_cm: tx.y_cm + dy }));
-    },
-    [imgTx, pushHistory],
-  );
-
   useEffect(() => {
     const handler = (e) => {
       if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key))
