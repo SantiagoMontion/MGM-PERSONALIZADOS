@@ -190,8 +190,9 @@ export default function Home() {
       await img.decode();
       const blob = await renderMockup1080({
         productType: material === 'Glasspad' ? 'glasspad' : 'mousepad',
-        composition: { image: img },
-        background: '#f5f5f5',
+        image: img,
+        width_cm: activeWcm,
+        height_cm: activeHcm,
       });
       const mockupUrl = URL.createObjectURL(blob);
 
