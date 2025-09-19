@@ -34,6 +34,10 @@ const IMG_ZOOM_MAX = 50; // límite cuando mantengo proporción
 const STAGE_BG = "#e5e7eb";
 const SNAP_LIVE_CM = 2.0;
 const RELEASE_CM = 3.0;
+const PRIMARY_SAFE_MARGIN_CM = 1.1;
+const SECONDARY_MARGIN_GAP_CM = 0.3;
+const SECONDARY_SAFE_MARGIN_CM =
+  PRIMARY_SAFE_MARGIN_CM + SECONDARY_MARGIN_GAP_CM;
 
 // ---------- Editor ----------
 const EditorCanvas = forwardRef(function EditorCanvas(
@@ -266,8 +270,18 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const [freeScale, setFreeScale] = useState(false); // ⟵ NUEVO: “Estirar sin límites”
   const keepRatio = !freeScale;
   const [mode, setMode] = useState("cover"); // 'cover' | 'contain' | 'stretch'
-  const stickyFitRef = useRef("cover");
+  const stickyFitRef = useRef(null);
   const [bgColor, setBgColor] = useState("#ffffff");
+  const isTransformingRef = useRef(false);
+
+  const moveBy = useCallback(
+    (dx, dy) => {
+      pushHistory(imgTx);
+      stickyFitRef.current = null;
+      setImgTx((tx) => ({ ...tx, x_cm: tx.x_cm + dx, y_cm: tx.y_cm + dy }));
+    },
+    [imgTx, pushHistory],
+  );
 
   const moveBy = useCallback(
     (dx, dy) => {
@@ -310,6 +324,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     setImgTx(initial);
     pushHistory(initial);
     setMode("cover");
+    stickyFitRef.current = "cover";
     didInitRef.current = true;
   }, [imgBaseCm, workCm.w, workCm.h]);
 
@@ -332,7 +347,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   };
   const dragBoundFunc = useCallback(
     (pos) => {
-      if (!imgBaseCm) return pos;
+      if (!imgBaseCm || isTransformingRef.current) return pos;
 
       let cx = pos.x;
       let cy = pos.y;
@@ -458,7 +473,14 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   }, [imgEl, keepRatio, showTransformer]);
 
   // fin de resize por esquinas
+  const onTransformStart = useCallback(() => {
+    isTransformingRef.current = true;
+    stickRef.current = { x: null, y: null, activeX: false, activeY: false };
+  }, []);
+
   const onTransformEnd = () => {
+    isTransformingRef.current = false;
+    stickRef.current = { x: null, y: null, activeX: false, activeY: false };
     if (!imgRef.current || !imgBaseCm) return;
     pushHistory(imgTx);
     stickyFitRef.current = null;
@@ -1155,6 +1177,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                       const h = Math.max(MIN_H, Math.min(newBox.height, MAX_H));
                       return { ...newBox, width: w, height: h };
                     }}
+                    onTransformStart={onTransformStart}
                     onTransformEnd={onTransformEnd}
                   />
                 </>
@@ -1267,24 +1290,30 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               cornerRadius={cornerRadiusCm + bleedCm}
             />
             <Rect
-              x={bleedCm}
-              y={bleedCm}
-              width={wCm}
-              height={hCm}
+              x={bleedCm + PRIMARY_SAFE_MARGIN_CM}
+              y={bleedCm + PRIMARY_SAFE_MARGIN_CM}
+              width={Math.max(0, wCm - 2 * PRIMARY_SAFE_MARGIN_CM)}
+              height={Math.max(0, hCm - 2 * PRIMARY_SAFE_MARGIN_CM)}
               stroke="#111827"
               dash={[0.4, 0.4]}
               strokeWidth={0.04}
-              cornerRadius={cornerRadiusCm}
+              cornerRadius={Math.max(
+                0,
+                cornerRadiusCm - PRIMARY_SAFE_MARGIN_CM,
+              )}
             />
             <Rect
-              x={bleedCm + 1}
-              y={bleedCm + 1}
-              width={Math.max(0, wCm - 2)}
-              height={Math.max(0, hCm - 2)}
+              x={bleedCm + SECONDARY_SAFE_MARGIN_CM}
+              y={bleedCm + SECONDARY_SAFE_MARGIN_CM}
+              width={Math.max(0, wCm - 2 * SECONDARY_SAFE_MARGIN_CM)}
+              height={Math.max(0, hCm - 2 * SECONDARY_SAFE_MARGIN_CM)}
               stroke="#6b7280"
               dash={[0.3, 0.3]}
               strokeWidth={0.03}
-              cornerRadius={Math.max(0, cornerRadiusCm - 1)}
+              cornerRadius={Math.max(
+                0,
+                cornerRadiusCm - SECONDARY_SAFE_MARGIN_CM,
+              )}
             />
           </Layer>
         </Stage>
