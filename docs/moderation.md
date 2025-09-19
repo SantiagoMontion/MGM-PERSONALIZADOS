@@ -1,17 +1,19 @@
 # Moderación de imágenes
 
-Este proyecto usa moderación **100% gratuita**: filtro rápido en el cliente con `nsfwjs` y verificación final en el servidor con `tesseract.js`.
+Este proyecto usa moderación **100% gratuita**: filtro rápido en el cliente con `nsfwjs` y verificación final en el servidor con heurísticas locales (`sharp`) y OCR con `tesseract.js`.
 
 ## Cliente
-- `nsfwjs` (TensorFlow.js 3.x) se carga de forma perezosa.
+- `nsfwjs` (TensorFlow.js 3.x) se carga de forma perezosa y sólo bloquea desnudos reales.
+- Se bloquea inmediatamente si el nombre del archivo o del modelo contiene términos nazis.
 - Anime o dibujos siempre se permiten.
-- Si parece sexual pero no es claro, se marca para revisión en el servidor (no se bloquea aquí).
 
 ## Servidor
 - Endpoint: `POST /api/moderate-image`.
 - No requiere claves externas ni proveedores pagos.
-- Se realiza OCR local con `tesseract.js` y se busca texto de odio explícito.
-- Sólo se bloquea si hay coincidencias claras con términos racistas o nazis.
+- Se detecta discurso de odio nazi usando:
+  - Búsqueda de términos prohibidos en nombre del archivo/modelo y en el texto detectado vía OCR (`tesseract.js`).
+  - Búsqueda de símbolos de odio (esvásticas, banderas) con `pHash` y heurísticas de color.
+- Los desnudos se filtran mediante detección de piel. Anime/dibujo se mantiene permitido.
 
 Variables opcionales en `.env`:
 

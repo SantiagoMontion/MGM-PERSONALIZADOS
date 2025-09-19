@@ -9,8 +9,55 @@ export async function quickNsfwCheck(imgEl: HTMLImageElement | HTMLCanvasElement
   return pornish || sexy;
 }
 
+const HATE_TERMS = [
+  'nazi',
+  'nazis',
+  'nazismo',
+  'nazism',
+  'nazista',
+  'nacionalsocialista',
+  'neonazi',
+  'neo nazi',
+  'neo-nazi',
+  'hitler',
+  'adolf hitler',
+  'adolfhitler',
+  'heil hitler',
+  'heilhitler',
+  'sieg heil',
+  'siegheil',
+  'swastika',
+  'swastica',
+  'svastica',
+  'svastika',
+  'esvastica',
+  'esvasticas',
+  'esvastika',
+  'esvastikas',
+  'esvástica',
+  'esvásticas',
+  'führer',
+  'fuhrer',
+  'third reich',
+  'thirdreich',
+  'white power',
+  'whitepower',
+  'reichsadler',
+  'schutzstaffel',
+  'hitlerjugend',
+];
+
+function normalizeHateCheck(input: string | null | undefined) {
+  return (input || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ß/g, 'ss');
+}
+
 export function quickHateSymbolCheck(nameOrAlt: string | null | undefined) {
-  const s = (nameOrAlt || '').toLowerCase();
-  return /(\bnazi\b|\bswastika\b|\bhitler\b)/.test(s);
+  const normalized = normalizeHateCheck(nameOrAlt);
+  if (!normalized) return false;
+  return HATE_TERMS.some(term => normalized.includes(term));
 }
 
