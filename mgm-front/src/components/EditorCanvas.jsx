@@ -278,6 +278,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const keepRatio = !freeScale;
   const [mode, setMode] = useState("cover"); // 'cover' | 'contain' | 'stretch'
   const stickyFitRef = useRef(null);
+  const skipStickyFitOnceRef = useRef(false);
   const [bgColor, setBgColor] = useState("#ffffff");
   const isTransformingRef = useRef(false);
 
@@ -285,6 +286,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     (dx, dy) => {
       pushHistory(imgTx);
       stickyFitRef.current = null;
+      skipStickyFitOnceRef.current = false;
       setImgTx((tx) => ({ ...tx, x_cm: tx.x_cm + dx, y_cm: tx.y_cm + dy }));
     },
     [imgTx, pushHistory],
@@ -311,6 +313,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     historyRef.current = [];
     setHistIndex(-1);
     stickyFitRef.current = null;
+    skipStickyFitOnceRef.current = false;
     didInitRef.current = false;
     hasAdjustedViewRef.current = false;
     setViewScale(1);
@@ -339,6 +342,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     pushHistory(initial);
     setMode("contain");
     stickyFitRef.current = "contain";
+    skipStickyFitOnceRef.current = true;
     didInitRef.current = true;
   }, [imgBaseCm, workCm.w, workCm.h]);
 
@@ -358,6 +362,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     stickRef.current = { x: null, y: null, activeX: false, activeY: false };
     pushHistory(imgTx);
     stickyFitRef.current = null;
+    skipStickyFitOnceRef.current = false;
   };
   const dragBoundFunc = useCallback(
     (pos) => {
@@ -513,6 +518,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     if (!imgRef.current || !imgBaseCm) return;
     pushHistory(imgTx);
     stickyFitRef.current = null;
+    skipStickyFitOnceRef.current = false;
     const n = imgRef.current;
     const sx = n.scaleX();
     const sy = n.scaleY();
@@ -686,14 +692,18 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const rotate = (deg) => {
     pushHistory(imgTx);
     stickyFitRef.current = null;
+    skipStickyFitOnceRef.current = false;
     setImgTx((tx) => ({ ...tx, rotation_deg: (tx.rotation_deg + deg) % 360 }));
   };
 
   useEffect(() => {
-    if (stickyFitRef.current) {
-      applyFit(stickyFitRef.current);
+    if (!stickyFitRef.current) return;
+    if (skipStickyFitOnceRef.current) {
+      skipStickyFitOnceRef.current = false;
+      return;
     }
-  }, [material, wCm, hCm, applyFit]);
+    applyFit(stickyFitRef.current);
+  }, [material, wCm, hCm, imgBaseCm]);
 
   useEffect(() => {
     if (hasAdjustedViewRef.current) return;
