@@ -85,8 +85,9 @@ export default function DevCanvasPreview() {
     const bitmap = await createImageBitmap(padBlob);
     const blob = await renderMockup1080({
       productType: material === 'Glasspad' ? 'glasspad' : 'mousepad',
-      composition: { image: bitmap },
-      background: '#f5f5f5',
+      image: bitmap,
+      width_cm: w_cm,
+      height_cm: h_cm,
     });
     downloadBlob(blob, `${baseName}.png`);
   }
