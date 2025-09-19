@@ -263,14 +263,11 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     return () => window.removeEventListener("keydown", handler);
   }, [undo]);
 
-  const moveBy = useCallback(
-    (dx, dy) => {
-      pushHistory(imgTx);
-      stickyFitRef.current = null;
-      setImgTx((tx) => ({ ...tx, x_cm: tx.x_cm + dx, y_cm: tx.y_cm + dy }));
-    },
-    [imgTx],
-  );
+  const [freeScale, setFreeScale] = useState(false); // ⟵ NUEVO: “Estirar sin límites”
+  const keepRatio = !freeScale;
+  const [mode, setMode] = useState("cover"); // 'cover' | 'contain' | 'stretch'
+  const stickyFitRef = useRef("cover");
+  const [bgColor, setBgColor] = useState("#ffffff");
 
   useEffect(() => {
     const handler = (e) => {
@@ -278,19 +275,20 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         return;
       e.preventDefault();
       const step = e.shiftKey ? 1 : 0.5;
-      if (e.key === "ArrowUp") moveBy(0, -step);
-      if (e.key === "ArrowDown") moveBy(0, step);
-      if (e.key === "ArrowLeft") moveBy(-step, 0);
-      if (e.key === "ArrowRight") moveBy(step, 0);
+      let dx = 0;
+      let dy = 0;
+      if (e.key === "ArrowUp") dy = -step;
+      if (e.key === "ArrowDown") dy = step;
+      if (e.key === "ArrowLeft") dx = -step;
+      if (e.key === "ArrowRight") dx = step;
+      if (!dx && !dy) return;
+      pushHistory(imgTx);
+      stickyFitRef.current = null;
+      setImgTx((tx) => ({ ...tx, x_cm: tx.x_cm + dx, y_cm: tx.y_cm + dy }));
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [moveBy]);
-  const [freeScale, setFreeScale] = useState(false); // ⟵ NUEVO: “Estirar sin límites”
-  const keepRatio = !freeScale;
-  const [mode, setMode] = useState("cover"); // 'cover' | 'contain' | 'stretch'
-  const stickyFitRef = useRef("cover");
-  const [bgColor, setBgColor] = useState("#ffffff");
+  }, [imgTx, pushHistory]);
 
   // cover inicial 1 sola vez
   const didInitRef = useRef(false);
