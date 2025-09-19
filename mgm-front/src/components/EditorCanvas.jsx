@@ -30,7 +30,7 @@ const mmToCm = (mm) => mm / 10;
 
 const VIEW_ZOOM_MIN = 0.3;
 const VIEW_ZOOM_MAX = 12;
-const IMG_ZOOM_MAX = 50; // límite cuando mantengo proporción
+const IMG_ZOOM_MAX = 400; // límite amplio cuando mantengo proporción
 const STAGE_BG = "#e5e7eb";
 const SNAP_LIVE_CM = 2.0;
 const RELEASE_BASE_CM = 0.8;
@@ -69,6 +69,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const exportStageRef = useRef(null);
   const padGroupRef = useRef(null);
   const [wrapSize, setWrapSize] = useState({ w: 960, h: 540 });
+  const hasAdjustedViewRef = useRef(false);
   useEffect(() => {
     const ro = new ResizeObserver(() => {
       const r = wrapRef.current?.getBoundingClientRect();
@@ -190,6 +191,9 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     const { clientX, clientY } = e.evt;
     const dx = clientX - lastPointerRef.current.x;
     const dy = clientY - lastPointerRef.current.y;
+    if (dx !== 0 || dy !== 0) {
+      hasAdjustedViewRef.current = true;
+    }
     lastPointerRef.current = { x: clientX, y: clientY };
     setViewPos((p) => ({ x: p.x + dx, y: p.y + dy }));
   };
@@ -202,6 +206,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     const { shiftKey, deltaY } = e.evt;
     if (shiftKey) {
       const step = (deltaY / 2) | 0;
+      hasAdjustedViewRef.current = true;
       setViewPos((p) => ({ ...p, x: p.x - step }));
       return;
     }
@@ -213,6 +218,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     const clamped = Math.max(VIEW_ZOOM_MIN, Math.min(next, VIEW_ZOOM_MAX));
     const worldX = (pt.x - viewPos.x) / (baseScale * old);
     const worldY = (pt.y - viewPos.y) / (baseScale * old);
+    hasAdjustedViewRef.current = true;
     setViewScale(clamped);
     setViewPos({
       x: pt.x - worldX * (baseScale * clamped),
@@ -306,6 +312,14 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     setHistIndex(-1);
     stickyFitRef.current = null;
     didInitRef.current = false;
+    hasAdjustedViewRef.current = false;
+    setViewScale(1);
+    const stageW = workCm.w * baseScale;
+    const stageH = workCm.h * baseScale;
+    setViewPos({
+      x: (wrapSize.w - stageW) / 2,
+      y: (wrapSize.h - stageH) / 2,
+    });
   }, [imageUrl, imageFile]);
 
   // Ajuste inicial: imagen contenida y centrada una sola vez por carga
@@ -680,6 +694,32 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       applyFit(stickyFitRef.current);
     }
   }, [material, wCm, hCm, applyFit]);
+
+  useEffect(() => {
+    if (hasAdjustedViewRef.current) return;
+    const stageW = workCm.w * baseScale;
+    const stageH = workCm.h * baseScale;
+    const targetX = (wrapSize.w - stageW) / 2;
+    const targetY = (wrapSize.h - stageH) / 2;
+    setViewScale((prev) => (prev === 1 ? prev : 1));
+    setViewPos((prev) => {
+      if (
+        Math.abs(prev.x - targetX) < 0.5 &&
+        Math.abs(prev.y - targetY) < 0.5
+      ) {
+        return prev;
+      }
+      return { x: targetX, y: targetY };
+    });
+  }, [
+    baseScale,
+    wrapSize.w,
+    wrapSize.h,
+    workCm.w,
+    workCm.h,
+    imageUrl,
+    imageFile,
+  ]);
 
   // calidad
   const dpiEffective = useMemo(() => {
