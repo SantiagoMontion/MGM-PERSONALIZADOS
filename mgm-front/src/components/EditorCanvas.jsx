@@ -33,7 +33,8 @@ const VIEW_ZOOM_MAX = 12;
 const IMG_ZOOM_MAX = 50; // límite cuando mantengo proporción
 const STAGE_BG = "#e5e7eb";
 const SNAP_LIVE_CM = 2.0;
-const RELEASE_CM = 3.0;
+const RELEASE_BASE_CM = 0.8;
+const RELEASE_MIN_CM = 0.2;
 const PRIMARY_SAFE_MARGIN_CM = 1.1;
 const SECONDARY_MARGIN_GAP_CM = 0.3;
 const SECONDARY_SAFE_MARGIN_CM =
@@ -298,11 +299,19 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     return () => window.removeEventListener("keydown", handler);
   }, [moveBy]);
 
-  // cover inicial 1 sola vez
   const didInitRef = useRef(false);
+  // Reiniciar al cargar una nueva imagen
+  useEffect(() => {
+    historyRef.current = [];
+    setHistIndex(-1);
+    stickyFitRef.current = null;
+    didInitRef.current = false;
+  }, [imageUrl, imageFile]);
+
+  // Ajuste inicial: imagen contenida y centrada una sola vez por carga
   useEffect(() => {
     if (!imgBaseCm || didInitRef.current) return;
-    const s = Math.max(workCm.w / imgBaseCm.w, workCm.h / imgBaseCm.h);
+    const s = Math.min(workCm.w / imgBaseCm.w, workCm.h / imgBaseCm.h);
     const w = imgBaseCm.w * s,
       h = imgBaseCm.h * s;
     const initial = {
@@ -314,8 +323,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     };
     setImgTx(initial);
     pushHistory(initial);
-    setMode("cover");
-    stickyFitRef.current = "cover";
+    setMode("contain");
+    stickyFitRef.current = "contain";
     didInitRef.current = true;
   }, [imgBaseCm, workCm.w, workCm.h]);
 
@@ -346,6 +355,11 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       const w = imgBaseCm.w * imgTx.scaleX;
       const h = imgBaseCm.h * imgTx.scaleY;
       const { halfW, halfH } = rotAABBHalf(w, h, theta);
+
+      const releaseCm = Math.max(
+        RELEASE_MIN_CM,
+        RELEASE_BASE_CM / Math.max(viewScale, 1),
+      );
 
       const dL = Math.abs(cx - halfW - 0);
       const dR = Math.abs(workCm.w - (cx + halfW));
@@ -386,10 +400,11 @@ const EditorCanvas = forwardRef(function EditorCanvas(
           }
         }
       } else {
-        if (Math.abs(cx - stickRef.current.x) > RELEASE_CM) {
+        const diff = cx - stickRef.current.x;
+        if (Math.abs(diff) > releaseCm) {
           stickRef.current = { ...stickRef.current, activeX: false, x: null };
         } else {
-          cx = stickRef.current.x;
+          cx = stickRef.current.x + diff * 0.35;
         }
       }
 
@@ -421,16 +436,25 @@ const EditorCanvas = forwardRef(function EditorCanvas(
           }
         }
       } else {
-        if (Math.abs(cy - stickRef.current.y) > RELEASE_CM) {
+        const diff = cy - stickRef.current.y;
+        if (Math.abs(diff) > releaseCm) {
           stickRef.current = { ...stickRef.current, activeY: false, y: null };
         } else {
-          cy = stickRef.current.y;
+          cy = stickRef.current.y + diff * 0.35;
         }
       }
 
       return { x: cx, y: cy };
     },
-    [imgBaseCm, imgTx.scaleX, imgTx.scaleY, theta, workCm.w, workCm.h],
+    [
+      imgBaseCm,
+      imgTx.scaleX,
+      imgTx.scaleY,
+      theta,
+      viewScale,
+      workCm.w,
+      workCm.h,
+    ],
   );
 
   const onImgMouseDown = () => {
@@ -479,6 +503,10 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     const sx = n.scaleX();
     const sy = n.scaleY();
     setImgTx((prev) => {
+      const prevW = imgBaseCm.w * prev.scaleX;
+      const prevH = imgBaseCm.h * prev.scaleY;
+      const cx = prev.x_cm + prevW / 2;
+      const cy = prev.y_cm + prevH / 2;
       // libre => sin límites superiores
       if (!keepRatio) {
         const newSX = Math.max(prev.scaleX * sx, 0.01);
@@ -486,8 +514,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         const w = imgBaseCm.w * newSX;
         const h = imgBaseCm.h * newSY;
         return {
-          x_cm: n.x() - w / 2,
-          y_cm: n.y() - h / 2,
+          x_cm: cx - w / 2,
+          y_cm: cy - h / 2,
           scaleX: newSX,
           scaleY: newSY,
           rotation_deg: n.rotation(),
@@ -498,8 +526,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       const w = imgBaseCm.w * uni;
       const h = imgBaseCm.h * uni;
       return {
-        x_cm: n.x() - w / 2,
-        y_cm: n.y() - h / 2,
+        x_cm: cx - w / 2,
+        y_cm: cy - h / 2,
         scaleX: uni,
         scaleY: uni,
         rotation_deg: n.rotation(),
