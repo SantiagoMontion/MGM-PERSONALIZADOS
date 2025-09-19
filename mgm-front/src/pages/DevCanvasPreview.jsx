@@ -81,7 +81,6 @@ export default function DevCanvasPreview() {
   async function downloadMockup() {
     if (!padBlob || !render_v2) return;
     const { w_cm, h_cm, material } = render_v2;
-    const baseName = buildExportBaseName(designName, w_cm, h_cm);
     const bitmap = await createImageBitmap(padBlob);
     const blob = await renderMockup1080({
       productType: material === 'Glasspad' ? 'glasspad' : 'mousepad',
@@ -89,7 +88,11 @@ export default function DevCanvasPreview() {
       width_cm: w_cm,
       height_cm: h_cm,
     });
-    downloadBlob(blob, `${baseName}.png`);
+    const widthLabel = Number(w_cm);
+    const heightLabel = Number(h_cm);
+    const safeWidth = Number.isFinite(widthLabel) ? widthLabel : 0;
+    const safeHeight = Number.isFinite(heightLabel) ? heightLabel : 0;
+    downloadBlob(blob, `mockup_1080_${safeWidth}x${safeHeight}.png`);
   }
 
   async function previewGlasspadPNG() {
