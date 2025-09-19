@@ -23,6 +23,8 @@ for (const f of files) {
   const p = path.join(dir, f);
   const buf = fs.readFileSync(p);
   const out = await evaluateImage(buf, f);
-  console.log(`${f}: ${out.blocked ? 'BLOCK' : 'ALLOW'}${out.reason ? ' ('+out.reason+')' : ''}`);
+  const reasons = Array.isArray(out.reasons) && out.reasons.length ? ` [${out.reasons.join(', ')}]` : '';
+  const confidence = typeof out.confidence === 'number' ? ` ${(out.confidence).toFixed(2)}` : '';
+  console.log(`${f}: ${out.label}${reasons}${confidence}`);
 }
 
