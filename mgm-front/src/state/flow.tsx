@@ -7,6 +7,7 @@ export type FlowState = {
   mockupUrl?: string;
   printFullResDataUrl?: string;
   designName?: string;
+  material?: string;
   lowQualityAck?: boolean;
   approxDpi?: number | null;
   priceTransfer?: number;
@@ -31,6 +32,7 @@ const defaultState: Omit<FlowState, 'set' | 'reset'> = {
   mockupUrl: undefined,
   printFullResDataUrl: undefined,
   designName: '',
+  material: 'Classic',
   lowQualityAck: false,
   approxDpi: null,
   priceTransfer: 0,

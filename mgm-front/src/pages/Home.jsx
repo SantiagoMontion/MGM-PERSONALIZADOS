@@ -207,7 +207,7 @@ export default function Home() {
       const mockupUrl = URL.createObjectURL(blob);
 
       const transferPrice = Number(priceAmount) > 0 ? Number(priceAmount) : 0;
-      const normalPrice = transferPrice > 0 ? Math.max(transferPrice, Math.round(transferPrice / 0.8)) : 0;
+      const normalPrice = transferPrice;
 
       flow.set({
         productType: material === 'Glasspad' ? 'glasspad' : 'mousepad',
@@ -216,6 +216,7 @@ export default function Home() {
         mockupUrl,
         printFullResDataUrl: master,
         designName: trimmedDesignName,
+        material,
         lowQualityAck: level === 'bad' ? Boolean(ackLow) : false,
         approxDpi: effDpi || null,
         priceTransfer: transferPrice,

@@ -23,6 +23,35 @@ function safeNumber(value: unknown): number | undefined {
   return Number.isFinite(num) ? num : undefined;
 }
 
+function formatDimension(value?: number | null): string | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return undefined;
+  const rounded = Math.round(value * 10) / 10;
+  if (Math.abs(rounded - Math.round(rounded)) < 1e-6) {
+    return String(Math.round(rounded));
+  }
+  return rounded.toFixed(1).replace(/\.0+$/, '');
+}
+
+function formatMeasurement(width?: number | null, height?: number | null): string | undefined {
+  const w = formatDimension(width);
+  const h = formatDimension(height);
+  if (!w || !h) return undefined;
+  return `${w}x${h}`;
+}
+
+function buildMetaDescription(
+  productLabel: string,
+  designName: string,
+  measurement?: string,
+  material?: string,
+): string {
+  const parts: string[] = [`${productLabel} gamer personalizado`];
+  if (designName) parts.push(`Diseño ${designName}`);
+  if (measurement) parts.push(`Medida ${measurement} cm`);
+  if (material) parts.push(`Material ${material}`);
+  return `${parts.join('. ')}.`;
+}
+
 export async function blobToBase64(b: Blob): Promise<string> {
   return new Promise((res, rej) => {
     const r = new FileReader();
@@ -38,9 +67,7 @@ export async function createJobAndProduct(mode: 'checkout' | 'cart', flow: FlowS
   const productType = flow.productType === 'glasspad' ? 'glasspad' : 'mousepad';
   const productLabel = PRODUCT_LABELS[productType];
   const designName = (flow.designName || '').trim();
-  const productTitle = designName
-    ? `${productLabel} personalizado - ${designName}`
-    : `${productLabel} personalizado`;
+  const materialLabel = (flow.material || '').trim() || (productType === 'glasspad' ? 'Glasspad' : '');
   const widthCm = safeNumber((flow.editorState as any)?.size_cm?.w);
   const heightCm = safeNumber((flow.editorState as any)?.size_cm?.h);
   const approxDpi = safeNumber(flow.approxDpi);
@@ -48,7 +75,19 @@ export async function createJobAndProduct(mode: 'checkout' | 'cart', flow: FlowS
   const priceNormal = safeNumber(flow.priceNormal);
   const priceCurrencyRaw = typeof flow.priceCurrency === 'string' ? flow.priceCurrency : 'ARS';
   const priceCurrency = priceCurrencyRaw.trim() || 'ARS';
+  const measurementLabel = formatMeasurement(widthCm, heightCm);
+  const titleParts = [productLabel];
+  if (designName) titleParts.push(designName);
+  if (measurementLabel) titleParts.push(measurementLabel);
+  if (materialLabel) titleParts.push(materialLabel);
+  const productTitle = `${titleParts.join(' ')} | PERSONALIZADO`;
+  const metaDescription = buildMetaDescription(productLabel, designName, measurementLabel, materialLabel);
+
   const extraTags: string[] = [`currency-${priceCurrency.toLowerCase()}`];
+  if (materialLabel) {
+    const materialTag = materialLabel.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    if (materialTag) extraTags.push(`material-${materialTag}`);
+  }
   if (flow.lowQualityAck) extraTags.push('calidad-baja');
   const filename = `${slugify(designName || productTitle)}.png`;
   const imageAlt = `Mockup ${productTitle}`;
@@ -61,6 +100,7 @@ export async function createJobAndProduct(mode: 'checkout' | 'cart', flow: FlowS
       mockupDataUrl,
       designName,
       title: productTitle,
+      material: materialLabel,
       widthCm,
       heightCm,
       approxDpi,
@@ -71,6 +111,8 @@ export async function createJobAndProduct(mode: 'checkout' | 'cart', flow: FlowS
       imageAlt,
       filename,
       tags: extraTags,
+      description: '',
+      seoDescription: metaDescription,
     }),
   });
   const publish = await publishResp.json().catch(() => null);
