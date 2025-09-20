@@ -96,7 +96,12 @@ export default function Mockup() {
       page.drawImage(embedded, { x: 0, y: 0, width: pageWidthPt, height: pageHeightPt });
       const pdfBytes = await pdfDoc.save();
       const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
-      const baseName = buildExportBaseName(flow.designName || '', targetWidthCm, targetHeightCm);
+      const baseName = buildExportBaseName(
+        flow.designName || '',
+        widthCmRaw,
+        heightCmRaw,
+        flow.material,
+      );
       downloadBlob(pdfBlob, `${baseName}.pdf`);
     } catch (error) {
       console.error('[download-pdf]', error);
