@@ -119,16 +119,10 @@
   margin-top: 8px;
 }
 
-.freeScale {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
 .qualityBadge {
   padding: 6px 10px;
   border-radius: 999px;
+  margin-left: auto;
 }
 
 .qualityUnknown { background: #9ca3af22; color: #9ca3af; border: 1px solid #9ca3af; }
@@ -211,14 +205,6 @@
 .qualityBadge {
   white-space: nowrap;
   flex: 0 0 auto;
-}
-
-/* El label del checkbox en línea sin crecer raro */
-.freeScale {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
 }
 
 /* Medios y textos largos no deben empujar layout */
