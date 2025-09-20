@@ -1,4 +1,5 @@
 import React from 'react';
+import { Buffer } from 'buffer';
 import { createRoot } from 'react-dom/client';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import App from './App.jsx';
@@ -18,6 +19,10 @@ import { OrderFlowProvider } from './store/orderFlow';
 import { FlowProvider } from './state/flow.js';
 import './globals.css';
 import { HelmetProvider } from 'react-helmet-async';
+
+if (typeof globalThis !== 'undefined' && typeof globalThis.Buffer === 'undefined') {
+  globalThis.Buffer = Buffer;
+}
 
 const routes = [
   {
