@@ -890,6 +890,10 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         return padGroupRef.current.toDataURL({
           pixelRatio,
           mimeType: 'image/png',
+          x: 0,
+          y: 0,
+          width: padRectPx.w,
+          height: padRectPx.h,
         });
       } catch (e) {
         /* ignore */
@@ -1393,7 +1397,13 @@ const EditorCanvas = forwardRef(function EditorCanvas(
           style={{ display: "none" }}
         >
           <Layer>
-            <Group ref={padGroupRef}>
+            <Group
+              ref={padGroupRef}
+              clipX={0}
+              clipY={0}
+              clipWidth={padRectPx.w}
+              clipHeight={padRectPx.h}
+            >
               <Rect
                 x={0}
                 y={0}
