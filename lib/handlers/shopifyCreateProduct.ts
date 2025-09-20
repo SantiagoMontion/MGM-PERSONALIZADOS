@@ -1,6 +1,43 @@
 import { buildCorsHeaders } from '../cors';
 import { shopifyAdmin } from '../shopify';
 
+function formatDimension(value: unknown): string | undefined {
+  const num = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(num) || num <= 0) return undefined;
+  const rounded = Math.round(num * 10) / 10;
+  if (Math.abs(rounded - Math.round(rounded)) < 1e-6) {
+    return String(Math.round(rounded));
+  }
+  return rounded.toFixed(1).replace(/\.0+$/, '');
+}
+
+function formatMeasurement(width: unknown, height: unknown): string | undefined {
+  const w = formatDimension(width);
+  const h = formatDimension(height);
+  if (!w || !h) return undefined;
+  return `${w}x${h}`;
+}
+
+function ensureQuoted(value: string | undefined): string | undefined {
+  const base = (value || '').trim();
+  if (!base) return undefined;
+  return `"${base.replace(/"/g, "'")}"`;
+}
+
+function withCmSuffix(measurement?: string): string | undefined {
+  if (!measurement) return undefined;
+  const trimmed = measurement.trim();
+  if (!trimmed) return undefined;
+  return /cm$/i.test(trimmed) ? trimmed : `${trimmed} cm`;
+}
+
+function buildGlasspadTitle(measurement?: string): string {
+  const parts = ['GLASSPAD'];
+  const quotedMeasurement = ensureQuoted(withCmSuffix(measurement));
+  if (quotedMeasurement) parts.push(quotedMeasurement);
+  return `${parts.join(' ')} | PERSONALIZADO`;
+}
+
 export default async function handler(req: any, res: any) {
   const origin = (req.headers.origin as string) || null;
   const cors = buildCorsHeaders(origin);
@@ -29,9 +66,13 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ ok: false, message: 'invalid_mockup' });
     }
     const base64 = mockup_dataurl.split(',')[1];
+    const measurementLabel = formatMeasurement(width, height);
+    const title = mode === 'Glasspad'
+      ? buildGlasspadTitle(measurementLabel)
+      : `Mousepad Personalizado - ${mode}${measurementLabel ? ` ${measurementLabel}` : ''}`;
     const payload = {
       product: {
-        title: `Mousepad Personalizado - ${mode}`,
+        title,
         body_html: `<p>Personalizado ${width}x${height} cm</p>`,
         images: [{ attachment: base64 }],
         variants: [{ price: '0.00' }],
