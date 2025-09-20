@@ -13,6 +13,7 @@ import MousepadsPersonalizados from './pages/MousepadsPersonalizados.jsx';
 import ComoFunciona from './pages/ComoFunciona.jsx';
 import PreguntasFrecuentes from './pages/PreguntasFrecuentes.jsx';
 import Contacto from './pages/Contacto.jsx';
+import Busqueda from './pages/Busqueda.jsx';
 import { OrderFlowProvider } from './store/orderFlow';
 import { FlowProvider } from './state/flow.js';
 import './globals.css';
@@ -27,6 +28,7 @@ const routes = [
       { path: '/como-funciona', element: <ComoFunciona /> },
       { path: '/preguntas-frecuentes', element: <PreguntasFrecuentes /> },
       { path: '/contacto', element: <Contacto /> },
+      { path: '/busqueda', element: <Busqueda /> },
       { path: '/confirm', element: <Confirm /> },
       { path: '/mockup', element: <Mockup /> },
       { path: '/creating/:jobId', element: <Creating /> },
