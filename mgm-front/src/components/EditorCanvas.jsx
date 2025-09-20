@@ -548,18 +548,23 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     stickyFitRef.current = null;
     skipStickyFitOnceRef.current = false;
     const n = imgRef.current;
-    const sx = n.scaleX();
-    const sy = n.scaleY();
+    const nextW = n.width();
+    const nextH = n.height();
+    const rotation = n.rotation();
     setImgTx((prev) => {
       const prevW = imgBaseCm.w * prev.scaleX;
       const prevH = imgBaseCm.h * prev.scaleY;
       const cx = prev.x_cm + prevW / 2;
       const cy = prev.y_cm + prevH / 2;
+      const ratioX =
+        prevW !== 0 && Number.isFinite(nextW / prevW) ? nextW / prevW : 1;
+      const ratioY =
+        prevH !== 0 && Number.isFinite(nextH / prevH) ? nextH / prevH : 1;
       const shouldKeep = keepRatioRef.current;
       // libre => sin límites superiores
       if (!shouldKeep) {
-        const newSX = Math.max(prev.scaleX * sx, 0.01);
-        const newSY = Math.max(prev.scaleY * sy, 0.01);
+        const newSX = Math.max(prev.scaleX * ratioX, 0.01);
+        const newSY = Math.max(prev.scaleY * ratioY, 0.01);
         const w = imgBaseCm.w * newSX;
         const h = imgBaseCm.h * newSY;
         return {
@@ -567,11 +572,14 @@ const EditorCanvas = forwardRef(function EditorCanvas(
           y_cm: cy - h / 2,
           scaleX: newSX,
           scaleY: newSY,
-          rotation_deg: n.rotation(),
+          rotation_deg: rotation,
         };
       }
       // mantener proporción con clamp razonable
-      const uni = Math.min(prev.scaleX * sx, IMG_ZOOM_MAX);
+      const uni = Math.max(
+        0.01,
+        Math.min(prev.scaleX * ratioX, IMG_ZOOM_MAX),
+      );
       const w = imgBaseCm.w * uni;
       const h = imgBaseCm.h * uni;
       return {
@@ -579,7 +587,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         y_cm: cy - h / 2,
         scaleX: uni,
         scaleY: uni,
-        rotation_deg: n.rotation(),
+        rotation_deg: rotation,
       };
     });
     n.scaleX(1);
