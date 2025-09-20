@@ -553,12 +553,14 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     const nextW = n.width() * nextScaleX;
     const nextH = n.height() * nextScaleY;
     const rotation = n.rotation();
+    const nextCenterX = n.x();
+    const nextCenterY = n.y();
     const keepRatioAtRelease = keepRatioRef.current;
     setImgTx((prev) => {
       const prevW = imgBaseCm.w * prev.scaleX;
       const prevH = imgBaseCm.h * prev.scaleY;
-      const cx = prev.x_cm + prevW / 2;
-      const cy = prev.y_cm + prevH / 2;
+      const cx = nextCenterX;
+      const cy = nextCenterY;
       const ratioX =
         prevW !== 0 && Number.isFinite(nextW / prevW) ? nextW / prevW : 1;
       const ratioY =
