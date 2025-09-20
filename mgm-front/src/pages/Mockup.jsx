@@ -42,14 +42,23 @@ export default function Mockup() {
       alert('El producto se creó pero no se pudo obtener un enlace.');
     } catch (e) {
       console.error('[mockup-handle]', e);
-      const message = String(e?.message || 'Error');
-      let friendly = message;
-      if (message === 'missing_mockup') friendly = 'No se encontró el mockup para publicar.';
-      else if (message === 'missing_variant') friendly = 'No se pudo obtener la variante del producto creado en Shopify.';
-      else if (message === 'cart_link_failed') friendly = 'No se pudo generar el enlace del carrito. Revisá la configuración de Shopify.';
-      else if (message === 'checkout_link_failed') friendly = 'No se pudo generar el enlace de compra.';
-      else if (message.startsWith('publish_failed')) friendly = 'Shopify rechazó la creación del producto. Revisá los datos enviados.';
-      else if (message === 'shopify_error') friendly = 'Shopify devolvió un error al crear el producto.';
+      const reasonRaw = typeof e?.reason === 'string' && e.reason ? e.reason : String(e?.message || 'Error');
+      const messageRaw = typeof e?.friendlyMessage === 'string' && e.friendlyMessage
+        ? e.friendlyMessage
+        : String(e?.message || 'Error');
+      let friendly = messageRaw;
+      if (reasonRaw === 'missing_mockup') friendly = 'No se encontró el mockup para publicar.';
+      else if (reasonRaw === 'missing_variant') friendly = 'No se pudo obtener la variante del producto creado en Shopify.';
+      else if (reasonRaw === 'cart_link_failed') friendly = 'No se pudo generar el enlace del carrito. Revisá la configuración de Shopify.';
+      else if (reasonRaw === 'checkout_link_failed') friendly = 'No se pudo generar el enlace de compra.';
+      else if (reasonRaw.startsWith('publish_failed')) friendly = 'Shopify rechazó la creación del producto. Revisá los datos enviados.';
+      else if (reasonRaw === 'shopify_error') friendly = 'Shopify devolvió un error al crear el producto.';
+      else if (reasonRaw === 'shopify_env_missing') {
+        const missing = Array.isArray(e?.missing) && e.missing.length
+          ? e.missing.join(', ')
+          : 'SHOPIFY_STORE_DOMAIN, SHOPIFY_ADMIN_TOKEN';
+        friendly = `La integración con Shopify no está configurada. Faltan las variables: ${missing}.`;
+      }
       alert(friendly);
     } finally {
       setBusy(false);
