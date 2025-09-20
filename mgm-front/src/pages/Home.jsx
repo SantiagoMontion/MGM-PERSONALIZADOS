@@ -137,6 +137,10 @@ export default function Home() {
       setErr('Falta imagen o layout');
       return;
     }
+    if (level === 'bad' && !ackLow) {
+      setErr('Confirmá que aceptás continuar con la calidad baja.');
+      return;
+    }
     try {
       setErr('');
       setBusy(true);
@@ -175,6 +179,8 @@ export default function Home() {
           dataUrl: master,
           filename: uploaded?.file?.name || 'image.png',
           designName: trimmedDesignName,
+          lowQualityAck: level === 'bad' ? Boolean(ackLow) : false,
+          approxDpi: effDpi || undefined,
         })
       });
       console.info('[continue] response', resp.ok, resp.status);
@@ -202,6 +208,8 @@ export default function Home() {
         mockupBlob: blob,
         mockupUrl,
         printFullResDataUrl: master,
+        lowQualityAck: level === 'bad' ? Boolean(ackLow) : false,
+        approxDpi: effDpi || null,
       });
       navigate('/mockup');
     } catch (e) {

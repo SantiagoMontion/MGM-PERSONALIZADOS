@@ -6,6 +6,8 @@ const defaultState = {
   mockupBlob: null,
   mockupUrl: null,
   printFullResDataUrl: null,
+  lowQualityAck: false,
+  approxDpi: null,
   lastProduct: null,
 };
 
