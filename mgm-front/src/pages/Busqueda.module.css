@@ -36,6 +36,12 @@
   color: #facc15;
 }
 
+.passwordNote {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #94a3b8;
+}
+
 .label {
   display: flex;
   flex-direction: column;
@@ -192,6 +198,31 @@
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.preview {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #0f172a;
+  border: 1px solid #1f2937;
+  border-radius: 12px;
+  padding: 12px;
+  overflow: hidden;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.preview:hover {
+  border-color: rgba(96, 165, 250, 0.6);
+  box-shadow: 0 8px 20px rgba(96, 165, 250, 0.18);
+}
+
+.previewImage {
+  max-width: 100%;
+  max-height: 220px;
+  border-radius: 8px;
+  object-fit: contain;
+  display: block;
 }
 
 .link {

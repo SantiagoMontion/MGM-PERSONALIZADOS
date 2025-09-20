@@ -3,13 +3,37 @@ import { Helmet } from 'react-helmet-async';
 import { apiFetch } from '@/lib/api.js';
 import styles from './Busqueda.module.css';
 
-const STORAGE_KEY = 'mgmBusquedaAuth:v1';
-const REQUIRED_PASSWORD = (import.meta.env.VITE_BUSQUEDA_PASSWORD || '').trim();
+const STORAGE_KEY = 'mgmBusquedaAuth:v2';
+const PASSWORD_EXPIRATION_MS = 24 * 60 * 60 * 1000;
+const REQUIRED_PASSWORD = (import.meta.env.VITE_BUSQUEDA_PASSWORD ?? 'Spesia666').trim();
 
 function readStoredAuth(passwordRequired) {
   if (!passwordRequired) return true;
   if (typeof window === 'undefined') return false;
-  return window.localStorage.getItem(STORAGE_KEY) === '1';
+  const raw = window.localStorage.getItem(STORAGE_KEY);
+  if (!raw) return false;
+  try {
+    const stored = JSON.parse(raw);
+    let timestamp;
+    if (typeof stored === 'number') {
+      timestamp = stored;
+    } else if (stored && typeof stored === 'object') {
+      const candidate = stored.authorizedAt ?? stored.timestamp ?? stored.t;
+      timestamp = Number(candidate);
+    }
+    if (!Number.isFinite(timestamp)) {
+      window.localStorage.removeItem(STORAGE_KEY);
+      return false;
+    }
+    if (Date.now() - timestamp > PASSWORD_EXPIRATION_MS) {
+      window.localStorage.removeItem(STORAGE_KEY);
+      return false;
+    }
+    return true;
+  } catch {
+    window.localStorage.removeItem(STORAGE_KEY);
+    return false;
+  }
 }
 
 function formatDate(value) {
@@ -39,6 +63,10 @@ function ResultCard({ item }) {
   const customerName = (item.customer_name || '').trim();
   const customerEmail = (item.customer_email || '').trim();
   const hasCustomer = customerName || customerEmail;
+  const [previewError, setPreviewError] = useState(false);
+  const previewAlt = item.design_name
+    ? `Vista previa de ${item.design_name}`
+    : 'Vista previa del diseño';
 
   return (
     <li className={styles.resultItem}>
@@ -66,6 +94,23 @@ function ResultCard({ item }) {
           <span>{createdAt}</span>
         </div>
       </div>
+      {item.preview_url && !previewError ? (
+        <a
+          className={styles.preview}
+          href={item.preview_url}
+          target="_blank"
+          rel="noreferrer"
+          aria-label="Abrir vista previa en una nueva pestaña"
+        >
+          <img
+            className={styles.previewImage}
+            src={item.preview_url}
+            alt={previewAlt}
+            loading="lazy"
+            onError={() => setPreviewError(true)}
+          />
+        </a>
+      ) : null}
       <div className={styles.linksRow}>
         {item.file_original_url ? (
           <a className={styles.link} href={item.file_original_url} target="_blank" rel="noreferrer">
@@ -82,7 +127,7 @@ function ResultCard({ item }) {
             PDF
           </a>
         ) : null}
-        {item.preview_url ? (
+        {item.preview_url && previewError ? (
           <a className={styles.link} href={item.preview_url} target="_blank" rel="noreferrer">
             Vista previa
           </a>
@@ -107,9 +152,7 @@ export default function Busqueda() {
   useEffect(() => {
     if (!passwordRequired) return;
     if (typeof window === 'undefined') return;
-    if (isAuthorized) {
-      window.localStorage.setItem(STORAGE_KEY, '1');
-    } else {
+    if (!isAuthorized) {
       window.localStorage.removeItem(STORAGE_KEY);
     }
   }, [isAuthorized, passwordRequired]);
@@ -122,6 +165,12 @@ export default function Busqueda() {
     }
     const candidate = passwordInput.trim();
     if (candidate && candidate === REQUIRED_PASSWORD) {
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify({ authorizedAt: Date.now() })
+        );
+      }
       setIsAuthorized(true);
       setPasswordInput('');
       setPasswordError('');
@@ -171,6 +220,9 @@ export default function Busqueda() {
         <form className={styles.card} onSubmit={handlePasswordSubmit}>
           <p className={styles.description}>
             Ingresá la contraseña para acceder al buscador interno de archivos generados en Supabase.
+          </p>
+          <p className={styles.passwordNote}>
+            Una vez validada, la contraseña se recordará por 24 horas en este navegador.
           </p>
           {!passwordRequired ? (
             <p className={styles.passwordHint}>
