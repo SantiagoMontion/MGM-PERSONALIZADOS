@@ -23,6 +23,7 @@ Prioridad de las reglas:
   - Búsqueda de términos prohibidos en nombre del archivo/modelo y en el texto detectado vía OCR (`tesseract.js`).
   - Búsqueda de símbolos de odio (esvásticas, banderas) con `pHash` y heurísticas de color.
 - Los desnudos se filtran mediante detección de piel. También se estima si la imagen es animada vs. real para aplicar las reglas anteriores.
+- Se penalizan automáticamente fondos de color muy uniforme y con poca textura (p. ej. wallpapers) para evitar falsos positivos de "desnudez real".
 
 Variables opcionales en `.env`:
 
