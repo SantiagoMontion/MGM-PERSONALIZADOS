@@ -33,3 +33,26 @@ test('searchAssets returns data', async () => {
   assert.equal(res.status, 200);
   assert.deepEqual(res.body.items, [{ id: 1 }]);
 });
+
+test('searchAssets sanitizes the term before building filters', async () => {
+  let receivedFilter = '';
+  const fakeSupa = {
+    from: () => ({
+      select: () => ({
+        or: (value) => {
+          receivedFilter = value;
+          return {
+            order: () => ({
+              limit: () => ({ data: [], error: null })
+            })
+          };
+        }
+      })
+    })
+  };
+  const res = await searchAssets({ query: { term: " f%'o` " } }, { supa: fakeSupa });
+  assert.equal(res.status, 200);
+  assert(receivedFilter.includes('fo'));
+  assert(!receivedFilter.includes("%'"));
+  assert(!receivedFilter.includes('`'));
+});

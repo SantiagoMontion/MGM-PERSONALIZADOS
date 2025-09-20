@@ -53,6 +53,13 @@ export default withCors(async function handler(req, res) {
         const m = await import('../lib/handlers/jobStatus.js');
         return m.default(req, res);
       }
+      case 'GET search-assets': {
+        const { searchAssets } = await import('../lib/api/handlers/assets.js');
+        const { status, body } = await searchAssets({ query: req.query });
+        res.statusCode = status;
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        return res.end(JSON.stringify(body));
+      }
       case 'GET job-summary': {
         const m = await import('../lib/handlers/jobSummary.js');
         return m.default(req, res);
