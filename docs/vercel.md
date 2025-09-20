@@ -18,4 +18,8 @@ SHOPIFY_API_VERSION=2024-07
 # (opcionales si usas Storefront API en otro lugar)
 STOREFRONT_TOKEN=
 STOREFRONT_DOMAIN=
+# (opcional) Canal de ventas usado en los links de carrito/checkout
+# SHOPIFY_SALES_CHANNEL=online_store
+# SHOPIFY_CART_CHANNEL=
+# SHOPIFY_CHECKOUT_CHANNEL=
 ```
