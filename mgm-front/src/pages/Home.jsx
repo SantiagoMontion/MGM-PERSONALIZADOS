@@ -84,6 +84,7 @@ export default function Home() {
     );
   }, [layout]);
   const level = useMemo(() => (effDpi ? dpiLevel(effDpi, 300, 100) : null), [effDpi]);
+  const trimmedDesignName = useMemo(() => (designName || '').trim(), [designName]);
 
   function handleSizeChange(next) {
     if (next.material && next.material !== material) {
@@ -137,6 +138,10 @@ export default function Home() {
       setErr('Falta imagen o layout');
       return;
     }
+    if (trimmedDesignName.length < 2) {
+      setErr('El nombre del modelo debe tener al menos 2 caracteres.');
+      return;
+    }
     if (level === 'bad' && !ackLow) {
       setErr('Confirmá que aceptás continuar con la calidad baja.');
       return;
@@ -152,7 +157,6 @@ export default function Home() {
       }
 
       // client-side gate: filename keywords
-      const trimmedDesignName = (designName || '').trim();
       const metaForCheck = [uploaded?.file?.name, trimmedDesignName].filter(Boolean).join(' ');
       if (quickHateSymbolCheck(metaForCheck)) {
         setErr('Contenido no permitido (odio nazi detectado)');
@@ -292,7 +296,11 @@ export default function Home() {
         )}
 
         {uploaded && (
-          <button className={styles.continueButton} disabled={busy || priceAmount <= 0} onClick={handleContinue}>
+          <button
+            className={styles.continueButton}
+            disabled={busy || priceAmount <= 0 || trimmedDesignName.length < 2}
+            onClick={handleContinue}
+          >
             Continuar
           </button>
         )}
