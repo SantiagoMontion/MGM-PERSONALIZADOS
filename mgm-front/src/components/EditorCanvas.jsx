@@ -868,11 +868,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     const baseCanvas = exportStageRef.current.toCanvas({ pixelRatio });
     let uploadCanvas = baseCanvas;
     if (material === "Glasspad") {
-      uploadCanvas = renderGlasspadPNG(baseCanvas, {
-        blurPx: 2,
-        whiteA: 0.28,
-        hiA: 0.14,
-      });
+      uploadCanvas = renderGlasspadPNG(baseCanvas);
     }
     const blob = await new Promise((resolve) =>
       uploadCanvas.toBlob((b) => resolve(b), "image/png", 1)

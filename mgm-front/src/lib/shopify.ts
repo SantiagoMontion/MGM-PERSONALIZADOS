@@ -39,6 +39,41 @@ function formatMeasurement(width?: number | null, height?: number | null): strin
   return `${w}x${h}`;
 }
 
+function ensureQuoted(value: string | undefined): string | undefined {
+  const base = (value || '').trim();
+  if (!base) return undefined;
+  return `"${base.replace(/"/g, "'")}"`;
+}
+
+function withCmSuffix(measurement?: string): string | undefined {
+  if (!measurement) return undefined;
+  const trimmed = measurement.trim();
+  if (!trimmed) return undefined;
+  return /cm$/i.test(trimmed) ? trimmed : `${trimmed} cm`;
+}
+
+function buildGlasspadTitle(designName?: string, measurement?: string): string {
+  const sections = ['GLASSPAD'];
+  const quotedName = ensureQuoted(designName);
+  if (quotedName) sections.push(quotedName);
+  const quotedMeasurement = ensureQuoted(withCmSuffix(measurement));
+  if (quotedMeasurement) sections.push(quotedMeasurement);
+  return `${sections.join(' ')} | PERSONALIZADO`;
+}
+
+function buildDefaultTitle(
+  productLabel: string,
+  designName?: string,
+  measurement?: string,
+  material?: string,
+): string {
+  const parts = [productLabel];
+  if (designName) parts.push(designName);
+  if (measurement) parts.push(measurement);
+  if (material) parts.push(material);
+  return `${parts.join(' ')} | PERSONALIZADO`;
+}
+
 function buildMetaDescription(
   productLabel: string,
   designName: string,
@@ -76,11 +111,9 @@ export async function createJobAndProduct(mode: 'checkout' | 'cart', flow: FlowS
   const priceCurrencyRaw = typeof flow.priceCurrency === 'string' ? flow.priceCurrency : 'ARS';
   const priceCurrency = priceCurrencyRaw.trim() || 'ARS';
   const measurementLabel = formatMeasurement(widthCm, heightCm);
-  const titleParts = [productLabel];
-  if (designName) titleParts.push(designName);
-  if (measurementLabel) titleParts.push(measurementLabel);
-  if (materialLabel) titleParts.push(materialLabel);
-  const productTitle = `${titleParts.join(' ')} | PERSONALIZADO`;
+  const productTitle = productType === 'glasspad'
+    ? buildGlasspadTitle(designName, measurementLabel)
+    : buildDefaultTitle(productLabel, designName, measurementLabel, materialLabel);
   const metaDescription = buildMetaDescription(productLabel, designName, measurementLabel, materialLabel);
 
   const extraTags: string[] = [`currency-${priceCurrency.toLowerCase()}`];

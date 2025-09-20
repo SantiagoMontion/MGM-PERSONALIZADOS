@@ -1,7 +1,9 @@
 export type GlasspadOpts = {
   blurPx?: number;
-  whiteA?: number;
-  hiA?: number;
+  shadowOffsetPx?: number;
+  shadowBlurPx?: number;
+  shadowAlpha?: number;
+  borderAlpha?: number;
 };
 
 // baseCanvas: canvas con el arte SIN efectos
@@ -9,37 +11,55 @@ export function renderGlasspadPNG(
   baseCanvas: HTMLCanvasElement,
   opts: GlasspadOpts = {},
 ): HTMLCanvasElement {
-  const { blurPx = 6, whiteA = 0.5, hiA = 0.3 } = opts;
+  const baseSize = Math.max(baseCanvas.width, baseCanvas.height);
+  const {
+    blurPx = Math.max(1, Math.round(Math.min(baseSize * 0.0015, 12))),
+    shadowOffsetPx,
+    shadowBlurPx,
+    shadowAlpha = 0.18,
+    borderAlpha = 0.12,
+  } = opts;
 
   const out = document.createElement('canvas');
   out.width = baseCanvas.width;
   out.height = baseCanvas.height;
   const ctx = out.getContext('2d')!;
 
-  ctx.filter = `blur(${blurPx}px) saturate(1.08)`;
-  ctx.drawImage(baseCanvas, 0, 0);
-  ctx.filter = 'none';
+  const blurred = document.createElement('canvas');
+  blurred.width = baseCanvas.width;
+  blurred.height = baseCanvas.height;
+  const blurredCtx = blurred.getContext('2d')!;
+  blurredCtx.filter = `blur(${blurPx}px)`;
+  blurredCtx.drawImage(baseCanvas, 0, 0);
+  blurredCtx.filter = 'none';
 
-  ctx.globalAlpha = whiteA;
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(0, 0, out.width, out.height);
+  const offset = typeof shadowOffsetPx === 'number'
+    ? shadowOffsetPx
+    : Math.max(1, Math.round(Math.min(baseSize * 0.007, 24)));
+  const dropBlur = typeof shadowBlurPx === 'number'
+    ? shadowBlurPx
+    : Math.max(2, Math.round(Math.min(baseSize * 0.02, 40)));
 
-  const g = ctx.createLinearGradient(0, 0, out.width, out.height);
-  g.addColorStop(0, `rgba(255,255,255,${hiA})`);
-  g.addColorStop(0.55, `rgba(255,255,255,${Math.max(0, hiA - 0.1)})`);
-  g.addColorStop(1, 'rgba(255,255,255,0)');
-  ctx.globalAlpha = 1;
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, out.width, out.height);
+  ctx.save();
+  ctx.shadowColor = `rgba(0,0,0,${shadowAlpha})`;
+  ctx.shadowBlur = dropBlur;
+  ctx.shadowOffsetX = offset;
+  ctx.shadowOffsetY = offset;
+  ctx.drawImage(blurred, 0, 0);
+  ctx.restore();
 
-  ctx.strokeStyle = 'rgba(255,255,255,0.4)';
-  ctx.lineWidth = Math.max(1, Math.floor(out.width * 0.002));
-  ctx.strokeRect(
-    ctx.lineWidth / 2,
-    ctx.lineWidth / 2,
-    out.width - ctx.lineWidth,
-    out.height - ctx.lineWidth,
-  );
+  ctx.drawImage(blurred, 0, 0);
+
+  if (borderAlpha > 0) {
+    ctx.lineWidth = Math.max(1, Math.floor(out.width * 0.002));
+    ctx.strokeStyle = `rgba(0,0,0,${borderAlpha})`;
+    ctx.strokeRect(
+      ctx.lineWidth / 2,
+      ctx.lineWidth / 2,
+      out.width - ctx.lineWidth,
+      out.height - ctx.lineWidth,
+    );
+  }
 
   return out;
 }

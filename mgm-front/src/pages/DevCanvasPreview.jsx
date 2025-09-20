@@ -102,11 +102,7 @@ export default function DevCanvasPreview() {
     baseCanvas.width = bmp.width;
     baseCanvas.height = bmp.height;
     baseCanvas.getContext('2d')?.drawImage(bmp, 0, 0);
-    const canvas = renderGlasspadPNG(baseCanvas, {
-      blurPx: 2,
-      whiteA: 0.28,
-      hiA: 0.14,
-    });
+    const canvas = renderGlasspadPNG(baseCanvas);
     canvas.toBlob(b => {
       if (b) {
         const url = URL.createObjectURL(b);
