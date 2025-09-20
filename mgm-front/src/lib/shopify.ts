@@ -76,7 +76,15 @@ export async function createJobAndProduct(mode: 'checkout' | 'cart', flow: FlowS
   const publish = await publishResp.json().catch(() => null);
   if (!publishResp.ok || !publish?.ok) {
     const reason = publish?.reason || publish?.error || `publish_failed_${publishResp.status}`;
-    throw new Error(reason);
+    const err: Error & { reason?: string; friendlyMessage?: string; missing?: string[] } = new Error(reason);
+    err.reason = reason;
+    if (typeof publish?.message === 'string' && publish.message.trim()) {
+      err.friendlyMessage = publish.message.trim();
+    }
+    if (Array.isArray(publish?.missing) && publish.missing.length) {
+      err.missing = publish.missing;
+    }
+    throw err;
   }
 
   const productId: string | undefined = publish.productId ? String(publish.productId) : undefined;
