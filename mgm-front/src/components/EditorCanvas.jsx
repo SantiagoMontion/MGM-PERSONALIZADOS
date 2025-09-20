@@ -39,6 +39,12 @@ const PRIMARY_SAFE_MARGIN_CM = 1.1;
 const SECONDARY_MARGIN_GAP_CM = 0.3;
 const SECONDARY_SAFE_MARGIN_CM =
   PRIMARY_SAFE_MARGIN_CM + SECONDARY_MARGIN_GAP_CM;
+const CORNER_ANCHORS = new Set([
+  "top-left",
+  "top-right",
+  "bottom-left",
+  "bottom-right",
+]);
 
 // ---------- Editor ----------
 const EditorCanvas = forwardRef(function EditorCanvas(
@@ -274,13 +280,24 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     return () => window.removeEventListener("keydown", handler);
   }, [undo]);
 
-  const [freeScale, setFreeScale] = useState(false); // ⟵ NUEVO: “Estirar sin límites”
-  const keepRatio = !freeScale;
+  const [keepRatio, setKeepRatio] = useState(true);
+  const keepRatioRef = useRef(true);
   const [mode, setMode] = useState("cover"); // 'cover' | 'contain' | 'stretch'
   const stickyFitRef = useRef(null);
   const skipStickyFitOnceRef = useRef(false);
   const [bgColor, setBgColor] = useState("#ffffff");
   const isTransformingRef = useRef(false);
+  const setKeepRatioImmediate = useCallback(
+    (value) => {
+      keepRatioRef.current = value;
+      setKeepRatio(value);
+      if (trRef.current) {
+        trRef.current.keepRatio(value);
+        trRef.current.getLayer()?.batchDraw();
+      }
+    },
+    [setKeepRatio],
+  );
 
   const moveBy = useCallback(
     (dx, dy) => {
@@ -499,7 +516,9 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
   // transformer
   useEffect(() => {
+    keepRatioRef.current = keepRatio;
     if (!trRef.current) return;
+    trRef.current.keepRatio(keepRatio);
     if (showTransformer && imgRef.current)
       trRef.current.nodes([imgRef.current]);
     else trRef.current.nodes([]);
@@ -510,12 +529,21 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const onTransformStart = useCallback(() => {
     isTransformingRef.current = true;
     stickRef.current = { x: null, y: null, activeX: false, activeY: false };
-  }, []);
+    const anchorName = trRef.current?.getActiveAnchor();
+    const shouldKeep =
+      !anchorName ||
+      anchorName === "rotater" ||
+      CORNER_ANCHORS.has(anchorName);
+    setKeepRatioImmediate(shouldKeep);
+  }, [setKeepRatioImmediate]);
 
   const onTransformEnd = () => {
     isTransformingRef.current = false;
     stickRef.current = { x: null, y: null, activeX: false, activeY: false };
-    if (!imgRef.current || !imgBaseCm) return;
+    if (!imgRef.current || !imgBaseCm) {
+      setKeepRatioImmediate(true);
+      return;
+    }
     pushHistory(imgTx);
     stickyFitRef.current = null;
     skipStickyFitOnceRef.current = false;
@@ -527,8 +555,9 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       const prevH = imgBaseCm.h * prev.scaleY;
       const cx = prev.x_cm + prevW / 2;
       const cy = prev.y_cm + prevH / 2;
+      const shouldKeep = keepRatioRef.current;
       // libre => sin límites superiores
-      if (!keepRatio) {
+      if (!shouldKeep) {
         const newSX = Math.max(prev.scaleX * sx, 0.01);
         const newSY = Math.max(prev.scaleY * sy, 0.01);
         const w = imgBaseCm.w * newSX;
@@ -555,6 +584,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     });
     n.scaleX(1);
     n.scaleY(1);
+    setKeepRatioImmediate(true);
   };
 
   // centro actual
@@ -687,13 +717,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       x_cm: cx - (imgBaseCm.w * tx.scaleX) / 2,
       y_cm: cy - (imgBaseCm.h * tx.scaleY) / 2,
     }));
-  };
-
-  const rotate = (deg) => {
-    pushHistory(imgTx);
-    stickyFitRef.current = null;
-    skipStickyFitOnceRef.current = false;
-    setImgTx((tx) => ({ ...tx, rotation_deg: (tx.rotation_deg + deg) % 360 }));
   };
 
   useEffect(() => {
@@ -1093,24 +1116,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         <button onClick={() => alignEdge("bottom")} disabled={!imgEl}>
           Abajo
         </button>
-        <button onClick={() => rotate(-90)} disabled={!imgEl}>
-          ⟲ -90°
-        </button>
-        <button onClick={() => rotate(90)} disabled={!imgEl}>
-          ⟳ +90°
-        </button>
-
-        {/* ⟵ NUEVO: checkbox para estirar sin límites desde las esquinas */}
-        <label className={styles.freeScale}>
-          <input
-            type="checkbox"
-            checked={freeScale}
-            onChange={(e) => setFreeScale(e.target.checked)}
-            disabled={!imgEl}
-          />
-          Escalar libre
-        </label>
-
         <span
           className={`${styles.qualityBadge} ${
             quality.color === "#ef4444"
@@ -1220,23 +1225,28 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                     onDragMove={onImgDragMove}
                     onDragEnd={onImgDragEnd}
                   />
-                  <Transformer
-                    ref={trRef}
-                    visible={showTransformer}
-                    rotateEnabled
-                    rotationSnaps={[0, 90, 180, 270]}
-                    keepRatio={keepRatio}
-                    enabledAnchors={[
-                      "top-left",
-                      "top-right",
-                      "bottom-left",
-                      "bottom-right",
-                    ]}
+                    <Transformer
+                      ref={trRef}
+                      visible={showTransformer}
+                      rotateEnabled
+                      rotateAnchorOffset={40}
+                      rotationSnaps={[0, 90, 180, 270]}
+                      keepRatio={keepRatio}
+                      enabledAnchors={[
+                        "top-left",
+                        "top-center",
+                        "top-right",
+                        "middle-left",
+                        "middle-right",
+                        "bottom-left",
+                        "bottom-center",
+                        "bottom-right",
+                      ]}
                     boundBoxFunc={(oldBox, newBox) => {
                       const MIN_W = 0.02 * (imgBaseCm?.w || 1);
                       const MIN_H = 0.02 * (imgBaseCm?.h || 1);
 
-                      if (!keepRatio) {
+                      if (!keepRatioRef.current) {
                         // ⟵ MODO LIBRE: sólo mínimo, SIN límites superiores
                         const w = Math.max(MIN_W, newBox.width);
                         const h = Math.max(MIN_H, newBox.height);
