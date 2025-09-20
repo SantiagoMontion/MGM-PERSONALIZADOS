@@ -73,28 +73,21 @@ export default function Mockup() {
       const imageBlob = await response.blob();
       const imageBytes = new Uint8Array(await imageBlob.arrayBuffer());
       const pdfDoc = await PDFDocument.create();
-      const widthCm = widthCmRaw;
-      const heightCm = heightCmRaw;
-      const extraBleedCm = 2;
-      const marginCm = extraBleedCm / 2;
-      const pageWidthCm = widthCm + extraBleedCm;
-      const pageHeightCm = heightCm + extraBleedCm;
+      const enlargementCm = 2;
+      const targetWidthCm = widthCmRaw + enlargementCm;
+      const targetHeightCm = heightCmRaw + enlargementCm;
       const cmToPt = (cm) => (cm / 2.54) * 72;
-      const pageWidthPt = cmToPt(pageWidthCm);
-      const pageHeightPt = cmToPt(pageHeightCm);
-      const innerWidthPt = cmToPt(widthCm);
-      const innerHeightPt = cmToPt(heightCm);
-      const marginPt = cmToPt(marginCm);
+      const pageWidthPt = cmToPt(targetWidthCm);
+      const pageHeightPt = cmToPt(targetHeightCm);
       const page = pdfDoc.addPage([pageWidthPt, pageHeightPt]);
       const embedded =
         imageBlob.type === 'image/jpeg' || imageBlob.type === 'image/jpg'
           ? await pdfDoc.embedJpg(imageBytes)
           : await pdfDoc.embedPng(imageBytes);
       page.drawImage(embedded, { x: 0, y: 0, width: pageWidthPt, height: pageHeightPt });
-      page.drawImage(embedded, { x: marginPt, y: marginPt, width: innerWidthPt, height: innerHeightPt });
       const pdfBytes = await pdfDoc.save();
       const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
-      const baseName = buildExportBaseName(flow.designName || '', pageWidthCm, pageHeightCm);
+      const baseName = buildExportBaseName(flow.designName || '', targetWidthCm, targetHeightCm);
       downloadBlob(pdfBlob, `${baseName}.pdf`);
     } catch (error) {
       console.error('[download-pdf]', error);
