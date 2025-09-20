@@ -122,7 +122,6 @@ export default function Mockup() {
       />
       <div style={{ marginTop: 16, display: 'flex', gap: 12, justifyContent: 'center' }}>
         <button disabled={busy} onClick={() => { flow.reset(); navigate('/'); }}>Cancelar y volver</button>
-        <button disabled={busy} onClick={handleDownloadPdf}>Descargar PDF</button>
         <button disabled={busy} onClick={() => handle('cart')}>Agregar al carrito y seguir creando</button>
         <button disabled={busy} onClick={() => handle('checkout')}>Comprar ahora</button>
       </div>
