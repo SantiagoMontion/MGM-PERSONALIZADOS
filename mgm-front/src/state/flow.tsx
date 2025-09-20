@@ -9,7 +9,17 @@ export type FlowState = {
   designName?: string;
   lowQualityAck?: boolean;
   approxDpi?: number | null;
-  lastProduct?: { productId?: string; variantId?: string; cartUrl?: string; checkoutUrl?: string };
+  priceTransfer?: number;
+  priceNormal?: number;
+  priceCurrency?: string;
+  lastProduct?: {
+    productId?: string;
+    variantId?: string;
+    cartUrl?: string;
+    checkoutUrl?: string;
+    productUrl?: string;
+    productHandle?: string;
+  };
   set: (p: Partial<FlowState>) => void;
   reset: () => void;
 };
@@ -23,6 +33,9 @@ const defaultState: Omit<FlowState, 'set' | 'reset'> = {
   designName: '',
   lowQualityAck: false,
   approxDpi: null,
+  priceTransfer: 0,
+  priceNormal: 0,
+  priceCurrency: 'ARS',
   lastProduct: undefined,
 };
 

@@ -2,10 +2,9 @@ import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { PDFDocument } from 'pdf-lib';
 import { useFlow } from '@/state/flow.js';
-import { apiFetch } from '@/lib/api.js';
-import { blobToDataURL } from '@/lib/blob.js';
 import { downloadBlob } from '@/lib/mockup.js';
 import { buildExportBaseName } from '@/lib/filename.ts';
+import { createJobAndProduct } from '@/lib/shopify.ts';
 
 export default function Mockup() {
   const flow = useFlow();
@@ -25,46 +24,33 @@ export default function Mockup() {
     if (mode !== 'checkout' && mode !== 'cart') return;
     try {
       setBusy(true);
-      const mockupDataUrl = await blobToDataURL(flow.mockupBlob);
-      const pub = await apiFetch('/api/publish-product', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          mockupDataUrl,
-          productType: flow.productType || 'mousepad',
-          title: 'Mousepad personalizado',
-        }),
-      }).then((r) => r.json()).catch(() => null);
-
-      if (!pub || !pub.ok) {
-        alert('No se pudo publicar el producto');
+      const result = await createJobAndProduct(mode, flow);
+      if (mode === 'checkout' && result.checkoutUrl) {
+        window.location.assign(result.checkoutUrl);
         return;
       }
-
-      if (mode === 'checkout') {
-        const ck = await apiFetch('/api/create-checkout', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ variantId: pub.variantId, quantity: 1 }),
-        }).then((r) => r.json()).catch(() => null);
-        if (ck?.url) window.location.assign(ck.url);
+      if (mode === 'cart' && result.cartUrl) {
+        window.open(result.cartUrl, '_blank', 'noopener,noreferrer');
+        flow.reset();
+        navigate('/');
         return;
       }
-
-      if (mode === 'cart') {
-        const cl = await apiFetch('/api/create-cart-link', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ variantId: pub.variantId, quantity: 1 }),
-        }).then((r) => r.json()).catch(() => null);
-        if (cl?.url) {
-          window.open(cl.url, '_blank', 'noopener,noreferrer');
-          flow.reset();
-          navigate('/');
-        }
+      if (result.productUrl) {
+        window.open(result.productUrl, '_blank', 'noopener,noreferrer');
+        return;
       }
+      alert('El producto se creó pero no se pudo obtener un enlace.');
     } catch (e) {
-      alert(e?.message || 'Error');
+      console.error('[mockup-handle]', e);
+      const message = String(e?.message || 'Error');
+      let friendly = message;
+      if (message === 'missing_mockup') friendly = 'No se encontró el mockup para publicar.';
+      else if (message === 'missing_variant') friendly = 'No se pudo obtener la variante del producto creado en Shopify.';
+      else if (message === 'cart_link_failed') friendly = 'No se pudo generar el enlace del carrito. Revisá la configuración de Shopify.';
+      else if (message === 'checkout_link_failed') friendly = 'No se pudo generar el enlace de compra.';
+      else if (message.startsWith('publish_failed')) friendly = 'Shopify rechazó la creación del producto. Revisá los datos enviados.';
+      else if (message === 'shopify_error') friendly = 'Shopify devolvió un error al crear el producto.';
+      alert(friendly);
     } finally {
       setBusy(false);
     }

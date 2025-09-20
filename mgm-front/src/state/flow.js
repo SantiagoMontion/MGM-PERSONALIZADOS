@@ -9,6 +9,9 @@ const defaultState = {
   designName: '',
   lowQualityAck: false,
   approxDpi: null,
+  priceTransfer: 0,
+  priceNormal: 0,
+  priceCurrency: 'ARS',
   lastProduct: null,
 };
 
