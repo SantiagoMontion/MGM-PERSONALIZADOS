@@ -38,7 +38,7 @@ export default function DevCanvasPreview() {
     const h_cm = render_v2.h_cm;
     const out_w_cm = w_cm + 2;
     const out_h_cm = h_cm + 2;
-    const baseName = buildExportBaseName(designName, w_cm, h_cm);
+    const baseName = buildExportBaseName(designName, w_cm, h_cm, mode);
     const dpi = 300;
     const out_w_px = Math.round((out_w_cm * dpi) / 2.54);
     const out_h_px = Math.round((out_h_cm * dpi) / 2.54);
