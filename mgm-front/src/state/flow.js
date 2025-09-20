@@ -6,6 +6,7 @@ const defaultState = {
   mockupBlob: null,
   mockupUrl: null,
   printFullResDataUrl: null,
+  designName: '',
   lowQualityAck: false,
   approxDpi: null,
   lastProduct: null,
@@ -25,7 +26,7 @@ export function FlowProvider({ children }) {
     reset: () => {
       try {
         if (state.mockupUrl) URL.revokeObjectURL(state.mockupUrl);
-      } catch (_) {
+      } catch {
         // ignore
       }
       setState({ ...defaultState });
