@@ -29,6 +29,9 @@ Variables opcionales en `.env`:
 ```
 NUDE_REAL_THRESHOLD=0.75
 HATE_SPEECH_EXPLICIT_THRESHOLD=0.85
+MODERATION_SKIP_OCR=1
 ```
+
+> `MODERATION_SKIP_OCR` se recomienda únicamente para pruebas locales/CI y evita que `tesseract.js` descargue datos pesados.
 
 El objetivo es bloquear únicamente desnudos reales y extremismo nazi; todo lo demás pasa o queda pendiente de revisión según la confianza calculada.
