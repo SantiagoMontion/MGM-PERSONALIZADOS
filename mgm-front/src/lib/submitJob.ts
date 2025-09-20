@@ -17,6 +17,7 @@ export interface SubmitJobBody {
   design_name?: string;
   notes?: string;
   source?: string;
+  low_quality_ack?: boolean;
 }
 
 import { apiFetch } from "./api";

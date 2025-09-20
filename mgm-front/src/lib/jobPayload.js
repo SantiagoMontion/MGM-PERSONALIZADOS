@@ -71,6 +71,15 @@ export function buildSubmitJobBody(input) {
   const bleed_mm = Number(input?.size?.bleed_mm ?? 3);
   const dpi = parseInt(String(input?.dpi ?? 300), 10);
 
+  const lowQualityAckRaw =
+    input?.low_quality_ack ?? input?.lowQualityAck ?? undefined;
+  const lowQualityAck =
+    lowQualityAckRaw === undefined
+      ? undefined
+      : typeof lowQualityAckRaw === 'boolean'
+        ? lowQualityAckRaw
+        : Boolean(lowQualityAckRaw);
+
   const up = input?.uploads || {};
   const file_original_url = resolveCanonicalUrl({
     canonical: up.canonical,
@@ -92,6 +101,7 @@ export function buildSubmitJobBody(input) {
     customer_name: input?.customer?.name || undefined,
     design_name: input?.design_name || undefined,
     file_hash: input?.file_hash || undefined,
+    low_quality_ack: lowQualityAck,
     price_amount:
       input?.price?.amount != null ? Number(input.price.amount) : undefined,
     price_currency: input?.price?.currency || undefined,

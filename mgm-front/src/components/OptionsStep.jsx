@@ -103,6 +103,7 @@ export default function OptionsStep({ uploaded, onSubmitted }) {
       fit_mode: form.fit, // 'cover'|'contain'
       bg: form.bg || '#ffffff',
       dpi: Math.round(dpiVal),
+      low_quality_ack: level === 'bad' ? ackLow : undefined,
       uploads: {
         // tomamos lo que haya en uploaded:
         signed_url: uploaded?.upload?.signed_url || uploaded?.signed_url,
