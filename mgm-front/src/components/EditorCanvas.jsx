@@ -553,6 +553,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     const nextW = n.width() * nextScaleX;
     const nextH = n.height() * nextScaleY;
     const rotation = n.rotation();
+    const keepRatioAtRelease = keepRatioRef.current;
     setImgTx((prev) => {
       const prevW = imgBaseCm.w * prev.scaleX;
       const prevH = imgBaseCm.h * prev.scaleY;
@@ -562,7 +563,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         prevW !== 0 && Number.isFinite(nextW / prevW) ? nextW / prevW : 1;
       const ratioY =
         prevH !== 0 && Number.isFinite(nextH / prevH) ? nextH / prevH : 1;
-      const shouldKeep = keepRatioRef.current;
+      const shouldKeep = keepRatioAtRelease;
       // libre => sin límites superiores
       if (!shouldKeep) {
         const newSX = Math.max(prev.scaleX * ratioX, 0.01);
