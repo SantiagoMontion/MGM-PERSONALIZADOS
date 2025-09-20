@@ -7,6 +7,7 @@ const defaultState = {
   mockupUrl: null,
   printFullResDataUrl: null,
   designName: '',
+  material: 'Classic',
   lowQualityAck: false,
   approxDpi: null,
   priceTransfer: 0,
