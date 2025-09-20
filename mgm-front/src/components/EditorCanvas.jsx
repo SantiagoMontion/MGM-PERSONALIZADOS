@@ -1394,16 +1394,14 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         >
           <Layer>
             <Group ref={padGroupRef}>
-              {mode === "contain" && (
-                <Rect
-                  x={0}
-                  y={0}
-                  width={padRectPx.w}
-                  height={padRectPx.h}
-                  fill={bgColor}
-                  listening={false}
-                />
-              )}
+              <Rect
+                x={0}
+                y={0}
+                width={padRectPx.w}
+                height={padRectPx.h}
+                fill={mode === "contain" ? bgColor : "#ffffff"}
+                listening={false}
+              />
               {imgEl && imgBaseCm && (
                 <KonvaImage
                   image={imgEl}
