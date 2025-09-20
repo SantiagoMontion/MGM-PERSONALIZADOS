@@ -16,6 +16,7 @@
     "doctor:shopify-env": "node -e \"const r=['SHOPIFY_STORE_DOMAIN','SHOPIFY_ADMIN_TOKEN','SHOPIFY_API_VERSION'];const m=r.filter(k=>!process.env[k]);console.log({missing:m});process.exit(m.length?1:0)\""
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.54.0",
     "sharp": "^0.33.4",
     "tesseract.js": "^5.0.5"
   },
