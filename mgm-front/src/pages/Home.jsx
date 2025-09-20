@@ -168,7 +168,7 @@ export default function Home() {
           setBusy(false);
           return;
         }
-      } catch (_) { /* best-effort */ }
+      } catch { /* best-effort */ }
 
       const moderationUrl = `${import.meta.env.VITE_API_URL || ''}/api/moderate-image`;
       console.info('[continue] POST', moderationUrl);
@@ -208,6 +208,7 @@ export default function Home() {
         mockupBlob: blob,
         mockupUrl,
         printFullResDataUrl: master,
+        designName: trimmedDesignName,
         lowQualityAck: level === 'bad' ? Boolean(ackLow) : false,
         approxDpi: effDpi || null,
       });

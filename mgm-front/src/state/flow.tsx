@@ -6,6 +6,7 @@ export type FlowState = {
   mockupBlob?: Blob;
   mockupUrl?: string;
   printFullResDataUrl?: string;
+  designName?: string;
   lowQualityAck?: boolean;
   approxDpi?: number | null;
   lastProduct?: { productId?: string; variantId?: string; cartUrl?: string; checkoutUrl?: string };
@@ -19,6 +20,7 @@ const defaultState: Omit<FlowState, 'set' | 'reset'> = {
   mockupBlob: undefined,
   mockupUrl: undefined,
   printFullResDataUrl: undefined,
+  designName: '',
   lowQualityAck: false,
   approxDpi: null,
   lastProduct: undefined,
