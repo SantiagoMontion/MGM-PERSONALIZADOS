@@ -89,17 +89,26 @@ export default function Mockup() {
       const pdfDoc = await PDFDocument.create();
       const widthCm = widthCmRaw;
       const heightCm = heightCmRaw;
-      const pageWidthPt = (widthCm / 2.54) * 72;
-      const pageHeightPt = (heightCm / 2.54) * 72;
+      const extraBleedCm = 2;
+      const marginCm = extraBleedCm / 2;
+      const pageWidthCm = widthCm + extraBleedCm;
+      const pageHeightCm = heightCm + extraBleedCm;
+      const cmToPt = (cm) => (cm / 2.54) * 72;
+      const pageWidthPt = cmToPt(pageWidthCm);
+      const pageHeightPt = cmToPt(pageHeightCm);
+      const innerWidthPt = cmToPt(widthCm);
+      const innerHeightPt = cmToPt(heightCm);
+      const marginPt = cmToPt(marginCm);
       const page = pdfDoc.addPage([pageWidthPt, pageHeightPt]);
       const embedded =
         imageBlob.type === 'image/jpeg' || imageBlob.type === 'image/jpg'
           ? await pdfDoc.embedJpg(imageBytes)
           : await pdfDoc.embedPng(imageBytes);
       page.drawImage(embedded, { x: 0, y: 0, width: pageWidthPt, height: pageHeightPt });
+      page.drawImage(embedded, { x: marginPt, y: marginPt, width: innerWidthPt, height: innerHeightPt });
       const pdfBytes = await pdfDoc.save();
       const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
-      const baseName = buildExportBaseName(flow.designName || '', widthCm, heightCm);
+      const baseName = buildExportBaseName(flow.designName || '', pageWidthCm, pageHeightCm);
       downloadBlob(pdfBlob, `${baseName}.pdf`);
     } catch (error) {
       console.error('[download-pdf]', error);
