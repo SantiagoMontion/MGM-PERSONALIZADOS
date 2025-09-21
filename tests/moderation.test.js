@@ -55,6 +55,30 @@ async function createNeutralBuffer() {
     .toBuffer();
 }
 
+async function createCartoonBuffer() {
+  const width = 512;
+  const height = 512;
+  const channels = 3;
+  const tile = 8;
+  const data = Buffer.alloc(width * height * channels);
+  const colorA = [240, 190, 200];
+  const colorB = [60, 30, 140];
+
+  for (let y = 0; y < height; y++) {
+    const tileY = Math.floor(y / tile);
+    for (let x = 0; x < width; x++) {
+      const idx = (y * width + x) * channels;
+      const tileX = Math.floor(x / tile);
+      const source = (tileX + tileY) % 2 === 0 ? colorA : colorB;
+      data[idx] = source[0];
+      data[idx + 1] = source[1];
+      data[idx + 2] = source[2];
+    }
+  }
+
+  return sharp(data, { raw: { width, height, channels } }).png().toBuffer();
+}
+
 function swastikaSVG({ size = 256, stroke = 26, flag = true } = {}) {
   const s = size;
   const m = s / 2;
@@ -86,6 +110,14 @@ test('evaluateImage allows neutral graphics', async () => {
   const result = await evaluateImage(buf, 'poster.png');
   assert.equal(result.label, 'ALLOW');
   assert.equal(result.reasons.includes('no_violation_detected'), true);
+});
+
+test('evaluateImage allows stylized explicit art', async () => {
+  const buf = await createCartoonBuffer();
+  const result = await evaluateImage(buf, 'stylized.png', '', { approxDpi: 320 });
+  assert.equal(result.label, 'ALLOW');
+  assert.equal(result.reasons.includes('anime_explicit_allowed'), true);
+  assert(result.confidence >= 0.7);
 });
 
 test('evaluateImage blocks nazi symbols', async () => {
