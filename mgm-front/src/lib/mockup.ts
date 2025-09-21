@@ -130,12 +130,45 @@ export async function renderMockup1080(opts: MockupOptions): Promise<Blob> {
 
   ctx.save();
   clipRoundedRect(ctx, dx, dy, drawW, drawH, 12);
-  ctx.drawImage(image, dx, dy, drawW, drawH);
 
+  let drewGlassEffect = false;
   if (opts.productType === 'glasspad') {
-    ctx.fillStyle = 'rgba(255,255,255,0.18)';
-    ctx.fillRect(dx, dy, drawW, drawH);
+    const glassCanvas = document.createElement('canvas');
+    glassCanvas.width = drawW;
+    glassCanvas.height = drawH;
+    const glassCtx = glassCanvas.getContext('2d');
+
+    if (glassCtx) {
+      const longestSide = Math.max(drawW, drawH);
+      const blurPx = Math.max(4, Math.round(Math.min(longestSide * 0.035, 26)));
+
+      glassCtx.filter = `blur(${blurPx}px)`;
+      glassCtx.globalAlpha = 0.9;
+      glassCtx.drawImage(image, 0, 0, drawW, drawH);
+      glassCtx.filter = 'none';
+
+      glassCtx.globalAlpha = 0.45;
+      glassCtx.drawImage(image, 0, 0, drawW, drawH);
+      glassCtx.globalAlpha = 1;
+
+      const highlight = glassCtx.createLinearGradient(0, 0, drawW, drawH);
+      highlight.addColorStop(0, 'rgba(255,255,255,0.04)');
+      highlight.addColorStop(0.5, 'rgba(255,255,255,0.015)');
+      highlight.addColorStop(1, 'rgba(0,0,0,0.04)');
+      glassCtx.fillStyle = highlight;
+      glassCtx.fillRect(0, 0, drawW, drawH);
+
+      ctx.globalAlpha = 0.95;
+      ctx.drawImage(glassCanvas, dx, dy, drawW, drawH);
+      ctx.globalAlpha = 1;
+      drewGlassEffect = true;
+    }
   }
+
+  if (!drewGlassEffect) {
+    ctx.drawImage(image, dx, dy, drawW, drawH);
+  }
+
   ctx.restore();
 
   return toBlob();
