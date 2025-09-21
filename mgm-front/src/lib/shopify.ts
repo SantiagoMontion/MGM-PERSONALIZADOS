@@ -39,25 +39,12 @@ function formatMeasurement(width?: number | null, height?: number | null): strin
   return `${w}x${h}`;
 }
 
-function ensureQuoted(value: string | undefined): string | undefined {
-  const base = (value || '').trim();
-  if (!base) return undefined;
-  return `"${base.replace(/"/g, "'")}"`;
-}
-
-function withCmSuffix(measurement?: string): string | undefined {
-  if (!measurement) return undefined;
-  const trimmed = measurement.trim();
-  if (!trimmed) return undefined;
-  return /cm$/i.test(trimmed) ? trimmed : `${trimmed} cm`;
-}
-
 function buildGlasspadTitle(designName?: string, measurement?: string): string {
-  const sections = ['GLASSPAD'];
-  const quotedName = ensureQuoted(designName);
-  if (quotedName) sections.push(quotedName);
-  const quotedMeasurement = ensureQuoted(withCmSuffix(measurement));
-  if (quotedMeasurement) sections.push(quotedMeasurement);
+  const sections = ['Glasspad'];
+  const normalizedName = (designName || '').trim();
+  if (normalizedName) sections.push(normalizedName);
+  const normalizedMeasurement = (measurement || '').trim();
+  if (normalizedMeasurement) sections.push(normalizedMeasurement);
   return `${sections.join(' ')} | PERSONALIZADO`;
 }
 

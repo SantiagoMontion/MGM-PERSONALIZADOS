@@ -18,23 +18,10 @@ function formatMeasurement(width: unknown, height: unknown): string | undefined 
   return `${w}x${h}`;
 }
 
-function ensureQuoted(value: string | undefined): string | undefined {
-  const base = (value || '').trim();
-  if (!base) return undefined;
-  return `"${base.replace(/"/g, "'")}"`;
-}
-
-function withCmSuffix(measurement?: string): string | undefined {
-  if (!measurement) return undefined;
-  const trimmed = measurement.trim();
-  if (!trimmed) return undefined;
-  return /cm$/i.test(trimmed) ? trimmed : `${trimmed} cm`;
-}
-
 function buildGlasspadTitle(measurement?: string): string {
-  const parts = ['GLASSPAD'];
-  const quotedMeasurement = ensureQuoted(withCmSuffix(measurement));
-  if (quotedMeasurement) parts.push(quotedMeasurement);
+  const parts = ['Glasspad'];
+  const normalizedMeasurement = (measurement || '').trim();
+  if (normalizedMeasurement) parts.push(normalizedMeasurement);
   return `${parts.join(' ')} | PERSONALIZADO`;
 }
 
