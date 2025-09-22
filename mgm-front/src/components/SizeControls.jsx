@@ -9,7 +9,7 @@ import { LIMITS, STANDARD, GLASSPAD_SIZE_CM } from '../lib/material.js';
  * - size: { w, h }
  * - onChange: ({ material?, w?, h? }) => void
  */
-export default function SizeControls({ material, size, onChange, locked = false }) {
+export default function SizeControls({ material, size, onChange, locked = false, disabled = false }) {
   const limits = LIMITS[material] || { maxW: size.w, maxH: size.h };
   const presets = STANDARD[material] || [];
   const isGlasspad = material === 'Glasspad';
@@ -26,49 +26,86 @@ export default function SizeControls({ material, size, onChange, locked = false 
       glasspadInitRef.current = false;
       return;
     }
-    if (glasspadInitRef.current) return;
-    setWText(String(GLASSPAD_SIZE_CM.w));
-    setHText(String(GLASSPAD_SIZE_CM.h));
+    if (glasspadInitRef.current && !disabled) return;
+
+    setWText(prev => {
+      const target = String(GLASSPAD_SIZE_CM.w);
+      return prev === target ? prev : target;
+    });
+    setHText(prev => {
+      const target = String(GLASSPAD_SIZE_CM.h);
+      return prev === target ? prev : target;
+    });
+
+    if (disabled) {
+      glasspadInitRef.current = false;
+      return;
+    }
+
     onChange?.({ w: GLASSPAD_SIZE_CM.w, h: GLASSPAD_SIZE_CM.h });
     glasspadInitRef.current = true;
-  }, [material, onChange]);
+  }, [material, onChange, disabled]);
 
   const numPattern = /^[0-9]{0,3}(\.[0-9]{0,2})?$/;
 
   const handleWChange = (e) => {
+    if (disabled || locked || isGlasspad) return;
     const v = e.target.value;
     if (v === '' || numPattern.test(v)) setWText(v);
   };
   const handleHChange = (e) => {
+    if (disabled || locked || isGlasspad) return;
     const v = e.target.value;
     if (v === '' || numPattern.test(v)) setHText(v);
   };
   const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
   const handleWBlur = () => {
+    if (disabled || locked || isGlasspad) return;
     const num = clamp(parseFloat(wText || '0'), 1, limits.maxW);
     setWText(num ? String(num) : '');
     onChange({ w: num, h: parseFloat(hText || size.h) });
   };
   const handleHBlur = () => {
+    if (disabled || locked || isGlasspad) return;
     const num = clamp(parseFloat(hText || '0'), 1, limits.maxH);
     setHText(num ? String(num) : '');
     onChange({ w: parseFloat(wText || size.w), h: num });
   };
 
   const applyPreset = (w, h) => {
+    if (disabled || locked) return;
     setWText(String(w));
     setHText(String(h));
     onChange({ w, h });
   };
 
+  const containerClasses = [
+    styles.container,
+    disabled ? styles.containerDisabled : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+  const inputControlClassName = [
+    styles.inputControl,
+    disabled ? styles.inputControlDisabled : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+  const selectControlClassName = [
+    styles.selectControl,
+    disabled ? styles.selectControlDisabled : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   return (
-    <div className={styles.container}>
+    <div className={containerClasses} aria-disabled={disabled}>
       <div className={styles.section}>
         <span className={styles.groupLabel}>Medidas (cm)</span>
         <div className={styles.dimensionsRow}>
           <label className={styles.inputLabel}>
             Largo
-            <div className={styles.inputControl}>
+            <div className={inputControlClassName}>
               <input
                 className={styles.input}
                 value={isGlasspad ? GLASSPAD_SIZE_CM.w : wText}
@@ -76,13 +113,13 @@ export default function SizeControls({ material, size, onChange, locked = false 
                 onBlur={!isGlasspad ? handleWBlur : undefined}
                 inputMode="decimal"
                 pattern="[0-9]*"
-                disabled={locked || isGlasspad}
+                disabled={locked || isGlasspad || disabled}
               />
             </div>
           </label>
           <label className={styles.inputLabel}>
             Ancho
-            <div className={styles.inputControl}>
+            <div className={inputControlClassName}>
               <input
                 className={styles.input}
                 value={isGlasspad ? GLASSPAD_SIZE_CM.h : hText}
@@ -90,7 +127,7 @@ export default function SizeControls({ material, size, onChange, locked = false 
                 onBlur={!isGlasspad ? handleHBlur : undefined}
                 inputMode="decimal"
                 pattern="[0-9]*"
-                disabled={locked || isGlasspad}
+                disabled={locked || isGlasspad || disabled}
               />
             </div>
           </label>
@@ -104,7 +141,7 @@ export default function SizeControls({ material, size, onChange, locked = false 
                 type="button"
                 className={styles.presetButton}
                 onClick={() => applyPreset(p.w, p.h)}
-                disabled={locked}
+                disabled={locked || disabled}
               >
                 {p.w}×{p.h}
               </button>
@@ -125,11 +162,15 @@ export default function SizeControls({ material, size, onChange, locked = false 
 
       <label className={`${styles.section} ${styles.selectSection}`}>
         <span className={styles.groupLabel}>Serie</span>
-        <div className={styles.selectControl}>
+        <div className={selectControlClassName}>
           <select
             className={styles.select}
             value={material}
-            onChange={(e) => onChange({ material: e.target.value })}
+            onChange={(e) => {
+              if (disabled) return;
+              onChange({ material: e.target.value });
+            }}
+            disabled={disabled}
           >
             <option>Classic</option>
             <option>PRO</option>
