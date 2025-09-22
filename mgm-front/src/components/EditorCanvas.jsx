@@ -609,9 +609,17 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
   // cover/contain/estirar con rotación
   const applyFit = useCallback(
-    (mode) => {
+    (mode, options = {}) => {
       if (!imgBaseCm) return;
-      const { cx, cy } = currentCenter();
+      const fallbackCenter = currentCenter();
+      const targetCx =
+        options?.center?.x ??
+        options?.center?.cx ??
+        fallbackCenter.cx;
+      const targetCy =
+        options?.center?.y ??
+        options?.center?.cy ??
+        fallbackCenter.cy;
       const w = imgBaseCm.w,
         h = imgBaseCm.h;
       const c = Math.abs(Math.cos(theta));
@@ -628,8 +636,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
           newH = h * scale;
         pushHistory(imgTx);
         setImgTx((prev) => ({
-          x_cm: cx - newW / 2,
-          y_cm: cy - newH / 2,
+          x_cm: targetCx - newW / 2,
+          y_cm: targetCy - newH / 2,
           scaleX: scale,
           scaleY: scale,
           rotation_deg: prev.rotation_deg,
@@ -661,8 +669,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
           newH = h * sy;
         pushHistory(imgTx);
         setImgTx((prev) => ({
-          x_cm: cx - newW / 2,
-          y_cm: cy - newH / 2,
+          x_cm: targetCx - newW / 2,
+          y_cm: targetCy - newH / 2,
           scaleX: sx,
           scaleY: sy,
           rotation_deg: prev.rotation_deg,
@@ -738,8 +746,10 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       skipStickyFitOnceRef.current = false;
       return;
     }
-    applyFit(stickyFitRef.current);
-  }, [material, wCm, hCm, imgBaseCm]);
+    applyFit(stickyFitRef.current, {
+      center: { x: workCm.w / 2, y: workCm.h / 2 },
+    });
+  }, [material, wCm, hCm, workCm.w, workCm.h, imgBaseCm]);
 
   useEffect(() => {
     if (hasAdjustedViewRef.current) return;
