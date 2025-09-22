@@ -159,6 +159,9 @@ export async function createJobAndProduct(mode: 'checkout' | 'cart', flow: FlowS
   const result: {
     checkoutUrl?: string;
     cartUrl?: string;
+    cartPlain?: string;
+    cartId?: string;
+    cartToken?: string;
     productId?: string;
     variantId?: string;
     productUrl?: string;
@@ -196,9 +199,33 @@ export async function createJobAndProduct(mode: 'checkout' | 'cart', flow: FlowS
       });
       const cl = await clResp.json().catch(() => null);
       if (!clResp.ok || !cl?.url) {
-        throw new Error('cart_link_failed');
+        const reason = typeof cl?.error === 'string' && cl.error ? cl.error : 'cart_link_failed';
+        const err: Error & { reason?: string; friendlyMessage?: string; missing?: string[]; detail?: unknown } = new Error(reason);
+        err.reason = reason;
+        if (Array.isArray(cl?.missing) && cl.missing.length) {
+          err.missing = cl.missing;
+        }
+        if (typeof cl?.message === 'string' && cl.message.trim()) {
+          err.friendlyMessage = cl.message.trim();
+        }
+        if (cl?.detail) {
+          err.detail = cl.detail;
+        }
+        throw err;
       }
       result.cartUrl = cl.url;
+      if (typeof cl.checkout_url_now === 'string' && cl.checkout_url_now) {
+        result.checkoutUrl = cl.checkout_url_now;
+      }
+      if (typeof cl.cart_plain === 'string' && cl.cart_plain) {
+        result.cartPlain = cl.cart_plain;
+      }
+      if (typeof cl.cart_id === 'string' && cl.cart_id) {
+        result.cartId = cl.cart_id;
+      }
+      if (typeof cl.cart_token === 'string' && cl.cart_token) {
+        result.cartToken = cl.cart_token;
+      }
     }
     return result;
   } finally {
