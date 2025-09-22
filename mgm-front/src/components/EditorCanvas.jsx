@@ -72,15 +72,66 @@ const HISTORY_ICON_SPECS = {
 };
 
 
-const ToolbarTooltip = ({ label, children, disabled = false }) => (
-  <div
-    className={styles.iconButtonWithTooltip}
-    data-tooltip-disabled={disabled ? "true" : undefined}
-  >
-    {children}
-    <span className={styles.toolbarTooltip}>{label}</span>
-  </div>
-);
+const ToolbarTooltip = ({ label, children, disabled = false }) => {
+  const [isVisible, setIsVisible] = useState(false);
+  const delayRef = useRef(null);
+
+  const clearDelay = useCallback(() => {
+    if (delayRef.current) {
+      clearTimeout(delayRef.current);
+      delayRef.current = null;
+    }
+  }, []);
+
+  const hideTooltip = useCallback(() => {
+    clearDelay();
+    setIsVisible(false);
+  }, [clearDelay]);
+
+  const showWithDelay = useCallback(() => {
+    if (disabled || delayRef.current || isVisible) return;
+    delayRef.current = setTimeout(() => {
+      setIsVisible(true);
+      delayRef.current = null;
+    }, 500);
+  }, [disabled, isVisible]);
+
+  useEffect(() => {
+    return () => {
+      clearDelay();
+    };
+  }, [clearDelay]);
+
+  useEffect(() => {
+    if (disabled) {
+      hideTooltip();
+    }
+  }, [disabled, hideTooltip]);
+
+  return (
+    <div
+      className={styles.iconButtonWithTooltip}
+      data-tooltip-disabled={disabled ? "true" : undefined}
+      onPointerEnter={showWithDelay}
+      onPointerLeave={hideTooltip}
+      onPointerDown={showWithDelay}
+      onPointerUp={hideTooltip}
+      onFocus={showWithDelay}
+      onBlur={hideTooltip}
+    >
+      {children}
+      <span
+        className={`${styles.toolbarTooltip} ${
+          isVisible ? styles.toolbarTooltipVisible : ""
+        }`}
+        role="tooltip"
+        aria-hidden={!isVisible}
+      >
+        {label}
+      </span>
+    </div>
+  );
+};
 
 
 // ---------- Editor ----------
@@ -1653,7 +1704,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               }}
               disabled={!imgEl}
               aria-label="Alinear a la izquierda"
-              title="Alinear a la izquierda"
               className={iconButtonClass(activeAlign.horizontal === "left")}
             >
               {missingIcons.izquierda ? (
@@ -1677,7 +1727,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               }}
               disabled={!imgEl}
               aria-label="Centrar horizontal"
-              title="Centrar horizontal"
               className={iconButtonClass(activeAlign.horizontal === "center")}
             >
               {missingIcons.centrado_V ? (
@@ -1701,7 +1750,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               }}
               disabled={!imgEl}
               aria-label="Alinear a la derecha"
-              title="Alinear a la derecha"
               className={iconButtonClass(activeAlign.horizontal === "right")}
             >
               {missingIcons.derecha ? (
@@ -1725,7 +1773,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               }}
               disabled={!imgEl}
               aria-label="Alinear arriba"
-              title="Alinear arriba"
               className={iconButtonClass(activeAlign.vertical === "top")}
             >
               {missingIcons.arriba ? (
@@ -1749,7 +1796,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               }}
               disabled={!imgEl}
               aria-label="Centrar vertical"
-              title="Centrar vertical"
               className={iconButtonClass(activeAlign.vertical === "center")}
             >
               {missingIcons.centrado_h ? (
@@ -1773,7 +1819,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               }}
               disabled={!imgEl}
               aria-label="Alinear abajo"
-              title="Alinear abajo"
               className={iconButtonClass(activeAlign.vertical === "bottom")}
             >
               {missingIcons.abajo ? (
@@ -1794,7 +1839,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               onClick={rotate90}
               disabled={!imgEl}
               aria-label="Rotar 90°"
-              title="Rotar 90°"
               className={styles.iconOnlyButton}
             >
               {missingIcons.rotar ? (
@@ -1815,7 +1859,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               onClick={flipVertical}
               disabled={!imgEl}
               aria-label="Espejo vertical"
-              title="Espejo vertical"
               className={iconButtonClass(Boolean(imgTx.flipY))}
             >
               {missingIcons.espejo_v ? (
@@ -1836,7 +1879,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               onClick={flipHorizontal}
               disabled={!imgEl}
               aria-label="Espejo horizontal"
-              title="Espejo horizontal"
               className={iconButtonClass(Boolean(imgTx.flipX))}
             >
               {missingIcons.espejo_h ? (
@@ -1857,7 +1899,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               onClick={fitCover}
               disabled={!imgEl}
               aria-label="Cubrir"
-              title="Cubrir"
               className={iconButtonClass(mode === "cover")}
             >
               {missingIcons.cubrir ? (
@@ -1878,7 +1919,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               onClick={fitContain}
               disabled={!imgEl}
               aria-label="Contener"
-              title="Contener"
               className={iconButtonClass(mode === "contain")}
             >
               {missingIcons.contener ? (
@@ -1899,7 +1939,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               onClick={fitStretchCentered}
               disabled={!imgEl}
               aria-label="Estirar"
-              title="Estirar"
               className={iconButtonClass(mode === "stretch")}
             >
               {missingIcons.estirar ? (
