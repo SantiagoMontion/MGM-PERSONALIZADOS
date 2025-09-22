@@ -305,6 +305,7 @@ export default function Home() {
   const description = 'Mousepad Profesionales Personalizados, Gamers, diseño y medida que quieras. Perfectos para gaming control y speed.';
   const url = 'https://www.mgmgamers.store/';
   const hasImage = Boolean(uploaded);
+  const isCanvasReady = Boolean(hasImage && imageUrl);
   const canUndo = historyCounts.undo > 0;
   const canRedo = historyCounts.redo > 0;
 
@@ -319,6 +320,13 @@ export default function Home() {
   const configPanelClasses = [
     styles.configPanel,
     !hasImage ? styles.configPanelDisabled : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  const canvasStageClasses = [
+    styles.canvasStage,
+    !isCanvasReady ? styles.canvasStageEmpty : '',
   ]
     .filter(Boolean)
     .join(' ');
@@ -425,20 +433,22 @@ export default function Home() {
           </div>
         </div>
 
-        <div className={styles.canvasStage}>
+        <div className={canvasStageClasses}>
           <div className={styles.canvasViewport}>
-            <EditorCanvas
-              ref={canvasRef}
-              imageUrl={imageUrl}
-              imageFile={uploaded?.file}
-              sizeCm={activeSizeCm}
-              bleedMm={3}
-              dpi={300}
-              onLayoutChange={setLayout}
-              onClearImage={handleClearImage}
-              showHistoryControls={false}
-              onHistoryChange={handleHistoryChange}
-            />
+            {isCanvasReady && (
+              <EditorCanvas
+                ref={canvasRef}
+                imageUrl={imageUrl}
+                imageFile={uploaded?.file}
+                sizeCm={activeSizeCm}
+                bleedMm={3}
+                dpi={300}
+                onLayoutChange={setLayout}
+                onClearImage={handleClearImage}
+                showHistoryControls={false}
+                onHistoryChange={handleHistoryChange}
+              />
+            )}
             {!hasImage && (
               <div className={styles.uploadOverlay}>
                 <UploadStep
