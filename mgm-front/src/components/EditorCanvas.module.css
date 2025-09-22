@@ -1,10 +1,10 @@
 .colorPopover {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 10px;
   padding: 16px;
-  width: max-content;
-  width: fit-content;
+  width: 320px;
+  max-width: calc(100vw - 48px);
   border-radius: 16px;
   background: #2f2f35;
   border: 1px solid rgba(255, 255, 255, 0.06);
@@ -88,41 +88,36 @@
   background: #ffffff;
 }
 
-.pickerActions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
 .eyedropperButton {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 38px;
+  width: 32px;
+  height: 32px;
   padding: 0;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: #2a2a31;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
   color: inherit;
   cursor: pointer;
-  transition: background-color 0.18s ease, border-color 0.18s ease,
-    transform 0.18s ease;
+  transition: background-color 0.18s ease, color 0.18s ease;
+  z-index: 1;
 }
 
 .eyedropperButton:hover {
-  transform: translateY(-1px);
-  background: #32323a;
-  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .eyedropperButton:active {
-  transform: translateY(0);
-  background: #212128;
+  background: rgba(255, 255, 255, 0.14);
 }
 
 .eyedropperButton:focus-visible {
-  outline: 2px solid rgba(255, 255, 255, 0.7);
+  outline: 2px solid rgba(255, 255, 255, 0.65);
   outline-offset: 2px;
 }
 
@@ -142,12 +137,20 @@
 
 .hexField {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  gap: 8px;
   padding: 12px;
   border-radius: 12px;
   background: #25252c;
   border: 1px solid rgba(255, 255, 255, 0.06);
+  width: 100%;
+}
+
+.hexInputWrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
 }
 
 .hexLabel {
@@ -157,12 +160,15 @@
   letter-spacing: 0.12em;
   color: rgba(249, 250, 251, 0.72);
   white-space: nowrap;
+  align-self: flex-start;
 }
 
 .hexInput {
   flex: 1;
+  width: 100%;
   min-width: 0;
   padding: 6px 10px;
+  padding-left: 46px;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: #1b1b22;
