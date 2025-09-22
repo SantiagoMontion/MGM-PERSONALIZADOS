@@ -4,6 +4,7 @@ import { PDFDocument } from 'pdf-lib';
 import { useFlow } from '@/state/flow.js';
 import { downloadBlob } from '@/lib/mockup.js';
 import { buildExportBaseName } from '@/lib/filename.ts';
+import { openCartUrl } from '@/lib/cart.ts';
 import { createJobAndProduct } from '@/lib/shopify.ts';
 
 export default function Mockup() {
@@ -30,13 +31,13 @@ export default function Mockup() {
         return;
       }
       if (mode === 'cart' && result.cartUrl) {
-        window.open(result.cartUrl, '_blank', 'noopener,noreferrer');
+        openCartUrl(result.cartUrl);
         flow.reset();
         navigate('/');
         return;
       }
       if (result.productUrl) {
-        window.open(result.productUrl, '_blank', 'noopener,noreferrer');
+        window.open(result.productUrl, '_blank', 'noopener');
         return;
       }
       alert('El producto se creó pero no se pudo obtener un enlace.');
