@@ -323,6 +323,13 @@ export default function Home() {
     .filter(Boolean)
     .join(' ');
 
+  const canvasStageClasses = [
+    styles.canvasStage,
+    !hasImage ? styles.canvasStageEmpty : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   return (
     <div className={styles.page}>
       <SeoJsonLd
@@ -396,8 +403,9 @@ export default function Home() {
           </div>
         </div>
 
-        <div className={styles.canvasStage}>
+        <div className={canvasStageClasses}>
           <div className={styles.canvasViewport}>
+
             <EditorCanvas
               ref={canvasRef}
               imageUrl={imageUrl}
@@ -439,6 +447,7 @@ export default function Home() {
                   <TrashIcon className={styles.topActionIcon} />
                 </button>
               </div>
+
             )}
             {!hasImage && (
               <div className={styles.uploadOverlay}>
