@@ -1,86 +1,211 @@
 .colorPopover {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 12px;
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
-  width: 260px;
+  gap: 16px;
+  padding: 18px;
+  width: 280px;
+  border-radius: 18px;
+  background: linear-gradient(155deg, #25252d 0%, #141418 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 24px 55px rgba(0, 0, 0, 0.55);
+  color: #f9fafb;
+}
+
+.colorPickerShell {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .colorPicker {
   width: 100%;
-  border-radius: 12px;
 }
 
-.swatches {
-  display: grid;
-  grid-template-columns: repeat(10, 18px);
-  gap: 6px;
+.colorPicker :global(.react-colorful) {
+  width: 100%;
 }
 
-.swatch {
+.colorPicker :global(.react-colorful__saturation) {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 20px 40px rgba(0, 0, 0, 0.45);
+}
+
+.colorPicker :global(.react-colorful__saturation-pointer) {
   width: 18px;
   height: 18px;
-  border-radius: 6px;
-  cursor: pointer;
-  border: none;
+  border-radius: 999px;
+  border: 2px solid #ffffff;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
 }
 
-.swatch0 { background: #ffffff; border: 1px solid #e5e7eb; }
-.swatch1 { background: #000000; }
-.swatch2 { background: #f3f4f6; }
-.swatch3 { background: #e5e7eb; }
-.swatch4 { background: #d1d5db; }
-.swatch5 { background: #1f2937; }
-.swatch6 { background: #111827; }
-.swatch7 { background: #ff0000; }
-.swatch8 { background: #ff7f00; }
-.swatch9 { background: #ffb800; }
-.swatch10 { background: #ffe600; }
-.swatch11 { background: #00a859; }
-.swatch12 { background: #00c9a7; }
-.swatch13 { background: #00ccff; }
-.swatch14 { background: #0066ff; }
-.swatch15 { background: #6f42c1; }
-.swatch16 { background: #ff69b4; }
-.swatch17 { background: #8b4513; }
-.swatch18 { background: #808080; }
-.swatch19 { background: #333333; }
+.colorPicker :global(.react-colorful__hue) {
+  height: 14px;
+  border-radius: 999px;
+  margin-top: 16px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+.colorPicker :global(.react-colorful__hue-pointer) {
+  width: 16px;
+  height: 16px;
+  border-radius: 6px;
+  border: 2px solid #ffffff;
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.45);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(148, 163, 184, 0.9));
+}
 
 .colorControls {
   display: flex;
-  gap: 8px;
   align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(17, 17, 23, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
 }
 
-.colorPreview {
-  width: 18px;
-  height: 18px;
-  border-radius: 6px;
-  border: 1px solid #e5e7eb;
+.previewDot {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.95);
+  box-shadow:
+    0 0 0 4px rgba(255, 255, 255, 0.05),
+    0 10px 25px rgba(0, 0, 0, 0.45);
+  flex-shrink: 0;
 }
-.colorWrapper1 {
-  position: relative;           /* <- ancla local para posicionar el popover */
+
+.hexField {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  border-radius: 12px;
+  background: rgba(36, 36, 46, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 -1px 0 rgba(15, 15, 20, 0.6);
+}
+
+.hexLabel {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(249, 250, 251, 0.65);
+  padding-right: 10px;
+  border-right: 1px solid rgba(249, 250, 251, 0.08);
 }
 
 .hexInput {
   flex: 1;
-  padding: 6px 8px;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  padding: 0;
+  border: none;
+  background: none;
+  color: #f9fafb;
+  font-size: 15px;
+  font-family: "JetBrains Mono", "SFMono-Regular", Menlo, monospace;
+}
+
+.hexInput:focus {
+  outline: none;
+}
+
+.hexInput::placeholder {
+  color: rgba(249, 250, 251, 0.25);
 }
 
 .eyedropperButton {
-  border: 1px solid #e5e7eb;
-  background: #fff;
-  color: #111827;
-  padding: 6px 10px;
-  border-radius: 10px;
+  width: 42px;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(160deg, rgba(148, 163, 184, 0.15), rgba(36, 36, 46, 0.6));
+  color: inherit;
   cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.eyedropperButton:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 16px 30px rgba(0, 0, 0, 0.5);
+}
+
+.eyedropperButton:active {
+  transform: translateY(0);
+}
+
+.eyedropperButton:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.85);
+  outline-offset: 3px;
+}
+
+.eyedropperIcon {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+
+.eyedropperFallback {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px dashed rgba(249, 250, 251, 0.5);
+}
+
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.swatch {
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 0;
+  cursor: pointer;
+  position: relative;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.swatch:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 22px rgba(0, 0, 0, 0.45);
+}
+
+.swatch:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.85);
+  outline-offset: 3px;
+}
+
+.swatch[data-selected="true"] {
+  border-color: rgba(249, 250, 251, 0.9);
+  box-shadow: 0 18px 26px rgba(0, 0, 0, 0.5);
+}
+
+.swatch[data-selected="true"]::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: inherit;
+  border: 2px solid rgba(249, 250, 251, 0.95);
+}
+
+.colorWrapper1 {
+  position: relative;           /* <- ancla local para posicionar el popover */
 }
 
 .copyButton {
