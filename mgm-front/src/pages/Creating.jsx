@@ -33,13 +33,6 @@ export default function Creating() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
-      console.log(
-        "[FINALIZE PAYLOAD]",
-        payload,
-        resp.status,
-        await resp.clone().text().catch(() => ""),
-      );
-      console.log("finalize diag", resp.headers.get("X-Diag-Id"));
 
         let retried = false;
         const res = await pollJobAndCreateCart(jobId, {
@@ -52,9 +45,8 @@ export default function Creating() {
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify(payload),
                 });
-                console.log("retry finalize diag", r.headers.get("X-Diag-Id"));
               } catch (e) {
-                console.warn(e);
+                console.error("retry finalize failed", e);
               }
             }
           },
@@ -91,7 +83,6 @@ export default function Creating() {
       {needsRetry && (
         <button
           onClick={() => {
-            console.log("manual retry");
             run();
           }}
         >

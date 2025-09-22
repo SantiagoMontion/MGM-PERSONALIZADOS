@@ -167,7 +167,6 @@ export default function Home() {
       // client-side gate: NSFW scan in browser (no server TFJS)
       try {
         const res = await scanNudityClient(master);
-        console.info('[continue] client nudity scan', res);
         if (res?.blocked) {
           let message = 'Contenido adulto detectado.';
           if (res.reason === 'client_real_nudity') {
@@ -180,11 +179,10 @@ export default function Home() {
           return;
         }
       } catch (scanErr) {
-        console.warn('[continue] nudity scan failed', scanErr?.message || scanErr);
+        console.error('[continue] nudity scan failed', scanErr?.message || scanErr);
       }
 
       const moderationUrl = `${import.meta.env.VITE_API_URL || ''}/api/moderate-image`;
-      console.info('[continue] POST', moderationUrl);
       const resp = await apiFetch('/api/moderate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -196,7 +194,6 @@ export default function Home() {
           approxDpi: effDpi || undefined,
         })
       });
-      console.info('[continue] response', resp.ok, resp.status);
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}));
         setErr(`Bloqueado por moderación: ${err.reason || 'desconocido'}`);

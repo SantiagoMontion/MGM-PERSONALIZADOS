@@ -56,7 +56,7 @@ export async function pollJobAndCreateCart(
       opts?.onTick?.(i, last);
       if (isReady(last)) break;
     } catch (e) {
-      console.warn("[poll job-status warn]", e);
+      console.error("[poll job-status warn]", e);
     }
     await sleep(intervalMs);
   }

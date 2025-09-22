@@ -73,7 +73,7 @@ export async function scanNudityClient(dataUrl) {
     return { blocked: false, reason: 'client_clear', scores };
   } catch (e) {
     // On failure to load ML libs in browser, default to allow (server will gate as needed)
-    console.warn('[scanNudityClient] failed', e?.message || e);
+    console.error('[scanNudityClient] failed', e?.message || e);
     return { blocked: false, reason: 'client_scan_failed' };
   }
 }

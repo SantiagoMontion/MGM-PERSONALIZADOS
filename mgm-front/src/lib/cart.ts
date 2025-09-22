@@ -66,7 +66,7 @@ export function openCartUrl(rawUrl: string, options?: OpenCartOptions) {
       if (submitted) return;
     }
   } catch (err) {
-    console.warn('[openCartUrl] invalid url', err);
+    console.error('[openCartUrl] invalid url', err);
   }
   const features = target === '_blank' ? 'noopener' : undefined;
   window.open(rawUrl, target, features);
