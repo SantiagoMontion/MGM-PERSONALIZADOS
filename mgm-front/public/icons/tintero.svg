@@ -1,0 +1,32 @@
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="inkGradient" x1="6" y1="5" x2="19" y2="21" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FF6B6B" />
+      <stop offset="0.48" stop-color="#F43F5E" />
+      <stop offset="1" stop-color="#BE123C" />
+    </linearGradient>
+    <linearGradient id="inkHighlight" x1="9" y1="7" x2="15" y2="15" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFF5F5" stop-opacity="0.9" />
+      <stop offset="1" stop-color="#FFF5F5" stop-opacity="0" />
+    </linearGradient>
+  </defs>
+  <path
+    d="M12.028 2.5c-.224.333-5.528 7.178-5.528 11.238 0 3.802 3.044 6.762 6.8 6.762s6.8-2.96 6.8-6.762c0-4.06-5.304-10.905-5.528-11.238a.8.8 0 0 0-1.544 0Z"
+    fill="url(#inkGradient)"
+  />
+  <path
+    d="M9.35 13.35c0 1.945 1.73 3.525 3.95 3.525s3.95-1.58 3.95-3.525c0-1.666-1.582-3.635-3.091-5.63-.384-.518-1.334-.518-1.718 0-1.509 1.995-3.091 3.964-3.091 5.63Z"
+    fill="#0F172A"
+    fill-opacity="0.25"
+  />
+  <path
+    d="M14.05 7.392c.537.693 1.044 1.326 1.484 1.914a.6.6 0 0 1-.476.96H12.4c-.51 0-.798-.567-.502-.986.358-.511.733-1.045 1.115-1.593.322-.463.999-.468 1.337.006Z"
+    fill="url(#inkHighlight)"
+  />
+  <path
+    d="M9.1 19.45c.96.674 2.146 1.05 3.4 1.05 1.253 0 2.439-.376 3.4-1.05"
+    stroke="rgba(15, 23, 42, 0.35)"
+    stroke-width="1.2"
+    stroke-linecap="round"
+  />
+</svg>
