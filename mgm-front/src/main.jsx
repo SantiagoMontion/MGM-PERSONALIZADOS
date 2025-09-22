@@ -15,6 +15,7 @@ import ComoFunciona from './pages/ComoFunciona.jsx';
 import PreguntasFrecuentes from './pages/PreguntasFrecuentes.jsx';
 import Contacto from './pages/Contacto.jsx';
 import Busqueda from './pages/Busqueda.jsx';
+import NotFound, { NotFoundBoundary } from './pages/NotFound.jsx';
 import { OrderFlowProvider } from './store/orderFlow';
 import { FlowProvider } from './state/flow.js';
 import './globals.css';
@@ -27,6 +28,7 @@ if (typeof globalThis !== 'undefined' && typeof globalThis.Buffer === 'undefined
 const routes = [
   {
     element: <App />,
+    errorElement: <NotFoundBoundary />,
     children: [
       { path: '/', element: <Home /> },
       { path: '/mousepads-personalizados', element: <MousepadsPersonalizados /> },
@@ -37,7 +39,8 @@ const routes = [
       { path: '/confirm', element: <Confirm /> },
       { path: '/mockup', element: <Mockup /> },
       { path: '/creating/:jobId', element: <Creating /> },
-      { path: '/result/:jobId', element: <Result /> }
+      { path: '/result/:jobId', element: <Result /> },
+      { path: '*', element: <NotFound /> }
     ]
   }
 ];
