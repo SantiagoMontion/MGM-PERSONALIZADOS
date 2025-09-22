@@ -269,38 +269,43 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     flipX: false,
     flipY: false,
   });
-  const historyRef = useRef([]); // pila de estados para undo
-  const [histIndex, setHistIndex] = useState(-1);
+  const undoStackRef = useRef([]); // pila de estados anteriores
+  const redoStackRef = useRef([]); // pila de estados para rehacer
+  const [historyCounts, setHistoryCounts] = useState({ undo: 0, redo: 0 });
+  const updateHistoryCounts = useCallback(() => {
+    setHistoryCounts((prev) => {
+      const undo = undoStackRef.current.length;
+      const redo = redoStackRef.current.length;
+      if (prev.undo === undo && prev.redo === redo) return prev;
+      return { undo, redo };
+    });
+  }, []);
   const pushHistory = useCallback(
     (tx) => {
-      historyRef.current = historyRef.current.slice(0, histIndex + 1);
-      if (tx) {
-        historyRef.current.push({ ...tx });
-      }
-      setHistIndex(historyRef.current.length - 1);
+      if (!tx) return;
+      undoStackRef.current.push({ ...tx });
+      redoStackRef.current = [];
+      updateHistoryCounts();
     },
-    [histIndex],
+    [updateHistoryCounts],
   );
   const undo = useCallback(() => {
-    setHistIndex((idx) => {
-      if (idx <= 0) return idx;
-      const nextIdx = idx - 1;
-      const prev = historyRef.current[nextIdx];
-      if (prev) setImgTx({ ...prev });
-      return nextIdx;
-    });
-  }, []);
+    if (undoStackRef.current.length === 0) return;
+    const prev = undoStackRef.current.pop();
+    if (!prev) return;
+    redoStackRef.current.push({ ...imgTx });
+    setImgTx({ ...prev });
+    updateHistoryCounts();
+  }, [imgTx, updateHistoryCounts]);
 
   const redo = useCallback(() => {
-    setHistIndex((idx) => {
-      const lastIdx = historyRef.current.length - 1;
-      if (idx >= lastIdx) return idx;
-      const nextIdx = idx + 1;
-      const next = historyRef.current[nextIdx];
-      if (next) setImgTx({ ...next });
-      return nextIdx;
-    });
-  }, []);
+    if (redoStackRef.current.length === 0) return;
+    const next = redoStackRef.current.pop();
+    if (!next) return;
+    undoStackRef.current.push({ ...imgTx });
+    setImgTx({ ...next });
+    updateHistoryCounts();
+  }, [imgTx, updateHistoryCounts]);
 
   useEffect(() => {
     const handler = (e) => {
@@ -360,8 +365,9 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const didInitRef = useRef(false);
   // Reiniciar al cargar una nueva imagen
   useEffect(() => {
-    historyRef.current = [];
-    setHistIndex(-1);
+    undoStackRef.current = [];
+    redoStackRef.current = [];
+    updateHistoryCounts();
     stickyFitRef.current = null;
     skipStickyFitOnceRef.current = false;
     didInitRef.current = false;
@@ -373,7 +379,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       x: (wrapSize.w - stageW) / 2,
       y: (wrapSize.h - stageH) / 2,
     });
-  }, [imageUrl, imageFile]);
+  }, [imageUrl, imageFile, updateHistoryCounts]);
 
   // Ajuste inicial: imagen contenida y centrada una sola vez por carga
   useEffect(() => {
@@ -391,7 +397,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       flipY: false,
     };
     setImgTx({ ...initial });
-    pushHistory(initial);
     setMode("contain");
     stickyFitRef.current = "contain";
     skipStickyFitOnceRef.current = true;
@@ -983,9 +988,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
   const padRectPx = getPadRectPx();
   const exportScale = padRectPx.w / wCm;
-  const historyLength = historyRef.current.length;
-  const canUndo = histIndex > 0;
-  const canRedo = histIndex >= 0 && histIndex < historyLength - 1;
+  const canUndo = historyCounts.undo > 0;
+  const canRedo = historyCounts.redo > 0;
 
   const exportPadAsBlob = async () => {
     if (!exportStageRef.current) return null;
