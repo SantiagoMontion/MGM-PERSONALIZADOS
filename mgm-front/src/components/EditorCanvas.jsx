@@ -74,6 +74,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const stageRef = useRef(null);
   const exportStageRef = useRef(null);
   const padGroupRef = useRef(null);
+  const glassOverlayRef = useRef(null);
   const [wrapSize, setWrapSize] = useState({ w: 960, h: 540 });
   const hasAdjustedViewRef = useRef(false);
   useEffect(() => {
@@ -366,6 +367,37 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   // medidas visuales (para offset centro)
   const dispW = imgBaseCm ? imgBaseCm.w * imgTx.scaleX : 0;
   const dispH = imgBaseCm ? imgBaseCm.h * imgTx.scaleY : 0;
+  const hasGlassOverlay =
+    material === "Glasspad" &&
+    !!imgEl &&
+    !!imgBaseCm &&
+    dispW > 0 &&
+    dispH > 0;
+
+  useEffect(() => {
+    const node = glassOverlayRef.current;
+    if (!node) return;
+    if (!hasGlassOverlay) {
+      node.clearCache();
+      node.filters([]);
+      node.getLayer()?.batchDraw();
+      return;
+    }
+    const pixelRatio = Math.max(1, 2 * baseScale * viewScale);
+    node.cache({ pixelRatio });
+    node.filters([Konva.Filters.Blur]);
+    node.blurRadius(4);
+    node.getLayer()?.batchDraw();
+  }, [
+    hasGlassOverlay,
+    baseScale,
+    viewScale,
+    imgTx.x_cm,
+    imgTx.y_cm,
+    imgTx.rotation_deg,
+    imgTx.scaleX,
+    imgTx.scaleY,
+  ]);
 
   const theta = (imgTx.rotation_deg * Math.PI) / 180;
   const rotAABBHalf = (w, h, ang) => ({
@@ -1339,10 +1371,11 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
             {/* máscara fuera del área */}
           </Layer>
-          {material === "Glasspad" && (
+          {hasGlassOverlay && (
             <Layer id="glasspadOverlayLayer" listening={false}>
               <Group
                 id="glassOverlayGroup"
+                ref={glassOverlayRef}
                 x={bleedCm}
                 y={bleedCm}
                 width={wCm}
@@ -1350,32 +1383,17 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                 clipFunc={(ctx) => {
                   ctx.rect(0, 0, wCm, hCm);
                 }}
-                ref={(node) => {
-                  if (!node) return;
-                  const k = baseScale * viewScale;
-                  node.cache({ pixelRatio: 2 * k });
-                  node.filters([Konva.Filters.Blur]);
-                  node.blurRadius(2);
-                }}
               >
-                <Rect width={wCm} height={hCm} fill="rgba(255,255,255,0.28)" />
-                <Rect
-                  width={wCm}
-                  height={hCm}
-                  fillLinearGradientStartPoint={{ x: 0, y: 0 }}
-                  fillLinearGradientEndPoint={{ x: wCm, y: hCm }}
-                  fillLinearGradientColorStops={[
-                    0, 'rgba(255,255,255,0.16)',
-                    0.45, 'rgba(255,255,255,0.06)',
-                    1, 'rgba(255,255,255,0)',
-                  ]}
-                  globalCompositeOperation="lighter"
-                />
-                <Rect
-                  width={wCm}
-                  height={hCm}
-                  stroke="rgba(255,255,255,0.22)"
-                  strokeWidth={1}
+                <KonvaImage
+                  image={imgEl}
+                  x={imgTx.x_cm - bleedCm + dispW / 2}
+                  y={imgTx.y_cm - bleedCm + dispH / 2}
+                  width={dispW}
+                  height={dispH}
+                  offsetX={dispW / 2}
+                  offsetY={dispH / 2}
+                  rotation={imgTx.rotation_deg}
+                  listening={false}
                 />
               </Group>
             </Layer>
