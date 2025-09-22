@@ -63,56 +63,80 @@ export default function SizeControls({ material, size, onChange, locked = false 
 
   return (
     <div className={styles.container}>
-      <label>Material
-        <select
-          value={material}
-          onChange={(e) => onChange({ material: e.target.value })}
-        >
-          <option>Classic</option>
-          <option>PRO</option>
-          <option>Glasspad</option>
-        </select>
-      </label>
+      <div className={styles.section}>
+        <span className={styles.groupLabel}>Medidas (cm)</span>
+        <div className={styles.dimensionsRow}>
+          <label className={styles.inputLabel}>
+            Largo
+            <div className={styles.inputControl}>
+              <input
+                className={styles.input}
+                value={isGlasspad ? GLASSPAD_SIZE_CM.w : wText}
+                onChange={!isGlasspad ? handleWChange : undefined}
+                onBlur={!isGlasspad ? handleWBlur : undefined}
+                inputMode="decimal"
+                pattern="[0-9]*"
+                disabled={locked || isGlasspad}
+              />
+            </div>
+          </label>
+          <label className={styles.inputLabel}>
+            Ancho
+            <div className={styles.inputControl}>
+              <input
+                className={styles.input}
+                value={isGlasspad ? GLASSPAD_SIZE_CM.h : hText}
+                onChange={!isGlasspad ? handleHChange : undefined}
+                onBlur={!isGlasspad ? handleHBlur : undefined}
+                inputMode="decimal"
+                pattern="[0-9]*"
+                disabled={locked || isGlasspad}
+              />
+            </div>
+          </label>
+        </div>
 
-      <label>Ancho (cm)
-        <input
-          value={isGlasspad ? GLASSPAD_SIZE_CM.w : wText}
-          onChange={!isGlasspad ? handleWChange : undefined}
-          onBlur={!isGlasspad ? handleWBlur : undefined}
-          inputMode="decimal"
-          pattern="[0-9]*"
-          disabled={locked || isGlasspad}
-        />
-      </label>
+        {presets.length > 0 && (
+          <div className={styles.presets}>
+            {presets.map(p => (
+              <button
+                key={`${p.w}x${p.h}`}
+                type="button"
+                className={styles.presetButton}
+                onClick={() => applyPreset(p.w, p.h)}
+                disabled={locked}
+              >
+                {p.w}×{p.h}
+              </button>
+            ))}
+          </div>
+        )}
 
-      <label>Alto (cm)
-        <input
-          value={isGlasspad ? GLASSPAD_SIZE_CM.h : hText}
-          onChange={!isGlasspad ? handleHChange : undefined}
-          onBlur={!isGlasspad ? handleHBlur : undefined}
-          inputMode="decimal"
-          pattern="[0-9]*"
-          disabled={locked || isGlasspad}
-        />
-      </label>
+        {!locked && !isGlasspad && (
+          <p className={styles.helper}>
+            Máximo {limits.maxW}×{limits.maxH} cm para {material}
+          </p>
+        )}
 
-      <div className={styles.presets}>
-        {presets.map(p => (
-          <button key={`${p.w}x${p.h}`} onClick={() => applyPreset(p.w, p.h)} disabled={locked}>
-            {p.w}×{p.h}
-          </button>
-        ))}
+        {locked && (
+          <p className={styles.helper}>Medida fija {GLASSPAD_SIZE_CM.w}×{GLASSPAD_SIZE_CM.h} cm</p>
+        )}
       </div>
 
-      {!locked && !isGlasspad && (
-        <small className={styles.helper}>
-          Máximo {limits.maxW}×{limits.maxH} cm para {material}
-        </small>
-      )}
-
-      {locked && (
-        <small className={styles.helper}>Medida fija {GLASSPAD_SIZE_CM.w}×{GLASSPAD_SIZE_CM.h} cm</small>
-      )}
+      <label className={`${styles.section} ${styles.selectSection}`}>
+        <span className={styles.groupLabel}>Serie</span>
+        <div className={styles.selectControl}>
+          <select
+            className={styles.select}
+            value={material}
+            onChange={(e) => onChange({ material: e.target.value })}
+          >
+            <option>Classic</option>
+            <option>PRO</option>
+            <option>Glasspad</option>
+          </select>
+        </div>
+      </label>
     </div>
   );
 }
