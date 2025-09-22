@@ -164,8 +164,8 @@ test('evaluateImage blocks obvious skin exposure', async () => {
   const buf = await createSyntheticNudityBuffer();
   const result = await evaluateImage(buf, 'design.png');
   assert.equal(result.label, 'BLOCK');
-  assert(result.reasons.some((r) => r.startsWith('real_nudity')));
-  assert(result.confidence >= 0.55);
+  assert(result.reasons.includes('real_nudity'));
+  assert(result.confidence >= 0.62);
 });
 
 test('evaluateImage allows neutral graphics', async () => {
@@ -179,7 +179,7 @@ test('evaluateImage allows stylized explicit art', async () => {
   const buf = await createCartoonBuffer();
   const result = await evaluateImage(buf, 'stylized.png', '', { approxDpi: 320 });
   assert.equal(result.label, 'ALLOW');
-  assert.equal(result.reasons.includes('anime_explicit_allowed'), true);
+  assert.equal(result.reasons.includes('no_violation_detected'), true);
   assert(result.confidence >= 0.7);
 });
 
@@ -187,8 +187,8 @@ test('evaluateImage allows stylized character renders', async () => {
   const buf = await createStylizedCharacterBuffer();
   const result = await evaluateImage(buf, 'character.png', '', { approxDpi: 320 });
   assert.equal(result.label, 'ALLOW');
-  assert.equal(result.reasons.some((reason) => reason.includes('anime')), true);
-  assert(result.confidence >= 0.65);
+  assert.equal(result.reasons.includes('no_violation_detected'), true);
+  assert(result.confidence >= 0.7);
 });
 
 test('evaluateImage blocks nazi symbols', async () => {
