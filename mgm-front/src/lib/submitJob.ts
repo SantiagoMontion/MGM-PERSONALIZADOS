@@ -52,7 +52,6 @@ export async function submitJob(body: SubmitJobBody): Promise<any> {
     );
   }
 
-  console.log("[submit-job OK]", { diagId, job: data?.job });
   return data?.job;
 }
 

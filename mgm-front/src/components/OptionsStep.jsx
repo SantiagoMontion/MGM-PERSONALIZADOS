@@ -118,8 +118,8 @@ export default function OptionsStep({ uploaded, onSubmitted }) {
     });
 
     const pre = prevalidateSubmitBody(submitBody);
-    console.log('[PREVALIDATE OptionsStep]', pre, submitBody);
     if (!pre.ok) {
+      console.error('[PREVALIDATE OptionsStep]', pre, submitBody);
       setErr('Corregí antes de enviar: ' + pre.problems.join(' | '));
       setBusy(false);
       return;

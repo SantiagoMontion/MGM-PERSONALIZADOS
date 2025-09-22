@@ -920,22 +920,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       i.onload = () => resolve({ width: i.width, height: i.height });
       i.src = URL.createObjectURL(blob);
     });
-    const desc = getRenderDescriptorV2();
-    console.log({
-      pad_px: desc?.pad_px,
-      canvas_px: desc?.canvas_px,
-      place_px: desc?.place_px,
-      rotate_deg: desc?.rotate_deg,
-      w_cm: wCm,
-      h_cm: hCm,
-      bleed_mm: bleedMm,
-      inner_w_px,
-      inner_h_px,
-      pixelRatioX,
-      pixelRatioY,
-      pixelRatio,
-      outBitmap,
-    });
     return blob;
   };
 
@@ -1105,8 +1089,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       });
 
       const pre = prevalidateSubmitBody(submitBody);
-      console.log("[PREVALIDATE EditorCanvas]", pre, submitBody);
       if (!pre.ok) {
+        console.error("[PREVALIDATE EditorCanvas]", pre, submitBody);
         alert(pre.problems.join("\n"));
         return;
       }

@@ -13,14 +13,16 @@
     "dev:all": "concurrently -k -n api,front -c blue,green \"vercel dev --listen 3001\" \"cd mgm-front && vite\"",
     "deploy:prod": "vercel --prod --yes",
     "doctor:vercel": "node scripts/doctor-vercel.mjs",
-    "doctor:shopify-env": "node -e \"const r=['SHOPIFY_STORE_DOMAIN','SHOPIFY_ADMIN_TOKEN','SHOPIFY_API_VERSION'];const m=r.filter(k=>!process.env[k]);console.log({missing:m});process.exit(m.length?1:0)\""
+    "doctor:shopify-env": "node -e \"const r=['SHOPIFY_STORE_DOMAIN','SHOPIFY_ADMIN_TOKEN','SHOPIFY_API_VERSION'];const m=r.filter(k=>!process.env[k]);console.log({missing:m});process.exit(m.length?1:0)\"",
+    "test": "node --test"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.54.0",
-    "sharp": "^0.33.4",
-    "tesseract.js": "^5.0.5"
+    "sharp": "^0.33.5",
+    "tesseract.js": "^5.1.1",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
-    "concurrently": "^8.2.0"
+    "concurrently": "^8.2.2"
   }
 }

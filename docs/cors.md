@@ -1,55 +1,24 @@
 # CORS Layer
 
-This project exposes API routes under `/api`. Reusable CORS helpers live in [`lib/cors.ts`](../lib/cors.ts).
+This project exposes API routes under `/api`. Reusable CORS helpers live in [`lib/cors.js`](../lib/cors.js).
 
 ## Allow list
-Edit `ALLOWED_ORIGINS` inside `lib/cors.ts` to modify permitted origins.
+Edit the `ALLOWED` set inside `lib/cors.js` to modify permitted origins.
 
 ## Adding CORS to new endpoints
-For Pages API style handlers (`api/*.js`), compute CORS headers per request:
+For Vercel serverless handlers (`api/*.js`), wrap the exported handler with `withCors`:
 
 ```js
-import { buildCorsHeaders } from '../lib/cors';
+import { withCors } from '../lib/cors.js';
 
-export default async function handler(req, res) {
-  const origin = req.headers.origin || null;
-  const cors = buildCorsHeaders(origin);
-  if (req.method === 'OPTIONS') {
-    if (!cors) return res.status(403).json({ error: 'origin_not_allowed' });
-    Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v));
-    return res.status(204).end();
-  }
-  if (!cors) return res.status(403).json({ error: 'origin_not_allowed' });
-  Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v));
-  // ...
+async function handler(req, res) {
+  // handler logic here
 }
+
+export default withCors(handler);
 ```
 
-For App Router routes (`app/api/**`), use:
-
-```ts
-import { buildCorsHeaders, preflight, applyCorsToResponse } from '../lib/cors';
-
-export async function OPTIONS(req: Request) {
-  return preflight(req.headers.get('origin'));
-}
-
-export async function POST(req: Request) {
-  const origin = req.headers.get('origin');
-  const cors = buildCorsHeaders(origin);
-  if (!cors) {
-    return new Response(JSON.stringify({ error: 'origin_not_allowed' }), {
-      status: 403,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-  const res = new Response(JSON.stringify({ ok: true }), {
-    status: 200,
-    headers: { 'Content-Type': 'application/json' },
-  });
-  return applyCorsToResponse(res, origin);
-}
-```
+The helper automatically handles preflight requests and applies headers on all responses. You can opt-in to verbose logging by setting `DEBUG_CORS=1`.
 
 ## Smoke test
 Run `npm run cors:smoke` to verify preflight and regular requests.

@@ -22,7 +22,6 @@ export default function UploadStep({ onUploaded }) {
     try {
       const localUrl = URL.createObjectURL(file);
       const uploaded = { file, localUrl };
-      console.log('[UploadStep] local-only', uploaded);
       onUploaded(uploaded);
     } catch (e) {
       console.error(e);

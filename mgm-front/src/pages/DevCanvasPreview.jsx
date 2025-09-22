@@ -67,10 +67,6 @@ export default function DevCanvasPreview() {
       const page = pdfDoc.addPage([page_w_pt, page_h_pt]);
       const jpg = await pdfDoc.embedJpg(jpegBytes);
       page.drawImage(jpg, { x: 0, y: 0, width: page_w_pt, height: page_h_pt });
-      console.log('[EXPORT LIENZO]', {
-        out_px: { w: canvas.width, h: canvas.height },
-        baseName,
-      });
       const pdfBytes = await pdfDoc.save();
       downloadBlob(new Blob([pdfBytes], { type: 'application/pdf' }), `${baseName}.pdf`);
     };
@@ -166,21 +162,6 @@ export default function DevCanvasPreview() {
   function continueFlow() {
     navigate(`/creating/${jobId}`, { state: { render_v2, skipFinalize: onlyPreview } });
   }
-
-  console.log('[PREVIEW DEBUG]', {
-    render_v2,
-    canvas_px: render_v2?.canvas_px,
-    pad_px: render_v2?.pad_px,
-    place_px: render_v2?.place_px,
-    place_rel: render_v2?.place_px && render_v2?.pad_px ? {
-      x: render_v2.place_px.x - render_v2.pad_px.x,
-      y: render_v2.place_px.y - render_v2.pad_px.y,
-    } : undefined,
-    rotate_deg: render_v2?.rotate_deg,
-    w_cm: render_v2?.w_cm,
-    h_cm: render_v2?.h_cm,
-    bleed_mm: render_v2?.bleed_mm,
-  });
 
   return (
     <div style={{ padding: '10px' }}>
