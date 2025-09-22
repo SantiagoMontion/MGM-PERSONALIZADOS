@@ -87,12 +87,36 @@ export default withCors(async function handler(req, res) {
         const m = await import('../lib/handlers/renderDryrun.js');
         return m.default(req, res);
       }
+      case 'GET seo/home': {
+        const m = await import('../lib/handlers/seoPages.js');
+        return m.seoHome(req, res);
+      }
+      case 'GET seo/editor': {
+        const m = await import('../lib/handlers/seoPages.js');
+        return m.seoEditor(req, res);
+      }
+      case 'GET seo/checkout': {
+        const m = await import('../lib/handlers/seoPages.js');
+        return m.seoCheckout(req, res);
+      }
+      case 'GET seo/product': {
+        const m = await import('../lib/handlers/seoPages.js');
+        return m.seoProduct(req, res);
+      }
       case 'POST worker-process': {
         const m = await import('../lib/handlers/workerProcess.js');
         return m.default(req, res);
       }
       case 'POST shopify-webhook': {
         const m = await import('../lib/handlers/shopifyWebhook.js');
+        return m.default(req, res);
+      }
+      case 'GET sitemap.xml': {
+        const m = await import('../lib/handlers/sitemap.js');
+        return m.default(req, res);
+      }
+      case 'GET robots.txt': {
+        const m = await import('../lib/handlers/robots.js');
         return m.default(req, res);
       }
       default: {
