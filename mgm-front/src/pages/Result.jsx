@@ -21,27 +21,27 @@ export default function Result() {
   useEffect(() => {
     async function fetchJob() {
       try {
-          const res = await apiFetch(
-            `/api/job-status?job_id=${encodeURIComponent(jobId)}`,
-          );
+        const res = await apiFetch(
+          `/api/job-status?job_id=${encodeURIComponent(jobId)}`,
+        );
         const j = await res.json();
         if (res.ok && j.ok) setJob(j.job);
-      } catch (err) {
-        /* ignore */
+      } catch (error) {
+        console.error("[result] job status failed", error);
       }
     }
     fetchJob();
-    }, [jobId]);
+  }, [jobId]);
 
   useEffect(() => {
     if (!urls.cart_url_follow || !urls.checkout_url_now) {
       async function ensureUrls() {
         try {
-            const res = await apiFetch(`/api/create-cart-link`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ job_id: jobId }),
-            });
+          const res = await apiFetch(`/api/create-cart-link`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ job_id: jobId }),
+          });
           const j = await res.json();
           if (res.ok) {
             setUrls({
@@ -51,13 +51,13 @@ export default function Result() {
               checkout_plain: j.checkout_plain,
             });
           }
-        } catch (err) {
-          /* ignore */
+        } catch (error) {
+          console.error("[result] ensure urls failed", error);
         }
       }
       ensureUrls();
     }
-    }, [urls, jobId]);
+  }, [urls, jobId]);
 
   if (!urls.cart_url_follow || !urls.checkout_url_now) {
     return <p>Preparando tu carrito…</p>;

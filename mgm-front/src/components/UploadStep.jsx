@@ -3,7 +3,7 @@ import { useRef, useState } from 'react';
 import styles from './UploadStep.module.css';
 import LoadingOverlay from './LoadingOverlay';
 
-export default function UploadStep({ onUploaded }) {
+export default function UploadStep({ onUploaded, className = '', renderTrigger }) {
   const inputRef = useRef(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -32,8 +32,18 @@ export default function UploadStep({ onUploaded }) {
     }
   }
 
+  const triggerContent = typeof renderTrigger === 'function'
+    ? renderTrigger({ openPicker, busy })
+    : (
+      <button type="button" onClick={openPicker} disabled={busy} className={styles.defaultTrigger}>
+        {busy ? 'Subiendo…' : 'Subir imagen'}
+      </button>
+    );
+
+  const containerClassName = [styles.container, className].filter(Boolean).join(' ');
+
   return (
-    <div className={styles.container}>
+    <div className={containerClassName}>
       <input
         ref={inputRef}
         type="file"
@@ -41,9 +51,7 @@ export default function UploadStep({ onUploaded }) {
         className={styles.hiddenInput}
         onChange={handlePicked}
       />
-      <button onClick={openPicker} disabled={busy}>
-        {busy ? 'Subiendo…' : 'Subir imagen'}
-      </button>
+      {triggerContent}
 
       <LoadingOverlay show={busy} messages={phrases} />
 

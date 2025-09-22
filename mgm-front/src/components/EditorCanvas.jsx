@@ -76,6 +76,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     material,
     onPickedColor,
     onClearImage,
+    showHistoryControls = true,
+    onHistoryChange,
   },
   ref,
 ) {
@@ -315,6 +317,10 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     setImgTx({ ...next });
     updateHistoryCounts();
   }, [imgTx, updateHistoryCounts]);
+
+  useEffect(() => {
+    onHistoryChange?.(historyCounts);
+  }, [historyCounts, onHistoryChange]);
 
   useEffect(() => {
     const handler = (e) => {
@@ -1137,6 +1143,9 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     exportPreviewDataURL,
     exportPadDataURL,
     startPickColor,
+    undo,
+    redo,
+    getHistoryCounts: () => ({ ...historyCounts }),
   }));
 
   // popover color
@@ -1216,7 +1225,327 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   }
 
   return (
-    <div className={styles.colorWrapper}>
+    <div className={styles.editorRoot}>
+      {/* Canvas */}
+      <div
+        ref={wrapRef}
+        className={`${styles.canvasWrapper} ${isPanningRef.current ? styles.grabbing : ""} ${isPickingColor ? styles.picking : ""}`}
+      >
+        {showHistoryControls && (
+          <div className={styles.historyControls}>
+            <button
+              type="button"
+              onClick={undo}
+              disabled={!canUndo}
+              className={styles.historyButton}
+              aria-label="Deshacer"
+            >
+              Deshacer
+            </button>
+            <button
+              type="button"
+              onClick={redo}
+              disabled={!canRedo}
+              className={styles.historyButton}
+              aria-label="Rehacer"
+            >
+              Rehacer
+            </button>
+            <button
+              type="button"
+              onClick={() => onClearImage?.()}
+              disabled={!onClearImage || !imageUrl}
+              className={`${styles.historyButton} ${styles.historyButtonDanger}`}
+            >
+              Eliminar
+            </button>
+          </div>
+        )}
+        <Stage
+          ref={stageRef}
+          width={wrapSize.w}
+          height={wrapSize.h}
+          scaleX={baseScale * viewScale}
+          scaleY={baseScale * viewScale}
+          x={viewPos.x}
+          y={viewPos.y}
+          draggable={false}
+          onWheel={onStageWheel}
+          onMouseDown={onStageMouseDown}
+          onMouseMove={onStageMouseMove}
+          onMouseUp={endPan}
+          onMouseLeave={endPan}
+        >
+          <Layer>
+            {/* fondo global del stage */}
+            <Rect
+              x={-2000}
+              y={-2000}
+              width={4000}
+              height={4000}
+              fill={STAGE_BG}
+            />
+
+            {/* Mesa de trabajo (gris) con borde redondeado SIEMPRE */}
+            <Rect
+              x={0}
+              y={0}
+              width={workCm.w}
+              height={workCm.h}
+              fill="#f3f4f6"
+              cornerRadius={cornerRadiusCm + bleedCm}
+              listening={false}
+            />
+
+            {/* Si 'contain': pintamos el color de fondo SIEMPRE debajo del arte (también al deseleccionar) */}
+            {mode === "contain" && (
+              <Rect
+                x={0}
+                y={0}
+                width={workCm.w}
+                height={workCm.h}
+                fill={bgColor}
+                cornerRadius={cornerRadiusCm + bleedCm}
+                listening={false}
+              />
+            )}
+
+            {/* IMAGEN: seleccionada = sin recorte; deseleccionada = recortada con radio */}
+            {imgEl &&
+              imgBaseCm &&
+              (showTransformer ? (
+                <>
+                  <KonvaImage
+                    ref={imgRef}
+                    image={imgEl}
+                    x={imgTx.x_cm + dispW / 2}
+                    y={imgTx.y_cm + dispH / 2}
+                    width={dispW}
+                    height={dispH}
+                    offsetX={dispW / 2}
+                    offsetY={dispH / 2}
+                    scaleX={imgTx.flipX ? -1 : 1}
+                    scaleY={imgTx.flipY ? -1 : 1}
+                    rotation={imgTx.rotation_deg}
+                    draggable
+                    dragBoundFunc={dragBoundFunc}
+                    onDragStart={onImgDragStart}
+                    onMouseDown={onImgMouseDown}
+                    onDragMove={onImgDragMove}
+                    onDragEnd={onImgDragEnd}
+                  />
+                    <Transformer
+                      ref={trRef}
+                      visible={showTransformer}
+                      rotateEnabled
+                      rotateAnchorOffset={40}
+                      rotationSnaps={[0, 90, 180, 270]}
+                      keepRatio={keepRatio}
+                      enabledAnchors={[
+                        "top-left",
+                        "top-center",
+                        "top-right",
+                        "middle-left",
+                        "middle-right",
+                        "bottom-left",
+                        "bottom-center",
+                        "bottom-right",
+                      ]}
+                    boundBoxFunc={(oldBox, newBox) => {
+                      const MIN_W = 0.02 * (imgBaseCm?.w || 1);
+                      const MIN_H = 0.02 * (imgBaseCm?.h || 1);
+
+                      if (!keepRatioRef.current) {
+                        // ⟵ MODO LIBRE: sólo mínimo, SIN límites superiores
+                        const w = Math.max(MIN_W, newBox.width);
+                        const h = Math.max(MIN_H, newBox.height);
+                        return { ...newBox, width: w, height: h };
+                      }
+
+                      // Mantener proporción: con topes razonables
+                      const MAX_W = (imgBaseCm?.w || 1) * IMG_ZOOM_MAX;
+                      const MAX_H = (imgBaseCm?.h || 1) * IMG_ZOOM_MAX;
+                      const w = Math.max(MIN_W, Math.min(newBox.width, MAX_W));
+                      const h = Math.max(MIN_H, Math.min(newBox.height, MAX_H));
+                      return { ...newBox, width: w, height: h };
+                    }}
+                    onTransformStart={onTransformStart}
+                    onTransformEnd={onTransformEnd}
+                  />
+                </>
+              ) : (
+                <Group
+                  clipFunc={(ctx) => {
+                    const r = cornerRadiusCm + bleedCm;
+                    const w = workCm.w;
+                    const h = workCm.h;
+                    const rr = Math.max(0, Math.min(r, Math.min(w, h) / 2));
+                    ctx.beginPath();
+                    ctx.moveTo(rr, 0);
+                    ctx.lineTo(w - rr, 0);
+                    ctx.arcTo(w, 0, w, rr, rr);
+                    ctx.lineTo(w, h - rr);
+                    ctx.arcTo(w, h, w - rr, h, rr);
+                    ctx.lineTo(rr, h);
+                    ctx.arcTo(0, h, 0, h - rr, rr);
+                    ctx.lineTo(0, rr);
+                    ctx.arcTo(0, 0, rr, 0, rr);
+                    ctx.closePath();
+                  }}
+                >
+                  <Rect
+                    x={0}
+                    y={0}
+                    width={workCm.w}
+                    height={workCm.h}
+                    fill="transparent"
+                  />
+                  {/* si estás en 'contain', pintar el color debajo del arte */}
+                  {mode === "contain" && (
+                    <Rect
+                      x={0}
+                      y={0}
+                      width={workCm.w}
+                      height={workCm.h}
+                      fill={bgColor}
+                    />
+                  )}
+                  <KonvaImage
+                    ref={imgRef}
+                    image={imgEl}
+                    x={imgTx.x_cm + dispW / 2}
+                    y={imgTx.y_cm + dispH / 2}
+                    width={dispW}
+                    height={dispH}
+                    offsetX={dispW / 2}
+                    offsetY={dispH / 2}
+                    scaleX={imgTx.flipX ? -1 : 1}
+                    scaleY={imgTx.flipY ? -1 : 1}
+                    rotation={imgTx.rotation_deg}
+                    draggable={false}
+                    listening={true}
+                    onMouseDown={onImgMouseDown}
+                  />
+                </Group>
+              ))}
+
+            {/* máscara fuera del área */}
+          </Layer>
+          {hasGlassOverlay && (
+            <Layer id="glasspadOverlayLayer" listening={false}>
+              <Group
+                id="glassOverlayGroup"
+                ref={glassOverlayRef}
+                x={bleedCm}
+                y={bleedCm}
+                width={wCm}
+                height={hCm}
+                clipFunc={(ctx) => {
+                  ctx.rect(0, 0, wCm, hCm);
+                }}
+              >
+                <KonvaImage
+                  image={imgEl}
+                  x={imgTx.x_cm - bleedCm + dispW / 2}
+                  y={imgTx.y_cm - bleedCm + dispH / 2}
+                  width={dispW}
+                  height={dispH}
+                  offsetX={dispW / 2}
+                  offsetY={dispH / 2}
+                  scaleX={imgTx.flipX ? -1 : 1}
+                  scaleY={imgTx.flipY ? -1 : 1}
+                  rotation={imgTx.rotation_deg}
+                  listening={false}
+                />
+              </Group>
+            </Layer>
+          )}
+          <Layer listening={false}>
+            {/* guías */}
+            <Rect
+              x={0}
+              y={0}
+              width={workCm.w}
+              height={workCm.h}
+              stroke="#ef4444"
+              strokeWidth={0.04}
+              cornerRadius={cornerRadiusCm + bleedCm}
+            />
+            <Rect
+              x={bleedCm + PRIMARY_SAFE_MARGIN_CM}
+              y={bleedCm + PRIMARY_SAFE_MARGIN_CM}
+              width={Math.max(0, wCm - 2 * PRIMARY_SAFE_MARGIN_CM)}
+              height={Math.max(0, hCm - 2 * PRIMARY_SAFE_MARGIN_CM)}
+              stroke="#111827"
+              dash={[0.4, 0.4]}
+              strokeWidth={0.04}
+              cornerRadius={Math.max(
+                0,
+                cornerRadiusCm - PRIMARY_SAFE_MARGIN_CM,
+              )}
+            />
+            <Rect
+              x={bleedCm + SECONDARY_SAFE_MARGIN_CM}
+              y={bleedCm + SECONDARY_SAFE_MARGIN_CM}
+              width={Math.max(0, wCm - 2 * SECONDARY_SAFE_MARGIN_CM)}
+              height={Math.max(0, hCm - 2 * SECONDARY_SAFE_MARGIN_CM)}
+              stroke="#6b7280"
+              dash={[0.3, 0.3]}
+              strokeWidth={0.03}
+              cornerRadius={Math.max(
+                0,
+                cornerRadiusCm - SECONDARY_SAFE_MARGIN_CM,
+              )}
+            />
+          </Layer>
+        </Stage>
+        <Stage
+          ref={exportStageRef}
+          width={padRectPx.w}
+          height={padRectPx.h}
+          style={{ display: "none" }}
+        >
+          <Layer>
+            <Group
+              ref={padGroupRef}
+              clipX={0}
+              clipY={0}
+              clipWidth={padRectPx.w}
+              clipHeight={padRectPx.h}
+            >
+              <Rect
+                x={0}
+                y={0}
+                width={padRectPx.w}
+                height={padRectPx.h}
+                fill={mode === "contain" ? bgColor : "#ffffff"}
+                listening={false}
+              />
+              {imgEl && imgBaseCm && (
+                <KonvaImage
+                  image={imgEl}
+                  x={(imgTx.x_cm - bleedCm + dispW / 2) * exportScale}
+                  y={(imgTx.y_cm - bleedCm + dispH / 2) * exportScale}
+                  width={dispW * exportScale}
+                  height={dispH * exportScale}
+                  offsetX={(dispW * exportScale) / 2}
+                  offsetY={(dispH * exportScale) / 2}
+                  scaleX={imgTx.flipX ? -1 : 1}
+                  scaleY={imgTx.flipY ? -1 : 1}
+                  rotation={imgTx.rotation_deg}
+                  listening={false}
+                />
+              )}
+            </Group>
+          </Layer>
+        </Stage>
+        {imageUrl && imgStatus !== "loaded" && (
+          <div className={`spinner ${styles.spinnerOverlay}`} />
+        )}
+      </div>
+
+      {lastDiag && <p className={styles.errorBox}>{lastDiag}</p>}
+
       {/* Toolbar */}
       <div className={styles.toolbar}>
         <button
@@ -1507,324 +1836,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
           >
             {busy ? "Creando…" : "Crear job"}
           </button>
-        )}
-      </div>
-
-      {lastDiag && <p className={styles.errorBox}>{lastDiag}</p>}
-
-      {/* Canvas */}
-      <div
-        ref={wrapRef}
-        className={`${styles.canvasWrapper} ${isPanningRef.current ? styles.grabbing : ""} ${isPickingColor ? styles.picking : ""}`}
-      >
-        <div className={styles.historyControls}>
-          <button
-            type="button"
-            onClick={undo}
-            disabled={!canUndo}
-            className={styles.historyButton}
-            aria-label="Deshacer"
-          >
-            Deshacer
-          </button>
-          <button
-            type="button"
-            onClick={redo}
-            disabled={!canRedo}
-            className={styles.historyButton}
-            aria-label="Rehacer"
-          >
-            Rehacer
-          </button>
-          <button
-            type="button"
-            onClick={() => onClearImage?.()}
-            disabled={!onClearImage || !imageUrl}
-            className={`${styles.historyButton} ${styles.historyButtonDanger}`}
-          >
-            Eliminar
-          </button>
-        </div>
-        <Stage
-          ref={stageRef}
-          width={wrapSize.w}
-          height={wrapSize.h}
-          scaleX={baseScale * viewScale}
-          scaleY={baseScale * viewScale}
-          x={viewPos.x}
-          y={viewPos.y}
-          draggable={false}
-          onWheel={onStageWheel}
-          onMouseDown={onStageMouseDown}
-          onMouseMove={onStageMouseMove}
-          onMouseUp={endPan}
-          onMouseLeave={endPan}
-        >
-          <Layer>
-            {/* fondo global del stage */}
-            <Rect
-              x={-2000}
-              y={-2000}
-              width={4000}
-              height={4000}
-              fill={STAGE_BG}
-            />
-
-            {/* Mesa de trabajo (gris) con borde redondeado SIEMPRE */}
-            <Rect
-              x={0}
-              y={0}
-              width={workCm.w}
-              height={workCm.h}
-              fill="#f3f4f6"
-              cornerRadius={cornerRadiusCm + bleedCm}
-              listening={false}
-            />
-
-            {/* Si 'contain': pintamos el color de fondo SIEMPRE debajo del arte (también al deseleccionar) */}
-            {mode === "contain" && (
-              <Rect
-                x={0}
-                y={0}
-                width={workCm.w}
-                height={workCm.h}
-                fill={bgColor}
-                cornerRadius={cornerRadiusCm + bleedCm}
-                listening={false}
-              />
-            )}
-
-            {/* IMAGEN: seleccionada = sin recorte; deseleccionada = recortada con radio */}
-            {imgEl &&
-              imgBaseCm &&
-              (showTransformer ? (
-                <>
-                  <KonvaImage
-                    ref={imgRef}
-                    image={imgEl}
-                    x={imgTx.x_cm + dispW / 2}
-                    y={imgTx.y_cm + dispH / 2}
-                    width={dispW}
-                    height={dispH}
-                    offsetX={dispW / 2}
-                    offsetY={dispH / 2}
-                    scaleX={imgTx.flipX ? -1 : 1}
-                    scaleY={imgTx.flipY ? -1 : 1}
-                    rotation={imgTx.rotation_deg}
-                    draggable
-                    dragBoundFunc={dragBoundFunc}
-                    onDragStart={onImgDragStart}
-                    onMouseDown={onImgMouseDown}
-                    onDragMove={onImgDragMove}
-                    onDragEnd={onImgDragEnd}
-                  />
-                    <Transformer
-                      ref={trRef}
-                      visible={showTransformer}
-                      rotateEnabled
-                      rotateAnchorOffset={40}
-                      rotationSnaps={[0, 90, 180, 270]}
-                      keepRatio={keepRatio}
-                      enabledAnchors={[
-                        "top-left",
-                        "top-center",
-                        "top-right",
-                        "middle-left",
-                        "middle-right",
-                        "bottom-left",
-                        "bottom-center",
-                        "bottom-right",
-                      ]}
-                    boundBoxFunc={(oldBox, newBox) => {
-                      const MIN_W = 0.02 * (imgBaseCm?.w || 1);
-                      const MIN_H = 0.02 * (imgBaseCm?.h || 1);
-
-                      if (!keepRatioRef.current) {
-                        // ⟵ MODO LIBRE: sólo mínimo, SIN límites superiores
-                        const w = Math.max(MIN_W, newBox.width);
-                        const h = Math.max(MIN_H, newBox.height);
-                        return { ...newBox, width: w, height: h };
-                      }
-
-                      // Mantener proporción: con topes razonables
-                      const MAX_W = (imgBaseCm?.w || 1) * IMG_ZOOM_MAX;
-                      const MAX_H = (imgBaseCm?.h || 1) * IMG_ZOOM_MAX;
-                      const w = Math.max(MIN_W, Math.min(newBox.width, MAX_W));
-                      const h = Math.max(MIN_H, Math.min(newBox.height, MAX_H));
-                      return { ...newBox, width: w, height: h };
-                    }}
-                    onTransformStart={onTransformStart}
-                    onTransformEnd={onTransformEnd}
-                  />
-                </>
-              ) : (
-                <Group
-                  clipFunc={(ctx) => {
-                    const r = cornerRadiusCm + bleedCm;
-                    const w = workCm.w;
-                    const h = workCm.h;
-                    const rr = Math.max(0, Math.min(r, Math.min(w, h) / 2));
-                    ctx.beginPath();
-                    ctx.moveTo(rr, 0);
-                    ctx.lineTo(w - rr, 0);
-                    ctx.arcTo(w, 0, w, rr, rr);
-                    ctx.lineTo(w, h - rr);
-                    ctx.arcTo(w, h, w - rr, h, rr);
-                    ctx.lineTo(rr, h);
-                    ctx.arcTo(0, h, 0, h - rr, rr);
-                    ctx.lineTo(0, rr);
-                    ctx.arcTo(0, 0, rr, 0, rr);
-                    ctx.closePath();
-                  }}
-                >
-                  <Rect
-                    x={0}
-                    y={0}
-                    width={workCm.w}
-                    height={workCm.h}
-                    fill="transparent"
-                  />
-                  {/* si estás en 'contain', pintar el color debajo del arte */}
-                  {mode === "contain" && (
-                    <Rect
-                      x={0}
-                      y={0}
-                      width={workCm.w}
-                      height={workCm.h}
-                      fill={bgColor}
-                    />
-                  )}
-                  <KonvaImage
-                    ref={imgRef}
-                    image={imgEl}
-                    x={imgTx.x_cm + dispW / 2}
-                    y={imgTx.y_cm + dispH / 2}
-                    width={dispW}
-                    height={dispH}
-                    offsetX={dispW / 2}
-                    offsetY={dispH / 2}
-                    scaleX={imgTx.flipX ? -1 : 1}
-                    scaleY={imgTx.flipY ? -1 : 1}
-                    rotation={imgTx.rotation_deg}
-                    draggable={false}
-                    listening={true}
-                    onMouseDown={onImgMouseDown}
-                  />
-                </Group>
-              ))}
-
-            {/* máscara fuera del área */}
-          </Layer>
-          {hasGlassOverlay && (
-            <Layer id="glasspadOverlayLayer" listening={false}>
-              <Group
-                id="glassOverlayGroup"
-                ref={glassOverlayRef}
-                x={bleedCm}
-                y={bleedCm}
-                width={wCm}
-                height={hCm}
-                clipFunc={(ctx) => {
-                  ctx.rect(0, 0, wCm, hCm);
-                }}
-              >
-                <KonvaImage
-                  image={imgEl}
-                  x={imgTx.x_cm - bleedCm + dispW / 2}
-                  y={imgTx.y_cm - bleedCm + dispH / 2}
-                  width={dispW}
-                  height={dispH}
-                  offsetX={dispW / 2}
-                  offsetY={dispH / 2}
-                  scaleX={imgTx.flipX ? -1 : 1}
-                  scaleY={imgTx.flipY ? -1 : 1}
-                  rotation={imgTx.rotation_deg}
-                  listening={false}
-                />
-              </Group>
-            </Layer>
-          )}
-          <Layer listening={false}>
-            {/* guías */}
-            <Rect
-              x={0}
-              y={0}
-              width={workCm.w}
-              height={workCm.h}
-              stroke="#ef4444"
-              strokeWidth={0.04}
-              cornerRadius={cornerRadiusCm + bleedCm}
-            />
-            <Rect
-              x={bleedCm + PRIMARY_SAFE_MARGIN_CM}
-              y={bleedCm + PRIMARY_SAFE_MARGIN_CM}
-              width={Math.max(0, wCm - 2 * PRIMARY_SAFE_MARGIN_CM)}
-              height={Math.max(0, hCm - 2 * PRIMARY_SAFE_MARGIN_CM)}
-              stroke="#111827"
-              dash={[0.4, 0.4]}
-              strokeWidth={0.04}
-              cornerRadius={Math.max(
-                0,
-                cornerRadiusCm - PRIMARY_SAFE_MARGIN_CM,
-              )}
-            />
-            <Rect
-              x={bleedCm + SECONDARY_SAFE_MARGIN_CM}
-              y={bleedCm + SECONDARY_SAFE_MARGIN_CM}
-              width={Math.max(0, wCm - 2 * SECONDARY_SAFE_MARGIN_CM)}
-              height={Math.max(0, hCm - 2 * SECONDARY_SAFE_MARGIN_CM)}
-              stroke="#6b7280"
-              dash={[0.3, 0.3]}
-              strokeWidth={0.03}
-              cornerRadius={Math.max(
-                0,
-                cornerRadiusCm - SECONDARY_SAFE_MARGIN_CM,
-              )}
-            />
-          </Layer>
-        </Stage>
-        <Stage
-          ref={exportStageRef}
-          width={padRectPx.w}
-          height={padRectPx.h}
-          style={{ display: "none" }}
-        >
-          <Layer>
-            <Group
-              ref={padGroupRef}
-              clipX={0}
-              clipY={0}
-              clipWidth={padRectPx.w}
-              clipHeight={padRectPx.h}
-            >
-              <Rect
-                x={0}
-                y={0}
-                width={padRectPx.w}
-                height={padRectPx.h}
-                fill={mode === "contain" ? bgColor : "#ffffff"}
-                listening={false}
-              />
-              {imgEl && imgBaseCm && (
-                <KonvaImage
-                  image={imgEl}
-                  x={(imgTx.x_cm - bleedCm + dispW / 2) * exportScale}
-                  y={(imgTx.y_cm - bleedCm + dispH / 2) * exportScale}
-                  width={dispW * exportScale}
-                  height={dispH * exportScale}
-                  offsetX={(dispW * exportScale) / 2}
-                  offsetY={(dispH * exportScale) / 2}
-                  scaleX={imgTx.flipX ? -1 : 1}
-                  scaleY={imgTx.flipY ? -1 : 1}
-                  rotation={imgTx.rotation_deg}
-                  listening={false}
-                />
-              )}
-            </Group>
-          </Layer>
-        </Stage>
-        {imageUrl && imgStatus !== "loaded" && (
-          <div className={`spinner ${styles.spinnerOverlay}`} />
         )}
       </div>
     </div>

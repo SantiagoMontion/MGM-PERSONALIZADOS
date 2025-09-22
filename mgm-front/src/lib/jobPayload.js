@@ -6,7 +6,7 @@ export const uploadsPrefix =
 export function makeJobId() {
   try {
     return crypto.randomUUID();
-  } catch (err) {
+  } catch {
     return String(Date.now());
   }
 }
@@ -25,7 +25,7 @@ export function canonicalizeSupabaseUploadsUrl(input) {
         "/storage/v1/object/uploads/",
       );
     return `${u.origin}${p}`;
-  } catch (err) {
+  } catch {
     return input || "";
   }
 }
