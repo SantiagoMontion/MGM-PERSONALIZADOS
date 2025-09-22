@@ -1,5 +1,5 @@
 // src/pages/Home.jsx
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import SeoJsonLd from '../components/SeoJsonLd';
 
@@ -25,6 +25,7 @@ export default function Home() {
   const [uploaded, setUploaded] = useState(null);
   // crear ObjectURL una sola vez
   const [imageUrl, setImageUrl] = useState(null);
+  const [configOpen, setConfigOpen] = useState(false);
   useEffect(() => {
     if (uploaded?.localUrl) {
       setImageUrl(uploaded.localUrl);
@@ -33,6 +34,14 @@ export default function Home() {
       setImageUrl(null);
     }
   }, [uploaded?.localUrl]);
+
+  useEffect(() => {
+    if (uploaded) {
+      setConfigOpen(true);
+    } else {
+      setConfigOpen(false);
+    }
+  }, [uploaded]);
 
   // No se ejecutan filtros rápidos al subir imagen
 
@@ -73,6 +82,15 @@ export default function Home() {
   const navigate = useNavigate();
   const canvasRef = useRef(null);
   const flow = useFlow();
+
+  const handleClearImage = useCallback(() => {
+    setUploaded(null);
+    setLayout(null);
+    setDesignName('');
+    setAckLow(false);
+    setErr('');
+    setPriceAmount(0);
+  }, []);
 
   const effDpi = useMemo(() => {
     if (!layout) return null;
@@ -182,7 +200,6 @@ export default function Home() {
         console.error('[continue] nudity scan failed', scanErr?.message || scanErr);
       }
 
-      const moderationUrl = `${import.meta.env.VITE_API_URL || ''}/api/moderate-image`;
       const resp = await apiFetch('/api/moderate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -258,44 +275,65 @@ export default function Home() {
       />
       <div className={styles.sidebar}>
         {uploaded && (
-          <>
-            <div className={styles.field}>
-              <input
-                type="text"
-                placeholder="Nombre del modelo"
-                value={designName}
-                onChange={e => setDesignName(e.target.value)}
-              />
-            </div>
-            <SizeControls
-              material={material}
-              size={size}
-              mode={mode}
-              onChange={handleSizeChange}
-              locked={material === 'Glasspad'}
-            />
-            <Calculadora
-              width={activeWcm}
-              height={activeHcm}
-              material={material}
-              setPrice={setPriceAmount}
-            />
-          </>
+          <div className={`${styles.configAccordion} ${configOpen ? styles.configAccordionOpen : ''}`}>
+            <button
+              type="button"
+              className={styles.configHeader}
+              onClick={() => setConfigOpen(open => !open)}
+            >
+              <span className={styles.configIcon} aria-hidden="true">⚙️</span>
+              <span className={styles.configTitle}>Configura tu mousepad</span>
+              <span
+                className={`${styles.configArrow} ${configOpen ? styles.configArrowOpen : ''}`}
+                aria-hidden="true"
+              >
+                ▾
+              </span>
+            </button>
+            {configOpen && (
+              <div className={styles.configContent}>
+                <div className={styles.field}>
+                  <input
+                    type="text"
+                    placeholder="Nombre del modelo"
+                    value={designName}
+                    onChange={e => setDesignName(e.target.value)}
+                  />
+                </div>
+                <SizeControls
+                  material={material}
+                  size={size}
+                  mode={mode}
+                  onChange={handleSizeChange}
+                  locked={material === 'Glasspad'}
+                />
+                <Calculadora
+                  width={activeWcm}
+                  height={activeHcm}
+                  material={material}
+                  setPrice={setPriceAmount}
+                />
+              </div>
+            )}
+          </div>
         )}
       </div>
 
       <div className={styles.main}>
         <UploadStep onUploaded={file => { setUploaded(file); setAckLow(false); }} />
 
-        <EditorCanvas
-          ref={canvasRef}
-          imageUrl={imageUrl}
-          imageFile={uploaded?.file}
-          sizeCm={activeSizeCm}
-          bleedMm={3}
-          dpi={300}
-          onLayoutChange={setLayout}
-        />
+        {uploaded && (
+          <EditorCanvas
+            ref={canvasRef}
+            imageUrl={imageUrl}
+            imageFile={uploaded?.file}
+            sizeCm={activeSizeCm}
+            bleedMm={3}
+            dpi={300}
+            onLayoutChange={setLayout}
+            onClearImage={handleClearImage}
+          />
+        )}
 
         {uploaded && level === 'bad' && (
           <label className={styles.ackLabel}>
