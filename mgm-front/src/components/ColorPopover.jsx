@@ -36,41 +36,24 @@ export default function ColorPopover({
     if (previewRef.current) previewRef.current.style.background = hex;
   }, [hex]);
 
-  const swatches = [
-    "#ffffff",
-    "#000000",
-    "#f3f4f6",
-    "#e5e7eb",
-    "#d1d5db",
-    "#1f2937",
-    "#111827",
-    "#ff0000",
-    "#ff7f00",
-    "#ffb800",
-    "#ffe600",
-    "#00a859",
-    "#00c9a7",
-    "#00ccff",
-    "#0066ff",
-    "#6f42c1",
-    "#ff69b4",
-    "#8b4513",
-    "#808080",
-    "#333333",
-  ];
-
   const handlePick = async () => {
+    let picked = false;
     try {
       if (window.EyeDropper) {
         const ed = new window.EyeDropper();
         const { sRGBHex } = await ed.open();
+        setHex(sRGBHex);
         onChange?.(sRGBHex);
-        return;
+        picked = true;
       }
-    } catch (err) {
+    } catch {
       // ignore
     }
-    onPickFromCanvas?.();
+
+    if (!picked) {
+      onPickFromCanvas?.();
+    }
+
     onClose?.();
   };
 
@@ -86,32 +69,23 @@ export default function ColorPopover({
         }}
         className={styles.colorPicker}
       />
-      <div className={styles.swatches}>
-        {swatches.map((c, i) => (
-          <button
-            key={c}
-            title={c}
-            onClick={() => {
-              setHex(c);
-              onChange?.(c);
-            }}
-            className={`${styles.swatch} ${styles["swatch" + i]}`}
-          />
-        ))}
-      </div>
       <div className={styles.colorControls}>
         <div ref={previewRef} className={styles.colorPreview} />
-        <HexColorInput
-          color={hex}
-          onChange={(c) => {
-            const v = c.startsWith("#") ? c : `#${c}`;
-            setHex(v);
-            onChange?.(v);
-          }}
-          prefixed
-          className={styles.hexInput}
-        />
+        <div className={styles.hexInputGroup}>
+          <span className={styles.hexLabel}>Hex</span>
+          <HexColorInput
+            color={hex}
+            onChange={(c) => {
+              const v = c.startsWith("#") ? c : `#${c}`;
+              setHex(v);
+              onChange?.(v);
+            }}
+            prefixed
+            className={styles.hexInput}
+          />
+        </div>
         <button
+          type="button"
           title="Elegir del lienzo"
           onClick={handlePick}
           className={styles.eyedropperButton}

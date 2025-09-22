@@ -1,86 +1,150 @@
 .colorPopover {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 12px;
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
-  width: 260px;
+  gap: 16px;
+  padding: 20px 18px;
+  width: 280px;
+  background: linear-gradient(180deg, rgba(36, 36, 44, 0.96), rgba(18, 18, 24, 0.98));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  box-shadow: 0 24px 48px rgba(8, 8, 12, 0.55);
+  color: #f9fafb;
 }
 
 .colorPicker {
   width: 100%;
-  border-radius: 12px;
 }
 
-.swatches {
-  display: grid;
-  grid-template-columns: repeat(10, 18px);
-  gap: 6px;
+.colorPicker :global(.react-colorful) {
+  width: 100%;
 }
 
-.swatch {
+.colorPicker :global(.react-colorful__saturation) {
+  border-radius: 16px;
+  height: 180px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  margin-bottom: 12px;
+}
+
+.colorPicker :global(.react-colorful__saturation-pointer) {
   width: 18px;
   height: 18px;
-  border-radius: 6px;
-  cursor: pointer;
-  border: none;
+  border-radius: 999px;
+  border: 3px solid #ffffff;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.35);
 }
 
-.swatch0 { background: #ffffff; border: 1px solid #e5e7eb; }
-.swatch1 { background: #000000; }
-.swatch2 { background: #f3f4f6; }
-.swatch3 { background: #e5e7eb; }
-.swatch4 { background: #d1d5db; }
-.swatch5 { background: #1f2937; }
-.swatch6 { background: #111827; }
-.swatch7 { background: #ff0000; }
-.swatch8 { background: #ff7f00; }
-.swatch9 { background: #ffb800; }
-.swatch10 { background: #ffe600; }
-.swatch11 { background: #00a859; }
-.swatch12 { background: #00c9a7; }
-.swatch13 { background: #00ccff; }
-.swatch14 { background: #0066ff; }
-.swatch15 { background: #6f42c1; }
-.swatch16 { background: #ff69b4; }
-.swatch17 { background: #8b4513; }
-.swatch18 { background: #808080; }
-.swatch19 { background: #333333; }
+.colorPicker :global(.react-colorful__hue) {
+  height: 14px;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.colorPicker :global(.react-colorful__hue-pointer) {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 3px solid #ffffff;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.35);
+}
 
 .colorControls {
   display: flex;
-  gap: 8px;
   align-items: center;
+  gap: 12px;
+  min-width: 0;
 }
 
 .colorPreview {
-  width: 18px;
-  height: 18px;
-  border-radius: 6px;
-  border: 1px solid #e5e7eb;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.45);
+  background: #1f2933;
 }
+
+.hexInputGroup {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+
+.hexLabel {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(229, 231, 255, 0.9);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .colorWrapper1 {
   position: relative;           /* <- ancla local para posicionar el popover */
 }
 
 .hexInput {
   flex: 1;
-  padding: 6px 8px;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: #f9fafb;
+  font-family: "JetBrains Mono", "SFMono-Regular", Menlo, monospace;
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  padding: 0;
+}
+
+.hexInput:focus {
+  outline: none;
+}
+
+.hexInput::placeholder {
+  color: rgba(226, 232, 240, 0.5);
 }
 
 .eyedropperButton {
-  border: 1px solid #e5e7eb;
-  background: #fff;
-  color: #111827;
-  padding: 6px 10px;
-  border-radius: 10px;
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(128, 128, 128, 0.2);
+  color: #f9fafb;
   cursor: pointer;
+  transition: background-color 0.18s ease, transform 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.eyedropperButton:hover {
+  background: rgba(128, 128, 128, 0.32);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
+}
+
+.eyedropperButton:focus-visible {
+  outline: 2px solid #6366f1;
+  outline-offset: 3px;
+}
+
+.eyedropperButton:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: rgba(128, 128, 128, 0.12);
+  box-shadow: none;
+}
+
+.eyedropperButton svg {
+  display: block;
 }
 
 .copyButton {
