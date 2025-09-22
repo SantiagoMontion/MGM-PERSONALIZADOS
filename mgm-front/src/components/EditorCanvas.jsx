@@ -64,6 +64,12 @@ const ACTION_ICON_MAP = {
 
 };
 
+const HISTORY_ICON_SPECS = {
+  undo: { src: "/icons/undo.svg", fallbackLabel: "Deshacer" },
+  redo: { src: "/icons/redo.svg", fallbackLabel: "Rehacer" },
+  delete: { src: "/icons/delete.svg", fallbackLabel: "Eliminar" },
+};
+
 // ---------- Editor ----------
 const EditorCanvas = forwardRef(function EditorCanvas(
   {
@@ -128,10 +134,17 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const pickCallbackRef = useRef(null);
   const [isPickingColor, setIsPickingColor] = useState(false);
   const [missingIcons, setMissingIcons] = useState({});
+  const [missingHistoryIcons, setMissingHistoryIcons] = useState({});
 
 
   const handleIconError = (action) => () => {
     setMissingIcons((prev) => (prev[action] ? prev : { ...prev, [action]: true }));
+  };
+
+  const handleHistoryIconError = (action) => () => {
+    setMissingHistoryIcons((prev) =>
+      prev[action] ? prev : { ...prev, [action]: true },
+    );
   };
 
 
@@ -1255,12 +1268,21 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               className={styles.historyButton}
               aria-label="Deshacer"
             >
-              <img
-                src="/icons/undo.svg"
-                alt=""
-                className={styles.historyIcon}
-                draggable="false"
-              />
+
+              {missingHistoryIcons.undo ? (
+                <span className={styles.historyFallback} aria-hidden="true">
+                  {HISTORY_ICON_SPECS.undo.fallbackLabel}
+                </span>
+              ) : (
+                <img
+                  src={HISTORY_ICON_SPECS.undo.src}
+                  alt=""
+                  className={styles.historyIcon}
+                  draggable="false"
+                  onError={handleHistoryIconError("undo")}
+                />
+              )}
+
             </button>
             <button
               type="button"
@@ -1269,12 +1291,21 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               className={styles.historyButton}
               aria-label="Rehacer"
             >
-              <img
-                src="/icons/redo.svg"
-                alt=""
-                className={styles.historyIcon}
-                draggable="false"
-              />
+
+              {missingHistoryIcons.redo ? (
+                <span className={styles.historyFallback} aria-hidden="true">
+                  {HISTORY_ICON_SPECS.redo.fallbackLabel}
+                </span>
+              ) : (
+                <img
+                  src={HISTORY_ICON_SPECS.redo.src}
+                  alt=""
+                  className={styles.historyIcon}
+                  draggable="false"
+                  onError={handleHistoryIconError("redo")}
+                />
+              )}
+
             </button>
             <button
               type="button"
@@ -1283,12 +1314,21 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               className={`${styles.historyButton} ${styles.historyButtonDanger}`}
               aria-label="Eliminar"
             >
-              <img
-                src="/icons/delete.svg"
-                alt=""
-                className={styles.historyIcon}
-                draggable="false"
-              />
+
+              {missingHistoryIcons.delete ? (
+                <span className={styles.historyFallback} aria-hidden="true">
+                  {HISTORY_ICON_SPECS.delete.fallbackLabel}
+                </span>
+              ) : (
+                <img
+                  src={HISTORY_ICON_SPECS.delete.src}
+                  alt=""
+                  className={styles.historyIcon}
+                  draggable="false"
+                  onError={handleHistoryIconError("delete")}
+                />
+              )}
+
             </button>
           </div>
         )}
