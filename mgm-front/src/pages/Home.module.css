@@ -1,33 +1,340 @@
 .container {
-  display: flex;
-  gap: 16px;
+  min-height: 100vh;
+  padding: 32px;
+  background: radial-gradient(circle at 0% 0%, #1e293b 0%, #0b1120 55%, #020617 100%);
+  color: #f8fafc;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 32px;
+  max-width: 1400px;
+  margin: 0 auto;
 }
 
 .sidebar {
-  width: 260px;
-  padding: 16px;
-  background: #2b2b2b;
-  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
 }
 
-.field {
-  margin-bottom: 12px;
+.accordion {
+  background: rgba(15, 23, 42, 0.85);
+  border-radius: 20px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  padding: 0;
+  overflow: hidden;
+  backdrop-filter: blur(12px);
 }
 
-.main {
-  flex: 1;
-  padding: 16px;
+.accordionTitle {
+  margin: 0;
+  padding: 18px 24px;
+  font-size: 0.9rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: #94a3b8;
+  list-style: none;
+  cursor: pointer;
 }
 
-.ackLabel {
-  display: block;
-  margin-top: 12px;
+.accordionTitle::-webkit-details-marker,
+.accordionTitle::marker {
+  display: none;
 }
 
-.continueButton {
-  margin-top: 12px;
+.accordion[open] > .accordionTitle {
+  color: #f8fafc;
+}
+
+.accordionContent {
+  padding: 22px 24px 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.fieldLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.95rem;
+  color: #e2e8f0;
+}
+
+.fieldLabel input {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 12px;
+  padding: 12px 14px;
+  color: #f8fafc;
+  font-size: 1rem;
+}
+
+.fieldLabel input:focus {
+  outline: 2px solid #38bdf8;
+  border-color: transparent;
+}
+
+.priceBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(148, 163, 184, 0.1);
+}
+
+.priceLabel {
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #94a3b8;
+}
+
+.priceBlock :global(.p-calcu) {
+  margin: 0;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.priceBlock :global(.minitext) {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #cbd5f5;
+}
+
+.qualityBadge {
+  align-self: flex-start;
+  padding: 8px 18px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.qualityNeutral {
+  background: rgba(148, 163, 184, 0.2);
+  color: #e2e8f0;
+}
+
+.qualityExcellent {
+  background: rgba(34, 197, 94, 0.18);
+  color: #4ade80;
+}
+
+.qualityGood {
+  background: rgba(234, 179, 8, 0.18);
+  color: #facc15;
+}
+
+.qualityLow {
+  background: rgba(248, 113, 113, 0.18);
+  color: #f87171;
+}
+
+.ackField {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 0.9rem;
+  color: #e2e8f0;
+}
+
+.ackField input {
+  margin-top: 4px;
+}
+
+.primaryButton {
+  padding: 14px 18px;
+  border-radius: 16px;
+  border: none;
+  background: linear-gradient(135deg, #38bdf8 0%, #6366f1 50%, #9333ea 100%);
+  color: #0f172a;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.primaryButton:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 28px rgba(99, 102, 241, 0.35);
+}
+
+.primaryButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  box-shadow: none;
 }
 
 .error {
-  margin-top: 6px;
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.main {
+  display: flex;
+}
+
+.canvasCard {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  padding: 28px;
+  border-radius: 28px;
+  background: rgba(15, 23, 42, 0.82);
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  box-shadow: 0 28px 60px rgba(7, 11, 25, 0.55);
+  backdrop-filter: blur(14px);
+}
+
+.uploadSection {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.uploadCopy {
+  max-width: 420px;
+}
+
+.headline {
+  margin: 0;
+  font-size: 1.9rem;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.subhead {
+  margin: 6px 0 0;
+  font-size: 0.95rem;
+  color: #94a3b8;
+}
+
+.actionsSection {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.actionGroups {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.actionRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.actionButton {
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  background: rgba(148, 163, 184, 0.14);
+  color: #e2e8f0;
+  padding: 10px 16px;
+  border-radius: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.actionButton:not(:disabled):hover,
+.actionButton:not(:disabled):focus-visible {
+  background: rgba(99, 102, 241, 0.2);
+  border-color: rgba(99, 102, 241, 0.6);
+  transform: translateY(-1px);
+}
+
+.actionButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.containWrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.popoverAnchor {
+  position: absolute;
+  top: calc(100% + 12px);
+  left: 0;
+  z-index: 40;
+}
+
+.canvasStage {
+  padding: 16px;
+  border-radius: 20px;
+  background: rgba(10, 15, 28, 0.78);
+  border: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+@media (max-width: 1024px) {
+  .layout {
+    grid-template-columns: 280px 1fr;
+    gap: 26px;
+  }
+
+  .canvasCard {
+    padding: 24px;
+  }
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: 24px 16px;
+  }
+
+  .layout {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+
+  .sidebar {
+    order: 2;
+  }
+
+  .main {
+    order: 1;
+  }
+
+  .canvasCard {
+    border-radius: 24px;
+    gap: 24px;
+  }
+
+  .accordionTitle {
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 560px) {
+  .uploadSection {
+    align-items: flex-start;
+  }
+
+  .actionRow {
+    gap: 8px;
+  }
 }
