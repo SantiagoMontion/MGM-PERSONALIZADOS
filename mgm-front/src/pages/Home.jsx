@@ -167,12 +167,21 @@ export default function Home() {
       // client-side gate: NSFW scan in browser (no server TFJS)
       try {
         const res = await scanNudityClient(master);
+        console.info('[continue] client nudity scan', res);
         if (res?.blocked) {
-          setErr('Contenido adulto detectado.');
+          let message = 'Contenido adulto detectado.';
+          if (res.reason === 'client_real_nudity') {
+            message = 'Contenido adulto explícito con personas reales detectado.';
+          } else if (res.reason === 'client_real_sexual') {
+            message = 'Contenido sexual explícito con personas reales detectado.';
+          }
+          setErr(message);
           setBusy(false);
           return;
         }
-      } catch { /* best-effort */ }
+      } catch (scanErr) {
+        console.warn('[continue] nudity scan failed', scanErr?.message || scanErr);
+      }
 
       const moderationUrl = `${import.meta.env.VITE_API_URL || ''}/api/moderate-image`;
       console.info('[continue] POST', moderationUrl);
