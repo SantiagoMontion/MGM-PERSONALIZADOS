@@ -2,20 +2,37 @@
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  background: #050505;
+  color: #f7f7f7;
 }
 
 .header {
-  background: #000;
-  color: #fff;
-  padding: 16px 24px;
+  background: #050505;
+  color: #f7f7f7;
+  padding: 28px 48px 12px;
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: baseline;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  font-size: 1rem;
+}
+
+.header strong {
+  font-size: 1.1rem;
+}
+
+.header span {
+  font-size: 0.9rem;
+  opacity: 0.75;
 }
 
 .main {
   flex: 1;
-  padding: 16px;
+  padding: 0;
 }
 
-html, body { overflow-x: auto; }
+html,
+body {
+  overflow-x: auto;
+}

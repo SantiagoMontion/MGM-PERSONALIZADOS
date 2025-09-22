@@ -1,111 +1,134 @@
-
-.container {
-  display: flex;
-  gap: 32px;
-  align-items: flex-start;
-}
-
-.sidebar {
-  width: 360px;
-  padding: 8px 0;
+.page {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 32px;
+  padding: 32px 48px 56px;
+  min-height: 100%;
+  background: radial-gradient(circle at 18% -10%, rgba(24, 24, 36, 0.88), rgba(6, 6, 10, 0.96));
 }
 
-.configAccordion {
-  border: 1px solid #252530;
-  border-radius: 20px;
-  background: linear-gradient(180deg, rgba(20, 20, 24, 0.92), rgba(14, 14, 18, 0.98));
-  color: #f9fafb;
-  overflow: hidden;
-  box-shadow: 0 20px 40px rgba(8, 8, 12, 0.45);
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.configAccordionOpen {
-  border-color: #3f3f4d;
-  box-shadow: 0 24px 44px rgba(12, 12, 20, 0.55);
-}
-
-.configAccordionDisabled {
-  opacity: 0.6;
-}
-
-.configAccordionDisabled .configHeader {
-  cursor: not-allowed;
-}
-
-.configAccordionDisabled .configTitle {
-  color: rgba(245, 247, 255, 0.6);
-}
-
-.configAccordionDisabled .configIcon,
-.configAccordionDisabled .configArrowIcon {
-  opacity: 0.7;
-}
-
-.configHeader {
-  width: 100%;
+.editor {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 20px 24px;
-  border: none;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-  font-size: 1rem;
-  font-weight: 600;
+  flex-direction: column;
+  gap: 32px;
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  border-radius: 32px;
+  border: 1px solid rgba(38, 38, 56, 0.6);
+  background: linear-gradient(160deg, rgba(12, 12, 18, 0.92), rgba(6, 6, 12, 0.96));
+  padding: 40px;
+  box-shadow: 0 42px 110px rgba(0, 0, 0, 0.65);
 }
 
-.configHeader:focus-visible {
-  outline: 2px solid #6366f1;
+.editorHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.headerPrimary {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: min(100%, 460px);
+}
+
+.title {
+  margin: 0;
+  font-size: 2.1rem;
+  font-weight: 700;
+  color: #f8f8fb;
+  letter-spacing: 0.04em;
+}
+
+.configDropdown {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.configTrigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  border-radius: 16px;
+  border: 1px solid rgba(82, 82, 110, 0.5);
+  background: rgba(16, 16, 24, 0.82);
+  color: #f6f6fd;
+  font-weight: 600;
+  font-size: 0.98rem;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.configTrigger:hover:not(:disabled) {
+  border-color: rgba(126, 126, 220, 0.78);
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.5);
+  transform: translateY(-1px);
+}
+
+.configTrigger:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.configTriggerActive {
+  border-color: rgba(126, 126, 220, 0.78);
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.5);
+}
+
+.configTrigger:focus-visible {
+  outline: 2px solid rgba(126, 126, 220, 0.9);
   outline-offset: 4px;
 }
 
-.configHeaderLeft {
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-}
-
-.configIcon {
+.configTriggerIcon {
   width: 22px;
   height: 22px;
-  filter: drop-shadow(0 0 6px rgba(99, 102, 241, 0.25));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.configTitle {
-  flex: 1;
-  text-align: left;
-  color: #f5f7ff;
-  font-weight: 600;
+.configTriggerLabel {
+  white-space: nowrap;
 }
 
-.configArrowIcon {
+.configTriggerArrow img {
   width: 16px;
   height: 16px;
   transition: transform 0.2s ease;
 }
 
-.configArrowIconOpen {
+.configTriggerArrowOpen {
   transform: rotate(180deg);
 }
 
-.configContent {
-  padding: 24px;
-  background: rgba(10, 10, 14, 0.92);
-  border-top: 1px solid rgba(63, 63, 77, 0.6);
+.configPanel {
+  position: absolute;
+  top: calc(100% + 16px);
+  left: 0;
+  width: min(380px, 80vw);
   display: flex;
   flex-direction: column;
   gap: 24px;
+  padding: 28px;
+  border-radius: 24px;
+  border: 1px solid rgba(68, 68, 96, 0.55);
+  background: rgba(10, 10, 16, 0.96);
+  box-shadow: 0 40px 65px rgba(0, 0, 0, 0.58);
+  z-index: 20;
 }
 
-.configContentDisabled {
-  opacity: 0.75;
+.configPanelDisabled {
+  opacity: 0.55;
   pointer-events: none;
 }
 
@@ -119,46 +142,288 @@
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: #cbd5f5;
+  color: rgba(206, 211, 245, 0.82);
   font-weight: 600;
 }
 
 .textInput {
   width: 100%;
   padding: 14px 16px;
-  border-radius: 12px;
-  border: 1px solid #2f2f35;
-  background: linear-gradient(180deg, rgba(26, 26, 30, 0.85), rgba(18, 18, 22, 0.95));
-  color: #f4f5f7;
+  border-radius: 14px;
+  border: 1px solid rgba(60, 60, 86, 0.7);
+  background: rgba(18, 18, 26, 0.92);
+  color: #f5f6fd;
   font-size: 1rem;
   font-weight: 500;
-  outline: none;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .textInput::placeholder {
-  color: #9da3b0;
+  color: rgba(195, 202, 229, 0.6);
 }
 
 .textInput:focus {
-  border-color: #6366f1;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25);
+  outline: none;
+  border-color: rgba(126, 126, 220, 0.9);
+  box-shadow: 0 0 0 3px rgba(126, 126, 220, 0.24);
 }
 
-.main {
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.topActionButton {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  border: 1px solid rgba(104, 104, 142, 0.45);
+  background: radial-gradient(circle at top, rgba(46, 46, 74, 0.92), rgba(18, 18, 26, 0.88));
+  color: #f4f4ff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.topActionButton:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  border-color: rgba(82, 82, 108, 0.28);
+  background: rgba(20, 20, 28, 0.6);
+}
+
+.topActionButton:not(:disabled):hover {
+  transform: translateY(-2px);
+  border-color: rgba(126, 126, 220, 0.8);
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.55);
+}
+
+.topActionButton:not(:disabled):active {
+  transform: translateY(0);
+}
+
+.topActionButton:focus-visible {
+  outline: 2px solid rgba(126, 126, 220, 0.85);
+  outline-offset: 3px;
+}
+
+.deleteActionButton {
+  border-color: rgba(239, 68, 68, 0.75);
+  color: #fca5a5;
+  background: rgba(52, 18, 24, 0.85);
+}
+
+.deleteActionButton:not(:disabled):hover {
+  border-color: rgba(239, 68, 68, 0.85);
+  box-shadow: 0 18px 36px rgba(239, 68, 68, 0.25);
+}
+
+.topActionIcon {
+  width: 22px;
+  height: 22px;
+}
+
+.canvasStage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(160deg, rgba(8, 8, 12, 0.9), rgba(4, 4, 8, 0.95));
+  border: 1px solid rgba(40, 40, 60, 0.6);
+  border-radius: 30px;
+  padding: 32px;
+  min-height: 520px;
+}
+
+.canvasViewport {
+  position: relative;
   flex: 1;
-  padding: 16px;
+  display: flex;
+}
+
+.uploadOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.uploadControl {
+  pointer-events: auto;
+  display: inline-flex;
+  padding: 24px 32px;
+  border-radius: 20px;
+  border: 1px solid rgba(76, 76, 118, 0.5);
+  background: rgba(12, 12, 20, 0.92);
+  box-shadow: 0 32px 70px rgba(0, 0, 0, 0.6);
+}
+
+.uploadButton {
+  border: none;
+  background: transparent;
+  color: #f7f7ff;
+  font: inherit;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.uploadButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.uploadButtonIcon {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 1px solid rgba(126, 126, 220, 0.45);
+  background: rgba(126, 126, 220, 0.22);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  line-height: 1;
+  color: rgba(216, 220, 255, 0.95);
+}
+
+.uploadButtonText {
+  white-space: nowrap;
+}
+
+.footerRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.feedbackGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1 1 320px;
+  min-width: 0;
 }
 
 .ackLabel {
-  display: block;
-  margin-top: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  border-radius: 14px;
+  border: 1px solid rgba(126, 126, 220, 0.38);
+  background: rgba(20, 20, 30, 0.85);
+  color: #d7dbff;
+  font-size: 0.9rem;
+}
+
+.ackLabel input {
+  accent-color: #7c81ff;
+}
+
+.errorMessage {
+  margin: 0;
+  padding: 12px 18px;
+  border-radius: 14px;
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  background: rgba(64, 18, 26, 0.82);
+  color: #fca5a5;
+  font-size: 0.9rem;
+  max-width: 520px;
 }
 
 .continueButton {
-  margin-top: 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(126, 126, 220, 0.45);
+  background: linear-gradient(135deg, rgba(126, 126, 220, 0.85), rgba(82, 82, 200, 0.9));
+  color: #090910;
+  font-size: 1rem;
+  font-weight: 600;
+  padding: 14px 28px;
+  box-shadow: 0 22px 48px rgba(0, 0, 0, 0.6);
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
 
-.error {
-  margin-top: 6px;
+.continueButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.continueButton:not(:disabled):hover {
+  transform: translateY(-2px);
+  box-shadow: 0 28px 60px rgba(126, 126, 220, 0.35);
+}
+
+@media (max-width: 960px) {
+  .page {
+    padding: 28px 28px 48px;
+  }
+
+  .editor {
+    padding: 32px;
+    border-radius: 28px;
+  }
+
+  .canvasStage {
+    padding: 28px;
+  }
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: 22px 18px 40px;
+  }
+
+  .editor {
+    padding: 24px;
+    gap: 24px;
+    border-radius: 24px;
+  }
+
+  .editorHeader {
+    gap: 20px;
+  }
+
+  .configDropdown {
+    width: 100%;
+  }
+
+  .configPanel {
+    position: static;
+    width: 100%;
+  }
+
+  .canvasStage {
+    padding: 22px;
+    border-radius: 24px;
+  }
+
+  .uploadControl {
+    width: min(360px, 100%);
+    padding: 20px 24px;
+  }
+
+  .footerRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .continueButton {
+    align-self: flex-end;
+    width: 100%;
+  }
 }
