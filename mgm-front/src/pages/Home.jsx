@@ -326,7 +326,9 @@ export default function Home() {
 
   const canvasStageClasses = [
     styles.canvasStage,
+
     !isCanvasReady ? styles.canvasStageEmpty : '',
+
   ]
     .filter(Boolean)
     .join(' ');
@@ -402,39 +404,11 @@ export default function Home() {
               )}
             </div>
           </div>
-          <div className={styles.headerActions}>
-            <button
-              type="button"
-              className={styles.topActionButton}
-              onClick={handleUndo}
-              disabled={!hasImage || !canUndo}
-              aria-label="Deshacer"
-            >
-              <UndoIcon className={styles.topActionIcon} />
-            </button>
-            <button
-              type="button"
-              className={styles.topActionButton}
-              onClick={handleRedo}
-              disabled={!hasImage || !canRedo}
-              aria-label="Rehacer"
-            >
-              <RedoIcon className={styles.topActionIcon} />
-            </button>
-            <button
-              type="button"
-              className={`${styles.topActionButton} ${styles.deleteActionButton}`}
-              onClick={handleClearImage}
-              disabled={!hasImage}
-              aria-label="Eliminar imagen"
-            >
-              <TrashIcon className={styles.topActionIcon} />
-            </button>
-          </div>
         </div>
 
         <div className={canvasStageClasses}>
           <div className={styles.canvasViewport}>
+
             {isCanvasReady && (
               <EditorCanvas
                 ref={canvasRef}
@@ -448,6 +422,7 @@ export default function Home() {
                 showHistoryControls={false}
                 onHistoryChange={handleHistoryChange}
               />
+
             )}
             {!hasImage && (
               <div className={styles.uploadOverlay}>

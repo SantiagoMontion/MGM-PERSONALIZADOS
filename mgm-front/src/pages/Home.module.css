@@ -120,7 +120,12 @@
   transform: rotate(180deg);
 }
 
-.configContent {
+.configPanel {
+  position: absolute;
+  top: calc(100% + 12px);
+  left: 0;
+  min-width: min(420px, calc(100vw - 96px));
+  max-width: min(520px, calc(100vw - 96px));
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -130,7 +135,7 @@
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(14, 14, 20, 0.96);
   box-shadow: 0 32px 60px rgba(0, 0, 0, 0.5);
-  z-index: 20;
+  z-index: 30;
 }
 
 .configPanelDisabled {
@@ -176,11 +181,16 @@
 }
 
 
-  .headerActions {
+.canvasHistoryActions {
+  position: absolute;
+  top: 24px;
+  right: 24px;
   display: flex;
   align-items: center;
   gap: 14px;
-  flex-wrap: wrap;
+
+  z-index: 1200;
+
 }
 
 .topActionButton {
@@ -416,12 +426,22 @@
 
   .configPanel {
     position: static;
+    top: auto;
+    left: auto;
     width: 100%;
+    min-width: 0;
+    max-width: none;
   }
 
   .canvasStage {
     padding: 22px;
     border-radius: 24px;
+  }
+
+  .canvasHistoryActions {
+    top: 16px;
+    right: 16px;
+    gap: 10px;
   }
 
   .uploadControl {
