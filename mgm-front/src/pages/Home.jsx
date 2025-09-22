@@ -107,17 +107,20 @@ export default function Home() {
   // layout del canvas
   const [layout, setLayout] = useState(null);
   const [designName, setDesignName] = useState('');
+  const [designNameError, setDesignNameError] = useState('');
   const [ackLow, setAckLow] = useState(false);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const navigate = useNavigate();
   const canvasRef = useRef(null);
+  const designNameInputRef = useRef(null);
   const flow = useFlow();
 
   const handleClearImage = useCallback(() => {
     setUploaded(null);
     setLayout(null);
     setDesignName('');
+    setDesignNameError('');
     setAckLow(false);
     setErr('');
     setPriceAmount(0);
@@ -182,21 +185,32 @@ export default function Home() {
   }
 
 
+  function handleDesignNameChange(event) {
+    const { value } = event.target;
+    setDesignName(value);
+    if (designNameError && value.trim().length >= 2) {
+      setDesignNameError('');
+    }
+  }
+
   async function handleContinue() {
+    setErr('');
     if (!layout || !canvasRef.current) {
       setErr('Falta imagen o layout');
       return;
     }
     if (trimmedDesignName.length < 2) {
-      setErr('El nombre del modelo debe tener al menos 2 caracteres.');
+      setDesignNameError('Ingresa un nombre para tu modelo antes de continuar');
+      setConfigOpen(true);
+      designNameInputRef.current?.focus?.();
       return;
     }
+    setDesignNameError('');
     if (level === 'bad' && !ackLow) {
       setErr('Confirmá que aceptás continuar con la calidad baja.');
       return;
     }
     try {
-      setErr('');
       setBusy(true);
       const master = canvasRef.current.exportPadDataURL?.(2);
       if (!master) {
@@ -307,6 +321,13 @@ export default function Home() {
     .filter(Boolean)
     .join(' ');
 
+  const designNameInputClasses = [
+    styles.textInput,
+    designNameError ? styles.textInputError : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   const canvasStageClasses = [
     styles.canvasStage,
 
@@ -368,12 +389,20 @@ export default function Home() {
                     <input
                       type="text"
                       id="design-name"
-                      className={styles.textInput}
+                      ref={designNameInputRef}
+                      className={designNameInputClasses}
                       placeholder="Ej: Nubes y cielo rosa"
                       value={designName}
-                      onChange={e => setDesignName(e.target.value)}
+                      onChange={handleDesignNameChange}
                       disabled={!hasImage}
+                      aria-invalid={designNameError ? 'true' : 'false'}
+                      aria-describedby={designNameError ? 'design-name-error' : undefined}
                     />
+                    {designNameError && (
+                      <p className={styles.fieldError} id="design-name-error">
+                        {designNameError}
+                      </p>
+                    )}
                   </div>
                   <SizeControls
                     material={material}
@@ -450,7 +479,7 @@ export default function Home() {
           {hasImage && (
             <button
               className={styles.continueButton}
-              disabled={busy || trimmedDesignName.length < 2}
+              disabled={busy}
               onClick={handleContinue}
             >
               Continuar
