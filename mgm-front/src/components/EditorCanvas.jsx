@@ -1246,6 +1246,195 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       <div className={styles.toolbar}>
         <button
           type="button"
+          onClick={() => alignEdge("left")}
+          disabled={!imgEl}
+          aria-label="Alinear a la izquierda"
+          title="Alinear a la izquierda"
+          className={styles.iconOnlyButton}
+        >
+          {missingIcons.izquierda ? (
+            <span className={styles.iconFallback} aria-hidden="true" />
+          ) : (
+            <img
+              src={ACTION_ICON_MAP.izquierda}
+              alt="Izquierda"
+              className={styles.iconOnlyButtonImage}
+
+              onError={handleIconError("izquierda")}
+
+            />
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={centerHoriz}
+          disabled={!imgEl}
+          aria-label="Centrar horizontal"
+          title="Centrar horizontal"
+          className={styles.iconOnlyButton}
+        >
+          {missingIcons.centrado_V ? (
+            <span className={styles.iconFallback} aria-hidden="true" />
+          ) : (
+            <img
+              src={ACTION_ICON_MAP.centrado_V}
+              alt="Centrar horizontal"
+              className={styles.iconOnlyButtonImage}
+
+              onError={handleIconError("centrado_V")}
+
+            />
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={() => alignEdge("right")}
+          disabled={!imgEl}
+          aria-label="Alinear a la derecha"
+          title="Alinear a la derecha"
+          className={styles.iconOnlyButton}
+        >
+          {missingIcons.derecha ? (
+            <span className={styles.iconFallback} aria-hidden="true" />
+          ) : (
+            <img
+              src={ACTION_ICON_MAP.derecha}
+              alt="Derecha"
+              className={styles.iconOnlyButtonImage}
+
+              onError={handleIconError("derecha")}
+
+            />
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={() => alignEdge("top")}
+          disabled={!imgEl}
+          aria-label="Alinear arriba"
+          title="Alinear arriba"
+          className={styles.iconOnlyButton}
+        >
+          {missingIcons.arriba ? (
+            <span className={styles.iconFallback} aria-hidden="true" />
+          ) : (
+            <img
+              src={ACTION_ICON_MAP.arriba}
+              alt="Arriba"
+              className={styles.iconOnlyButtonImage}
+
+              onError={handleIconError("arriba")}
+
+            />
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={centerVert}
+          disabled={!imgEl}
+          aria-label="Centrar vertical"
+          title="Centrar vertical"
+          className={styles.iconOnlyButton}
+        >
+          {missingIcons.centrado_h ? (
+            <span className={styles.iconFallback} aria-hidden="true" />
+          ) : (
+            <img
+              src={ACTION_ICON_MAP.centrado_h}
+              alt="Centrar vertical"
+              className={styles.iconOnlyButtonImage}
+
+              onError={handleIconError("centrado_h")}
+
+            />
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={() => alignEdge("bottom")}
+          disabled={!imgEl}
+          aria-label="Alinear abajo"
+          title="Alinear abajo"
+          className={styles.iconOnlyButton}
+        >
+          {missingIcons.abajo ? (
+            <span className={styles.iconFallback} aria-hidden="true" />
+          ) : (
+            <img
+              src={ACTION_ICON_MAP.abajo}
+              alt="Abajo"
+              className={styles.iconOnlyButtonImage}
+
+              onError={handleIconError("abajo")}
+            />
+          )}
+
+        </button>
+        <button
+          type="button"
+          onClick={rotate90}
+          disabled={!imgEl}
+          aria-label="Rotar 90°"
+          title="Rotar 90°"
+          className={styles.iconOnlyButton}
+        >
+          {missingIcons.rotar ? (
+            <span className={styles.iconFallback} aria-hidden="true" />
+          ) : (
+            <img
+              src={ACTION_ICON_MAP.rotar}
+              alt="Rotar"
+              className={styles.iconOnlyButtonImage}
+
+              onError={handleIconError("rotar")}
+
+            />
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={flipVertical}
+          disabled={!imgEl}
+          aria-label="Espejo vertical"
+          title="Espejo vertical"
+          className={styles.iconOnlyButton}
+        >
+          {missingIcons.espejo_v ? (
+            <span className={styles.iconFallback} aria-hidden="true" />
+          ) : (
+            <img
+              src={ACTION_ICON_MAP.espejo_v}
+              alt="Espejo vertical"
+              className={styles.iconOnlyButtonImage}
+
+              onError={handleIconError("espejo_v")}
+
+            />
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={flipHorizontal}
+          disabled={!imgEl}
+          aria-label="Espejo horizontal"
+          title="Espejo horizontal"
+          className={styles.iconOnlyButton}
+        >
+          {missingIcons.espejo_h ? (
+            <span className={styles.iconFallback} aria-hidden="true" />
+          ) : (
+            <img
+              src={ACTION_ICON_MAP.espejo_h}
+              alt="Espejo horizontal"
+              className={styles.iconOnlyButtonImage}
+
+              onError={handleIconError("espejo_h")}
+
+            />
+          )}
+        </button>
+        <button
+          type="button"
           onClick={fitCover}
           disabled={!imgEl}
           aria-label="Cubrir"
@@ -1321,133 +1510,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
             />
           )}
-        </button>
-
-        <button
-          type="button"
-          onClick={centerHoriz}
-          disabled={!imgEl}
-          aria-label="Centrar horizontal"
-          title="Centrar horizontal"
-          className={styles.iconOnlyButton}
-        >
-          {missingIcons.centrado_h ? (
-            <span className={styles.iconFallback} aria-hidden="true" />
-          ) : (
-            <img
-              src={ACTION_ICON_MAP.centrado_h}
-              alt="Centrar horizontal"
-              className={styles.iconOnlyButtonImage}
-
-              onError={handleIconError("centrado_h")}
-
-            />
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={centerVert}
-          disabled={!imgEl}
-          aria-label="Centrar vertical"
-          title="Centrar vertical"
-          className={styles.iconOnlyButton}
-        >
-          {missingIcons.centrado_V ? (
-            <span className={styles.iconFallback} aria-hidden="true" />
-          ) : (
-            <img
-              src={ACTION_ICON_MAP.centrado_V}
-              alt="Centrar vertical"
-              className={styles.iconOnlyButtonImage}
-
-              onError={handleIconError("centrado_V")}
-
-            />
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={() => alignEdge("left")}
-          disabled={!imgEl}
-          aria-label="Alinear a la izquierda"
-          title="Alinear a la izquierda"
-          className={styles.iconOnlyButton}
-        >
-          {missingIcons.izquierda ? (
-            <span className={styles.iconFallback} aria-hidden="true" />
-          ) : (
-            <img
-              src={ACTION_ICON_MAP.izquierda}
-              alt="Izquierda"
-              className={styles.iconOnlyButtonImage}
-
-              onError={handleIconError("izquierda")}
-
-            />
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={() => alignEdge("right")}
-          disabled={!imgEl}
-          aria-label="Alinear a la derecha"
-          title="Alinear a la derecha"
-          className={styles.iconOnlyButton}
-        >
-          {missingIcons.derecha ? (
-            <span className={styles.iconFallback} aria-hidden="true" />
-          ) : (
-            <img
-              src={ACTION_ICON_MAP.derecha}
-              alt="Derecha"
-              className={styles.iconOnlyButtonImage}
-
-              onError={handleIconError("derecha")}
-
-            />
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={() => alignEdge("top")}
-          disabled={!imgEl}
-          aria-label="Alinear arriba"
-          title="Alinear arriba"
-          className={styles.iconOnlyButton}
-        >
-          {missingIcons.arriba ? (
-            <span className={styles.iconFallback} aria-hidden="true" />
-          ) : (
-            <img
-              src={ACTION_ICON_MAP.arriba}
-              alt="Arriba"
-              className={styles.iconOnlyButtonImage}
-
-              onError={handleIconError("arriba")}
-
-            />
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={() => alignEdge("bottom")}
-          disabled={!imgEl}
-          aria-label="Alinear abajo"
-          title="Alinear abajo"
-          className={styles.iconOnlyButton}
-        >
-          {missingIcons.abajo ? (
-            <span className={styles.iconFallback} aria-hidden="true" />
-          ) : (
-            <img
-              src={ACTION_ICON_MAP.abajo}
-              alt="Abajo"
-              className={styles.iconOnlyButtonImage}
-
-              onError={handleIconError("abajo")}
-            />
-          )}
-
         </button>
         <span
           className={`${styles.qualityBadge} ${
