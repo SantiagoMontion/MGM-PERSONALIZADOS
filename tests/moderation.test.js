@@ -79,6 +79,69 @@ async function createCartoonBuffer() {
   return sharp(data, { raw: { width, height, channels } }).png().toBuffer();
 }
 
+async function createStylizedCharacterBuffer() {
+  const width = 512;
+  const height = 512;
+  const channels = 3;
+  const data = Buffer.alloc(width * height * channels);
+  const ellipses = [
+    { x: width * 0.52, y: height * 0.6, rx: width * 0.12, ry: height * 0.3 },
+    { x: width * 0.48, y: height * 0.33, rx: width * 0.095, ry: height * 0.12 },
+    { x: width * 0.84, y: height * 0.56, rx: width * 0.09, ry: height * 0.17 },
+    { x: width * 0.18, y: height * 0.62, rx: width * 0.1, ry: height * 0.18 },
+    { x: width * 0.5, y: height * 0.82, rx: width * 0.1, ry: height * 0.12 },
+  ];
+
+  const isInsideEllipse = (x, y, ellipse) => {
+    const nx = (x - ellipse.x) / ellipse.rx;
+    const ny = (y - ellipse.y) / ellipse.ry;
+    return nx * nx + ny * ny <= 1;
+  };
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const idx = (y * width + x) * channels;
+      const inSkin = ellipses.some((ellipse) => isInsideEllipse(x, y, ellipse));
+      if (inSkin) {
+        const shade = Math.sin((x + y) * 0.022) * 11 + Math.cos((x - y) * 0.019) * 7;
+        const baseR = 214 + shade;
+        const baseG = 175 + shade * 0.62;
+        const baseB = 148 + shade * 0.4;
+        data[idx] = Math.max(0, Math.min(255, Math.round(baseR)));
+        data[idx + 1] = Math.max(0, Math.min(255, Math.round(baseG)));
+        data[idx + 2] = Math.max(0, Math.min(255, Math.round(baseB)));
+        continue;
+      }
+
+      const inSuit =
+        y > height * 0.4 &&
+        y < height * 0.88 &&
+        Math.abs(x - width * 0.52) < width * 0.26;
+
+      if (inSuit) {
+        const hue = (Math.sin(x * 0.024) + Math.cos(y * 0.021)) * 0.4;
+        const baseR = 48 + hue * 35 + (y / height) * 8;
+        const baseG = 94 + hue * 55 + (x / width) * 6;
+        const baseB = 130 + hue * 62 + (x / width) * 14;
+        data[idx] = Math.max(0, Math.min(255, Math.round(baseR)));
+        data[idx + 1] = Math.max(0, Math.min(255, Math.round(baseG)));
+        data[idx + 2] = Math.max(0, Math.min(255, Math.round(baseB)));
+        continue;
+      }
+
+      const bgNoise = Math.sin(x * 0.015) * Math.cos(y * 0.017);
+      const baseR = 36 + bgNoise * 36 + (x / width) * 20;
+      const baseG = 20 + bgNoise * 28 + (y / height) * 14;
+      const baseB = 55 + bgNoise * 45 + (y / height) * 18;
+      data[idx] = Math.max(0, Math.min(255, Math.round(baseR)));
+      data[idx + 1] = Math.max(0, Math.min(255, Math.round(baseG)));
+      data[idx + 2] = Math.max(0, Math.min(255, Math.round(baseB)));
+    }
+  }
+
+  return sharp(data, { raw: { width, height, channels } }).png().toBuffer();
+}
+
 function swastikaSVG({ size = 256, stroke = 26, flag = true } = {}) {
   const s = size;
   const m = s / 2;
@@ -118,6 +181,14 @@ test('evaluateImage allows stylized explicit art', async () => {
   assert.equal(result.label, 'ALLOW');
   assert.equal(result.reasons.includes('anime_explicit_allowed'), true);
   assert(result.confidence >= 0.7);
+});
+
+test('evaluateImage allows stylized character renders', async () => {
+  const buf = await createStylizedCharacterBuffer();
+  const result = await evaluateImage(buf, 'character.png', '', { approxDpi: 320 });
+  assert.equal(result.label, 'ALLOW');
+  assert.equal(result.reasons.some((reason) => reason.includes('anime')), true);
+  assert(result.confidence >= 0.65);
 });
 
 test('evaluateImage blocks nazi symbols', async () => {
