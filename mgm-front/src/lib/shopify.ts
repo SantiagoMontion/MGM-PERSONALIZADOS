@@ -83,7 +83,7 @@ export async function blobToBase64(b: Blob): Promise<string> {
   });
 }
 
-export async function createJobAndProduct(mode: 'checkout' | 'cart', flow: FlowState) {
+export async function createJobAndProduct(mode: 'checkout' | 'cart' | 'private', flow: FlowState) {
   if (!flow.mockupBlob) throw new Error('missing_mockup');
   const mockupDataUrl = await blobToBase64(flow.mockupBlob);
   const productType = flow.productType === 'glasspad' ? 'glasspad' : 'mousepad';
@@ -112,6 +112,9 @@ export async function createJobAndProduct(mode: 'checkout' | 'cart', flow: FlowS
   const filename = `${slugify(designName || productTitle)}.png`;
   const imageAlt = `Mockup ${productTitle}`;
 
+  const isPrivate = mode === 'private';
+  const requestedVisibility: 'public' | 'private' = isPrivate ? 'private' : 'public';
+
   const publishResp = await apiFetch('/api/publish-product', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -133,6 +136,7 @@ export async function createJobAndProduct(mode: 'checkout' | 'cart', flow: FlowS
       tags: extraTags,
       description: '',
       seoDescription: metaDescription,
+      visibility: requestedVisibility,
     }),
   });
   const publish = await publishResp.json().catch(() => null);
@@ -165,14 +169,16 @@ export async function createJobAndProduct(mode: 'checkout' | 'cart', flow: FlowS
     productId?: string;
     variantId?: string;
     productUrl?: string;
+    visibility: 'public' | 'private';
   } = {
     productId,
     variantId,
     productUrl: publish.productUrl,
+    visibility: publish?.visibility === 'private' ? 'private' : requestedVisibility,
   };
 
   try {
-    if (mode === 'checkout') {
+    if (mode === 'checkout' || isPrivate) {
       const ckResp = await apiFetch('/api/create-checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -237,6 +243,7 @@ export async function createJobAndProduct(mode: 'checkout' | 'cart', flow: FlowS
         checkoutUrl: result.checkoutUrl,
         productUrl: publish.productUrl,
         productHandle: publish.productHandle,
+        visibility: result.visibility,
       },
     });
   }

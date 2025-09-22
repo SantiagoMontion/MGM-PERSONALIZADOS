@@ -22,9 +22,9 @@ export default function Mockup() {
   }
 
   async function handle(mode) {
-    if (mode !== 'checkout' && mode !== 'cart') return;
-    let cartPopup = null;
-    let cartTarget = '_blank';
+
+    if (mode !== 'checkout' && mode !== 'cart' && mode !== 'private') return;
+
     try {
       setBusy(true);
       if (mode === 'cart' && typeof window !== 'undefined') {
@@ -36,16 +36,22 @@ export default function Mockup() {
         window.location.assign(result.checkoutUrl);
         return;
       }
+      if (mode === 'private' && result.checkoutUrl) {
+        window.location.assign(result.checkoutUrl);
+        return;
+      }
       if (mode === 'cart' && result.cartUrl) {
         openCartUrl(result.cartUrl, { target: cartTarget, popup: cartPopup });
         flow.reset();
         navigate('/', { replace: true });
         return;
       }
+
       if (result.productUrl) {
         if (cartPopup && !cartPopup.closed) {
           try { cartPopup.close(); } catch {}
         }
+
         window.open(result.productUrl, '_blank', 'noopener');
         return;
       }
@@ -147,6 +153,7 @@ export default function Mockup() {
         <button disabled={busy} onClick={() => { flow.reset(); navigate('/'); }}>Cancelar y volver</button>
         <button disabled={busy} onClick={() => handle('cart')}>Agregar al carrito y seguir creando</button>
         <button disabled={busy} onClick={() => handle('checkout')}>Comprar ahora</button>
+        <button disabled={busy} onClick={() => handle('private')}>Comprar en privado</button>
       </div>
     </div>
   );
