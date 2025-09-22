@@ -406,19 +406,47 @@ export default function Home() {
         <div className={canvasStageClasses}>
           <div className={styles.canvasViewport}>
 
+            <EditorCanvas
+              ref={canvasRef}
+              imageUrl={imageUrl}
+              imageFile={uploaded?.file}
+              sizeCm={activeSizeCm}
+              bleedMm={3}
+              dpi={300}
+              onLayoutChange={setLayout}
+              onClearImage={handleClearImage}
+              showHistoryControls={false}
+              onHistoryChange={handleHistoryChange}
+            />
             {hasImage && (
-              <EditorCanvas
-                ref={canvasRef}
-                imageUrl={imageUrl}
-                imageFile={uploaded?.file}
-                sizeCm={activeSizeCm}
-                bleedMm={3}
-                dpi={300}
-                onLayoutChange={setLayout}
-                onClearImage={handleClearImage}
-                showHistoryControls={false}
-                onHistoryChange={handleHistoryChange}
-              />
+              <div className={styles.canvasHistoryActions}>
+                <button
+                  type="button"
+                  className={styles.topActionButton}
+                  onClick={handleUndo}
+                  disabled={!canUndo}
+                  aria-label="Deshacer"
+                >
+                  <UndoIcon className={styles.topActionIcon} />
+                </button>
+                <button
+                  type="button"
+                  className={styles.topActionButton}
+                  onClick={handleRedo}
+                  disabled={!canRedo}
+                  aria-label="Rehacer"
+                >
+                  <RedoIcon className={styles.topActionIcon} />
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.topActionButton} ${styles.deleteActionButton}`}
+                  onClick={handleClearImage}
+                  aria-label="Eliminar imagen"
+                >
+                  <TrashIcon className={styles.topActionIcon} />
+                </button>
+              </div>
 
             )}
             {!hasImage && (

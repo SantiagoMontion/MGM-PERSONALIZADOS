@@ -188,7 +188,9 @@
   display: flex;
   align-items: center;
   gap: 14px;
-  z-index: 10;
+
+  z-index: 1200;
+
 }
 
 .topActionButton {
