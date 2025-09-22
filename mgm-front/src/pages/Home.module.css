@@ -4,6 +4,8 @@
   gap: 32px;
   padding: 32px 48px 56px;
   min-height: 100%;
+
+
 }
 
 .editor {
@@ -13,11 +15,13 @@
   width: 100%;
   max-width: 1180px;
   margin: 0 auto;
+
   padding: 40px;
   border-radius: 32px;
   border: 1px solid rgba(37, 37, 48, 0.6);
   background: rgba(14, 14, 20, 0.96);
   box-shadow: 0 32px 72px rgba(0, 0, 0, 0.45);
+
 }
 
 .editorHeader {
@@ -39,8 +43,9 @@
   margin: 0;
   font-size: 2.1rem;
   font-weight: 700;
+
   color: #f7f7f9;
-}
+
 
 .configDropdown {
   position: relative;
@@ -53,6 +58,7 @@
   display: inline-flex;
   align-items: center;
   gap: 14px;
+
   padding: 16px 20px;
   border-radius: 16px;
   border: 1px solid rgba(63, 63, 77, 0.6);
@@ -60,11 +66,13 @@
   color: #f6f7fb;
   font-weight: 600;
   font-size: 1rem;
+
   cursor: pointer;
   transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
 
 .configTrigger:hover:not(:disabled) {
+
   border-color: rgba(140, 140, 165, 0.85);
   box-shadow: 0 14px 28px rgba(0, 0, 0, 0.4);
   transform: translateY(-1px);
@@ -72,12 +80,14 @@
 
 .configTrigger:disabled,
 .configTriggerDisabled {
+
   opacity: 0.45;
   cursor: not-allowed;
   transform: none;
 }
 
 .configTriggerActive {
+
   border-color: rgba(140, 140, 165, 0.85);
   box-shadow: 0 14px 28px rgba(0, 0, 0, 0.4);
 }
@@ -102,6 +112,7 @@
 .configTriggerArrow img {
   width: 18px;
   height: 18px;
+
   transition: transform 0.2s ease;
 }
 
@@ -119,14 +130,18 @@
   gap: 24px;
   padding: 28px;
   border-radius: 24px;
+
   border: 1px solid rgba(63, 63, 77, 0.6);
   background: rgba(14, 14, 20, 0.96);
   box-shadow: 0 32px 60px rgba(0, 0, 0, 0.5);
+
   z-index: 20;
 }
 
 .configPanelDisabled {
+
   opacity: 0.6;
+
   pointer-events: none;
 }
 
@@ -140,31 +155,38 @@
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
+
   color: rgba(206, 212, 226, 0.85);
+
   font-weight: 600;
 }
 
 .textInput {
   width: 100%;
   padding: 14px 16px;
+
   border-radius: 12px;
   border: 1px solid rgba(63, 63, 77, 0.7);
   background: rgba(22, 22, 28, 0.9);
   color: #f3f4f6;
+
   font-size: 1rem;
   font-weight: 500;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .textInput::placeholder {
+
   color: rgba(156, 163, 175, 0.7);
+
 }
 
 .textInput:focus {
   outline: none;
+
   border-color: rgba(170, 170, 190, 0.9);
   box-shadow: 0 0 0 3px rgba(170, 170, 190, 0.2);
-}
+
 
 .headerActions {
   display: flex;
@@ -174,12 +196,14 @@
 }
 
 .topActionButton {
+
   width: 52px;
   height: 52px;
   border-radius: 16px;
   border: 1px solid rgba(63, 63, 77, 0.65);
   background: rgba(20, 20, 26, 0.92);
   color: #f6f7fb;
+
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -188,20 +212,25 @@
 }
 
 .topActionButton:disabled {
+
   opacity: 0.45;
   cursor: not-allowed;
   border-color: rgba(63, 63, 77, 0.4);
   background: rgba(18, 18, 24, 0.6);
+
 }
 
 .topActionButton:not(:disabled):hover {
   transform: translateY(-2px);
+
   border-color: rgba(170, 170, 190, 0.9);
   box-shadow: 0 18px 36px rgba(0, 0, 0, 0.45);
+
 }
 
 .topActionButton:not(:disabled):active {
   transform: translateY(0);
+
 }
 
 .topActionButton:focus-visible {
@@ -225,12 +254,15 @@
   height: 28px;
 }
 
+
 .canvasStage {
   position: relative;
   display: flex;
   flex-direction: column;
+
   background: rgba(12, 12, 18, 0.95);
   border: 1px solid rgba(63, 63, 77, 0.55);
+
   border-radius: 30px;
   padding: 32px;
   min-height: 520px;
@@ -256,15 +288,17 @@
   display: inline-flex;
   padding: 24px 32px;
   border-radius: 20px;
+
   border: 1px solid rgba(63, 63, 77, 0.55);
   background: rgba(16, 16, 22, 0.96);
   box-shadow: 0 32px 60px rgba(0, 0, 0, 0.5);
+
 }
 
 .uploadButton {
   border: none;
   background: transparent;
-  color: inherit;
+
   font: inherit;
   font-size: 1.05rem;
   font-weight: 600;
@@ -282,17 +316,21 @@
 }
 
 .uploadButtonIcon {
+
   width: 48px;
   height: 48px;
   border-radius: 50%;
   border: 1px solid rgba(170, 170, 190, 0.45);
   background: rgba(170, 170, 190, 0.18);
+
   display: inline-flex;
   align-items: center;
   justify-content: center;
   font-size: 2rem;
   line-height: 1;
+
   color: rgba(235, 236, 245, 0.95);
+
 }
 
 .uploadButtonText {
@@ -321,14 +359,18 @@
   gap: 12px;
   padding: 12px 18px;
   border-radius: 14px;
+
   border: 1px solid rgba(63, 63, 77, 0.55);
   background: rgba(16, 16, 22, 0.9);
   color: rgba(229, 231, 235, 0.9);
+
   font-size: 0.9rem;
 }
 
 .ackLabel input {
+
   accent-color: initial;
+
 }
 
 .errorMessage {
@@ -344,6 +386,7 @@
 
 .continueButton {
   border-radius: 16px;
+
   border: 1px solid rgba(63, 63, 77, 0.6);
   background: rgba(238, 238, 242, 0.95);
   color: #111;
@@ -351,6 +394,7 @@
   font-weight: 600;
   padding: 14px 28px;
   box-shadow: 0 18px 36px rgba(0, 0, 0, 0.4);
+
   cursor: pointer;
   transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
@@ -363,7 +407,9 @@
 
 .continueButton:not(:disabled):hover {
   transform: translateY(-2px);
+
   box-shadow: 0 24px 48px rgba(0, 0, 0, 0.45);
+
 }
 
 @media (max-width: 960px) {
