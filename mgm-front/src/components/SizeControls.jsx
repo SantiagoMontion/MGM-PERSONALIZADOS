@@ -6,6 +6,7 @@ import { resolveIconAsset } from '../lib/iconRegistry.js';
 
 const WIDTH_ICON_SRC = resolveIconAsset('largo.svg');
 const HEIGHT_ICON_SRC = resolveIconAsset('ancho.svg');
+const DOWN_ICON_SRC = resolveIconAsset('down.svg');
 
 const MATERIAL_OPTIONS = [
   { value: 'Glasspad', title: 'GLASSPAD', subtitle: 'speed' },
@@ -26,6 +27,9 @@ export default function SizeControls({ material, size, onChange, locked = false,
 
   const [wText, setWText] = useState(String(size.w || ''));
   const [hText, setHText] = useState(String(size.h || ''));
+  const [isSeriesOpen, setSeriesOpen] = useState(false);
+
+  const seriesSelectRef = useRef(null);
 
   useEffect(() => { setWText(String(size.w ?? '')); }, [size.w]);
   useEffect(() => { setHText(String(size.h ?? '')); }, [size.h]);
@@ -55,6 +59,33 @@ export default function SizeControls({ material, size, onChange, locked = false,
     onChange?.({ w: GLASSPAD_SIZE_CM.w, h: GLASSPAD_SIZE_CM.h });
     glasspadInitRef.current = true;
   }, [material, onChange, disabled]);
+
+  useEffect(() => {
+    if (!isSeriesOpen) return undefined;
+
+    const handleClickOutside = (event) => {
+      if (!seriesSelectRef.current) return;
+      if (!seriesSelectRef.current.contains(event.target)) {
+        setSeriesOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [isSeriesOpen]);
+
+  useEffect(() => {
+    if (disabled && isSeriesOpen) {
+      setSeriesOpen(false);
+    }
+  }, [disabled, isSeriesOpen]);
+
+  useEffect(() => { setSeriesOpen(false); }, [material]);
 
   const numPattern = /^[0-9]{0,3}(\.[0-9]{0,2})?$/;
 
@@ -101,6 +132,8 @@ export default function SizeControls({ material, size, onChange, locked = false,
   ]
     .filter(Boolean)
     .join(' ');
+
+  const activeMaterialOption = MATERIAL_OPTIONS.find((option) => option.value === material) || MATERIAL_OPTIONS[0];
   return (
     <div className={containerClasses} aria-disabled={disabled}>
       <div className={styles.section}>
@@ -177,35 +210,75 @@ export default function SizeControls({ material, size, onChange, locked = false,
 
       <div className={`${styles.section} ${styles.seriesSection}`}>
         <span className={styles.groupLabel}>Serie</span>
-        <div className={styles.materialList} role="radiogroup" aria-disabled={disabled}>
-          {MATERIAL_OPTIONS.map((option) => {
-            const isActive = material === option.value;
-            const materialClassName = [
+        <div className={styles.seriesSelect} ref={seriesSelectRef}>
+          <button
+            type="button"
+            className={[
               styles.materialOption,
-              isActive ? styles.materialOptionActive : '',
+              styles.seriesSelectTrigger,
               disabled ? styles.materialOptionDisabled : '',
-            ]
-              .filter(Boolean)
-              .join(' ');
+            ].filter(Boolean).join(' ')}
+            onClick={() => {
+              if (disabled) return;
+              setSeriesOpen((prev) => !prev);
+            }}
+            aria-haspopup="listbox"
+            aria-expanded={isSeriesOpen}
+            disabled={disabled}
+          >
+            <span className={styles.seriesSelectText}>
+              <span className={styles.materialOptionTitle}>{activeMaterialOption.title}</span>
+              <span className={styles.materialOptionSubtitle}>{activeMaterialOption.subtitle}</span>
+            </span>
+            <img
+              src={DOWN_ICON_SRC}
+              alt=""
+              aria-hidden="true"
+              className={[
+                styles.seriesSelectIcon,
+                isSeriesOpen ? styles.seriesSelectIconOpen : '',
+              ].filter(Boolean).join(' ')}
+            />
+          </button>
+          {isSeriesOpen && (
+            <div
+              className={styles.seriesOptions}
+              role="listbox"
+              aria-activedescendant={`material-option-${activeMaterialOption.value}`}
+            >
+              {MATERIAL_OPTIONS.map((option) => {
+                const isActive = material === option.value;
+                const optionClassName = [
+                  styles.materialOption,
+                  styles.seriesOptionItem,
+                  isActive ? styles.materialOptionActive : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ');
 
-            return (
-              <button
-                key={option.value}
-                type="button"
-                role="radio"
-                aria-checked={isActive}
-                className={materialClassName}
-                onClick={() => {
-                  if (disabled) return;
-                  onChange({ material: option.value });
-                }}
-                disabled={disabled}
-              >
-                <span className={styles.materialOptionTitle}>{option.title}</span>
-                <span className={styles.materialOptionSubtitle}>{option.subtitle}</span>
-              </button>
-            );
-          })}
+                return (
+                  <button
+                    id={`material-option-${option.value}`}
+                    key={option.value}
+                    type="button"
+                    role="option"
+                    aria-selected={isActive}
+                    className={optionClassName}
+                    onClick={() => {
+                      if (disabled) return;
+                      setSeriesOpen(false);
+                      if (option.value !== material) {
+                        onChange({ material: option.value });
+                      }
+                    }}
+                  >
+                    <span className={styles.materialOptionTitle}>{option.title}</span>
+                    <span className={styles.materialOptionSubtitle}>{option.subtitle}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>
