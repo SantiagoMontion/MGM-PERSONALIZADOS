@@ -329,6 +329,71 @@ export default function Home() {
     .filter(Boolean)
     .join(' ');
 
+  const configDropdown = (
+    <div className={styles.configDropdown}>
+      <button
+        type="button"
+        className={configTriggerClasses}
+        onClick={() => setConfigOpen((open) => !open)}
+        disabled={!hasImage}
+        aria-expanded={configOpen}
+        aria-controls="configuracion-editor"
+      >
+        <span className={styles.configTriggerIcon} aria-hidden="true">
+          <img src={CONFIG_ICON_SRC} alt="" />
+        </span>
+        <span className={styles.configTriggerLabel}>Configura tu mousepad</span>
+        <span className={styles.configTriggerArrow} aria-hidden="true">
+          <img
+            src={CONFIG_ARROW_ICON_SRC}
+            alt=""
+            className={configOpen ? styles.configTriggerArrowOpen : ''}
+          />
+        </span>
+      </button>
+      {configOpen && (
+        <div
+          id="configuracion-editor"
+          className={configPanelClasses}
+          aria-disabled={!hasImage}
+        >
+          <div className={styles.field}>
+            <label className={styles.fieldLabel} htmlFor="design-name">
+              Nombre de tu diseño
+            </label>
+            <input
+              type="text"
+              id="design-name"
+              ref={designNameInputRef}
+              className={designNameInputClasses}
+              placeholder="Ej: Nubes y cielo rosa"
+              value={designName}
+              onChange={handleDesignNameChange}
+              disabled={!hasImage}
+              aria-invalid={designNameError ? 'true' : 'false'}
+              aria-describedby={
+                designNameError ? 'design-name-error' : undefined
+              }
+            />
+            {designNameError && (
+              <p className={styles.fieldError} id="design-name-error">
+                {designNameError}
+              </p>
+            )}
+          </div>
+          <SizeControls
+            material={material}
+            size={size}
+            mode={mode}
+            onChange={handleSizeChange}
+            locked={material === 'Glasspad'}
+            disabled={!hasImage}
+          />
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className={styles.page}>
       <SeoJsonLd
@@ -345,69 +410,7 @@ export default function Home() {
       />
       <section className={styles.editor}>
         <div className={styles.editorHeader}>
-          <div className={styles.headerPrimary}>
-            <h1 className={styles.title}>Crea tu mousepad</h1>
-            <div className={styles.configDropdown}>
-              <button
-                type="button"
-                className={configTriggerClasses}
-                onClick={() => setConfigOpen(open => !open)}
-                disabled={!hasImage}
-                aria-expanded={configOpen}
-                aria-controls="configuracion-editor"
-              >
-                <span className={styles.configTriggerIcon} aria-hidden="true">
-                  <img src={CONFIG_ICON_SRC} alt="" />
-                </span>
-                <span className={styles.configTriggerLabel}>Configura tu mousepad</span>
-                <span className={styles.configTriggerArrow} aria-hidden="true">
-                  <img
-                    src={CONFIG_ARROW_ICON_SRC}
-                    alt=""
-                    className={configOpen ? styles.configTriggerArrowOpen : ''}
-                  />
-                </span>
-              </button>
-              {configOpen && (
-                <div
-                  id="configuracion-editor"
-                  className={configPanelClasses}
-                  aria-disabled={!hasImage}
-                >
-                  <div className={styles.field}>
-                    <label className={styles.fieldLabel} htmlFor="design-name">
-                      Nombre de tu diseño
-                    </label>
-                    <input
-                      type="text"
-                      id="design-name"
-                      ref={designNameInputRef}
-                      className={designNameInputClasses}
-                      placeholder="Ej: Nubes y cielo rosa"
-                      value={designName}
-                      onChange={handleDesignNameChange}
-                      disabled={!hasImage}
-                      aria-invalid={designNameError ? 'true' : 'false'}
-                      aria-describedby={designNameError ? 'design-name-error' : undefined}
-                    />
-                    {designNameError && (
-                      <p className={styles.fieldError} id="design-name-error">
-                        {designNameError}
-                      </p>
-                    )}
-                  </div>
-                  <SizeControls
-                    material={material}
-                    size={size}
-                    mode={mode}
-                    onChange={handleSizeChange}
-                    locked={material === 'Glasspad'}
-                    disabled={!hasImage}
-                  />
-                </div>
-              )}
-            </div>
-          </div>
+          <h1 className={styles.title}>Crea tu mousepad</h1>
         </div>
 
         <div className={canvasStageClasses}>
@@ -423,6 +426,7 @@ export default function Home() {
               onLayoutChange={setLayout}
               onClearImage={handleClearImage}
               showCanvas={isCanvasReady}
+              topLeftOverlay={configDropdown}
             />
             {!hasImage && (
               <div className={styles.uploadOverlay}>

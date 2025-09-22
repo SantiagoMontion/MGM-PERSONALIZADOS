@@ -98,6 +98,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     showCanvas = true,
     showHistoryControls = true,
     onHistoryChange,
+    topLeftOverlay,
   },
   ref,
 ) {
@@ -1281,81 +1282,9 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
   return (
     <div className={styles.editorRoot}>
-      {/* Canvas */}
-      <div ref={wrapRef} className={wrapperClassName}>
-        {showHistoryControls && (
-          <div className={styles.historyControls}>
-            <button
-              type="button"
-              onClick={undo}
-              disabled={!canUndo}
-              className={styles.historyButton}
-              aria-label="Deshacer"
-            >
-
-              {missingHistoryIcons.undo ? (
-                <span className={styles.historyFallback} aria-hidden="true">
-                  {HISTORY_ICON_SPECS.undo.fallbackLabel}
-                </span>
-              ) : (
-                <img
-                  src={HISTORY_ICON_SPECS.undo.src}
-                  alt=""
-                  className={styles.historyIcon}
-                  draggable="false"
-                  onError={handleHistoryIconError("undo")}
-                />
-              )}
-
-            </button>
-            <button
-              type="button"
-              onClick={redo}
-              disabled={!canRedo}
-              className={styles.historyButton}
-              aria-label="Rehacer"
-            >
-
-              {missingHistoryIcons.redo ? (
-                <span className={styles.historyFallback} aria-hidden="true">
-                  {HISTORY_ICON_SPECS.redo.fallbackLabel}
-                </span>
-              ) : (
-                <img
-                  src={HISTORY_ICON_SPECS.redo.src}
-                  alt=""
-                  className={styles.historyIcon}
-                  draggable="false"
-                  onError={handleHistoryIconError("redo")}
-                />
-              )}
-
-            </button>
-            <button
-              type="button"
-              onClick={() => onClearImage?.()}
-              disabled={!onClearImage || !imageUrl}
-              className={`${styles.historyButton} ${styles.historyButtonDanger}`}
-              aria-label="Eliminar"
-            >
-
-              {missingHistoryIcons.delete ? (
-                <span className={styles.historyFallback} aria-hidden="true">
-                  {HISTORY_ICON_SPECS.delete.fallbackLabel}
-                </span>
-              ) : (
-                <img
-                  src={HISTORY_ICON_SPECS.delete.src}
-                  alt=""
-                  className={styles.historyIcon}
-                  draggable="false"
-                  onError={handleHistoryIconError("delete")}
-                />
-              )}
-
-            </button>
-          </div>
-        )}
+      <div className={styles.lienzo}>
+        {/* Canvas */}
+        <div ref={wrapRef} className={wrapperClassName}>
         <Stage
           ref={stageRef}
           width={wrapSize.w}
@@ -1640,10 +1569,81 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         )}
       </div>
 
-      {lastDiag && <p className={styles.errorBox}>{lastDiag}</p>}
+      {topLeftOverlay ? (
+        <div className={styles.overlayTopLeft}>{topLeftOverlay}</div>
+      ) : null}
 
-      {/* Toolbar */}
-      <div className={styles.toolbar}>
+      {showHistoryControls && (
+        <div className={`${styles.overlayTopRight} ${styles.historyControls}`}>
+          <button
+            type="button"
+            onClick={undo}
+            disabled={!canUndo}
+            className={styles.historyButton}
+            aria-label="Deshacer"
+          >
+            {missingHistoryIcons.undo ? (
+              <span className={styles.historyFallback} aria-hidden="true">
+                {HISTORY_ICON_SPECS.undo.fallbackLabel}
+              </span>
+            ) : (
+              <img
+                src={HISTORY_ICON_SPECS.undo.src}
+                alt=""
+                className={styles.historyIcon}
+                draggable="false"
+                onError={handleHistoryIconError("undo")}
+              />
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={redo}
+            disabled={!canRedo}
+            className={styles.historyButton}
+            aria-label="Rehacer"
+          >
+            {missingHistoryIcons.redo ? (
+              <span className={styles.historyFallback} aria-hidden="true">
+                {HISTORY_ICON_SPECS.redo.fallbackLabel}
+              </span>
+            ) : (
+              <img
+                src={HISTORY_ICON_SPECS.redo.src}
+                alt=""
+                className={styles.historyIcon}
+                draggable="false"
+                onError={handleHistoryIconError("redo")}
+              />
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => onClearImage?.()}
+            disabled={!onClearImage || !imageUrl}
+            className={`${styles.historyButton} ${styles.historyButtonDanger}`}
+            aria-label="Eliminar"
+          >
+            {missingHistoryIcons.delete ? (
+              <span className={styles.historyFallback} aria-hidden="true">
+                {HISTORY_ICON_SPECS.delete.fallbackLabel}
+              </span>
+            ) : (
+              <img
+                src={HISTORY_ICON_SPECS.delete.src}
+                alt=""
+                className={styles.historyIcon}
+                draggable="false"
+                onError={handleHistoryIconError("delete")}
+              />
+            )}
+          </button>
+        </div>
+      )}
+
+      <div className={styles.overlayBottomCenter}>
+        {/* Toolbar */}
+        <div className={styles.toolbar}>
 
         <button
           type="button"
@@ -2000,8 +2000,12 @@ const EditorCanvas = forwardRef(function EditorCanvas(
             {busy ? "Creando…" : "Crear job"}
           </button>
         )}
+        </div>
       </div>
     </div>
+
+    {lastDiag && <p className={styles.errorBox}>{lastDiag}</p>}
+  </div>
   );
 });
 
