@@ -2,6 +2,34 @@ import { useEffect, useRef, useState } from "react";
 import { HexColorPicker, HexColorInput } from "react-colorful";
 import styles from "./EditorCanvas.module.css";
 
+const iconModules = import.meta.glob("../icons/*.{svg,png}", {
+  eager: true,
+  import: "default",
+});
+
+const resolveIconAsset = (fileName) => {
+  const normalized = `../icons/${fileName}`;
+  const directMatch = iconModules[normalized];
+  if (directMatch) return directMatch;
+
+  const lower = fileName.toLowerCase();
+  if (lower.endsWith(".svg")) {
+    const pngKey = normalized.replace(/\.svg$/i, ".png");
+    if (iconModules[pngKey]) {
+      return iconModules[pngKey];
+    }
+  } else if (lower.endsWith(".png")) {
+    const svgKey = normalized.replace(/\.png$/i, ".svg");
+    if (iconModules[svgKey]) {
+      return iconModules[svgKey];
+    }
+  }
+
+  return `/icons/${fileName}`;
+};
+
+const EYEDROPPER_ICON = resolveIconAsset("tintero.svg");
+
 export default function ColorPopover({
   value,
   onChange,
@@ -10,8 +38,8 @@ export default function ColorPopover({
   onPickFromCanvas,
 }) {
   const boxRef = useRef(null);
-  const previewRef = useRef(null);
   const [hex, setHex] = useState(value || "#ffffff");
+  const [iconError, setIconError] = useState(false);
 
   useEffect(() => setHex(value || "#ffffff"), [value]);
 
@@ -31,10 +59,6 @@ export default function ColorPopover({
       document.removeEventListener("keydown", onKey);
     };
   }, [open, onClose]);
-
-  useEffect(() => {
-    if (previewRef.current) previewRef.current.style.background = hex;
-  }, [hex]);
 
   const swatches = [
     "#ffffff",
@@ -65,9 +89,10 @@ export default function ColorPopover({
         const ed = new window.EyeDropper();
         const { sRGBHex } = await ed.open();
         onChange?.(sRGBHex);
+        setHex(sRGBHex);
         return;
       }
-    } catch (err) {
+    } catch {
       // ignore
     }
     onPickFromCanvas?.();
@@ -78,58 +103,68 @@ export default function ColorPopover({
 
   return (
     <div ref={boxRef} className={styles.colorPopover}>
-      <HexColorPicker
-        color={hex}
-        onChange={(c) => {
-          setHex(c);
-          onChange?.(c);
-        }}
-        className={styles.colorPicker}
-      />
+      <div className={styles.colorPickerShell}>
+        <HexColorPicker
+          color={hex}
+          onChange={(c) => {
+            setHex(c);
+            onChange?.(c);
+          }}
+          className={styles.colorPicker}
+        />
+      </div>
+      <div className={styles.colorControls}>
+        <span
+          className={styles.previewDot}
+          style={{ background: hex }}
+          aria-hidden="true"
+        />
+        <div className={styles.hexField}>
+          <span className={styles.hexLabel}>Hex</span>
+          <HexColorInput
+            color={hex}
+            onChange={(c) => {
+              const v = c.startsWith("#") ? c : `#${c}`;
+              setHex(v);
+              onChange?.(v);
+            }}
+            prefixed
+            className={styles.hexInput}
+          />
+        </div>
+        <button
+          type="button"
+          title="Elegir del lienzo"
+          onClick={handlePick}
+          className={styles.eyedropperButton}
+        >
+          {iconError ? (
+            <span className={styles.eyedropperFallback} aria-hidden="true" />
+          ) : (
+            <img
+              src={EYEDROPPER_ICON}
+              alt="Tomar color del lienzo"
+              className={styles.eyedropperIcon}
+              onError={() => setIconError(true)}
+            />
+          )}
+        </button>
+      </div>
       <div className={styles.swatches}>
-        {swatches.map((c, i) => (
+        {swatches.map((c) => (
           <button
             key={c}
+            type="button"
             title={c}
             onClick={() => {
               setHex(c);
               onChange?.(c);
             }}
-            className={`${styles.swatch} ${styles["swatch" + i]}`}
+            className={styles.swatch}
+            style={{ background: c }}
+            data-selected={hex.toLowerCase() === c.toLowerCase()}
           />
         ))}
-      </div>
-      <div className={styles.colorControls}>
-        <div ref={previewRef} className={styles.colorPreview} />
-        <HexColorInput
-          color={hex}
-          onChange={(c) => {
-            const v = c.startsWith("#") ? c : `#${c}`;
-            setHex(v);
-            onChange?.(v);
-          }}
-          prefixed
-          className={styles.hexInput}
-        />
-        <button
-          title="Elegir del lienzo"
-          onClick={handlePick}
-          className={styles.eyedropperButton}
-        >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M3 21l6.6-6.6" />
-            <path d="M8.5 2.5a3 3 0 0 1 4.2 4.2L7.5 12 4 8.5 8.5 2.5z" />
-          </svg>
-        </button>
       </div>
     </div>
   );
