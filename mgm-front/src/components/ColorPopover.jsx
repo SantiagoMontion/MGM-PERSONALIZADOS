@@ -60,42 +60,32 @@ export default function ColorPopover({
     };
   }, [open, onClose]);
 
-  const swatches = [
-    "#ffffff",
-    "#000000",
-    "#f3f4f6",
-    "#e5e7eb",
-    "#d1d5db",
-    "#1f2937",
-    "#111827",
-    "#ff0000",
-    "#ff7f00",
-    "#ffb800",
-    "#ffe600",
-    "#00a859",
-    "#00c9a7",
-    "#00ccff",
-    "#0066ff",
-    "#6f42c1",
-    "#ff69b4",
-    "#8b4513",
-    "#808080",
-    "#333333",
-  ];
+
+  useEffect(() => {
+    if (previewRef.current) previewRef.current.style.background = hex;
+  }, [hex]);
+
 
   const handlePick = async () => {
+    let picked = false;
     try {
       if (window.EyeDropper) {
         const ed = new window.EyeDropper();
         const { sRGBHex } = await ed.open();
-        onChange?.(sRGBHex);
         setHex(sRGBHex);
-        return;
+        onChange?.(sRGBHex);
+
+        picked = true;
+
       }
     } catch {
       // ignore
     }
-    onPickFromCanvas?.();
+
+    if (!picked) {
+      onPickFromCanvas?.();
+    }
+
     onClose?.();
   };
 
@@ -103,23 +93,19 @@ export default function ColorPopover({
 
   return (
     <div ref={boxRef} className={styles.colorPopover}>
-      <div className={styles.colorPickerShell}>
-        <HexColorPicker
-          color={hex}
-          onChange={(c) => {
-            setHex(c);
-            onChange?.(c);
-          }}
-          className={styles.colorPicker}
-        />
-      </div>
+
+      <HexColorPicker
+        color={hex}
+        onChange={(c) => {
+          setHex(c);
+          onChange?.(c);
+        }}
+        className={styles.colorPicker}
+      />
       <div className={styles.colorControls}>
-        <span
-          className={styles.previewDot}
-          style={{ background: hex }}
-          aria-hidden="true"
-        />
-        <div className={styles.hexField}>
+        <div ref={previewRef} className={styles.colorPreview} />
+        <div className={styles.hexInputGroup}>
+
           <span className={styles.hexLabel}>Hex</span>
           <HexColorInput
             color={hex}

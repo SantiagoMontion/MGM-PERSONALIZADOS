@@ -299,7 +299,8 @@ export default function Home() {
           >
             <span className={styles.configHeaderLeft}>
               <img
-                src={CONFIG_ICON_SRC}
+                src="/icons/wheel.svg"
+
                 alt=""
                 className={styles.configIcon}
                 aria-hidden="true"
@@ -307,7 +308,9 @@ export default function Home() {
               <span className={styles.configTitle}>Configura tu mousepad</span>
             </span>
             <img
-              src={CONFIG_ARROW_ICON_SRC}
+
+              src="/icons/down.svg"
+
               alt=""
               className={`${styles.configArrowIcon} ${configOpen ? styles.configArrowIconOpen : ''}`}
               aria-hidden="true"
