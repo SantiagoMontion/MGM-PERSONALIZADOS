@@ -1,11 +1,21 @@
-import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { PDFDocument } from 'pdf-lib';
 import { useFlow } from '@/state/flow.js';
 import { downloadBlob } from '@/lib/mockup.js';
 import { buildExportBaseName } from '@/lib/filename.ts';
 import { openCartUrl } from '@/lib/cart.ts';
 import { createJobAndProduct } from '@/lib/shopify.ts';
+
+const safeClosePopup = (popup) => {
+  if (popup && !popup.closed) {
+    try {
+      popup.close();
+    } catch (closeErr) {
+      console.warn('No se pudo cerrar la ventana emergente', closeErr);
+    }
+  }
+};
 
 export default function Mockup() {
   const flow = useFlow();
@@ -83,22 +93,15 @@ export default function Mockup() {
       }
 
       if (result.productUrl) {
-        if (cartPopup && !cartPopup.closed) {
-          try { cartPopup.close(); } catch {}
-        }
-
+        safeClosePopup(cartPopup);
         window.open(result.productUrl, '_blank', 'noopener');
         return;
       }
-      if (cartPopup && !cartPopup.closed) {
-        try { cartPopup.close(); } catch {}
-      }
+      safeClosePopup(cartPopup);
       alert('El producto se creó pero no se pudo obtener un enlace.');
     } catch (e) {
       console.error('[mockup-handle]', e);
-      if (cartPopup && !cartPopup.closed) {
-        try { cartPopup.close(); } catch {}
-      }
+      safeClosePopup(cartPopup);
       const reasonRaw = typeof e?.reason === 'string' && e.reason ? e.reason : String(e?.message || 'Error');
       const messageRaw = typeof e?.friendlyMessage === 'string' && e.friendlyMessage
         ? e.friendlyMessage
@@ -190,6 +193,7 @@ export default function Mockup() {
         <button disabled={busy} onClick={() => handle('cart')}>Agregar al carrito y seguir creando</button>
         <button disabled={busy} onClick={() => handle('checkout')}>Comprar ahora</button>
         <button disabled={busy} onClick={() => handle('private')}>Comprar en privado</button>
+        <button disabled={busy} onClick={handleDownloadPdf}>Descargar PDF</button>
       </div>
     </div>
   );

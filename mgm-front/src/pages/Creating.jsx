@@ -28,29 +28,29 @@ export default function Creating() {
         rotate_deg: Number(render_v2?.rotate_deg ?? render?.rotate_deg ?? 0),
         ...(isGlasspad ? { glasspad: { effect: true } } : {}),
       };
-        const resp = await apiFetch(`/api/finalize-assets`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
+      await apiFetch(`/api/finalize-assets`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
-        let retried = false;
-        const res = await pollJobAndCreateCart(jobId, {
-          onTick: async (attempt, job) => {
-            if (!retried && attempt >= 10 && job?.status === "CREATED") {
-              retried = true;
-              try {
-                const r = await apiFetch(`/api/finalize-assets`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify(payload),
-                });
-              } catch (e) {
-                console.error("retry finalize failed", e);
-              }
+      let retried = false;
+      const res = await pollJobAndCreateCart(jobId, {
+        onTick: async (attempt, job) => {
+          if (!retried && attempt >= 10 && job?.status === "CREATED") {
+            retried = true;
+            try {
+              await apiFetch(`/api/finalize-assets`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+              });
+            } catch (e) {
+              console.error("retry finalize failed", e);
             }
-          },
-        });
+          }
+        },
+      });
 
       if (res.ok) {
         navigate(`/result/${jobId}`, {
