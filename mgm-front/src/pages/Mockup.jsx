@@ -25,13 +25,37 @@ export default function Mockup() {
 
     if (mode !== 'checkout' && mode !== 'cart' && mode !== 'private') return;
 
+    let submissionFlow = flow;
+    let cartTarget;
+    let cartPopup;
+
     if (mode === 'private') {
-      const emailRaw = typeof flow.customerEmail === 'string' ? flow.customerEmail.trim() : '';
-      const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailRaw);
-      if (!emailOk) {
-        alert('Para comprar en privado completá un correo electrónico válido en el paso anterior.');
-        return;
+      const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      let emailRaw = typeof flow.customerEmail === 'string' ? flow.customerEmail.trim() : '';
+      if (!emailPattern.test(emailRaw)) {
+        if (typeof window === 'undefined') {
+          alert('Ingresá un correo electrónico válido para comprar en privado.');
+          return;
+        }
+        const promptDefault = typeof flow.customerEmail === 'string' ? flow.customerEmail : '';
+        const provided = window.prompt(
+          'Ingresá tu correo electrónico para continuar con la compra privada:',
+          promptDefault,
+        );
+        if (provided == null) {
+          return;
+        }
+        const normalized = provided.trim();
+        if (!emailPattern.test(normalized)) {
+          alert('Ingresá un correo electrónico válido para comprar en privado.');
+          return;
+        }
+        emailRaw = normalized;
       }
+      if (emailRaw !== flow.customerEmail) {
+        flow.set({ customerEmail: emailRaw });
+      }
+      submissionFlow = { ...flow, customerEmail: emailRaw };
     }
 
     try {
@@ -40,7 +64,7 @@ export default function Mockup() {
         cartTarget = `mgm_cart_${Date.now()}`;
         cartPopup = window.open('https://www.mgmgamers.store/', cartTarget, 'noopener');
       }
-      const result = await createJobAndProduct(mode, flow);
+      const result = await createJobAndProduct(mode, submissionFlow);
       if (mode === 'checkout' && result.checkoutUrl) {
         window.location.assign(result.checkoutUrl);
         return;
