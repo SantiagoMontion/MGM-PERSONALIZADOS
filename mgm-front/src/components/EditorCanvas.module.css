@@ -2,6 +2,7 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+
   padding: 20px 18px;
   width: 280px;
   background: linear-gradient(180deg, rgba(36, 36, 44, 0.96), rgba(18, 18, 24, 0.98));
@@ -9,6 +10,7 @@
   border-radius: 20px;
   box-shadow: 0 24px 48px rgba(8, 8, 12, 0.55);
   color: #f9fafb;
+
 }
 
 .colorPicker {
@@ -17,6 +19,7 @@
 
 .colorPicker :global(.react-colorful) {
   width: 100%;
+
 }
 
 .colorPicker :global(.react-colorful__saturation) {
@@ -26,10 +29,12 @@
   margin-bottom: 12px;
 }
 
+
 .colorPicker :global(.react-colorful__saturation-pointer) {
   width: 18px;
   height: 18px;
   border-radius: 999px;
+
   border: 3px solid #ffffff;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.35);
 }
@@ -46,12 +51,14 @@
   border-radius: 999px;
   border: 3px solid #ffffff;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.35);
+
 }
 
 .colorControls {
   display: flex;
   align-items: center;
   gap: 12px;
+
   min-width: 0;
 }
 
@@ -88,10 +95,12 @@
 
 .colorWrapper1 {
   position: relative;           /* <- ancla local para posicionar el popover */
+
 }
 
 .hexInput {
   flex: 1;
+
   min-width: 0;
   border: none;
   background: transparent;
@@ -100,6 +109,7 @@
   font-size: 0.95rem;
   text-transform: uppercase;
   padding: 0;
+
 }
 
 .hexInput:focus {
@@ -107,6 +117,7 @@
 }
 
 .hexInput::placeholder {
+
   color: rgba(226, 232, 240, 0.5);
 }
 
@@ -145,6 +156,7 @@
 
 .eyedropperButton svg {
   display: block;
+
 }
 
 .copyButton {
