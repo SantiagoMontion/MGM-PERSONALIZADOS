@@ -135,9 +135,10 @@
 
 .seriesSelectText {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: nowrap;
 }
 
 .seriesSelectIcon {
