@@ -112,9 +112,13 @@
   width: 40px;
   height: 40px;
   border-radius: 10px;
-  border: 1px solid #d1d5db;
-  background: #ffffff;
-  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(40, 40, 40, 0.6);
+  color: #f9fafb;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease,
+    transform 0.15s ease;
+
 }
 
 .iconOnlyButton:not(:disabled) {
@@ -122,13 +126,25 @@
 }
 
 .iconOnlyButton:not(:disabled):hover {
-  background: #f3f4f6;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.1);
+
+  background: rgba(40, 40, 40, 0.75);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  transform: translateY(-1px);
+}
+
+.iconOnlyButton:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.85);
+  outline-offset: 2px;
+
 }
 
 .iconOnlyButton:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+
+  background: rgba(40, 40, 40, 0.35);
+  border-color: rgba(255, 255, 255, 0.08);
+
 }
 
 .iconOnlyButtonImage {
@@ -142,13 +158,15 @@
   width: 24px;
   height: 24px;
   border-radius: 8px;
-  border: 1px dashed #d1d5db;
+
+  border: 1px dashed rgba(249, 250, 251, 0.45);
   background: repeating-linear-gradient(
     135deg,
-    rgba(209, 213, 219, 0.4),
-    rgba(209, 213, 219, 0.4) 6px,
-    rgba(243, 244, 246, 0.4) 6px,
-    rgba(243, 244, 246, 0.4) 12px
+    rgba(255, 255, 255, 0.18),
+    rgba(255, 255, 255, 0.18) 6px,
+    rgba(255, 255, 255, 0.05) 6px,
+    rgba(255, 255, 255, 0.05) 12px
+
   );
 }
 

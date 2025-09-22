@@ -46,19 +46,47 @@ const CORNER_ANCHORS = new Set([
   "bottom-right",
 ]);
 
+
+const toolbarIconModules = import.meta.glob("../icons/*.{svg,png}", {
+  eager: true,
+  import: "default",
+});
+
+const resolveIconAsset = (fileName) => {
+  const normalized = `../icons/${fileName}`;
+  const directMatch = toolbarIconModules[normalized];
+  if (directMatch) return directMatch;
+
+  const lower = fileName.toLowerCase();
+  if (lower.endsWith(".svg")) {
+    const pngKey = normalized.replace(/\.svg$/i, ".png");
+    if (toolbarIconModules[pngKey]) {
+      return toolbarIconModules[pngKey];
+    }
+  } else if (lower.endsWith(".png")) {
+    const svgKey = normalized.replace(/\.png$/i, ".svg");
+    if (toolbarIconModules[svgKey]) {
+      return toolbarIconModules[svgKey];
+    }
+  }
+
+  return `/icons/${fileName}`;
+};
+
 const ACTION_ICON_MAP = {
-  izquierda: "/icons/izquierda.svg",
-  centrado_V: "/icons/centrado_V.svg",
-  derecha: "/icons/derecha.svg",
-  arriba: "/icons/arriba.svg",
-  centrado_h: "/icons/centrado_h.svg",
-  abajo: "/icons/abajo.svg",
-  rotar: "/icons/rotar.svg",
-  espejo_v: "/icons/espejo_v.svg",
-  espejo_h: "/icons/espejo_h.svg",
-  cubrir: "/icons/cubrir.svg",
-  contener: "/icons/contener.svg",
-  estirar: "/icons/estirar.svg",
+  izquierda: resolveIconAsset("izquierda.svg"),
+  centrado_V: resolveIconAsset("centrado_V.svg"),
+  derecha: resolveIconAsset("derecha.svg"),
+  arriba: resolveIconAsset("arriba.svg"),
+  centrado_h: resolveIconAsset("centrado_h.svg"),
+  abajo: resolveIconAsset("abajo.svg"),
+  rotar: resolveIconAsset("rotar.svg"),
+  espejo_v: resolveIconAsset("espejo_v.svg"),
+  espejo_h: resolveIconAsset("espejo_h.svg"),
+  cubrir: resolveIconAsset("cubrir.svg"),
+  contener: resolveIconAsset("contener.svg"),
+  estirar: resolveIconAsset("estirar.svg"),
+
 };
 
 // ---------- Editor ----------
@@ -123,6 +151,12 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const pickCallbackRef = useRef(null);
   const [isPickingColor, setIsPickingColor] = useState(false);
   const [missingIcons, setMissingIcons] = useState({});
+
+
+  const handleIconError = (action) => () => {
+    setMissingIcons((prev) => (prev[action] ? prev : { ...prev, [action]: true }));
+  };
+
 
   const pointerWorld = (stage) => {
     const pt = stage.getPointerPosition();
@@ -1225,11 +1259,9 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               src={ACTION_ICON_MAP.cubrir}
               alt="Cubrir"
               className={styles.iconOnlyButtonImage}
-              onError={() =>
-                setMissingIcons((prev) =>
-                  prev.cubrir ? prev : { ...prev, cubrir: true },
-                )
-              }
+
+              onError={handleIconError("cubrir")}
+
             />
           )}
         </button>
@@ -1250,11 +1282,9 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                 src={ACTION_ICON_MAP.contener}
                 alt="Contener"
                 className={styles.iconOnlyButtonImage}
-                onError={() =>
-                  setMissingIcons((prev) =>
-                    prev.contener ? prev : { ...prev, contener: true },
-                  )
-                }
+
+                onError={handleIconError("contener")}
+
               />
             )}
           </button>
@@ -1286,11 +1316,9 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               src={ACTION_ICON_MAP.estirar}
               alt="Estirar"
               className={styles.iconOnlyButtonImage}
-              onError={() =>
-                setMissingIcons((prev) =>
-                  prev.estirar ? prev : { ...prev, estirar: true },
-                )
-              }
+
+              onError={handleIconError("estirar")}
+
             />
           )}
         </button>
@@ -1310,11 +1338,9 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               src={ACTION_ICON_MAP.centrado_h}
               alt="Centrar horizontal"
               className={styles.iconOnlyButtonImage}
-              onError={() =>
-                setMissingIcons((prev) =>
-                  prev.centrado_h ? prev : { ...prev, centrado_h: true },
-                )
-              }
+
+              onError={handleIconError("centrado_h")}
+
             />
           )}
         </button>
@@ -1333,11 +1359,9 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               src={ACTION_ICON_MAP.centrado_V}
               alt="Centrar vertical"
               className={styles.iconOnlyButtonImage}
-              onError={() =>
-                setMissingIcons((prev) =>
-                  prev.centrado_V ? prev : { ...prev, centrado_V: true },
-                )
-              }
+
+              onError={handleIconError("centrado_V")}
+
             />
           )}
         </button>
@@ -1356,11 +1380,9 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               src={ACTION_ICON_MAP.izquierda}
               alt="Izquierda"
               className={styles.iconOnlyButtonImage}
-              onError={() =>
-                setMissingIcons((prev) =>
-                  prev.izquierda ? prev : { ...prev, izquierda: true },
-                )
-              }
+
+              onError={handleIconError("izquierda")}
+
             />
           )}
         </button>
@@ -1379,11 +1401,9 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               src={ACTION_ICON_MAP.derecha}
               alt="Derecha"
               className={styles.iconOnlyButtonImage}
-              onError={() =>
-                setMissingIcons((prev) =>
-                  prev.derecha ? prev : { ...prev, derecha: true },
-                )
-              }
+
+              onError={handleIconError("derecha")}
+
             />
           )}
         </button>
@@ -1402,11 +1422,9 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               src={ACTION_ICON_MAP.arriba}
               alt="Arriba"
               className={styles.iconOnlyButtonImage}
-              onError={() =>
-                setMissingIcons((prev) =>
-                  prev.arriba ? prev : { ...prev, arriba: true },
-                )
-              }
+
+              onError={handleIconError("arriba")}
+
             />
           )}
         </button>
@@ -1425,22 +1443,11 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               src={ACTION_ICON_MAP.abajo}
               alt="Abajo"
               className={styles.iconOnlyButtonImage}
-              onError={() =>
-                setMissingIcons((prev) =>
-                  prev.abajo ? prev : { ...prev, abajo: true },
-                )
-              }
+
+              onError={handleIconError("abajo")}
             />
           )}
-        </button>
-        <button onClick={flipHorizontal} disabled={!imgEl}>
-          Espejo H
-        </button>
-        <button onClick={flipVertical} disabled={!imgEl}>
-          Espejo V
-        </button>
-        <button onClick={rotate90} disabled={!imgEl}>
-          Rotar 90°
+
         </button>
         <span
           className={`${styles.qualityBadge} ${
