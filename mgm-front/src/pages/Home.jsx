@@ -17,6 +17,10 @@ import { quickHateSymbolCheck } from '@/lib/moderation.ts';
 import { scanNudityClient } from '@/lib/moderation/nsfw.client.js';
 import { useFlow } from '@/state/flow.js';
 import { apiFetch } from '@/lib/api.js';
+import { resolveIconAsset } from '@/lib/iconRegistry.js';
+
+const CONFIG_ICON_SRC = resolveIconAsset('wheel.svg');
+const CONFIG_ARROW_ICON_SRC = resolveIconAsset('down.svg');
 
 export default function Home() {
 
@@ -295,7 +299,7 @@ export default function Home() {
           >
             <span className={styles.configHeaderLeft}>
               <img
-                src="/icons/wheel.svg"
+                src={CONFIG_ICON_SRC}
                 alt=""
                 className={styles.configIcon}
                 aria-hidden="true"
@@ -303,7 +307,7 @@ export default function Home() {
               <span className={styles.configTitle}>Configura tu mousepad</span>
             </span>
             <img
-              src="/icons/down.svg"
+              src={CONFIG_ARROW_ICON_SRC}
               alt=""
               className={`${styles.configArrowIcon} ${configOpen ? styles.configArrowIconOpen : ''}`}
               aria-hidden="true"

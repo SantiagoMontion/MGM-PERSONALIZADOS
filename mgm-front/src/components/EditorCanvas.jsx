@@ -24,6 +24,7 @@ import ColorPopover from "./ColorPopover";
 import { buildSubmitJobBody, prevalidateSubmitBody } from "../lib/jobPayload";
 import { submitJob } from "../lib/submitJob";
 import { renderGlasspadPNG } from "../lib/renderGlasspadPNG";
+import { resolveIconAsset } from "@/lib/iconRegistry.js";
 
 const CM_PER_INCH = 2.54;
 const mmToCm = (mm) => mm / 10;
@@ -46,32 +47,6 @@ const CORNER_ANCHORS = new Set([
   "bottom-right",
 ]);
 
-
-const toolbarIconModules = import.meta.glob("../icons/*.{svg,png}", {
-  eager: true,
-  import: "default",
-});
-
-const resolveIconAsset = (fileName) => {
-  const normalized = `../icons/${fileName}`;
-  const directMatch = toolbarIconModules[normalized];
-  if (directMatch) return directMatch;
-
-  const lower = fileName.toLowerCase();
-  if (lower.endsWith(".svg")) {
-    const pngKey = normalized.replace(/\.svg$/i, ".png");
-    if (toolbarIconModules[pngKey]) {
-      return toolbarIconModules[pngKey];
-    }
-  } else if (lower.endsWith(".png")) {
-    const svgKey = normalized.replace(/\.png$/i, ".svg");
-    if (toolbarIconModules[svgKey]) {
-      return toolbarIconModules[svgKey];
-    }
-  }
-
-  return `/icons/${fileName}`;
-};
 
 const ACTION_ICON_MAP = {
   izquierda: resolveIconAsset("izquierda.svg"),
