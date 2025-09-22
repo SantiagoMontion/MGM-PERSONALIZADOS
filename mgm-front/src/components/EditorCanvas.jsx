@@ -64,6 +64,7 @@ const ACTION_ICON_MAP = {
 
 };
 
+
 const ToolbarTooltip = ({ label, children, disabled = false }) => (
   <div
     className={styles.iconButtonWithTooltip}
@@ -73,6 +74,7 @@ const ToolbarTooltip = ({ label, children, disabled = false }) => (
     <span className={styles.toolbarTooltip}>{label}</span>
   </div>
 );
+
 
 // ---------- Editor ----------
 const EditorCanvas = forwardRef(function EditorCanvas(
@@ -138,10 +140,17 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const pickCallbackRef = useRef(null);
   const [isPickingColor, setIsPickingColor] = useState(false);
   const [missingIcons, setMissingIcons] = useState({});
+  const [missingHistoryIcons, setMissingHistoryIcons] = useState({});
 
 
   const handleIconError = (action) => () => {
     setMissingIcons((prev) => (prev[action] ? prev : { ...prev, [action]: true }));
+  };
+
+  const handleHistoryIconError = (action) => () => {
+    setMissingHistoryIcons((prev) =>
+      prev[action] ? prev : { ...prev, [action]: true },
+    );
   };
 
 
@@ -349,6 +358,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const stickyFitRef = useRef(null);
   const skipStickyFitOnceRef = useRef(false);
   const [bgColor, setBgColor] = useState("#ffffff");
+  const [activeAlign, setActiveAlign] = useState({ horizontal: null, vertical: null });
   const isTransformingRef = useRef(false);
   const setKeepRatioImmediate = useCallback(
     (value) => {
@@ -405,6 +415,10 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       y: (wrapSize.h - stageH) / 2,
     });
   }, [imageUrl, imageFile, updateHistoryCounts]);
+
+  useEffect(() => {
+    setActiveAlign({ horizontal: null, vertical: null });
+  }, [imageUrl, imageFile]);
 
   // Ajuste inicial: imagen contenida y centrada una sola vez por carga
   useEffect(() => {
@@ -1167,6 +1181,16 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     setColorOpen(true);
   };
   const closeColor = () => setColorOpen(false);
+  const iconButtonClass = (isActive) =>
+    isActive
+      ? `${styles.iconOnlyButton} ${styles.iconOnlyButtonActive}`
+      : styles.iconOnlyButton;
+  const setActiveAlignAxis = (axis, value) => {
+    setActiveAlign((prev) => {
+      if (prev[axis] === value) return prev;
+      return { ...prev, [axis]: value };
+    });
+  };
   // track latest callback to avoid effect loops when parent re-renders
   const layoutChangeRef = useRef(onLayoutChange);
   useEffect(() => {
@@ -1250,12 +1274,21 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               className={styles.historyButton}
               aria-label="Deshacer"
             >
-              <img
-                src="/icons/undo.svg"
-                alt=""
-                className={styles.historyIcon}
-                draggable="false"
-              />
+
+              {missingHistoryIcons.undo ? (
+                <span className={styles.historyFallback} aria-hidden="true">
+                  {HISTORY_ICON_SPECS.undo.fallbackLabel}
+                </span>
+              ) : (
+                <img
+                  src={HISTORY_ICON_SPECS.undo.src}
+                  alt=""
+                  className={styles.historyIcon}
+                  draggable="false"
+                  onError={handleHistoryIconError("undo")}
+                />
+              )}
+
             </button>
             <button
               type="button"
@@ -1264,12 +1297,21 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               className={styles.historyButton}
               aria-label="Rehacer"
             >
-              <img
-                src="/icons/redo.svg"
-                alt=""
-                className={styles.historyIcon}
-                draggable="false"
-              />
+
+              {missingHistoryIcons.redo ? (
+                <span className={styles.historyFallback} aria-hidden="true">
+                  {HISTORY_ICON_SPECS.redo.fallbackLabel}
+                </span>
+              ) : (
+                <img
+                  src={HISTORY_ICON_SPECS.redo.src}
+                  alt=""
+                  className={styles.historyIcon}
+                  draggable="false"
+                  onError={handleHistoryIconError("redo")}
+                />
+              )}
+
             </button>
             <button
               type="button"
@@ -1278,12 +1320,21 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               className={`${styles.historyButton} ${styles.historyButtonDanger}`}
               aria-label="Eliminar"
             >
-              <img
-                src="/icons/delete.svg"
-                alt=""
-                className={styles.historyIcon}
-                draggable="false"
-              />
+
+              {missingHistoryIcons.delete ? (
+                <span className={styles.historyFallback} aria-hidden="true">
+                  {HISTORY_ICON_SPECS.delete.fallbackLabel}
+                </span>
+              ) : (
+                <img
+                  src={HISTORY_ICON_SPECS.delete.src}
+                  alt=""
+                  className={styles.historyIcon}
+                  draggable="false"
+                  onError={handleHistoryIconError("delete")}
+                />
+              )}
+
             </button>
           </div>
         )}
@@ -1574,13 +1625,17 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
       {/* Toolbar */}
       <div className={styles.toolbar}>
+
         <ToolbarTooltip label="Alinear a la izquierda">
+
           <button
             type="button"
             onClick={() => alignEdge("left")}
             disabled={!imgEl}
+
             aria-label="Alinear a la izquierda"
             className={styles.iconOnlyButton}
+
           >
             {missingIcons.izquierda ? (
               <span className={styles.iconFallback} aria-hidden="true" />
@@ -1611,6 +1666,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                 className={styles.iconOnlyButtonImage}
                 onError={handleIconError("centrado_V")}
               />
+
             )}
           </button>
         </ToolbarTooltip>
@@ -1827,6 +1883,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
             )}
           </button>
         </ToolbarTooltip>
+
         <span
           className={`${styles.qualityBadge} ${
             quality.color === "#ef4444"
