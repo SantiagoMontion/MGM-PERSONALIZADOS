@@ -64,6 +64,8 @@ export default function ColorPopover({
           }}
           className={styles.colorPicker}
         />
+      </div>
+      <div className={styles.pickerActions}>
         <button
           type="button"
           title="Elegir del lienzo"

@@ -103,7 +103,6 @@ export default function Home() {
 
   const [priceAmount, setPriceAmount] = useState(0);
   const PRICE_CURRENCY = 'ARS';
-  const [historyCounts, setHistoryCounts] = useState({ undo: 0, redo: 0 });
 
   // layout del canvas
   const [layout, setLayout] = useState(null);
@@ -115,18 +114,6 @@ export default function Home() {
   const canvasRef = useRef(null);
   const flow = useFlow();
 
-  const handleHistoryChange = useCallback((counts) => {
-    setHistoryCounts(counts);
-  }, []);
-
-  const handleUndo = useCallback(() => {
-    canvasRef.current?.undo?.();
-  }, []);
-
-  const handleRedo = useCallback(() => {
-    canvasRef.current?.redo?.();
-  }, []);
-
   const handleClearImage = useCallback(() => {
     setUploaded(null);
     setLayout(null);
@@ -134,7 +121,6 @@ export default function Home() {
     setAckLow(false);
     setErr('');
     setPriceAmount(0);
-    setHistoryCounts({ undo: 0, redo: 0 });
   }, []);
 
   const effDpi = useMemo(() => {
@@ -306,9 +292,6 @@ export default function Home() {
   const url = 'https://www.mgmgamers.store/';
   const hasImage = Boolean(uploaded);
   const isCanvasReady = Boolean(hasImage && imageUrl);
-  const canUndo = historyCounts.undo > 0;
-  const canRedo = historyCounts.redo > 0;
-
   const configTriggerClasses = [
     styles.configTrigger,
     configOpen ? styles.configTriggerActive : '',
@@ -420,7 +403,6 @@ export default function Home() {
                 onLayoutChange={setLayout}
                 onClearImage={handleClearImage}
                 showHistoryControls={false}
-                onHistoryChange={handleHistoryChange}
               />
 
             )}
