@@ -195,7 +195,7 @@ export default function Home() {
 
   async function handleContinue() {
     setErr('');
-    if (!layout || !canvasRef.current) {
+    if (!layout?.image || !canvasRef.current) {
       setErr('Falta imagen o layout');
       return;
     }
@@ -421,19 +421,17 @@ export default function Home() {
         <div className={canvasStageClasses}>
           <div className={styles.canvasViewport}>
 
-            {isCanvasReady && (
-              <EditorCanvas
-                ref={canvasRef}
-                imageUrl={imageUrl}
-                imageFile={uploaded?.file}
-                sizeCm={activeSizeCm}
-                bleedMm={3}
-                dpi={300}
-                onLayoutChange={setLayout}
-                onClearImage={handleClearImage}
-              />
-
-            )}
+            <EditorCanvas
+              ref={canvasRef}
+              imageUrl={imageUrl}
+              imageFile={uploaded?.file}
+              sizeCm={activeSizeCm}
+              bleedMm={3}
+              dpi={300}
+              onLayoutChange={setLayout}
+              onClearImage={handleClearImage}
+              showCanvas={isCanvasReady}
+            />
             {!hasImage && (
               <div className={styles.uploadOverlay}>
                 <UploadStep
