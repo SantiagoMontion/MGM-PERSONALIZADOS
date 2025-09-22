@@ -356,6 +356,8 @@
 .historyButton {
   width: 44px;
   height: 44px;
+  margin: 0;
+  padding: 0;
   border-radius: 14px;
   border: 1px solid rgba(104, 104, 142, 0.45);
   background: rgba(16, 16, 24, 0.85);
@@ -369,6 +371,13 @@
   justify-content: center;
   cursor: pointer;
   transition: transform 0.18s ease, border-color 0.18s ease, background-color 0.18s ease;
+}
+
+.historyIcon {
+  width: 25px;
+  height: 25px;
+  display: block;
+  pointer-events: none;
 }
 
 .historyButton:disabled {
@@ -388,14 +397,12 @@
 }
 
 .historyButtonDanger {
-  border-color: rgba(239, 68, 68, 0.75);
-  color: #fca5a5;
-  background: rgba(52, 18, 24, 0.85);
+  border-color: rgba(239, 68, 68, 0.65);
 }
 
 .historyButtonDanger:not(:disabled):hover {
   background: rgba(239, 68, 68, 0.9);
-  color: #ffffff;
+  border-color: rgba(239, 68, 68, 0.9);
 }
 
 .spinnerOverlay {
