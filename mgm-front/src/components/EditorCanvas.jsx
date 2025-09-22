@@ -1238,10 +1238,32 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const [busy, setBusy] = useState(false);
   const [lastDiag, setLastDiag] = useState(null);
   const toggleContain = () => {
+    if (!imgEl) return;
+    if (mode === "contain") {
+      setColorOpen((prev) => !prev);
+      return;
+    }
     fitContain();
     setColorOpen(true);
   };
   const closeColor = () => setColorOpen(false);
+  useEffect(() => {
+    if (mode !== "contain" && colorOpen) {
+      setColorOpen(false);
+    }
+  }, [mode, colorOpen]);
+  useEffect(() => {
+    if (!imgEl && colorOpen) {
+      setColorOpen(false);
+    }
+  }, [imgEl, colorOpen]);
+  const handleBgColorChange = useCallback(
+    (hex) => {
+      setBgColor(hex);
+      onPickedColor?.(hex);
+    },
+    [onPickedColor],
+  );
   const iconButtonClass = (isActive) =>
     isActive
       ? `${styles.iconOnlyButton} ${styles.iconOnlyButtonActive}`
@@ -1913,25 +1935,45 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               )}
             </button>
           </ToolbarTooltip>
-          <ToolbarTooltip label="Contener">
-            <button
-              type="button"
-              onClick={fitContain}
-              disabled={!imgEl}
-              aria-label="Contener"
-              className={iconButtonClass(mode === "contain")}
-            >
-              {missingIcons.contener ? (
-                <span className={styles.iconFallback} aria-hidden="true" />
-              ) : (
-                <img
-                  src={ACTION_ICON_MAP.contener}
-                  alt="Contener"
-                  className={styles.iconOnlyButtonImage}
-                  onError={handleIconError("contener")}
-                />
+
+          <ToolbarTooltip label="Contener" disabled={!imgEl}>
+            <div className={styles.colorWrapper}>
+              <button
+                type="button"
+                onClick={toggleContain}
+                disabled={!imgEl}
+                aria-label="Contener"
+                title="Contener"
+                className={iconButtonClass(mode === "contain")}
+              >
+                {missingIcons.contener ? (
+                  <span className={styles.iconFallback} aria-hidden="true" />
+                ) : (
+                  <img
+                    src={ACTION_ICON_MAP.contener}
+                    alt="Contener"
+                    className={styles.iconOnlyButtonImage}
+                    onError={handleIconError("contener")}
+                  />
+                )}
+              </button>
+              {mode === "contain" && colorOpen && (
+                <div className={styles.colorPopoverWrap}>
+                  <ColorPopover
+                    value={bgColor}
+                    onChange={handleBgColorChange}
+                    open={colorOpen}
+                    onClose={closeColor}
+                    onPickFromCanvas={() =>
+                      startPickColor((hex) => {
+                        setBgColor(hex);
+                      })
+                    }
+                  />
+                </div>
+
               )}
-            </button>
+            </div>
           </ToolbarTooltip>
           <ToolbarTooltip label="Estirar">
             <button
