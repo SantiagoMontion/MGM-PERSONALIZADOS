@@ -93,3 +93,47 @@ test('create-cart-link uses Storefront API and returns mgm cart link', async () 
     if (prev.CART_RETURN === undefined) delete process.env.SHOPIFY_CART_RETURN_TO; else process.env.SHOPIFY_CART_RETURN_TO = prev.CART_RETURN;
   }
 });
+
+test('create-cart-link falls back to legacy cart when Storefront env missing', async () => {
+  const prev = {
+    STORE_DOMAIN: process.env.SHOPIFY_STORE_DOMAIN,
+    STOREFRONT_DOMAIN: process.env.SHOPIFY_STOREFRONT_DOMAIN,
+    STOREFRONT_TOKEN: process.env.SHOPIFY_STOREFRONT_TOKEN,
+    PUBLIC_BASE: process.env.SHOPIFY_PUBLIC_BASE,
+  };
+  const prevFetch = global.fetch;
+  try {
+    process.env.SHOPIFY_STORE_DOMAIN = 'kw0f4u-ji.myshopify.com';
+    delete process.env.SHOPIFY_STOREFRONT_DOMAIN;
+    delete process.env.SHOPIFY_STOREFRONT_TOKEN;
+    process.env.SHOPIFY_PUBLIC_BASE = 'https://kw0f4u-ji.myshopify.com';
+
+    global.fetch = () => {
+      throw new Error('fetch should not be called when storefront token is missing');
+    };
+
+    const req = {
+      method: 'POST',
+      body: { variantId: '123456789', quantity: 2 },
+      headers: { host: 'example.com' },
+    };
+    const res = createMockRes();
+
+    await createCartLink(req, res);
+
+    assert.equal(res.statusCode, 200);
+    assert(res.jsonPayload);
+    const { ok, cart_url: cartUrl, cart_method: cartMethod } = res.jsonPayload;
+    assert.equal(ok, true);
+    assert.equal(cartMethod, 'legacy');
+    assert.ok(cartUrl.includes('/cart/add'));
+    assert.ok(cartUrl.includes('id=123456789'));
+    assert.ok(cartUrl.includes('quantity=2'));
+  } finally {
+    global.fetch = prevFetch;
+    process.env.SHOPIFY_STORE_DOMAIN = prev.STORE_DOMAIN;
+    if (prev.STOREFRONT_DOMAIN === undefined) delete process.env.SHOPIFY_STOREFRONT_DOMAIN; else process.env.SHOPIFY_STOREFRONT_DOMAIN = prev.STOREFRONT_DOMAIN;
+    if (prev.STOREFRONT_TOKEN === undefined) delete process.env.SHOPIFY_STOREFRONT_TOKEN; else process.env.SHOPIFY_STOREFRONT_TOKEN = prev.STOREFRONT_TOKEN;
+    if (prev.PUBLIC_BASE === undefined) delete process.env.SHOPIFY_PUBLIC_BASE; else process.env.SHOPIFY_PUBLIC_BASE = prev.PUBLIC_BASE;
+  }
+});
