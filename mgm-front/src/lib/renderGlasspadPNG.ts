@@ -13,7 +13,7 @@ export function renderGlasspadPNG(
 ): HTMLCanvasElement {
   const baseSize = Math.max(baseCanvas.width, baseCanvas.height);
   const {
-    blurPx = Math.max(1, Math.round(Math.min(baseSize * 0.0015, 12))),
+    blurPx = 1,
     shadowOffsetPx,
     shadowBlurPx,
     shadowAlpha = 0.18,

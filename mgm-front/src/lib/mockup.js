@@ -110,8 +110,7 @@ export async function renderMockup1080(opts) {
     const glassCtx = glassCanvas.getContext('2d');
 
     if (glassCtx) {
-      const longestSide = Math.max(drawW, drawH);
-      const blurPx = Math.max(1, Math.round(Math.min(longestSide * 0.006, 4)));
+      const blurPx = 1;
 
       glassCtx.filter = `blur(${blurPx}px)`;
       glassCtx.drawImage(image, 0, 0, drawW, drawH);
