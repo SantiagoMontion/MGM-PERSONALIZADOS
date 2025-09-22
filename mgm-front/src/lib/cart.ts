@@ -30,9 +30,9 @@ function submitCartForm(url: URL, target: string) {
     form.appendChild(buildHiddenInput(key, value));
   });
 
-  // Ensure return_to defaults to cart when missing
+  // Ensure return_to defaults to home when missing
   if (!params.has('return_to')) {
-    form.appendChild(buildHiddenInput('return_to', '/cart'));
+    form.appendChild(buildHiddenInput('return_to', '/'));
   }
 
   let targetName = target;

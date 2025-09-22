@@ -51,7 +51,7 @@ test('create-cart-link uses cart/add and returns mgm home when base is mgmgamers
     assert.equal(parsed.pathname, '/cart/add');
     assert.equal(parsed.searchParams.get('id'), '123456789');
     assert.equal(parsed.searchParams.get('quantity'), '2');
-    assert.equal(parsed.searchParams.get('return_to'), 'https://www.mgmgamers.store/cart');
+    assert.equal(parsed.searchParams.get('return_to'), 'https://www.mgmgamers.store/');
   } finally {
     process.env.SHOPIFY_STORE_DOMAIN = prev.STORE_DOMAIN;
     if (prev.PUBLIC_BASE === undefined) delete process.env.SHOPIFY_PUBLIC_BASE; else process.env.SHOPIFY_PUBLIC_BASE = prev.PUBLIC_BASE;
