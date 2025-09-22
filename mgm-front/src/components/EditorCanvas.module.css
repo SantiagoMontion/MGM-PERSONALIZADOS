@@ -419,6 +419,11 @@
     0 32px 90px rgba(0, 0, 0, 0.55);
 }
 
+.canvasWrapperInactive {
+  background: rgba(8, 8, 12, 0.85);
+  border-color: rgba(70, 70, 98, 0.35);
+}
+
 .grabbing {
   cursor: grabbing;
 }

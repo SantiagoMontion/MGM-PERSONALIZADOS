@@ -95,6 +95,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     material,
     onPickedColor,
     onClearImage,
+    showCanvas = true,
     showHistoryControls = true,
     onHistoryChange,
   },
@@ -1034,6 +1035,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
   const padRectPx = getPadRectPx();
   const exportScale = padRectPx.w / wCm;
+  const shouldRenderCanvas = showCanvas && Boolean(imageUrl);
   const canUndo = historyCounts.undo > 0;
   const canRedo = historyCounts.redo > 0;
 
@@ -1198,6 +1200,14 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       return { ...prev, [axis]: value };
     });
   };
+  const wrapperClassName = [
+    styles.canvasWrapper,
+    isPanningRef.current ? styles.grabbing : '',
+    isPickingColor ? styles.picking : '',
+    !shouldRenderCanvas ? styles.canvasWrapperInactive : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
   // track latest callback to avoid effect loops when parent re-renders
   const layoutChangeRef = useRef(onLayoutChange);
   useEffect(() => {
@@ -1206,13 +1216,17 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
   // export layout
   useEffect(() => {
+    if (!imgEl) {
+      layoutChangeRef.current?.(null);
+      return;
+    }
     layoutChangeRef.current?.({
       dpi,
       bleed_mm: bleedMm,
       size_cm: { w: wCm, h: hCm },
-      image: imgEl
-        ? { natural_px: { w: imgEl.naturalWidth, h: imgEl.naturalHeight } }
-        : null,
+      image: {
+        natural_px: { w: imgEl.naturalWidth, h: imgEl.naturalHeight },
+      },
       transform: {
         x_cm: imgTx.x_cm,
         y_cm: imgTx.y_cm,
@@ -1268,10 +1282,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   return (
     <div className={styles.editorRoot}>
       {/* Canvas */}
-      <div
-        ref={wrapRef}
-        className={`${styles.canvasWrapper} ${isPanningRef.current ? styles.grabbing : ""} ${isPickingColor ? styles.picking : ""}`}
-      >
+      <div ref={wrapRef} className={wrapperClassName}>
         {showHistoryControls && (
           <div className={styles.historyControls}>
             <button
@@ -1359,6 +1370,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
           onMouseMove={onStageMouseMove}
           onMouseUp={endPan}
           onMouseLeave={endPan}
+          style={{ display: shouldRenderCanvas ? 'block' : 'none' }}
         >
           <Layer>
             {/* fondo global del stage */}
@@ -1854,13 +1866,20 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               src={ACTION_ICON_MAP.cubrir}
               alt="Cubrir"
               className={styles.iconOnlyButtonImage}
-
               onError={handleIconError("cubrir")}
-
-
+            />
+          )}
+        </button>
+        <ToolbarTooltip label="Alinear a la izquierda">
+          <button
+            type="button"
+            onClick={() => {
+              alignEdge("left");
+              setActiveAlignAxis("horizontal", "left");
+            }}
+            disabled={!imgEl}
             aria-label="Alinear a la izquierda"
             className={styles.iconOnlyButton}
-
           >
             {missingIcons.izquierda ? (
               <span className={styles.iconFallback} aria-hidden="true" />
@@ -1935,10 +1954,9 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                 className={styles.iconOnlyButtonImage}
                 onError={handleIconError("arriba")}
               />
-
-            </div>
-          )}
-        </div>
+            )}
+          </button>
+        </ToolbarTooltip>
 
         <button
           type="button"
@@ -1955,8 +1973,10 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               src={ACTION_ICON_MAP.estirar}
               alt="Estirar"
               className={styles.iconOnlyButtonImage}
-
               onError={handleIconError("estirar")}
+            />
+          )}
+        </button>
 
         <span
           className={`${styles.qualityBadge} ${
