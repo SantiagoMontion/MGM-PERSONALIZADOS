@@ -20,6 +20,7 @@ export type FlowState = {
     checkoutUrl?: string;
     productUrl?: string;
     productHandle?: string;
+    visibility?: 'public' | 'private';
   };
   set: (p: Partial<FlowState>) => void;
   reset: () => void;
