@@ -1,19 +1,21 @@
 .colorPopover {
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  padding: 20px 18px 18px;
+  gap: 16px;
+  padding: 16px;
   width: 268px;
-  border-radius: 20px;
-  background: linear-gradient(180deg, #1c1c23 0%, #111118 100%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 28px 55px rgba(0, 0, 0, 0.6);
-  color: #f9fafb;
+  border-radius: 16px;
+  background: #2f2f35;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.55);
+  color: #f3f4f6;
 }
 
 .colorPickerShell {
-  position: relative;
-  padding-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
 }
 
 .colorPicker {
@@ -24,93 +26,110 @@
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
+  height: auto;
 }
 
 .colorPicker :global(.react-colorful__saturation) {
   width: 100%;
   aspect-ratio: 1 / 1;
-  border-radius: 18px;
+  border-radius: 14px;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 22px 48px rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(15, 15, 20, 0.7);
+  background-color: #1f1f23;
+  background-image: linear-gradient(0deg, #000, transparent),
+    linear-gradient(90deg, #fff, rgba(255, 255, 255, 0));
+  box-shadow: none;
 }
 
 .colorPicker :global(.react-colorful__saturation-pointer) {
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
   border-radius: 999px;
   border: 2px solid #ffffff;
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.45);
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.95),
-    rgba(148, 163, 184, 0.85)
-  );
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
+  background: #ffffff;
 }
 
 .colorPicker :global(.react-colorful__hue) {
-  height: 16px;
-  border-radius: 999px;
-  margin: 22px 0 0 58px;
-  width: calc(100% - 58px);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+  height: 12px;
+  border-radius: 8px;
+  margin: 0;
+  width: 100%;
+  border: 1px solid rgba(15, 15, 20, 0.7);
+  box-shadow: none;
 }
 
 .colorPicker :global(.react-colorful__hue-pointer) {
-  width: 18px;
-  height: 18px;
+  width: 14px;
+  height: 14px;
   border-radius: 999px;
   border: 2px solid #ffffff;
-  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.45);
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.95),
-    rgba(148, 163, 184, 0.9)
-  );
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
+  background: #ffffff;
+}
+
+.colorPicker :global(.react-colorful__alpha) {
+  height: 12px;
+  border-radius: 8px;
+  margin: 0;
+  width: 100%;
+  border: 1px solid rgba(15, 15, 20, 0.7);
+  box-shadow: none;
+}
+
+.colorPicker :global(.react-colorful__alpha-pointer) {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  border: 2px solid #ffffff;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
+  background: #ffffff;
+}
+
+.pickerActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .eyedropperButton {
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  width: 46px;
-  height: 46px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: linear-gradient(
-    160deg,
-    rgba(148, 163, 184, 0.22),
-    rgba(36, 36, 46, 0.7)
-  );
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #2a2a31;
   color: inherit;
   cursor: pointer;
-  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
-  box-shadow: 0 22px 40px rgba(0, 0, 0, 0.55);
+  transition: background-color 0.18s ease, border-color 0.18s ease,
+    transform 0.18s ease;
 }
 
 .eyedropperButton:hover {
   transform: translateY(-1px);
-  border-color: rgba(255, 255, 255, 0.24);
-  box-shadow: 0 26px 44px rgba(0, 0, 0, 0.58);
+  background: #32323a;
+  border-color: rgba(255, 255, 255, 0.14);
 }
 
 .eyedropperButton:active {
   transform: translateY(0);
+  background: #212128;
 }
 
 .eyedropperButton:focus-visible {
-  outline: 2px solid rgba(255, 255, 255, 0.85);
-  outline-offset: 3px;
+  outline: 2px solid rgba(255, 255, 255, 0.7);
+  outline-offset: 2px;
 }
 
 .eyedropperIcon {
-  width: 24px;
-  height: 24px;
+  width: 25px;
+  height: 25px;
   display: block;
+  object-fit: contain;
 }
 
 .eyedropperFallback {
@@ -124,47 +143,30 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 14px;
-  border-radius: 14px;
-  background: rgba(18, 18, 26, 0.92);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    inset 0 -1px 0 rgba(10, 10, 18, 0.7);
+  padding: 12px;
+  border-radius: 12px;
+  background: #25252c;
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .hexLabel {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border-radius: 10px;
-  background: rgba(32, 32, 42, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.08);
   font-size: 12px;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.12em;
-  color: rgba(249, 250, 251, 0.78);
+  color: rgba(249, 250, 251, 0.72);
   white-space: nowrap;
-}
-
-.hexLabel::after {
-  content: "";
-  width: 10px;
-  height: 6px;
-  margin-left: 4px;
-  background: url('/icons/down.svg') center / contain no-repeat;
-  opacity: 0.7;
 }
 
 .hexInput {
   flex: 1;
   min-width: 0;
-  padding: 0;
-  border: none;
-  background: none;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #1b1b22;
   color: #f9fafb;
-  font-size: 16px;
+  font-size: 15px;
   font-family: "JetBrains Mono", "SFMono-Regular", Menlo, monospace;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -172,6 +174,7 @@
 
 .hexInput:focus {
   outline: none;
+  border-color: rgba(255, 255, 255, 0.24);
 }
 
 .hexInput::placeholder {
@@ -310,6 +313,66 @@
   );
 }
 
+.iconButtonWithTooltip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.toolbarTooltip {
+  position: absolute;
+  top: calc(100% + 14px);
+  left: 50%;
+  transform: translate(-50%, 6px);
+  padding: 8px 18px;
+  border-radius: 999px;
+  background: rgba(23, 23, 31, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.5);
+  color: rgba(244, 244, 249, 0.95);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: none;
+  transition-delay: 0s;
+  z-index: 30;
+}
+
+.toolbarTooltip::after {
+  content: "";
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  background: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: none;
+  border-right: none;
+  transform: translateX(-50%) rotate(45deg);
+  border-top-left-radius: 3px;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.35);
+}
+
+.iconButtonWithTooltip:hover .toolbarTooltip,
+.iconButtonWithTooltip:focus-within .toolbarTooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  transition-delay: 0.7s;
+}
+
+.iconButtonWithTooltip[data-tooltip-disabled="true"] .toolbarTooltip {
+  display: none;
+}
+
 .colorWrapper {
   position: relative;
   display: inline-flex;
@@ -319,9 +382,9 @@
 .colorPopoverWrap {
   position: absolute;
   z-index: 20;
-  top: 100%;
+  bottom: 100%;
   left: 0;
-  margin-top: 8px;
+  margin-bottom: 8px;
 }
 
 .qualityBadge {
@@ -363,7 +426,7 @@
   position: absolute;
   top: 24px;
   right: 24px;
-  z-index: 30;
+  z-index: 60;
   display: flex;
   gap: 10px;
 }
@@ -394,6 +457,26 @@
   display: block;
   pointer-events: none;
 }
+
+
+.historyFallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 0.55rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1.1;
+  text-align: center;
+  color: inherit;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 
 .historyButton:disabled {
   cursor: not-allowed;
@@ -456,8 +539,8 @@
 /* Sacamos el popover del flujo para que NO empuje el ancho del toolbar */
 .colorPopoverWrap {
   position: absolute;
-  inset-block-start: calc(100% + 4px);   /* top */
-  inset-inline-start: 0;                 /* left */
+  inset-block-end: calc(100% + 4px);   /* bottom */
+  inset-inline-start: 0;               /* left */
   z-index: 1000;
 }
 

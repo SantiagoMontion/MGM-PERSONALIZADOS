@@ -64,6 +64,25 @@ const ACTION_ICON_MAP = {
 
 };
 
+
+const HISTORY_ICON_SPECS = {
+  undo: { src: resolveIconAsset("undo.svg"), fallbackLabel: "↶" },
+  redo: { src: resolveIconAsset("redo.svg"), fallbackLabel: "↷" },
+  delete: { src: resolveIconAsset("delete.svg"), fallbackLabel: "✕" },
+};
+
+
+const ToolbarTooltip = ({ label, children, disabled = false }) => (
+  <div
+    className={styles.iconButtonWithTooltip}
+    data-tooltip-disabled={disabled ? "true" : undefined}
+  >
+    {children}
+    <span className={styles.toolbarTooltip}>{label}</span>
+  </div>
+);
+
+
 // ---------- Editor ----------
 const EditorCanvas = forwardRef(function EditorCanvas(
   {
@@ -128,10 +147,17 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const pickCallbackRef = useRef(null);
   const [isPickingColor, setIsPickingColor] = useState(false);
   const [missingIcons, setMissingIcons] = useState({});
+  const [missingHistoryIcons, setMissingHistoryIcons] = useState({});
 
 
   const handleIconError = (action) => () => {
     setMissingIcons((prev) => (prev[action] ? prev : { ...prev, [action]: true }));
+  };
+
+  const handleHistoryIconError = (action) => () => {
+    setMissingHistoryIcons((prev) =>
+      prev[action] ? prev : { ...prev, [action]: true },
+    );
   };
 
 
@@ -1255,12 +1281,21 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               className={styles.historyButton}
               aria-label="Deshacer"
             >
-              <img
-                src="/icons/undo.svg"
-                alt=""
-                className={styles.historyIcon}
-                draggable="false"
-              />
+
+              {missingHistoryIcons.undo ? (
+                <span className={styles.historyFallback} aria-hidden="true">
+                  {HISTORY_ICON_SPECS.undo.fallbackLabel}
+                </span>
+              ) : (
+                <img
+                  src={HISTORY_ICON_SPECS.undo.src}
+                  alt=""
+                  className={styles.historyIcon}
+                  draggable="false"
+                  onError={handleHistoryIconError("undo")}
+                />
+              )}
+
             </button>
             <button
               type="button"
@@ -1269,12 +1304,21 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               className={styles.historyButton}
               aria-label="Rehacer"
             >
-              <img
-                src="/icons/redo.svg"
-                alt=""
-                className={styles.historyIcon}
-                draggable="false"
-              />
+
+              {missingHistoryIcons.redo ? (
+                <span className={styles.historyFallback} aria-hidden="true">
+                  {HISTORY_ICON_SPECS.redo.fallbackLabel}
+                </span>
+              ) : (
+                <img
+                  src={HISTORY_ICON_SPECS.redo.src}
+                  alt=""
+                  className={styles.historyIcon}
+                  draggable="false"
+                  onError={handleHistoryIconError("redo")}
+                />
+              )}
+
             </button>
             <button
               type="button"
@@ -1283,12 +1327,21 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               className={`${styles.historyButton} ${styles.historyButtonDanger}`}
               aria-label="Eliminar"
             >
-              <img
-                src="/icons/delete.svg"
-                alt=""
-                className={styles.historyIcon}
-                draggable="false"
-              />
+
+              {missingHistoryIcons.delete ? (
+                <span className={styles.historyFallback} aria-hidden="true">
+                  {HISTORY_ICON_SPECS.delete.fallbackLabel}
+                </span>
+              ) : (
+                <img
+                  src={HISTORY_ICON_SPECS.delete.src}
+                  alt=""
+                  className={styles.historyIcon}
+                  draggable="false"
+                  onError={handleHistoryIconError("delete")}
+                />
+              )}
+
             </button>
           </div>
         )}
@@ -1579,6 +1632,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
       {/* Toolbar */}
       <div className={styles.toolbar}>
+
         <button
           type="button"
           onClick={() => {
@@ -1803,41 +1857,85 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
               onError={handleIconError("cubrir")}
 
-            />
-          )}
-        </button>
 
-        <div className={styles.colorWrapper}>
-          <button
-            type="button"
-            onClick={toggleContain}
-            disabled={!imgEl}
-            aria-label="Contener"
-            title="Contener"
-            className={iconButtonClass(mode === "contain")}
+            aria-label="Alinear a la izquierda"
+            className={styles.iconOnlyButton}
+
           >
-            {missingIcons.contener ? (
+            {missingIcons.izquierda ? (
               <span className={styles.iconFallback} aria-hidden="true" />
             ) : (
               <img
-                src={ACTION_ICON_MAP.contener}
-                alt="Contener"
+                src={ACTION_ICON_MAP.izquierda}
+                alt="Alinear a la izquierda"
                 className={styles.iconOnlyButtonImage}
-
-                onError={handleIconError("contener")}
-
+                onError={handleIconError("izquierda")}
               />
             )}
           </button>
-          {mode === "contain" && imgEl && (
-            <div className={styles.colorPopoverWrap}>
-              <ColorPopover
-                value={bgColor}
-                onChange={setBgColor}
-                open={colorOpen}
-                onClose={closeColor}
-                onPickFromCanvas={() => startPickColor(setBgColor)}
+        </ToolbarTooltip>
+        <ToolbarTooltip label="Alinear verticalmente">
+          <button
+            type="button"
+            onClick={centerHoriz}
+            disabled={!imgEl}
+
+            aria-label="Contener"
+            title="Contener"
+            className={iconButtonClass(mode === "contain")}
+
+          >
+            {missingIcons.centrado_V ? (
+              <span className={styles.iconFallback} aria-hidden="true" />
+            ) : (
+              <img
+                src={ACTION_ICON_MAP.centrado_V}
+                alt="Alinear verticalmente"
+                className={styles.iconOnlyButtonImage}
+                onError={handleIconError("centrado_V")}
               />
+
+            )}
+          </button>
+        </ToolbarTooltip>
+        <ToolbarTooltip label="Alinear a la derecha">
+          <button
+            type="button"
+            onClick={() => alignEdge("right")}
+            disabled={!imgEl}
+            aria-label="Alinear a la derecha"
+            className={styles.iconOnlyButton}
+          >
+            {missingIcons.derecha ? (
+              <span className={styles.iconFallback} aria-hidden="true" />
+            ) : (
+              <img
+                src={ACTION_ICON_MAP.derecha}
+                alt="Alinear a la derecha"
+                className={styles.iconOnlyButtonImage}
+                onError={handleIconError("derecha")}
+              />
+            )}
+          </button>
+        </ToolbarTooltip>
+        <ToolbarTooltip label="Alinear arriba">
+          <button
+            type="button"
+            onClick={() => alignEdge("top")}
+            disabled={!imgEl}
+            aria-label="Alinear arriba"
+            className={styles.iconOnlyButton}
+          >
+            {missingIcons.arriba ? (
+              <span className={styles.iconFallback} aria-hidden="true" />
+            ) : (
+              <img
+                src={ACTION_ICON_MAP.arriba}
+                alt="Alinear arriba"
+                className={styles.iconOnlyButtonImage}
+                onError={handleIconError("arriba")}
+              />
+
             </div>
           )}
         </div>
@@ -1860,9 +1958,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
               onError={handleIconError("estirar")}
 
-            />
-          )}
-        </button>
         <span
           className={`${styles.qualityBadge} ${
             quality.color === "#ef4444"

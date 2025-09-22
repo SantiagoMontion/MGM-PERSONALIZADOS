@@ -103,38 +103,27 @@ export default function Home() {
 
   const [priceAmount, setPriceAmount] = useState(0);
   const PRICE_CURRENCY = 'ARS';
-  const [historyCounts, setHistoryCounts] = useState({ undo: 0, redo: 0 });
 
   // layout del canvas
   const [layout, setLayout] = useState(null);
   const [designName, setDesignName] = useState('');
+  const [designNameError, setDesignNameError] = useState('');
   const [ackLow, setAckLow] = useState(false);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const navigate = useNavigate();
   const canvasRef = useRef(null);
+  const designNameInputRef = useRef(null);
   const flow = useFlow();
-
-  const handleHistoryChange = useCallback((counts) => {
-    setHistoryCounts(counts);
-  }, []);
-
-  const handleUndo = useCallback(() => {
-    canvasRef.current?.undo?.();
-  }, []);
-
-  const handleRedo = useCallback(() => {
-    canvasRef.current?.redo?.();
-  }, []);
 
   const handleClearImage = useCallback(() => {
     setUploaded(null);
     setLayout(null);
     setDesignName('');
+    setDesignNameError('');
     setAckLow(false);
     setErr('');
     setPriceAmount(0);
-    setHistoryCounts({ undo: 0, redo: 0 });
   }, []);
 
   const effDpi = useMemo(() => {
@@ -196,21 +185,32 @@ export default function Home() {
   }
 
 
+  function handleDesignNameChange(event) {
+    const { value } = event.target;
+    setDesignName(value);
+    if (designNameError && value.trim().length >= 2) {
+      setDesignNameError('');
+    }
+  }
+
   async function handleContinue() {
+    setErr('');
     if (!layout || !canvasRef.current) {
       setErr('Falta imagen o layout');
       return;
     }
     if (trimmedDesignName.length < 2) {
-      setErr('El nombre del modelo debe tener al menos 2 caracteres.');
+      setDesignNameError('Ingresa un nombre para tu modelo antes de continuar');
+      setConfigOpen(true);
+      designNameInputRef.current?.focus?.();
       return;
     }
+    setDesignNameError('');
     if (level === 'bad' && !ackLow) {
       setErr('Confirmá que aceptás continuar con la calidad baja.');
       return;
     }
     try {
-      setErr('');
       setBusy(true);
       const master = canvasRef.current.exportPadDataURL?.(2);
       if (!master) {
@@ -306,9 +306,6 @@ export default function Home() {
   const url = 'https://www.mgmgamers.store/';
   const hasImage = Boolean(uploaded);
   const isCanvasReady = Boolean(hasImage && imageUrl);
-  const canUndo = historyCounts.undo > 0;
-  const canRedo = historyCounts.redo > 0;
-
   const configTriggerClasses = [
     styles.configTrigger,
     configOpen ? styles.configTriggerActive : '',
@@ -320,6 +317,13 @@ export default function Home() {
   const configPanelClasses = [
     styles.configPanel,
     !hasImage ? styles.configPanelDisabled : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  const designNameInputClasses = [
+    styles.textInput,
+    designNameError ? styles.textInputError : '',
   ]
     .filter(Boolean)
     .join(' ');
@@ -385,12 +389,20 @@ export default function Home() {
                     <input
                       type="text"
                       id="design-name"
-                      className={styles.textInput}
+                      ref={designNameInputRef}
+                      className={designNameInputClasses}
                       placeholder="Ej: Nubes y cielo rosa"
                       value={designName}
-                      onChange={e => setDesignName(e.target.value)}
+                      onChange={handleDesignNameChange}
                       disabled={!hasImage}
+                      aria-invalid={designNameError ? 'true' : 'false'}
+                      aria-describedby={designNameError ? 'design-name-error' : undefined}
                     />
+                    {designNameError && (
+                      <p className={styles.fieldError} id="design-name-error">
+                        {designNameError}
+                      </p>
+                    )}
                   </div>
                   <SizeControls
                     material={material}
@@ -419,8 +431,6 @@ export default function Home() {
                 dpi={300}
                 onLayoutChange={setLayout}
                 onClearImage={handleClearImage}
-                showHistoryControls={false}
-                onHistoryChange={handleHistoryChange}
               />
 
             )}
@@ -468,7 +478,7 @@ export default function Home() {
           {hasImage && (
             <button
               className={styles.continueButton}
-              disabled={busy || trimmedDesignName.length < 2}
+              disabled={busy}
               onClick={handleContinue}
             >
               Continuar

@@ -180,6 +180,19 @@
   box-shadow: 0 0 0 3px rgba(170, 170, 190, 0.2);
 }
 
+.textInputError,
+.textInputError:focus {
+  border-color: rgba(239, 68, 68, 0.7);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.25);
+}
+
+.fieldError {
+  margin: 0;
+  color: #fca5a5;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
 
 .canvasHistoryActions {
   position: absolute;
