@@ -1240,7 +1240,12 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               className={styles.historyButton}
               aria-label="Deshacer"
             >
-              Deshacer
+              <img
+                src="/icons/undo.svg"
+                alt=""
+                className={styles.historyIcon}
+                draggable="false"
+              />
             </button>
             <button
               type="button"
@@ -1249,15 +1254,26 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               className={styles.historyButton}
               aria-label="Rehacer"
             >
-              Rehacer
+              <img
+                src="/icons/redo.svg"
+                alt=""
+                className={styles.historyIcon}
+                draggable="false"
+              />
             </button>
             <button
               type="button"
               onClick={() => onClearImage?.()}
               disabled={!onClearImage || !imageUrl}
               className={`${styles.historyButton} ${styles.historyButtonDanger}`}
+              aria-label="Eliminar"
             >
-              Eliminar
+              <img
+                src="/icons/delete.svg"
+                alt=""
+                className={styles.historyIcon}
+                draggable="false"
+              />
             </button>
           </div>
         )}
