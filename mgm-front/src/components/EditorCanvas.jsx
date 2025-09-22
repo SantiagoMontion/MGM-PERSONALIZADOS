@@ -57,6 +57,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     onLayoutChange,
     material,
     onPickedColor,
+    onClearImage,
   },
   ref,
 ) {
@@ -249,13 +250,17 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     scaleX: 1,
     scaleY: 1,
     rotation_deg: 0,
+    flipX: false,
+    flipY: false,
   });
   const historyRef = useRef([]); // pila de estados para undo
   const [histIndex, setHistIndex] = useState(-1);
   const pushHistory = useCallback(
     (tx) => {
       historyRef.current = historyRef.current.slice(0, histIndex + 1);
-      historyRef.current.push(tx);
+      if (tx) {
+        historyRef.current.push({ ...tx });
+      }
       setHistIndex(historyRef.current.length - 1);
     },
     [histIndex],
@@ -265,7 +270,18 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       if (idx <= 0) return idx;
       const nextIdx = idx - 1;
       const prev = historyRef.current[nextIdx];
-      if (prev) setImgTx(prev);
+      if (prev) setImgTx({ ...prev });
+      return nextIdx;
+    });
+  }, []);
+
+  const redo = useCallback(() => {
+    setHistIndex((idx) => {
+      const lastIdx = historyRef.current.length - 1;
+      if (idx >= lastIdx) return idx;
+      const nextIdx = idx + 1;
+      const next = historyRef.current[nextIdx];
+      if (next) setImgTx({ ...next });
       return nextIdx;
     });
   }, []);
@@ -355,8 +371,10 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       scaleX: s,
       scaleY: s,
       rotation_deg: 0,
+      flipX: false,
+      flipY: false,
     };
-    setImgTx(initial);
+    setImgTx({ ...initial });
     pushHistory(initial);
     setMode("contain");
     stickyFitRef.current = "contain";
@@ -365,8 +383,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   }, [imgBaseCm, workCm.w, workCm.h]);
 
   // medidas visuales (para offset centro)
-  const dispW = imgBaseCm ? imgBaseCm.w * imgTx.scaleX : 0;
-  const dispH = imgBaseCm ? imgBaseCm.h * imgTx.scaleY : 0;
+  const dispW = imgBaseCm ? imgBaseCm.w * Math.abs(imgTx.scaleX) : 0;
+  const dispH = imgBaseCm ? imgBaseCm.h * Math.abs(imgTx.scaleY) : 0;
   const hasGlassOverlay =
     material === "Glasspad" &&
     !!imgEl &&
@@ -397,6 +415,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     imgTx.rotation_deg,
     imgTx.scaleX,
     imgTx.scaleY,
+    imgTx.flipX,
+    imgTx.flipY,
   ]);
 
   const theta = (imgTx.rotation_deg * Math.PI) / 180;
@@ -420,8 +440,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       let cx = pos.x;
       let cy = pos.y;
 
-      const w = imgBaseCm.w * imgTx.scaleX;
-      const h = imgBaseCm.h * imgTx.scaleY;
+      const w = imgBaseCm.w * Math.abs(imgTx.scaleX);
+      const h = imgBaseCm.h * Math.abs(imgTx.scaleY);
       const { halfW, halfH } = rotAABBHalf(w, h, theta);
 
       const releaseCm = Math.max(
@@ -537,8 +557,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     isPanningRef.current = false;
     const n = e.target;
     setImgTx((prev) => {
-      const w = imgBaseCm.w * prev.scaleX;
-      const h = imgBaseCm.h * prev.scaleY;
+      const w = imgBaseCm.w * Math.abs(prev.scaleX);
+      const h = imgBaseCm.h * Math.abs(prev.scaleY);
       return { ...prev, x_cm: n.x() - w / 2, y_cm: n.y() - h / 2 };
     });
   };
@@ -582,8 +602,10 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     const n = imgRef.current;
     const nextScaleX = n.scaleX();
     const nextScaleY = n.scaleY();
-    const nextW = n.width() * nextScaleX;
-    const nextH = n.height() * nextScaleY;
+    const nextSignX = nextScaleX < 0 ? -1 : 1;
+    const nextSignY = nextScaleY < 0 ? -1 : 1;
+    const nextW = n.width() * Math.abs(nextScaleX);
+    const nextH = n.height() * Math.abs(nextScaleY);
     const rotation = n.rotation();
     const nextCenterX = n.x();
     const nextCenterY = n.y();
@@ -610,6 +632,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
           scaleX: newSX,
           scaleY: newSY,
           rotation_deg: rotation,
+          flipX: nextSignX < 0,
+          flipY: nextSignY < 0,
         };
       }
       // mantener proporción con clamp razonable
@@ -625,17 +649,19 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         scaleX: uni,
         scaleY: uni,
         rotation_deg: rotation,
+        flipX: nextSignX < 0,
+        flipY: nextSignY < 0,
       };
     });
-    n.scaleX(1);
-    n.scaleY(1);
+    n.scaleX(nextSignX);
+    n.scaleY(nextSignY);
     setKeepRatioImmediate(true);
   };
 
   // centro actual
   const currentCenter = () => {
-    const w = imgBaseCm.w * imgTx.scaleX;
-    const h = imgBaseCm.h * imgTx.scaleY;
+    const w = imgBaseCm.w * Math.abs(imgTx.scaleX);
+    const h = imgBaseCm.h * Math.abs(imgTx.scaleY);
     return { cx: imgTx.x_cm + w / 2, cy: imgTx.y_cm + h / 2 };
   };
 
@@ -673,6 +699,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
           scaleX: scale,
           scaleY: scale,
           rotation_deg: prev.rotation_deg,
+          flipX: prev.flipX,
+          flipY: prev.flipY,
         }));
         setMode(mode);
         return;
@@ -706,6 +734,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
           scaleX: sx,
           scaleY: sy,
           rotation_deg: prev.rotation_deg,
+          flipX: prev.flipX,
+          flipY: prev.flipY,
         }));
         setMode("stretch");
       }
@@ -720,6 +750,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       imgTx.y_cm,
       imgTx.scaleX,
       imgTx.scaleY,
+      imgTx.flipX,
+      imgTx.flipY,
     ],
   );
 
@@ -738,22 +770,22 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
   const centerHoriz = useCallback(() => {
     if (!imgBaseCm) return;
-    const w = imgBaseCm.w * imgTx.scaleX;
+    const w = imgBaseCm.w * Math.abs(imgTx.scaleX);
     pushHistory(imgTx);
     setImgTx((tx) => ({ ...tx, x_cm: (workCm.w - w) / 2 }));
-  }, [imgBaseCm?.w, workCm.w, imgTx.scaleX]);
+  }, [imgBaseCm?.w, workCm.w, imgTx.scaleX, imgTx.flipX]);
 
   const centerVert = useCallback(() => {
     if (!imgBaseCm) return;
-    const h = imgBaseCm.h * imgTx.scaleY;
+    const h = imgBaseCm.h * Math.abs(imgTx.scaleY);
     pushHistory(imgTx);
     setImgTx((tx) => ({ ...tx, y_cm: (workCm.h - h) / 2 }));
-  }, [imgBaseCm?.h, workCm.h, imgTx.scaleY]);
+  }, [imgBaseCm?.h, workCm.h, imgTx.scaleY, imgTx.flipY]);
 
   const alignEdge = (edge) => {
     if (!imgBaseCm) return;
-    const w = imgBaseCm.w * imgTx.scaleX;
-    const h = imgBaseCm.h * imgTx.scaleY;
+    const w = imgBaseCm.w * Math.abs(imgTx.scaleX);
+    const h = imgBaseCm.h * Math.abs(imgTx.scaleY);
     const { halfW, halfH } = rotAABBHalf(w, h, theta);
 
     let cx = imgTx.x_cm + w / 2;
@@ -767,10 +799,43 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     pushHistory(imgTx);
     setImgTx((tx) => ({
       ...tx,
-      x_cm: cx - (imgBaseCm.w * tx.scaleX) / 2,
-      y_cm: cy - (imgBaseCm.h * tx.scaleY) / 2,
+      x_cm: cx - (imgBaseCm.w * Math.abs(tx.scaleX)) / 2,
+      y_cm: cy - (imgBaseCm.h * Math.abs(tx.scaleY)) / 2,
     }));
   };
+
+  const flipHorizontal = useCallback(() => {
+    if (!imgEl) return;
+    pushHistory(imgTx);
+    stickyFitRef.current = null;
+    skipStickyFitOnceRef.current = false;
+    setImgTx((tx) => ({
+      ...tx,
+      flipX: !tx.flipX,
+    }));
+  }, [imgEl, imgTx, pushHistory]);
+
+  const flipVertical = useCallback(() => {
+    if (!imgEl) return;
+    pushHistory(imgTx);
+    stickyFitRef.current = null;
+    skipStickyFitOnceRef.current = false;
+    setImgTx((tx) => ({
+      ...tx,
+      flipY: !tx.flipY,
+    }));
+  }, [imgEl, imgTx, pushHistory]);
+
+  const rotate90 = useCallback(() => {
+    if (!imgEl) return;
+    pushHistory(imgTx);
+    stickyFitRef.current = null;
+    skipStickyFitOnceRef.current = false;
+    setImgTx((tx) => ({
+      ...tx,
+      rotation_deg: (tx.rotation_deg + 90) % 360,
+    }));
+  }, [imgEl, imgTx, pushHistory]);
 
   useEffect(() => {
     if (!stickyFitRef.current) return;
@@ -812,8 +877,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   // calidad
   const dpiEffective = useMemo(() => {
     if (!imgEl || !imgBaseCm) return null;
-    const printedWcm = imgBaseCm.w * imgTx.scaleX;
-    const printedHcm = imgBaseCm.h * imgTx.scaleY;
+    const printedWcm = imgBaseCm.w * Math.abs(imgTx.scaleX);
+    const printedHcm = imgBaseCm.h * Math.abs(imgTx.scaleY);
     if (printedWcm <= 0 || printedHcm <= 0) return null;
     const printedWin = printedWcm / CM_PER_INCH;
     const printedHin = printedHcm / CM_PER_INCH;
@@ -860,8 +925,10 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       w: Math.round(workCm.w / cmPerPx),
       h: Math.round(workCm.h / cmPerPx),
     };
-    const w = imgBaseCm.w * imgTx.scaleX;
-    const h = imgBaseCm.h * imgTx.scaleY;
+    const scaleXMag = Math.abs(imgTx.scaleX);
+    const scaleYMag = Math.abs(imgTx.scaleY);
+    const w = imgBaseCm.w * scaleXMag;
+    const h = imgBaseCm.h * scaleYMag;
     const cx = imgTx.x_cm + w / 2;
     const cy = imgTx.y_cm + h / 2;
     const { halfW, halfH } = rotAABBHalf(w, h, theta);
@@ -893,11 +960,16 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       h_cm: hCm,
       bleed_mm: bleedMm,
       material,
+      flip_x: Boolean(imgTx.flipX),
+      flip_y: Boolean(imgTx.flipY),
     };
   };
 
   const padRectPx = getPadRectPx();
   const exportScale = padRectPx.w / wCm;
+  const historyLength = historyRef.current.length;
+  const canUndo = histIndex > 0;
+  const canRedo = histIndex >= 0 && histIndex < historyLength - 1;
 
   const exportPadAsBlob = async () => {
     if (!exportStageRef.current) return null;
@@ -974,20 +1046,26 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       const naturalW = imgEl.naturalWidth;
       const naturalH = imgEl.naturalHeight;
       const cmPerPx = CM_PER_INCH / dpi;
-      const dispW = imgBaseCm.w * imgTx.scaleX;
-      const dispH = imgBaseCm.h * imgTx.scaleY;
+      const scaleXMag = Math.abs(imgTx.scaleX);
+      const scaleYMag = Math.abs(imgTx.scaleY);
+      const dispW = imgBaseCm.w * scaleXMag;
+      const dispH = imgBaseCm.h * scaleYMag;
       const originX = imgTx.x_cm + dispW / 2;
       const originY = imgTx.y_cm + dispH / 2;
       const theta = (imgTx.rotation_deg * Math.PI) / 180;
       const cos = Math.cos(theta);
       const sin = Math.sin(theta);
+      const flipSignX = imgTx.flipX ? -1 : 1;
+      const flipSignY = imgTx.flipY ? -1 : 1;
       function canvasToSrc(cx, cy) {
         const dx = cx - originX;
         const dy = cy - originY;
         const rx = dx * cos + dy * sin;
         const ry = -dx * sin + dy * cos;
-        const sx = (rx + dispW / 2) / (cmPerPx * imgTx.scaleX);
-        const sy = (ry + dispH / 2) / (cmPerPx * imgTx.scaleY);
+        const rxFlipped = rx * flipSignX;
+        const ryFlipped = ry * flipSignY;
+        const sx = (rxFlipped + dispW / 2) / (cmPerPx * imgTx.scaleX);
+        const sy = (ryFlipped + dispH / 2) / (cmPerPx * imgTx.scaleY);
         return { sx, sy };
       }
       const workW = workCm.w;
@@ -1019,6 +1097,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         w_cm: wCm,
         h_cm: hCm,
         bleed_mm: bleedMm,
+        flip_x: Boolean(imgTx.flipX),
+        flip_y: Boolean(imgTx.flipY),
       };
     },
     getRenderDescriptorV2,
@@ -1060,6 +1140,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         scaleX: imgTx.scaleX,
         scaleY: imgTx.scaleY,
         rotation_deg: imgTx.rotation_deg,
+        flipX: imgTx.flipX,
+        flipY: imgTx.flipY,
       },
       mode,
       background: mode === "contain" ? bgColor : "#ffffff",
@@ -1151,6 +1233,15 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         <button onClick={() => alignEdge("bottom")} disabled={!imgEl}>
           Abajo
         </button>
+        <button onClick={flipHorizontal} disabled={!imgEl}>
+          Espejo H
+        </button>
+        <button onClick={flipVertical} disabled={!imgEl}>
+          Espejo V
+        </button>
+        <button onClick={rotate90} disabled={!imgEl}>
+          Rotar 90°
+        </button>
         <span
           className={`${styles.qualityBadge} ${
             quality.color === "#ef4444"
@@ -1182,13 +1273,34 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         ref={wrapRef}
         className={`${styles.canvasWrapper} ${isPanningRef.current ? styles.grabbing : ""} ${isPickingColor ? styles.picking : ""}`}
       >
-        <button
-          onClick={undo}
-          disabled={histIndex <= 0}
-          className={styles.undoButton}
-        >
-          ↺
-        </button>
+        <div className={styles.historyControls}>
+          <button
+            type="button"
+            onClick={undo}
+            disabled={!canUndo}
+            className={styles.historyButton}
+            aria-label="Deshacer"
+          >
+            Deshacer
+          </button>
+          <button
+            type="button"
+            onClick={redo}
+            disabled={!canRedo}
+            className={styles.historyButton}
+            aria-label="Rehacer"
+          >
+            Rehacer
+          </button>
+          <button
+            type="button"
+            onClick={() => onClearImage?.()}
+            disabled={!onClearImage || !imageUrl}
+            className={`${styles.historyButton} ${styles.historyButtonDanger}`}
+          >
+            Eliminar
+          </button>
+        </div>
         <Stage
           ref={stageRef}
           width={wrapSize.w}
@@ -1252,6 +1364,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                     height={dispH}
                     offsetX={dispW / 2}
                     offsetY={dispH / 2}
+                    scaleX={imgTx.flipX ? -1 : 1}
+                    scaleY={imgTx.flipY ? -1 : 1}
                     rotation={imgTx.rotation_deg}
                     draggable
                     dragBoundFunc={dragBoundFunc}
@@ -1345,6 +1459,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                     height={dispH}
                     offsetX={dispW / 2}
                     offsetY={dispH / 2}
+                    scaleX={imgTx.flipX ? -1 : 1}
+                    scaleY={imgTx.flipY ? -1 : 1}
                     rotation={imgTx.rotation_deg}
                     draggable={false}
                     listening={true}
@@ -1376,6 +1492,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                   height={dispH}
                   offsetX={dispW / 2}
                   offsetY={dispH / 2}
+                  scaleX={imgTx.flipX ? -1 : 1}
+                  scaleY={imgTx.flipY ? -1 : 1}
                   rotation={imgTx.rotation_deg}
                   listening={false}
                 />
@@ -1452,6 +1570,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                   height={dispH * exportScale}
                   offsetX={(dispW * exportScale) / 2}
                   offsetY={(dispH * exportScale) / 2}
+                  scaleX={imgTx.flipX ? -1 : 1}
+                  scaleY={imgTx.flipY ? -1 : 1}
                   rotation={imgTx.rotation_deg}
                   listening={false}
                 />
