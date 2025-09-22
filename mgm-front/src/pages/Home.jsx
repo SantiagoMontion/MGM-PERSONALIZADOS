@@ -66,14 +66,6 @@ export default function Home() {
     }
   }, [uploaded?.localUrl]);
 
-  useEffect(() => {
-
-    if (uploaded) {
-      setConfigOpen(true);
-    }
-
-  }, [uploaded]);
-
   // No se ejecutan filtros rápidos al subir imagen
 
   // medidas y material (source of truth)
