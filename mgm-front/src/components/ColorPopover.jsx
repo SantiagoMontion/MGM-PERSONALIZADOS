@@ -1,7 +1,11 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { HexColorPicker, HexColorInput } from "react-colorful";
-import eyedropperIcon from "../icons/tintero.svg";
+import { resolveIconAsset } from "@/lib/iconRegistry.js";
 import styles from "./EditorCanvas.module.css";
+
+const EYEDROPPER_ICON_SRC = resolveIconAsset("tintero.svg", {
+  fallbackToPublic: false,
+});
 
 export default function ColorPopover({
   value,
@@ -34,6 +38,10 @@ export default function ColorPopover({
     };
   }, [open, onClose]);
 
+  useEffect(() => {
+    if (open) setIconError(false);
+  }, [open]);
+
   const handlePick = async () => {
     try {
       if (window.EyeDropper) {
@@ -51,6 +59,8 @@ export default function ColorPopover({
   };
 
   if (!open) return null;
+
+  const showEyedropperIcon = EYEDROPPER_ICON_SRC && !iconError;
 
   return (
     <div ref={boxRef} className={styles.colorPopover}>
@@ -72,16 +82,16 @@ export default function ColorPopover({
           onClick={handlePick}
           className={styles.eyedropperButton}
         >
-          {iconError ? (
-            <span className={styles.eyedropperFallback} aria-hidden="true" />
-          ) : (
+          {showEyedropperIcon ? (
             <img
-              src={eyedropperIcon}
+              src={EYEDROPPER_ICON_SRC}
               alt=""
               className={styles.eyedropperIcon}
               onError={() => setIconError(true)}
               draggable="false"
             />
+          ) : (
+            <span className={styles.eyedropperFallback} aria-hidden="true" />
           )}
         </button>
       </div>
