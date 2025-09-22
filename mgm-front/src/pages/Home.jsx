@@ -431,7 +431,6 @@ export default function Home() {
                 dpi={300}
                 onLayoutChange={setLayout}
                 onClearImage={handleClearImage}
-                showHistoryControls={false}
               />
 
             )}
