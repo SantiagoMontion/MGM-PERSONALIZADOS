@@ -28,7 +28,7 @@ export default function Home() {
   const [uploaded, setUploaded] = useState(null);
   // crear ObjectURL una sola vez
   const [imageUrl, setImageUrl] = useState(null);
-  const [configOpen, setConfigOpen] = useState(true);
+  const [configOpen, setConfigOpen] = useState(false);
   useEffect(() => {
     if (uploaded?.localUrl) {
       setImageUrl(uploaded.localUrl);
@@ -39,7 +39,9 @@ export default function Home() {
   }, [uploaded?.localUrl]);
 
   useEffect(() => {
-    setConfigOpen(true);
+    if (uploaded) {
+      setConfigOpen(true);
+    }
   }, [uploaded]);
 
   // No se ejecutan filtros rápidos al subir imagen

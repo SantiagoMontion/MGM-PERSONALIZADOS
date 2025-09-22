@@ -2,6 +2,16 @@
 import { useEffect, useRef, useState } from 'react';
 import styles from './SizeControls.module.css';
 import { LIMITS, STANDARD, GLASSPAD_SIZE_CM } from '../lib/material.js';
+import { resolveIconAsset } from '../lib/iconRegistry.js';
+
+const WIDTH_ICON_SRC = resolveIconAsset('largo.svg');
+const HEIGHT_ICON_SRC = resolveIconAsset('ancho.svg');
+
+const MATERIAL_OPTIONS = [
+  { value: 'Glasspad', title: 'GLASSPAD', subtitle: 'speed' },
+  { value: 'PRO', title: 'PRO', subtitle: 'control' },
+  { value: 'Classic', title: 'CLASSIC', subtitle: 'híbrido' },
+];
 
 /**
  * Props:
@@ -91,13 +101,6 @@ export default function SizeControls({ material, size, onChange, locked = false,
   ]
     .filter(Boolean)
     .join(' ');
-  const selectControlClassName = [
-    styles.selectControl,
-    disabled ? styles.selectControlDisabled : '',
-  ]
-    .filter(Boolean)
-    .join(' ');
-
   return (
     <div className={containerClasses} aria-disabled={disabled}>
       <div className={styles.section}>
@@ -106,6 +109,12 @@ export default function SizeControls({ material, size, onChange, locked = false,
           <label className={styles.inputLabel}>
             Largo
             <div className={inputControlClassName}>
+              <img
+                src={WIDTH_ICON_SRC}
+                alt=""
+                className={styles.inputIcon}
+                aria-hidden="true"
+              />
               <input
                 className={styles.input}
                 value={isGlasspad ? GLASSPAD_SIZE_CM.w : wText}
@@ -120,6 +129,12 @@ export default function SizeControls({ material, size, onChange, locked = false,
           <label className={styles.inputLabel}>
             Ancho
             <div className={inputControlClassName}>
+              <img
+                src={HEIGHT_ICON_SRC}
+                alt=""
+                className={styles.inputIcon}
+                aria-hidden="true"
+              />
               <input
                 className={styles.input}
                 value={isGlasspad ? GLASSPAD_SIZE_CM.h : hText}
@@ -160,24 +175,39 @@ export default function SizeControls({ material, size, onChange, locked = false,
         )}
       </div>
 
-      <label className={`${styles.section} ${styles.selectSection}`}>
+      <div className={`${styles.section} ${styles.seriesSection}`}>
         <span className={styles.groupLabel}>Serie</span>
-        <div className={selectControlClassName}>
-          <select
-            className={styles.select}
-            value={material}
-            onChange={(e) => {
-              if (disabled) return;
-              onChange({ material: e.target.value });
-            }}
-            disabled={disabled}
-          >
-            <option>Classic</option>
-            <option>PRO</option>
-            <option>Glasspad</option>
-          </select>
+        <div className={styles.materialList} role="radiogroup" aria-disabled={disabled}>
+          {MATERIAL_OPTIONS.map((option) => {
+            const isActive = material === option.value;
+            const materialClassName = [
+              styles.materialOption,
+              isActive ? styles.materialOptionActive : '',
+              disabled ? styles.materialOptionDisabled : '',
+            ]
+              .filter(Boolean)
+              .join(' ');
+
+            return (
+              <button
+                key={option.value}
+                type="button"
+                role="radio"
+                aria-checked={isActive}
+                className={materialClassName}
+                onClick={() => {
+                  if (disabled) return;
+                  onChange({ material: option.value });
+                }}
+                disabled={disabled}
+              >
+                <span className={styles.materialOptionTitle}>{option.title}</span>
+                <span className={styles.materialOptionSubtitle}>{option.subtitle}</span>
+              </button>
+            );
+          })}
         </div>
-      </label>
+      </div>
     </div>
   );
 }
