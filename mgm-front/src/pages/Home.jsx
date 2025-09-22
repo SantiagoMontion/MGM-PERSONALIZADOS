@@ -22,7 +22,9 @@ import { resolveIconAsset } from '@/lib/iconRegistry.js';
 const CONFIG_ICON_SRC = resolveIconAsset('wheel.svg');
 const CONFIG_ARROW_ICON_SRC = resolveIconAsset('down.svg');
 
-const iconStroke = 1.8;
+
+const iconStroke = 2;
+
 
 const UndoIcon = (props) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={iconStroke} strokeLinecap="round" strokeLinejoin="round" {...props}>
