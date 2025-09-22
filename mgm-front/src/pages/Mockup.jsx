@@ -22,9 +22,15 @@ export default function Mockup() {
   }
 
   async function handle(mode) {
+
     if (mode !== 'checkout' && mode !== 'cart' && mode !== 'private') return;
+
     try {
       setBusy(true);
+      if (mode === 'cart' && typeof window !== 'undefined') {
+        cartTarget = `mgm_cart_${Date.now()}`;
+        cartPopup = window.open('https://www.mgmgamers.store/', cartTarget, 'noopener');
+      }
       const result = await createJobAndProduct(mode, flow);
       if (mode === 'checkout' && result.checkoutUrl) {
         window.location.assign(result.checkoutUrl);
@@ -35,18 +41,29 @@ export default function Mockup() {
         return;
       }
       if (mode === 'cart' && result.cartUrl) {
-        openCartUrl(result.cartUrl);
+        openCartUrl(result.cartUrl, { target: cartTarget, popup: cartPopup });
         flow.reset();
-        navigate('/');
+        navigate('/', { replace: true });
         return;
       }
-      if (mode !== 'private' && result.productUrl) {
+
+      if (result.productUrl) {
+        if (cartPopup && !cartPopup.closed) {
+          try { cartPopup.close(); } catch {}
+        }
+
         window.open(result.productUrl, '_blank', 'noopener');
         return;
+      }
+      if (cartPopup && !cartPopup.closed) {
+        try { cartPopup.close(); } catch {}
       }
       alert('El producto se creó pero no se pudo obtener un enlace.');
     } catch (e) {
       console.error('[mockup-handle]', e);
+      if (cartPopup && !cartPopup.closed) {
+        try { cartPopup.close(); } catch {}
+      }
       const reasonRaw = typeof e?.reason === 'string' && e.reason ? e.reason : String(e?.message || 'Error');
       const messageRaw = typeof e?.friendlyMessage === 'string' && e.friendlyMessage
         ? e.friendlyMessage
@@ -63,6 +80,13 @@ export default function Mockup() {
           ? e.missing.join(', ')
           : 'SHOPIFY_STORE_DOMAIN, SHOPIFY_ADMIN_TOKEN';
         friendly = `La integración con Shopify no está configurada. Faltan las variables: ${missing}.`;
+      } else if (reasonRaw === 'shopify_storefront_env_missing') {
+        const missing = Array.isArray(e?.missing) && e.missing.length
+          ? e.missing.join(', ')
+          : 'SHOPIFY_STOREFRONT_TOKEN, SHOPIFY_STOREFRONT_DOMAIN';
+        friendly = `La API Storefront de Shopify no está configurada. Faltan las variables: ${missing}.`;
+      } else if (reasonRaw === 'shopify_cart_user_error') {
+        friendly = 'Shopify rechazó el carrito generado. Intentá nuevamente en unos segundos.';
       }
       alert(friendly);
     } finally {

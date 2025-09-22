@@ -1,5 +1,7 @@
 export interface OpenCartOptions {
   target?: string;
+  popup?: Window | null;
+  focus?: boolean;
 }
 
 const CART_ADD_PATH = '/cart/add';
@@ -16,7 +18,7 @@ function buildHiddenInput(name: string, value: string) {
   return input;
 }
 
-function submitCartForm(url: URL, target: string) {
+function submitCartForm(url: URL, target: string, popup?: Window | null, focus = true) {
   if (typeof document === 'undefined' || typeof window === 'undefined') return false;
   const form = document.createElement('form');
   form.method = 'POST';
@@ -36,14 +38,21 @@ function submitCartForm(url: URL, target: string) {
   }
 
   let targetName = target;
-  let popup: Window | null = null;
-  if (target === '_blank') {
-    targetName = `mgm_cart_${Date.now()}`;
-    popup = window.open('', targetName, 'noopener');
-    if (!popup) {
-      targetName = '_self';
+  let popupRef: Window | null = popup && !popup.closed ? popup : null;
+  if (targetName === '_blank') {
+    if (!popupRef) {
+      targetName = `mgm_cart_${Date.now()}`;
+      popupRef = window.open('', targetName, 'noopener');
+      if (!popupRef) {
+        targetName = '_self';
+      }
+    } else {
+      targetName = popupRef.name || targetName;
     }
+  } else if (popupRef) {
+    targetName = popupRef.name || targetName || '_self';
   }
+  if (!targetName) targetName = '_self';
   form.target = targetName;
   form.style.display = 'none';
   document.body.appendChild(form);
@@ -51,19 +60,29 @@ function submitCartForm(url: URL, target: string) {
   window.setTimeout(() => {
     form.remove();
   }, 0);
-  if (target === '_blank' && popup && typeof popup.focus === 'function') {
-    popup.focus();
+  if (popupRef && focus && typeof popupRef.focus === 'function') {
+    popupRef.focus();
   }
-  return popup !== null || targetName === '_self';
+  return popupRef !== null || targetName === '_self';
 }
 
 export function openCartUrl(rawUrl: string, options?: OpenCartOptions) {
   const target = options?.target ?? '_blank';
+  const popup = options?.popup && !options.popup.closed ? options.popup : null;
+  const focus = options?.focus !== false;
   try {
     const parsed = new URL(rawUrl);
     if (normalizePathname(parsed.pathname) === CART_ADD_PATH) {
-      const submitted = submitCartForm(parsed, target);
+      const submitted = submitCartForm(parsed, target, popup, focus);
       if (submitted) return;
+    } else if (popup) {
+      try {
+        popup.location.href = rawUrl;
+        if (focus && typeof popup.focus === 'function') popup.focus();
+        return;
+      } catch (err) {
+        // fall through to window.open
+      }
     }
   } catch (err) {
     console.error('[openCartUrl] invalid url', err);
