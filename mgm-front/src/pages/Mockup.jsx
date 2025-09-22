@@ -25,8 +25,40 @@ export default function Mockup() {
 
     if (mode !== 'checkout' && mode !== 'cart' && mode !== 'private') return;
 
+
+    let submissionFlow = flow;
     let cartTarget;
     let cartPopup;
+
+    if (mode === 'private') {
+      const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      let emailRaw = typeof flow.customerEmail === 'string' ? flow.customerEmail.trim() : '';
+      if (!emailPattern.test(emailRaw)) {
+        if (typeof window === 'undefined') {
+          alert('Ingresá un correo electrónico válido para comprar en privado.');
+          return;
+        }
+        const promptDefault = typeof flow.customerEmail === 'string' ? flow.customerEmail : '';
+        const provided = window.prompt(
+          'Ingresá tu correo electrónico para continuar con la compra privada:',
+          promptDefault,
+        );
+        if (provided == null) {
+          return;
+        }
+        const normalized = provided.trim();
+        if (!emailPattern.test(normalized)) {
+          alert('Ingresá un correo electrónico válido para comprar en privado.');
+          return;
+        }
+        emailRaw = normalized;
+      }
+      if (emailRaw !== flow.customerEmail) {
+        flow.set({ customerEmail: emailRaw });
+      }
+      submissionFlow = { ...flow, customerEmail: emailRaw };
+    }
+
 
     try {
       setBusy(true);
@@ -34,7 +66,7 @@ export default function Mockup() {
         cartTarget = `mgm_cart_${Date.now()}`;
         cartPopup = window.open('https://www.mgmgamers.store/', cartTarget, 'noopener');
       }
-      const result = await createJobAndProduct(mode, flow);
+      const result = await createJobAndProduct(mode, submissionFlow);
       if (mode === 'checkout' && result.checkoutUrl) {
         window.location.assign(result.checkoutUrl);
         return;
@@ -76,6 +108,7 @@ export default function Mockup() {
       else if (reasonRaw === 'missing_variant') friendly = 'No se pudo obtener la variante del producto creado en Shopify.';
       else if (reasonRaw === 'cart_link_failed') friendly = 'No se pudo generar el enlace del carrito. Revisá la configuración de Shopify.';
       else if (reasonRaw === 'checkout_link_failed') friendly = 'No se pudo generar el enlace de compra.';
+      else if (reasonRaw === 'missing_customer_email') friendly = 'Completá un correo electrónico válido para comprar en privado.';
       else if (reasonRaw.startsWith('publish_failed')) friendly = 'Shopify rechazó la creación del producto. Revisá los datos enviados.';
       else if (reasonRaw === 'shopify_error') friendly = 'Shopify devolvió un error al crear el producto.';
       else if (reasonRaw === 'shopify_env_missing') {

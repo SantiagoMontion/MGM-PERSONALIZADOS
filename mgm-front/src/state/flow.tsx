@@ -13,6 +13,7 @@ export type FlowState = {
   priceTransfer?: number;
   priceNormal?: number;
   priceCurrency?: string;
+  customerEmail?: string;
   lastProduct?: {
     productId?: string;
     variantId?: string;
@@ -39,6 +40,7 @@ const defaultState: Omit<FlowState, 'set' | 'reset'> = {
   priceTransfer: 0,
   priceNormal: 0,
   priceCurrency: 'ARS',
+  customerEmail: '',
   lastProduct: undefined,
 };
 
