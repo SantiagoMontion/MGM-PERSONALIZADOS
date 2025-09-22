@@ -4,20 +4,20 @@ import styles from './NotFound.module.css';
 
 const LOST_META = {
   title: '¿Estás perdido? — MGMGAMERS',
-  description: 'No encontramos la página que buscabas. Volvé al inicio o contactá a nuestro equipo para obtener ayuda.',
+  description: 'No encontramos la página que buscabas. Volvé al inicio.',
   canonical: 'https://www.mgmgamers.store/404'
 };
 
 const ERROR_META = {
   title: 'Algo salió mal — MGMGAMERS',
-  description: 'Tuvimos un inconveniente inesperado al cargar la página. Probá nuevamente o escribinos si el problema persiste.',
+  description: 'Tuvimos un inconveniente inesperado al cargar la página. Probá nuevamente en unos instantes.',
   canonical: 'https://www.mgmgamers.store/error'
 };
 
 function LostLayout({
   eyebrow = 'Error 404',
   title = '¿Estás perdido?',
-  description = 'No encontramos la página que buscabas. Volvé al inicio o contactá a nuestro equipo para obtener ayuda.',
+  description = 'No encontramos la página que buscabas. Volvé al inicio.',
   details = null,
   meta = LOST_META
 }) {
@@ -40,9 +40,6 @@ function LostLayout({
         <div className={styles.actions}>
           <Link className={styles.primary} to="/">
             Ir al inicio
-          </Link>
-          <Link className={styles.secondary} to="/contacto">
-            Hablar con soporte
           </Link>
         </div>
       </section>
@@ -82,7 +79,7 @@ export function NotFoundBoundary() {
     <LostLayout
       eyebrow={eyebrow}
       title="Algo salió mal"
-      description="Tuvimos un inconveniente inesperado al cargar la página. Probá nuevamente o escribinos si el problema persiste."
+      description="Tuvimos un inconveniente inesperado al cargar la página. Probá nuevamente en unos instantes."
       details={fallbackDetails}
       meta={ERROR_META}
     />
