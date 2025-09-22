@@ -22,6 +22,8 @@ export type FlowState = {
     productUrl?: string;
     productHandle?: string;
     visibility?: 'public' | 'private';
+    draftOrderId?: string;
+    draftOrderName?: string;
   };
   set: (p: Partial<FlowState>) => void;
   reset: () => void;

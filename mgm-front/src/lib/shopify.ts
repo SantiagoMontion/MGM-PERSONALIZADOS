@@ -180,6 +180,8 @@ export async function createJobAndProduct(mode: 'checkout' | 'cart' | 'private',
     variantId?: string;
     productUrl?: string;
     visibility: 'public' | 'private';
+    draftOrderId?: string;
+    draftOrderName?: string;
   } = {
     productId,
     variantId,
@@ -197,6 +199,7 @@ export async function createJobAndProduct(mode: 'checkout' | 'cart' | 'private',
           variantId,
           quantity: 1,
           ...(customerEmail ? { email: customerEmail } : {}),
+          ...(isPrivate ? { mode: 'private' as const } : { mode: mode }),
         }),
       });
       const ck = await ckResp.json().catch(() => null);
@@ -204,6 +207,12 @@ export async function createJobAndProduct(mode: 'checkout' | 'cart' | 'private',
         throw new Error('checkout_link_failed');
       }
       result.checkoutUrl = ck.url;
+      if (ck.draft_order_id) {
+        result.draftOrderId = String(ck.draft_order_id);
+      }
+      if (ck.draft_order_name) {
+        result.draftOrderName = String(ck.draft_order_name);
+      }
     } else {
       const clResp = await apiFetch('/api/create-cart-link', {
         method: 'POST',
@@ -255,6 +264,8 @@ export async function createJobAndProduct(mode: 'checkout' | 'cart' | 'private',
         productUrl: publish.productUrl,
         productHandle: publish.productHandle,
         visibility: result.visibility,
+        draftOrderId: result.draftOrderId,
+        draftOrderName: result.draftOrderName,
       },
     });
   }

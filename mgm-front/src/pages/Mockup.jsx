@@ -108,7 +108,7 @@ export default function Mockup() {
       else if (reasonRaw === 'missing_variant') friendly = 'No se pudo obtener la variante del producto creado en Shopify.';
       else if (reasonRaw === 'cart_link_failed') friendly = 'No se pudo generar el enlace del carrito. Revisá la configuración de Shopify.';
       else if (reasonRaw === 'checkout_link_failed') friendly = 'No se pudo generar el enlace de compra.';
-      else if (reasonRaw === 'missing_customer_email') friendly = 'Completá un correo electrónico válido para comprar en privado.';
+      else if (reasonRaw === 'missing_customer_email' || reasonRaw === 'missing_email') friendly = 'Completá un correo electrónico válido para comprar en privado.';
       else if (reasonRaw.startsWith('publish_failed')) friendly = 'Shopify rechazó la creación del producto. Revisá los datos enviados.';
       else if (reasonRaw === 'shopify_error') friendly = 'Shopify devolvió un error al crear el producto.';
       else if (reasonRaw === 'shopify_env_missing') {
