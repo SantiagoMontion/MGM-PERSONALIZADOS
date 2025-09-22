@@ -1943,7 +1943,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                 onClick={toggleContain}
                 disabled={!imgEl}
                 aria-label="Contener"
-                title="Contener"
                 className={iconButtonClass(mode === "contain")}
               >
                 {missingIcons.contener ? (
