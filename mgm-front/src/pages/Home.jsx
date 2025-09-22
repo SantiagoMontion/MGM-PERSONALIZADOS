@@ -6,7 +6,6 @@ import SeoJsonLd from '../components/SeoJsonLd';
 import UploadStep from '../components/UploadStep';
 import EditorCanvas from '../components/EditorCanvas';
 import SizeControls from '../components/SizeControls';
-import Calculadora from '../components/Calculadora';
 import LoadingOverlay from '../components/LoadingOverlay';
 
 import { LIMITS, STANDARD, GLASSPAD_SIZE_CM } from '../lib/material.js';
@@ -281,21 +280,31 @@ export default function Home() {
               className={styles.configHeader}
               onClick={() => setConfigOpen(open => !open)}
             >
-              <span className={styles.configIcon} aria-hidden="true">⚙️</span>
-              <span className={styles.configTitle}>Configura tu mousepad</span>
-              <span
-                className={`${styles.configArrow} ${configOpen ? styles.configArrowOpen : ''}`}
-                aria-hidden="true"
-              >
-                ▾
+              <span className={styles.configHeaderLeft}>
+                <img
+                  src="/icons/wheel.svg"
+                  alt=""
+                  className={styles.configIcon}
+                  aria-hidden="true"
+                />
+                <span className={styles.configTitle}>Configura tu mousepad</span>
               </span>
+              <img
+                src="/icons/down.svg"
+                alt=""
+                className={`${styles.configArrowIcon} ${configOpen ? styles.configArrowIconOpen : ''}`}
+                aria-hidden="true"
+              />
             </button>
             {configOpen && (
               <div className={styles.configContent}>
                 <div className={styles.field}>
+                  <label className={styles.fieldLabel} htmlFor="design-name">Nombre de tu diseño</label>
                   <input
                     type="text"
-                    placeholder="Nombre del modelo"
+                    id="design-name"
+                    className={styles.textInput}
+                    placeholder="Ej: Nubes y cielo rosa"
                     value={designName}
                     onChange={e => setDesignName(e.target.value)}
                   />
@@ -306,12 +315,6 @@ export default function Home() {
                   mode={mode}
                   onChange={handleSizeChange}
                   locked={material === 'Glasspad'}
-                />
-                <Calculadora
-                  width={activeWcm}
-                  height={activeHcm}
-                  material={material}
-                  setPrice={setPriceAmount}
                 />
               </div>
             )}
@@ -349,7 +352,7 @@ export default function Home() {
         {uploaded && (
           <button
             className={styles.continueButton}
-            disabled={busy || priceAmount <= 0 || trimmedDesignName.length < 2}
+            disabled={busy || trimmedDesignName.length < 2}
             onClick={handleContinue}
           >
             Continuar
