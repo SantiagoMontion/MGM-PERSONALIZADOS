@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { apiFetch } from "@/lib/api";
+import { openCartUrl } from "@/lib/cart";
 
 export default function Result() {
   const { jobId } = useParams();
@@ -64,7 +65,7 @@ export default function Result() {
 
   const hrefCart = added ? urls.cart_plain : urls.cart_url_follow;
   const hrefCheckout = added ? urls.checkout_plain : urls.checkout_url_now;
-  const openNew = (u) => window.open(u, "_blank", "noopener,noreferrer");
+  const openNew = (u) => window.open(u, "_blank", "noopener");
 
   return (
     <div>
@@ -78,7 +79,7 @@ export default function Result() {
       <div>
         <button
           onClick={() => {
-            openNew(hrefCart);
+            openCartUrl(hrefCart);
             localStorage.setItem(`MGM_jobAdded:${jobId}`, "true");
             setAdded(true);
           }}
@@ -96,7 +97,7 @@ export default function Result() {
         </button>
         <button
           onClick={() => {
-            openNew(hrefCart);
+            openCartUrl(hrefCart);
             localStorage.setItem(`MGM_jobAdded:${jobId}`, "true");
             setAdded(true);
             navigate("/");

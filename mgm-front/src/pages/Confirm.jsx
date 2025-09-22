@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { apiFetch } from '@/lib/api';
+import { openCartUrl } from '@/lib/cart';
 import styles from './Confirm.module.css';
 
 export default function Confirm() {
@@ -42,7 +43,13 @@ export default function Confirm() {
 
       <div className={styles.actions}>
         {data.cart_url && (
-          <a className="btn" href={data.cart_url}>Agregar al carrito</a>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => openCartUrl(data.cart_url)}
+          >
+            Agregar al carrito
+          </button>
         )}
         {data.shopify_product_url && (
           <a className="btn" href={data.shopify_product_url} target="_blank">Ver producto</a>
