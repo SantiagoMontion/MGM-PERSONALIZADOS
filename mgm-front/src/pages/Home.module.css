@@ -189,20 +189,21 @@
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.textInput::placeholder {
+  .textInput::placeholder {
 
-  color: rgba(156, 163, 175, 0.7);
+    color: rgba(156, 163, 175, 0.7);
 
-}
+  }
 
-.textInput:focus {
-  outline: none;
+  .textInput:focus {
+    outline: none;
 
-  border-color: rgba(170, 170, 190, 0.9);
-  box-shadow: 0 0 0 3px rgba(170, 170, 190, 0.2);
+    border-color: rgba(170, 170, 190, 0.9);
+    box-shadow: 0 0 0 3px rgba(170, 170, 190, 0.2);
 
+  }
 
-.headerActions {
+  .headerActions {
   display: flex;
   align-items: center;
   gap: 14px;
