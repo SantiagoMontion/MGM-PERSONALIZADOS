@@ -93,8 +93,8 @@ export async function createJobAndProduct(mode: 'checkout' | 'cart' | 'private',
   const widthCm = safeNumber((flow.editorState as any)?.size_cm?.w);
   const heightCm = safeNumber((flow.editorState as any)?.size_cm?.h);
   const approxDpi = safeNumber(flow.approxDpi);
-  const priceTransfer = safeNumber(flow.priceTransfer);
-  const priceNormal = safeNumber(flow.priceNormal);
+  const priceTransferRaw = safeNumber(flow.priceTransfer);
+  const priceNormalRaw = safeNumber(flow.priceNormal);
   const priceCurrencyRaw = typeof flow.priceCurrency === 'string' ? flow.priceCurrency : 'ARS';
   const priceCurrency = priceCurrencyRaw.trim() || 'ARS';
   const measurementLabel = formatMeasurement(widthCm, heightCm);
@@ -115,6 +115,19 @@ export async function createJobAndProduct(mode: 'checkout' | 'cart' | 'private',
   const customerEmail = typeof flow.customerEmail === 'string' ? flow.customerEmail.trim() : '';
   const isPrivate = mode === 'private';
   const requestedVisibility: 'public' | 'private' = isPrivate ? 'private' : 'public';
+
+  let priceTransfer = priceTransferRaw;
+  let priceNormal = priceNormalRaw;
+
+  if (isPrivate) {
+    const markupFactor = 1.25;
+    const applyMarkup = (value?: number) => {
+      if (typeof value !== 'number') return value;
+      return Math.round(value * markupFactor * 100) / 100;
+    };
+    priceTransfer = applyMarkup(priceTransferRaw);
+    priceNormal = applyMarkup(priceNormalRaw);
+  }
 
   if (isPrivate) {
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
