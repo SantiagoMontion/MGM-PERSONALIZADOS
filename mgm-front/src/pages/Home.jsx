@@ -305,6 +305,7 @@ export default function Home() {
   const description = 'Mousepad Profesionales Personalizados, Gamers, diseño y medida que quieras. Perfectos para gaming control y speed.';
   const url = 'https://www.mgmgamers.store/';
   const hasImage = Boolean(uploaded);
+  const isCanvasReady = Boolean(hasImage && imageUrl);
   const canUndo = historyCounts.undo > 0;
   const canRedo = historyCounts.redo > 0;
 
@@ -325,7 +326,9 @@ export default function Home() {
 
   const canvasStageClasses = [
     styles.canvasStage,
-    !hasImage ? styles.canvasStageEmpty : '',
+
+    !isCanvasReady ? styles.canvasStageEmpty : '',
+
   ]
     .filter(Boolean)
     .join(' ');
@@ -406,47 +409,19 @@ export default function Home() {
         <div className={canvasStageClasses}>
           <div className={styles.canvasViewport}>
 
-            <EditorCanvas
-              ref={canvasRef}
-              imageUrl={imageUrl}
-              imageFile={uploaded?.file}
-              sizeCm={activeSizeCm}
-              bleedMm={3}
-              dpi={300}
-              onLayoutChange={setLayout}
-              onClearImage={handleClearImage}
-              showHistoryControls={false}
-              onHistoryChange={handleHistoryChange}
-            />
-            {hasImage && (
-              <div className={styles.canvasHistoryActions}>
-                <button
-                  type="button"
-                  className={styles.topActionButton}
-                  onClick={handleUndo}
-                  disabled={!canUndo}
-                  aria-label="Deshacer"
-                >
-                  <UndoIcon className={styles.topActionIcon} />
-                </button>
-                <button
-                  type="button"
-                  className={styles.topActionButton}
-                  onClick={handleRedo}
-                  disabled={!canRedo}
-                  aria-label="Rehacer"
-                >
-                  <RedoIcon className={styles.topActionIcon} />
-                </button>
-                <button
-                  type="button"
-                  className={`${styles.topActionButton} ${styles.deleteActionButton}`}
-                  onClick={handleClearImage}
-                  aria-label="Eliminar imagen"
-                >
-                  <TrashIcon className={styles.topActionIcon} />
-                </button>
-              </div>
+            {isCanvasReady && (
+              <EditorCanvas
+                ref={canvasRef}
+                imageUrl={imageUrl}
+                imageFile={uploaded?.file}
+                sizeCm={activeSizeCm}
+                bleedMm={3}
+                dpi={300}
+                onLayoutChange={setLayout}
+                onClearImage={handleClearImage}
+                showHistoryControls={false}
+                onHistoryChange={handleHistoryChange}
+              />
 
             )}
             {!hasImage && (
