@@ -24,7 +24,7 @@ export default function Home() {
   const [uploaded, setUploaded] = useState(null);
   // crear ObjectURL una sola vez
   const [imageUrl, setImageUrl] = useState(null);
-  const [configOpen, setConfigOpen] = useState(false);
+  const [configOpen, setConfigOpen] = useState(true);
   useEffect(() => {
     if (uploaded?.localUrl) {
       setImageUrl(uploaded.localUrl);
@@ -35,11 +35,7 @@ export default function Home() {
   }, [uploaded?.localUrl]);
 
   useEffect(() => {
-    if (uploaded) {
-      setConfigOpen(true);
-    } else {
-      setConfigOpen(false);
-    }
+    setConfigOpen(true);
   }, [uploaded]);
 
   // No se ejecutan filtros rápidos al subir imagen
@@ -258,6 +254,21 @@ export default function Home() {
   const title = 'Tu Mousepad Personalizado — MGMGAMERS';
   const description = 'Mousepad Profesionales Personalizados, Gamers, diseño y medida que quieras. Perfectos para gaming control y speed.';
   const url = 'https://www.mgmgamers.store/';
+  const hasImage = Boolean(uploaded);
+  const accordionClassNames = [
+    styles.configAccordion,
+    configOpen ? styles.configAccordionOpen : '',
+    !hasImage ? styles.configAccordionDisabled : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+  const accordionContentClasses = [
+    styles.configContent,
+    !hasImage ? styles.configContentDisabled : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   return (
     <div className={styles.container}>
       <SeoJsonLd
@@ -273,72 +284,77 @@ export default function Home() {
         }}
       />
       <div className={styles.sidebar}>
-        {uploaded && (
-          <div className={`${styles.configAccordion} ${configOpen ? styles.configAccordionOpen : ''}`}>
-            <button
-              type="button"
-              className={styles.configHeader}
-              onClick={() => setConfigOpen(open => !open)}
-            >
-              <span className={styles.configHeaderLeft}>
-                <img
-                  src="/icons/wheel.svg"
-                  alt=""
-                  className={styles.configIcon}
-                  aria-hidden="true"
-                />
-                <span className={styles.configTitle}>Configura tu mousepad</span>
-              </span>
+        <div className={accordionClassNames}>
+          <button
+            type="button"
+            className={styles.configHeader}
+            onClick={() => setConfigOpen(open => !open)}
+            disabled={!hasImage}
+            aria-expanded={configOpen}
+            aria-controls="configuracion-editor"
+          >
+            <span className={styles.configHeaderLeft}>
               <img
-                src="/icons/down.svg"
+                src="/icons/wheel.svg"
                 alt=""
-                className={`${styles.configArrowIcon} ${configOpen ? styles.configArrowIconOpen : ''}`}
+                className={styles.configIcon}
                 aria-hidden="true"
               />
-            </button>
-            {configOpen && (
-              <div className={styles.configContent}>
-                <div className={styles.field}>
-                  <label className={styles.fieldLabel} htmlFor="design-name">Nombre de tu diseño</label>
-                  <input
-                    type="text"
-                    id="design-name"
-                    className={styles.textInput}
-                    placeholder="Ej: Nubes y cielo rosa"
-                    value={designName}
-                    onChange={e => setDesignName(e.target.value)}
-                  />
-                </div>
-                <SizeControls
-                  material={material}
-                  size={size}
-                  mode={mode}
-                  onChange={handleSizeChange}
-                  locked={material === 'Glasspad'}
+              <span className={styles.configTitle}>Configura tu mousepad</span>
+            </span>
+            <img
+              src="/icons/down.svg"
+              alt=""
+              className={`${styles.configArrowIcon} ${configOpen ? styles.configArrowIconOpen : ''}`}
+              aria-hidden="true"
+            />
+          </button>
+          {configOpen && (
+            <div
+              id="configuracion-editor"
+              className={accordionContentClasses}
+              aria-disabled={!hasImage}
+            >
+              <div className={styles.field}>
+                <label className={styles.fieldLabel} htmlFor="design-name">Nombre de tu diseño</label>
+                <input
+                  type="text"
+                  id="design-name"
+                  className={styles.textInput}
+                  placeholder="Ej: Nubes y cielo rosa"
+                  value={designName}
+                  onChange={e => setDesignName(e.target.value)}
+                  disabled={!hasImage}
                 />
               </div>
-            )}
-          </div>
-        )}
+              <SizeControls
+                material={material}
+                size={size}
+                mode={mode}
+                onChange={handleSizeChange}
+                locked={material === 'Glasspad'}
+                disabled={!hasImage}
+              />
+            </div>
+          )}
+        </div>
       </div>
 
       <div className={styles.main}>
         <UploadStep onUploaded={file => { setUploaded(file); setAckLow(false); }} />
 
-        {uploaded && (
-          <EditorCanvas
-            ref={canvasRef}
-            imageUrl={imageUrl}
-            imageFile={uploaded?.file}
-            sizeCm={activeSizeCm}
-            bleedMm={3}
-            dpi={300}
-            onLayoutChange={setLayout}
-            onClearImage={handleClearImage}
-          />
-        )}
+        <EditorCanvas
+          ref={canvasRef}
+          imageUrl={imageUrl}
+          imageFile={uploaded?.file}
+          sizeCm={activeSizeCm}
+          bleedMm={3}
+          dpi={300}
+          onLayoutChange={setLayout}
+          onClearImage={handleClearImage}
+        />
 
-        {uploaded && level === 'bad' && (
+        {hasImage && level === 'bad' && (
           <label className={styles.ackLabel}>
             <input
               type="checkbox"
@@ -349,7 +365,7 @@ export default function Home() {
           </label>
         )}
 
-        {uploaded && (
+        {hasImage && (
           <button
             className={styles.continueButton}
             disabled={busy || trimmedDesignName.length < 2}
