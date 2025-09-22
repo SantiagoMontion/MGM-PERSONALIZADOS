@@ -240,6 +240,11 @@
     opacity 0.18s ease;
 }
 
+.iconOnlyButtonActive {
+  background: rgba(132, 132, 132, 0.6);
+  border-color: rgba(132, 132, 132, 0.6);
+}
+
 .iconOnlyButton:not(:disabled) {
   cursor: pointer;
 }
@@ -251,11 +256,21 @@
   box-shadow: 0 14px 26px rgba(0, 0, 0, 0.42);
 }
 
+.iconOnlyButtonActive:not(:disabled):hover {
+  background: rgba(132, 132, 132, 0.6);
+  border-color: rgba(132, 132, 132, 0.6);
+}
+
 .iconOnlyButton:not(:disabled):active {
   transform: translateY(0);
   border-color: #41414a;
   background: #18181d;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.iconOnlyButtonActive:not(:disabled):active {
+  background: rgba(132, 132, 132, 0.6);
+  border-color: rgba(132, 132, 132, 0.6);
 }
 
 .iconOnlyButton:focus-visible {
