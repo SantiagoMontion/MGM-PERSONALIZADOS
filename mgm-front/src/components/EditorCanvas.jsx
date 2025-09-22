@@ -352,6 +352,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const stickyFitRef = useRef(null);
   const skipStickyFitOnceRef = useRef(false);
   const [bgColor, setBgColor] = useState("#ffffff");
+  const [activeAlign, setActiveAlign] = useState({ horizontal: null, vertical: null });
   const isTransformingRef = useRef(false);
   const setKeepRatioImmediate = useCallback(
     (value) => {
@@ -408,6 +409,10 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       y: (wrapSize.h - stageH) / 2,
     });
   }, [imageUrl, imageFile, updateHistoryCounts]);
+
+  useEffect(() => {
+    setActiveAlign({ horizontal: null, vertical: null });
+  }, [imageUrl, imageFile]);
 
   // Ajuste inicial: imagen contenida y centrada una sola vez por carga
   useEffect(() => {
@@ -1170,6 +1175,16 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     setColorOpen(true);
   };
   const closeColor = () => setColorOpen(false);
+  const iconButtonClass = (isActive) =>
+    isActive
+      ? `${styles.iconOnlyButton} ${styles.iconOnlyButtonActive}`
+      : styles.iconOnlyButton;
+  const setActiveAlignAxis = (axis, value) => {
+    setActiveAlign((prev) => {
+      if (prev[axis] === value) return prev;
+      return { ...prev, [axis]: value };
+    });
+  };
   // track latest callback to avoid effect loops when parent re-renders
   const layoutChangeRef = useRef(onLayoutChange);
   useEffect(() => {
@@ -1253,6 +1268,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               className={styles.historyButton}
               aria-label="Deshacer"
             >
+
               {missingHistoryIcons.undo ? (
                 <span className={styles.historyFallback} aria-hidden="true">
                   {HISTORY_ICON_SPECS.undo.fallbackLabel}
@@ -1266,6 +1282,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                   onError={handleHistoryIconError("undo")}
                 />
               )}
+
             </button>
             <button
               type="button"
@@ -1274,6 +1291,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               className={styles.historyButton}
               aria-label="Rehacer"
             >
+
               {missingHistoryIcons.redo ? (
                 <span className={styles.historyFallback} aria-hidden="true">
                   {HISTORY_ICON_SPECS.redo.fallbackLabel}
@@ -1287,6 +1305,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                   onError={handleHistoryIconError("redo")}
                 />
               )}
+
             </button>
             <button
               type="button"
@@ -1295,6 +1314,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               className={`${styles.historyButton} ${styles.historyButtonDanger}`}
               aria-label="Eliminar"
             >
+
               {missingHistoryIcons.delete ? (
                 <span className={styles.historyFallback} aria-hidden="true">
                   {HISTORY_ICON_SPECS.delete.fallbackLabel}
@@ -1308,6 +1328,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                   onError={handleHistoryIconError("delete")}
                 />
               )}
+
             </button>
           </div>
         )}
@@ -1600,11 +1621,14 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       <div className={styles.toolbar}>
         <button
           type="button"
-          onClick={() => alignEdge("left")}
+          onClick={() => {
+            alignEdge("left");
+            setActiveAlignAxis("horizontal", "left");
+          }}
           disabled={!imgEl}
           aria-label="Alinear a la izquierda"
           title="Alinear a la izquierda"
-          className={styles.iconOnlyButton}
+          className={iconButtonClass(activeAlign.horizontal === "left")}
         >
           {missingIcons.izquierda ? (
             <span className={styles.iconFallback} aria-hidden="true" />
@@ -1621,11 +1645,14 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         </button>
         <button
           type="button"
-          onClick={centerHoriz}
+          onClick={() => {
+            centerHoriz();
+            setActiveAlignAxis("horizontal", "center");
+          }}
           disabled={!imgEl}
           aria-label="Centrar horizontal"
           title="Centrar horizontal"
-          className={styles.iconOnlyButton}
+          className={iconButtonClass(activeAlign.horizontal === "center")}
         >
           {missingIcons.centrado_V ? (
             <span className={styles.iconFallback} aria-hidden="true" />
@@ -1642,11 +1669,14 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         </button>
         <button
           type="button"
-          onClick={() => alignEdge("right")}
+          onClick={() => {
+            alignEdge("right");
+            setActiveAlignAxis("horizontal", "right");
+          }}
           disabled={!imgEl}
           aria-label="Alinear a la derecha"
           title="Alinear a la derecha"
-          className={styles.iconOnlyButton}
+          className={iconButtonClass(activeAlign.horizontal === "right")}
         >
           {missingIcons.derecha ? (
             <span className={styles.iconFallback} aria-hidden="true" />
@@ -1663,11 +1693,14 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         </button>
         <button
           type="button"
-          onClick={() => alignEdge("top")}
+          onClick={() => {
+            alignEdge("top");
+            setActiveAlignAxis("vertical", "top");
+          }}
           disabled={!imgEl}
           aria-label="Alinear arriba"
           title="Alinear arriba"
-          className={styles.iconOnlyButton}
+          className={iconButtonClass(activeAlign.vertical === "top")}
         >
           {missingIcons.arriba ? (
             <span className={styles.iconFallback} aria-hidden="true" />
@@ -1684,11 +1717,14 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         </button>
         <button
           type="button"
-          onClick={centerVert}
+          onClick={() => {
+            centerVert();
+            setActiveAlignAxis("vertical", "center");
+          }}
           disabled={!imgEl}
           aria-label="Centrar vertical"
           title="Centrar vertical"
-          className={styles.iconOnlyButton}
+          className={iconButtonClass(activeAlign.vertical === "center")}
         >
           {missingIcons.centrado_h ? (
             <span className={styles.iconFallback} aria-hidden="true" />
@@ -1705,11 +1741,14 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         </button>
         <button
           type="button"
-          onClick={() => alignEdge("bottom")}
+          onClick={() => {
+            alignEdge("bottom");
+            setActiveAlignAxis("vertical", "bottom");
+          }}
           disabled={!imgEl}
           aria-label="Alinear abajo"
           title="Alinear abajo"
-          className={styles.iconOnlyButton}
+          className={iconButtonClass(activeAlign.vertical === "bottom")}
         >
           {missingIcons.abajo ? (
             <span className={styles.iconFallback} aria-hidden="true" />
@@ -1730,7 +1769,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
           disabled={!imgEl}
           aria-label="Rotar 90°"
           title="Rotar 90°"
-          className={styles.iconOnlyButton}
+          className={iconButtonClass(false)}
         >
           {missingIcons.rotar ? (
             <span className={styles.iconFallback} aria-hidden="true" />
@@ -1751,7 +1790,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
           disabled={!imgEl}
           aria-label="Espejo vertical"
           title="Espejo vertical"
-          className={styles.iconOnlyButton}
+          className={iconButtonClass(Boolean(imgTx.flipY))}
         >
           {missingIcons.espejo_v ? (
             <span className={styles.iconFallback} aria-hidden="true" />
@@ -1772,7 +1811,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
           disabled={!imgEl}
           aria-label="Espejo horizontal"
           title="Espejo horizontal"
-          className={styles.iconOnlyButton}
+          className={iconButtonClass(Boolean(imgTx.flipX))}
         >
           {missingIcons.espejo_h ? (
             <span className={styles.iconFallback} aria-hidden="true" />
@@ -1793,7 +1832,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
           disabled={!imgEl}
           aria-label="Cubrir"
           title="Cubrir"
-          className={styles.iconOnlyButton}
+          className={iconButtonClass(mode === "cover")}
         >
           {missingIcons.cubrir ? (
             <span className={styles.iconFallback} aria-hidden="true" />
@@ -1816,7 +1855,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
             disabled={!imgEl}
             aria-label="Contener"
             title="Contener"
-            className={styles.iconOnlyButton}
+            className={iconButtonClass(mode === "contain")}
           >
             {missingIcons.contener ? (
               <span className={styles.iconFallback} aria-hidden="true" />
@@ -1850,7 +1889,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
           disabled={!imgEl}
           aria-label="Estirar"
           title="Estirar"
-          className={styles.iconOnlyButton}
+          className={iconButtonClass(mode === "stretch")}
         >
           {missingIcons.estirar ? (
             <span className={styles.iconFallback} aria-hidden="true" />
