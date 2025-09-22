@@ -107,8 +107,11 @@ export default function SizeControls({ material, size, onChange, locked = false,
         <span className={styles.groupLabel}>Medidas (cm)</span>
         <div className={styles.dimensionsRow}>
           <label className={styles.inputLabel}>
-            Largo
+            <span className={styles.visuallyHidden}>Largo</span>
             <div className={inputControlClassName}>
+              <span className={styles.inputAffix} aria-hidden="true">
+                Largo
+              </span>
               <img
                 src={WIDTH_ICON_SRC}
                 alt=""
@@ -127,8 +130,11 @@ export default function SizeControls({ material, size, onChange, locked = false,
             </div>
           </label>
           <label className={styles.inputLabel}>
-            Ancho
+            <span className={styles.visuallyHidden}>Ancho</span>
             <div className={inputControlClassName}>
+              <span className={styles.inputAffix} aria-hidden="true">
+                Ancho
+              </span>
               <img
                 src={HEIGHT_ICON_SRC}
                 alt=""
