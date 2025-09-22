@@ -1,5 +1,5 @@
 // src/pages/Home.jsx
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import SeoJsonLd from '../components/SeoJsonLd';
 
@@ -7,6 +7,7 @@ import UploadStep from '../components/UploadStep';
 import EditorCanvas from '../components/EditorCanvas';
 import SizeControls from '../components/SizeControls';
 import Calculadora from '../components/Calculadora';
+import ColorPopover from '../components/ColorPopover';
 import LoadingOverlay from '../components/LoadingOverlay';
 
 import { LIMITS, STANDARD, GLASSPAD_SIZE_CM } from '../lib/material.js';
@@ -18,6 +19,29 @@ import { quickHateSymbolCheck } from '@/lib/moderation.ts';
 import { scanNudityClient } from '@/lib/moderation/nsfw.client.js';
 import { useFlow } from '@/state/flow.js';
 import { apiFetch } from '@/lib/api.js';
+
+export const BUTTON_MAP = {
+  Cubrir: 'cubrir',
+  Contener: 'contener',
+  Estirar: 'estirar',
+  'Centrar H': 'centrarH',
+  'Centrar V': 'centrarV',
+  Izq: 'left',
+  Der: 'right',
+  Arriba: 'top',
+  Abajo: 'bottom',
+  Rotar: 'rotate',
+  'Espejo horizontal': 'mirrorX',
+  'Espejo vertical': 'mirrorY',
+};
+
+const ACTION_GROUPS = [
+  ['Cubrir', 'Contener', 'Estirar'],
+  ['Izq', 'Centrar V', 'Der'],
+  ['Arriba', 'Centrar H', 'Abajo'],
+  ['Rotar'],
+  ['Espejo horizontal', 'Espejo vertical'],
+];
 
 export default function Home() {
 
@@ -73,17 +97,46 @@ export default function Home() {
   const navigate = useNavigate();
   const canvasRef = useRef(null);
   const flow = useFlow();
+  const [colorPickerOpen, setColorPickerOpen] = useState(false);
+  const [containColor, setContainColor] = useState('#ffffff');
+
+  useEffect(() => {
+    if (typeof layout?.background === 'string') {
+      setContainColor(layout.background);
+    }
+  }, [layout?.background]);
+
+  useEffect(() => {
+    if (!uploaded) {
+      setColorPickerOpen(false);
+    }
+  }, [uploaded]);
+
+  useEffect(() => {
+    if (layout?.mode !== 'contain') {
+      setColorPickerOpen(false);
+    }
+  }, [layout?.mode]);
 
   const effDpi = useMemo(() => {
     if (!layout) return null;
     return Math.round(
       Math.min(
-        layout.dpi / Math.max(1e-6, layout.transform.scaleX),
-        layout.dpi / Math.max(1e-6, layout.transform.scaleY)
+        layout.dpi / Math.max(1e-6, Math.abs(layout.transform.scaleX)),
+        layout.dpi / Math.max(1e-6, Math.abs(layout.transform.scaleY))
       )
     );
   }, [layout]);
-  const level = useMemo(() => (effDpi ? dpiLevel(effDpi, 300, 100) : null), [effDpi]);
+  const level = useMemo(() => (effDpi ? dpiLevel(effDpi, 120, 90) : null), [effDpi]);
+  const quality = useMemo(() => {
+    if (effDpi == null || Number.isNaN(effDpi)) {
+      return { tone: 'neutral', label: 'Subí una imagen' };
+    }
+    const rounded = Math.max(1, Math.round(effDpi));
+    if (rounded >= 120) return { tone: 'excellent', label: `Excelente (${rounded} DPI)` };
+    if (rounded >= 90) return { tone: 'good', label: `Buena (${rounded} DPI)` };
+    return { tone: 'low', label: `Baja (${rounded} DPI)` };
+  }, [effDpi]);
   const trimmedDesignName = useMemo(() => (designName || '').trim(), [designName]);
 
   function handleSizeChange(next) {
@@ -132,6 +185,49 @@ export default function Home() {
     }
   }
 
+  const hasUpload = Boolean(uploaded);
+
+  const handleColorChange = useCallback((value) => {
+    if (!value) return;
+    let hex = value;
+    if (typeof hex === 'string' && !hex.startsWith('#')) {
+      hex = `#${hex}`;
+    }
+    setContainColor(hex);
+    const api = canvasRef.current;
+    api?.setBackgroundColor?.(hex);
+  }, []);
+
+  const handlePickFromCanvas = useCallback(() => {
+    const api = canvasRef.current;
+    if (!api?.startPickColor) return;
+    setColorPickerOpen(false);
+    api.startPickColor((hex) => {
+      if (!hex) return;
+      handleColorChange(hex);
+    });
+  }, [handleColorChange]);
+
+  const handleAction = useCallback(
+    (label) => {
+      const actionName = BUTTON_MAP[label];
+      const api = canvasRef.current;
+      if (!actionName || !api || typeof api[actionName] !== 'function' || !hasUpload) {
+        return;
+      }
+      api[actionName]();
+      if (actionName === 'contener') {
+        const next = api.getBackgroundColor?.();
+        if (typeof next === 'string') {
+          handleColorChange(next);
+        }
+        setColorPickerOpen(true);
+      } else {
+        setColorPickerOpen(false);
+      }
+    },
+    [hasUpload, handleColorChange],
+  );
 
   async function handleContinue() {
     if (!layout || !canvasRef.current) {
@@ -182,7 +278,6 @@ export default function Home() {
         console.error('[continue] nudity scan failed', scanErr?.message || scanErr);
       }
 
-      const moderationUrl = `${import.meta.env.VITE_API_URL || ''}/api/moderate-image`;
       const resp = await apiFetch('/api/moderate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -242,6 +337,10 @@ export default function Home() {
   const title = 'Tu Mousepad Personalizado — MGMGAMERS';
   const description = 'Mousepad Profesionales Personalizados, Gamers, diseño y medida que quieras. Perfectos para gaming control y speed.';
   const url = 'https://www.mgmgamers.store/';
+  const qualityClass =
+    styles[`quality${quality.tone.charAt(0).toUpperCase() + quality.tone.slice(1)}`] ||
+    styles.qualityNeutral;
+  const continueDisabled = busy || priceAmount <= 0 || trimmedDesignName.length < 2;
   return (
     <div className={styles.container}>
       <SeoJsonLd
@@ -256,71 +355,148 @@ export default function Home() {
           sameAs: ['https://www.instagram.com/mgmgamers.store']
         }}
       />
-      <div className={styles.sidebar}>
-        {uploaded && (
-          <>
-            <div className={styles.field}>
-              <input
-                type="text"
-                placeholder="Nombre del modelo"
-                value={designName}
-                onChange={e => setDesignName(e.target.value)}
+      <div className={styles.layout}>
+        <aside className={styles.sidebar}>
+          <details className={styles.accordion} open>
+            <summary className={styles.accordionTitle}>Personalizar</summary>
+            <div className={styles.accordionContent}>
+              <label className={styles.fieldLabel}>
+                Nombre del modelo
+                <input
+                  type="text"
+                  placeholder="Nombre del modelo"
+                  value={designName}
+                  onChange={(e) => setDesignName(e.target.value)}
+                />
+              </label>
+              <SizeControls
+                material={material}
+                size={size}
+                mode={mode}
+                onChange={handleSizeChange}
+                locked={material === 'Glasspad'}
               />
             </div>
-            <SizeControls
-              material={material}
-              size={size}
-              mode={mode}
-              onChange={handleSizeChange}
-              locked={material === 'Glasspad'}
-            />
-            <Calculadora
-              width={activeWcm}
-              height={activeHcm}
-              material={material}
-              setPrice={setPriceAmount}
-            />
-          </>
-        )}
+          </details>
+          <details className={styles.accordion} open>
+            <summary className={styles.accordionTitle}>Resumen</summary>
+            <div className={styles.accordionContent}>
+              <div className={styles.priceBlock}>
+                <span className={styles.priceLabel}>Precio estimado</span>
+                <Calculadora
+                  width={activeWcm}
+                  height={activeHcm}
+                  material={material}
+                  setPrice={setPriceAmount}
+                />
+              </div>
+              <div className={`${styles.qualityBadge} ${qualityClass}`}>
+                {quality.label}
+              </div>
+              {hasUpload && level === 'bad' && (
+                <label className={styles.ackField}>
+                  <input
+                    type="checkbox"
+                    checked={ackLow}
+                    onChange={(e) => setAckLow(e.target.checked)}
+                  />
+                  <span>Acepto imprimir en baja calidad ({effDpi ?? '—'} DPI)</span>
+                </label>
+              )}
+              {hasUpload && (
+                <button
+                  type="button"
+                  className={styles.primaryButton}
+                  disabled={continueDisabled}
+                  onClick={handleContinue}
+                >
+                  {busy ? 'Procesando…' : 'Continuar'}
+                </button>
+              )}
+              {err && <p className={`errorText ${styles.error}`}>{err}</p>}
+            </div>
+          </details>
+        </aside>
+
+        <section className={styles.main}>
+          <div className={styles.canvasCard}>
+            <div className={styles.uploadSection}>
+              <div className={styles.uploadCopy}>
+                <h1 className={styles.headline}>Editor MGM</h1>
+                <p className={styles.subhead}>Subí tu arte y ajustalo al lienzo.</p>
+              </div>
+              <UploadStep onUploaded={(file) => { setUploaded(file); setAckLow(false); }} />
+            </div>
+
+            <div className={styles.actionsSection}>
+              <h2 className={styles.sectionTitle}>Ajustes del lienzo</h2>
+              <div className={styles.actionGroups}>
+                {ACTION_GROUPS.map((group) => (
+                  <div key={group.join('-')} className={styles.actionRow}>
+                    {group.map((label) => {
+                      const actionName = BUTTON_MAP[label];
+                      const api = canvasRef.current;
+                      const hasAction = actionName && api && typeof api[actionName] === 'function';
+                      const disabled = !hasAction || !hasUpload;
+                      const titleAttr = !actionName || !hasAction
+                        ? 'Acción no configurada'
+                        : !hasUpload
+                          ? 'Subí una imagen para usar esta acción'
+                          : undefined;
+                      const button = (
+                        <button
+                          key={label}
+                          type="button"
+                          aria-label={label}
+                          className={styles.actionButton}
+                          disabled={disabled}
+                          onClick={() => handleAction(label)}
+                          title={titleAttr}
+                        >
+                          {label}
+                        </button>
+                      );
+                      if (label === 'Contener') {
+                        return (
+                          <div key={label} className={styles.containWrapper}>
+                            {button}
+                            {colorPickerOpen && hasUpload && (
+                              <div className={styles.popoverAnchor}>
+                                <ColorPopover
+                                  value={containColor}
+                                  onChange={handleColorChange}
+                                  open={colorPickerOpen}
+                                  onClose={() => setColorPickerOpen(false)}
+                                  onPickFromCanvas={handlePickFromCanvas}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+                      return button;
+                    })}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className={styles.canvasStage}>
+              <EditorCanvas
+                ref={canvasRef}
+                imageUrl={imageUrl}
+                imageFile={uploaded?.file}
+                sizeCm={activeSizeCm}
+                bleedMm={3}
+                dpi={300}
+                material={material}
+                onLayoutChange={setLayout}
+              />
+            </div>
+          </div>
+        </section>
       </div>
-
-      <div className={styles.main}>
-        <UploadStep onUploaded={file => { setUploaded(file); setAckLow(false); }} />
-
-        <EditorCanvas
-          ref={canvasRef}
-          imageUrl={imageUrl}
-          imageFile={uploaded?.file}
-          sizeCm={activeSizeCm}
-          bleedMm={3}
-          dpi={300}
-          onLayoutChange={setLayout}
-        />
-
-        {uploaded && level === 'bad' && (
-          <label className={styles.ackLabel}>
-            <input
-              type="checkbox"
-              checked={ackLow}
-              onChange={e => setAckLow(e.target.checked)}
-            />{' '}
-            Acepto imprimir en baja calidad ({effDpi} DPI)
-          </label>
-        )}
-
-        {uploaded && (
-          <button
-            className={styles.continueButton}
-            disabled={busy || priceAmount <= 0 || trimmedDesignName.length < 2}
-            onClick={handleContinue}
-          >
-            Continuar
-          </button>
-        )}
-
-        {err && <p className={`errorText ${styles.error}`}>{err}</p>}
-      </div>
-      <LoadingOverlay show={busy} messages={["Creando tu pedido…"]} />
+      <LoadingOverlay show={busy} messages={['Creando tu pedido…']} />
     </div>
   );
 }

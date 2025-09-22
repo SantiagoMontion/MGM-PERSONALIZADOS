@@ -19,10 +19,7 @@ import {
 import Konva from "konva";
 import useImage from "use-image";
 import styles from "./EditorCanvas.module.css";
-import ColorPopover from "./ColorPopover";
 
-import { buildSubmitJobBody, prevalidateSubmitBody } from "../lib/jobPayload";
-import { submitJob } from "../lib/submitJob";
 import { renderGlasspadPNG } from "../lib/renderGlasspadPNG";
 
 const CM_PER_INCH = 2.54;
@@ -249,13 +246,15 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     scaleX: 1,
     scaleY: 1,
     rotation_deg: 0,
+    flipX: 1,
+    flipY: 1,
   });
   const historyRef = useRef([]); // pila de estados para undo
   const [histIndex, setHistIndex] = useState(-1);
   const pushHistory = useCallback(
     (tx) => {
       historyRef.current = historyRef.current.slice(0, histIndex + 1);
-      historyRef.current.push(tx);
+      historyRef.current.push({ ...tx });
       setHistIndex(historyRef.current.length - 1);
     },
     [histIndex],
@@ -265,7 +264,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       if (idx <= 0) return idx;
       const nextIdx = idx - 1;
       const prev = historyRef.current[nextIdx];
-      if (prev) setImgTx(prev);
+      if (prev) setImgTx({ ...prev });
       return nextIdx;
     });
   }, []);
@@ -355,6 +354,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       scaleX: s,
       scaleY: s,
       rotation_deg: 0,
+      flipX: 1,
+      flipY: 1,
     };
     setImgTx(initial);
     pushHistory(initial);
@@ -605,6 +606,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         const w = imgBaseCm.w * newSX;
         const h = imgBaseCm.h * newSY;
         return {
+          ...prev,
           x_cm: cx - w / 2,
           y_cm: cy - h / 2,
           scaleX: newSX,
@@ -620,6 +622,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       const w = imgBaseCm.w * uni;
       const h = imgBaseCm.h * uni;
       return {
+        ...prev,
         x_cm: cx - w / 2,
         y_cm: cy - h / 2,
         scaleX: uni,
@@ -668,6 +671,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
           newH = h * scale;
         pushHistory(imgTx);
         setImgTx((prev) => ({
+          ...prev,
           x_cm: targetCx - newW / 2,
           y_cm: targetCy - newH / 2,
           scaleX: scale,
@@ -701,6 +705,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
           newH = h * sy;
         pushHistory(imgTx);
         setImgTx((prev) => ({
+          ...prev,
           x_cm: targetCx - newW / 2,
           y_cm: targetCy - newH / 2,
           scaleX: sx,
@@ -772,6 +777,34 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     }));
   };
 
+  const rotate90 = useCallback(() => {
+    if (!imgEl || !imgBaseCm) return;
+    pushHistory(imgTx);
+    stickyFitRef.current = null;
+    skipStickyFitOnceRef.current = false;
+    setImgTx((prev) => {
+      const snapped = Math.round(prev.rotation_deg / 90) * 90;
+      const nextRotation = (snapped + 90) % 360;
+      return { ...prev, rotation_deg: nextRotation };
+    });
+  }, [imgEl, imgBaseCm, imgTx, pushHistory]);
+
+  const mirrorX = useCallback(() => {
+    if (!imgEl || !imgBaseCm) return;
+    pushHistory(imgTx);
+    stickyFitRef.current = null;
+    skipStickyFitOnceRef.current = false;
+    setImgTx((prev) => ({ ...prev, flipX: prev.flipX * -1 || -1 }));
+  }, [imgEl, imgBaseCm, imgTx, pushHistory]);
+
+  const mirrorY = useCallback(() => {
+    if (!imgEl || !imgBaseCm) return;
+    pushHistory(imgTx);
+    stickyFitRef.current = null;
+    skipStickyFitOnceRef.current = false;
+    setImgTx((prev) => ({ ...prev, flipY: prev.flipY * -1 || -1 }));
+  }, [imgEl, imgBaseCm, imgTx, pushHistory]);
+
   useEffect(() => {
     if (!stickyFitRef.current) return;
     if (skipStickyFitOnceRef.current) {
@@ -808,31 +841,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     imageUrl,
     imageFile,
   ]);
-
-  // calidad
-  const dpiEffective = useMemo(() => {
-    if (!imgEl || !imgBaseCm) return null;
-    const printedWcm = imgBaseCm.w * imgTx.scaleX;
-    const printedHcm = imgBaseCm.h * imgTx.scaleY;
-    if (printedWcm <= 0 || printedHcm <= 0) return null;
-    const printedWin = printedWcm / CM_PER_INCH;
-    const printedHin = printedHcm / CM_PER_INCH;
-    const dpiX = imgEl.naturalWidth / printedWin;
-    const dpiY = imgEl.naturalHeight / printedHin;
-    return Math.max(1, Math.min(1000, Math.min(dpiX, dpiY)));
-  }, [imgEl, imgBaseCm, imgTx.scaleX, imgTx.scaleY]);
-
-  const quality = useMemo(() => {
-    if (dpiEffective == null) return { label: "—", color: "#9ca3af" };
-    if (dpiEffective < 80)
-      return { label: `Baja (${dpiEffective | 0} DPI)`, color: "#ef4444" };
-    if (dpiEffective < 200)
-      return { label: `Buena (${dpiEffective | 0} DPI)`, color: "#f59e0b" };
-    return {
-      label: `Excelente (${Math.min(300, dpiEffective | 0)} DPI)`,
-      color: "#10b981",
-    };
-  }, [dpiEffective]);
 
   const getPadRectPx = () => {
     const k = baseScale * viewScale;
@@ -893,6 +901,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       h_cm: hCm,
       bleed_mm: bleedMm,
       material,
+      flipX: imgTx.flipX,
+      flipY: imgTx.flipY,
     };
   };
 
@@ -986,8 +996,12 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         const dy = cy - originY;
         const rx = dx * cos + dy * sin;
         const ry = -dx * sin + dy * cos;
-        const sx = (rx + dispW / 2) / (cmPerPx * imgTx.scaleX);
-        const sy = (ry + dispH / 2) / (cmPerPx * imgTx.scaleY);
+        const halfW = dispW / 2;
+        const halfH = dispH / 2;
+        const normX = imgTx.flipX === 1 ? rx + halfW : halfW - rx;
+        const normY = imgTx.flipY === 1 ? ry + halfH : halfH - ry;
+        const sx = normX / (cmPerPx * imgTx.scaleX);
+        const sy = normY / (cmPerPx * imgTx.scaleY);
         return { sx, sy };
       }
       const workW = workCm.w;
@@ -1019,6 +1033,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         w_cm: wCm,
         h_cm: hCm,
         bleed_mm: bleedMm,
+        flipX: imgTx.flipX,
+        flipY: imgTx.flipY,
       };
     },
     getRenderDescriptorV2,
@@ -1028,17 +1044,27 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     exportPreviewDataURL,
     exportPadDataURL,
     startPickColor,
+    cubrir: fitCover,
+    contener: () => {
+      fitContain();
+    },
+    estirar: fitStretchCentered,
+    centrarH: centerHoriz,
+    centrarV: centerVert,
+    left: () => alignEdge("left"),
+    right: () => alignEdge("right"),
+    top: () => alignEdge("top"),
+    bottom: () => alignEdge("bottom"),
+    rotate: rotate90,
+    mirrorX,
+    mirrorY,
+    getBackgroundColor: () => bgColor,
+    setBackgroundColor: (hex) => {
+      if (typeof hex === "string" && hex) setBgColor(hex);
+    },
+    getMode: () => mode,
   }));
 
-  // popover color
-  const [colorOpen, setColorOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [lastDiag, setLastDiag] = useState(null);
-  const toggleContain = () => {
-    fitContain();
-    setColorOpen(true);
-  };
-  const closeColor = () => setColorOpen(false);
   // track latest callback to avoid effect loops when parent re-renders
   const layoutChangeRef = useRef(onLayoutChange);
   useEffect(() => {
@@ -1060,6 +1086,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         scaleX: imgTx.scaleX,
         scaleY: imgTx.scaleY,
         rotation_deg: imgTx.rotation_deg,
+        flipX: imgTx.flipX,
+        flipY: imgTx.flipY,
       },
       mode,
       background: mode === "contain" ? bgColor : "#ffffff",
@@ -1067,117 +1095,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     });
   }, [dpi, bleedMm, wCm, hCm, imgEl, imgTx, mode, bgColor, cornerRadiusCm]);
 
-  // Confirmar y crear job
-  async function onConfirmSubmit() {
-    try {
-      const submitBody = buildSubmitJobBody({
-        material: materialSelected,
-        size: { w: sizeCm?.w, h: sizeCm?.h, bleed_mm: 3 },
-        fit_mode: transform?.fitMode, // 'cover'|'contain'|'stretch'
-        bg: bgColor || "#ffffff",
-        dpi: Math.round(currentDpi || 300),
-        uploads: {
-          signed_url: uploadUrlResponse?.upload?.signed_url,
-          object_key: uploadUrlResponse?.object_key,
-          canonical: uploaded?.file_original_url,
-        },
-        file_hash: fileSha256,
-        price: { amount: 45900, currency: "ARS" },
-        customer: { email: customerEmail, name: customerName },
-        notes: "",
-        source: "web",
-      });
-
-      const pre = prevalidateSubmitBody(submitBody);
-      if (!pre.ok) {
-        console.error("[PREVALIDATE EditorCanvas]", pre, submitBody);
-        alert(pre.problems.join("\n"));
-        return;
-      }
-
-        const job = await submitJob(submitBody);
-
-      onDone?.(job);
-    } catch (err) {
-      console.error(err);
-      alert(String(err?.message || err));
-    }
-  }
-
   return (
-    <div className={styles.colorWrapper}>
-      {/* Toolbar */}
-      <div className={styles.toolbar}>
-        <button onClick={fitCover} disabled={!imgEl}>
-          Cubrir
-        </button>
-
-        <div className={styles.colorWrapper}>
-          <button onClick={toggleContain} disabled={!imgEl}>
-            Contener
-          </button>
-          {mode === "contain" && imgEl && (
-            <div className={styles.colorPopoverWrap}>
-              <ColorPopover
-                value={bgColor}
-                onChange={setBgColor}
-                open={colorOpen}
-                onClose={closeColor}
-                onPickFromCanvas={() => startPickColor(setBgColor)}
-              />
-            </div>
-          )}
-        </div>
-
-        <button onClick={fitStretchCentered} disabled={!imgEl}>
-          Estirar
-        </button>
-
-        <button onClick={centerHoriz} disabled={!imgEl}>
-          Centrar H
-        </button>
-        <button onClick={centerVert} disabled={!imgEl}>
-          Centrar V
-        </button>
-        <button onClick={() => alignEdge("left")} disabled={!imgEl}>
-          Izq
-        </button>
-        <button onClick={() => alignEdge("right")} disabled={!imgEl}>
-          Der
-        </button>
-        <button onClick={() => alignEdge("top")} disabled={!imgEl}>
-          Arriba
-        </button>
-        <button onClick={() => alignEdge("bottom")} disabled={!imgEl}>
-          Abajo
-        </button>
-        <span
-          className={`${styles.qualityBadge} ${
-            quality.color === "#ef4444"
-              ? styles.qualityBad
-              : quality.color === "#f59e0b"
-                ? styles.qualityWarn
-                : quality.color === "#10b981"
-                  ? styles.qualityOk
-                  : styles.qualityUnknown
-          }`}
-        >
-          Calidad: {quality.label}
-        </span>
-        {false && (
-          <button
-            onClick={onConfirmSubmit}
-            disabled={busy || !imgEl || !imageFile}
-            className={styles.confirmButton}
-          >
-            {busy ? "Creando…" : "Crear job"}
-          </button>
-        )}
-      </div>
-
-      {lastDiag && <p className={styles.errorBox}>{lastDiag}</p>}
-
-      {/* Canvas */}
+    <div className={styles.editorRoot}>
       <div
         ref={wrapRef}
         className={`${styles.canvasWrapper} ${isPanningRef.current ? styles.grabbing : ""} ${isPickingColor ? styles.picking : ""}`}
@@ -1252,6 +1171,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                     height={dispH}
                     offsetX={dispW / 2}
                     offsetY={dispH / 2}
+                    scaleX={imgTx.flipX}
+                    scaleY={imgTx.flipY}
                     rotation={imgTx.rotation_deg}
                     draggable
                     dragBoundFunc={dragBoundFunc}
@@ -1345,6 +1266,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                     height={dispH}
                     offsetX={dispW / 2}
                     offsetY={dispH / 2}
+                    scaleX={imgTx.flipX}
+                    scaleY={imgTx.flipY}
                     rotation={imgTx.rotation_deg}
                     draggable={false}
                     listening={true}
@@ -1376,6 +1299,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                   height={dispH}
                   offsetX={dispW / 2}
                   offsetY={dispH / 2}
+                  scaleX={imgTx.flipX}
+                  scaleY={imgTx.flipY}
                   rotation={imgTx.rotation_deg}
                   listening={false}
                 />
@@ -1452,6 +1377,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                   height={dispH * exportScale}
                   offsetX={(dispW * exportScale) / 2}
                   offsetY={(dispH * exportScale) / 2}
+                  scaleX={imgTx.flipX}
+                  scaleY={imgTx.flipY}
                   rotation={imgTx.rotation_deg}
                   listening={false}
                 />

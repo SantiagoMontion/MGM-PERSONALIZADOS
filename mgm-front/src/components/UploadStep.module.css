@@ -1,11 +1,40 @@
 .container {
-  margin-bottom: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
 }
 
 .hiddenInput {
   display: none;
 }
 
+.container button {
+  border-radius: 14px;
+  border: none;
+  padding: 12px 20px;
+  background: linear-gradient(135deg, #38bdf8 0%, #6366f1 50%, #9333ea 100%);
+  color: #0f172a;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.container button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.container button:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 24px rgba(99, 102, 241, 0.35);
+}
+
 .error {
   margin-top: 6px;
+  font-size: 0.85rem;
 }
