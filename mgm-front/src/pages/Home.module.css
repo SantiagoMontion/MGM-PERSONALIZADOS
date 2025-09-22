@@ -14,6 +14,69 @@
   margin-bottom: 12px;
 }
 
+.configAccordion {
+  border: 1px solid #3b3b3b;
+  border-radius: 12px;
+  background: #1f1f1f;
+  color: #f9fafb;
+  overflow: hidden;
+  transition: border-color 0.2s ease;
+}
+
+.configAccordionOpen {
+  border-color: #5f5f5f;
+}
+
+.configHeader {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.configHeader:focus-visible {
+  outline: 2px solid #9ca3af;
+  outline-offset: 2px;
+}
+
+.configIcon {
+  font-size: 16px;
+}
+
+.configTitle {
+  flex: 1;
+  text-align: left;
+  font-weight: 600;
+}
+
+.configArrow {
+  transition: transform 0.2s ease;
+  font-size: 14px;
+}
+
+.configArrowOpen {
+  transform: rotate(180deg);
+}
+
+.configContent {
+  padding: 16px;
+  background: #262626;
+  border-top: 1px solid #3b3b3b;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.configContent .field {
+  margin-bottom: 0;
+}
+
 .main {
   flex: 1;
   padding: 16px;
