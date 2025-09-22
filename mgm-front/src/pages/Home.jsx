@@ -323,6 +323,13 @@ export default function Home() {
     .filter(Boolean)
     .join(' ');
 
+  const canvasStageClasses = [
+    styles.canvasStage,
+    !hasImage ? styles.canvasStageEmpty : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   return (
     <div className={styles.page}>
       <SeoJsonLd
@@ -425,20 +432,22 @@ export default function Home() {
           </div>
         </div>
 
-        <div className={styles.canvasStage}>
+        <div className={canvasStageClasses}>
           <div className={styles.canvasViewport}>
-            <EditorCanvas
-              ref={canvasRef}
-              imageUrl={imageUrl}
-              imageFile={uploaded?.file}
-              sizeCm={activeSizeCm}
-              bleedMm={3}
-              dpi={300}
-              onLayoutChange={setLayout}
-              onClearImage={handleClearImage}
-              showHistoryControls={false}
-              onHistoryChange={handleHistoryChange}
-            />
+            {hasImage && (
+              <EditorCanvas
+                ref={canvasRef}
+                imageUrl={imageUrl}
+                imageFile={uploaded?.file}
+                sizeCm={activeSizeCm}
+                bleedMm={3}
+                dpi={300}
+                onLayoutChange={setLayout}
+                onClearImage={handleClearImage}
+                showHistoryControls={false}
+                onHistoryChange={handleHistoryChange}
+              />
+            )}
             {!hasImage && (
               <div className={styles.uploadOverlay}>
                 <UploadStep
