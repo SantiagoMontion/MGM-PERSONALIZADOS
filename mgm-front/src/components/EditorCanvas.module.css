@@ -96,13 +96,47 @@
   cursor: crosshair;
 }
 
+.toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.colorWrapper {
+  position: relative;
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.colorPopoverWrap {
+  position: absolute;
+  z-index: 20;
+  top: 100%;
+  left: 0;
+  margin-top: 8px;
+}
+
+.qualityBadge {
+  padding: 6px 10px;
+  border-radius: 999px;
+  margin-left: auto;
+}
+
+.qualityUnknown { background: #9ca3af22; color: #9ca3af; border: 1px solid #9ca3af; }
+.qualityBad { background: #ef444422; color: #ef4444; border: 1px solid #ef4444; }
+.qualityWarn { background: #f59e0b22; color: #f59e0b; border: 1px solid #f59e0b; }
+.qualityOk { background: #10b98122; color: #10b981; border: 1px solid #10b981; }
+
 .canvasWrapper {
   width: 100%;
-  min-height: 460px;
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  border-radius: 18px;
+  height: 70vh;
+  border: 1px solid #ddd;
+  border-radius: 8px;
   overflow: hidden;
-  background: radial-gradient(circle at 50% 20%, rgba(148, 163, 184, 0.15), rgba(15, 23, 42, 0.85));
+  background: #f3f4f6;
   position: relative;
   cursor: default;
 }
@@ -113,14 +147,13 @@
 
 .undoButton {
   position: absolute;
-  top: 12px;
-  left: 12px;
+  top: 8px;
+  left: 8px;
   z-index: 20;
-  padding: 6px 10px;
-  border-radius: 10px;
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  background: rgba(15, 23, 42, 0.85);
-  color: #f8fafc;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid #d1d5db;
+  background: #fff;
 }
 
 .undoButton:disabled {
@@ -185,3 +218,5 @@ pre, code {
   word-break: break-word;
 }
 
+/* Opcional (parche temporal mientras depurás): recorta overflow global horizontal
+   ÚSALO SOLO si aún tenés otros desbordes externos al toolbar */
