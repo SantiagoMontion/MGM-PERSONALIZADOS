@@ -25,6 +25,7 @@ export default function Mockup() {
 
     if (mode !== 'checkout' && mode !== 'cart' && mode !== 'private') return;
 
+
     let submissionFlow = flow;
     let cartTarget;
     let cartPopup;
@@ -57,6 +58,7 @@ export default function Mockup() {
       }
       submissionFlow = { ...flow, customerEmail: emailRaw };
     }
+
 
     try {
       setBusy(true);

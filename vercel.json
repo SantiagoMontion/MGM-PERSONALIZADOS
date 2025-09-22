@@ -1,3 +1,7 @@
 {
-  "version": 2
+  "version": 2,
+  "rewrites": [
+    { "source": "/sitemap.xml", "destination": "/api/sitemap.xml" },
+    { "source": "/robots.txt", "destination": "/api/robots.txt" }
+  ]
 }
