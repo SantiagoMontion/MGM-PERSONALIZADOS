@@ -13,6 +13,7 @@ const defaultState = {
   priceTransfer: 0,
   priceNormal: 0,
   priceCurrency: 'ARS',
+  customerEmail: '',
   lastProduct: null,
 };
 

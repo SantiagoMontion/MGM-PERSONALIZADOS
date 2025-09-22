@@ -112,8 +112,18 @@ export async function createJobAndProduct(mode: 'checkout' | 'cart' | 'private',
   const filename = `${slugify(designName || productTitle)}.png`;
   const imageAlt = `Mockup ${productTitle}`;
 
+  const customerEmail = typeof flow.customerEmail === 'string' ? flow.customerEmail.trim() : '';
   const isPrivate = mode === 'private';
   const requestedVisibility: 'public' | 'private' = isPrivate ? 'private' : 'public';
+
+  if (isPrivate) {
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailPattern.test(customerEmail)) {
+      const err: Error & { reason?: string } = new Error('missing_customer_email');
+      err.reason = 'missing_customer_email';
+      throw err;
+    }
+  }
 
   const publishResp = await apiFetch('/api/publish-product', {
     method: 'POST',
@@ -186,6 +196,7 @@ export async function createJobAndProduct(mode: 'checkout' | 'cart' | 'private',
           productId,
           variantId,
           quantity: 1,
+          ...(customerEmail ? { email: customerEmail } : {}),
         }),
       });
       const ck = await ckResp.json().catch(() => null);

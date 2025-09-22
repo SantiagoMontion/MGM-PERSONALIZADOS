@@ -67,6 +67,7 @@ export default function Home() {
   // layout del canvas
   const [layout, setLayout] = useState(null);
   const [designName, setDesignName] = useState('');
+  const [customerEmail, setCustomerEmail] = useState('');
   const [ackLow, setAckLow] = useState(false);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
@@ -228,6 +229,7 @@ export default function Home() {
         priceTransfer: transferPrice,
         priceNormal: normalPrice,
         priceCurrency: PRICE_CURRENCY,
+        customerEmail: customerEmail.trim(),
       });
       navigate('/mockup');
     } catch (e) {
@@ -266,6 +268,16 @@ export default function Home() {
                 value={designName}
                 onChange={e => setDesignName(e.target.value)}
               />
+            </div>
+            <div className={styles.field}>
+              <input
+                type="email"
+                placeholder="Tu correo electrónico"
+                value={customerEmail}
+                onChange={e => setCustomerEmail(e.target.value)}
+                autoComplete="email"
+              />
+              <p className={styles.fieldHelp}>Obligatorio para comprar en privado.</p>
             </div>
             <SizeControls
               material={material}

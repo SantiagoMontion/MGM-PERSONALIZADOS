@@ -25,6 +25,15 @@ export default function Mockup() {
 
     if (mode !== 'checkout' && mode !== 'cart' && mode !== 'private') return;
 
+    if (mode === 'private') {
+      const emailRaw = typeof flow.customerEmail === 'string' ? flow.customerEmail.trim() : '';
+      const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailRaw);
+      if (!emailOk) {
+        alert('Para comprar en privado completá un correo electrónico válido en el paso anterior.');
+        return;
+      }
+    }
+
     try {
       setBusy(true);
       if (mode === 'cart' && typeof window !== 'undefined') {
@@ -73,6 +82,7 @@ export default function Mockup() {
       else if (reasonRaw === 'missing_variant') friendly = 'No se pudo obtener la variante del producto creado en Shopify.';
       else if (reasonRaw === 'cart_link_failed') friendly = 'No se pudo generar el enlace del carrito. Revisá la configuración de Shopify.';
       else if (reasonRaw === 'checkout_link_failed') friendly = 'No se pudo generar el enlace de compra.';
+      else if (reasonRaw === 'missing_customer_email') friendly = 'Completá un correo electrónico válido para comprar en privado.';
       else if (reasonRaw.startsWith('publish_failed')) friendly = 'Shopify rechazó la creación del producto. Revisá los datos enviados.';
       else if (reasonRaw === 'shopify_error') friendly = 'Shopify devolvió un error al crear el producto.';
       else if (reasonRaw === 'shopify_env_missing') {
