@@ -22,11 +22,15 @@ export default function Mockup() {
   }
 
   async function handle(mode) {
-    if (mode !== 'checkout' && mode !== 'cart') return;
+    if (mode !== 'checkout' && mode !== 'cart' && mode !== 'private') return;
     try {
       setBusy(true);
       const result = await createJobAndProduct(mode, flow);
       if (mode === 'checkout' && result.checkoutUrl) {
+        window.location.assign(result.checkoutUrl);
+        return;
+      }
+      if (mode === 'private' && result.checkoutUrl) {
         window.location.assign(result.checkoutUrl);
         return;
       }
@@ -36,7 +40,7 @@ export default function Mockup() {
         navigate('/');
         return;
       }
-      if (result.productUrl) {
+      if (mode !== 'private' && result.productUrl) {
         window.open(result.productUrl, '_blank', 'noopener');
         return;
       }
@@ -125,6 +129,7 @@ export default function Mockup() {
         <button disabled={busy} onClick={() => { flow.reset(); navigate('/'); }}>Cancelar y volver</button>
         <button disabled={busy} onClick={() => handle('cart')}>Agregar al carrito y seguir creando</button>
         <button disabled={busy} onClick={() => handle('checkout')}>Comprar ahora</button>
+        <button disabled={busy} onClick={() => handle('private')}>Comprar en privado</button>
       </div>
     </div>
   );
