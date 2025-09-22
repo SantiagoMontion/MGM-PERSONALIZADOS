@@ -323,6 +323,13 @@ export default function Home() {
     .filter(Boolean)
     .join(' ');
 
+  const canvasStageClasses = [
+    styles.canvasStage,
+    !hasImage ? styles.canvasStageEmpty : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   return (
     <div className={styles.page}>
       <SeoJsonLd
@@ -396,49 +403,23 @@ export default function Home() {
           </div>
         </div>
 
-        <div className={styles.canvasStage}>
+        <div className={canvasStageClasses}>
           <div className={styles.canvasViewport}>
-            <EditorCanvas
-              ref={canvasRef}
-              imageUrl={imageUrl}
-              imageFile={uploaded?.file}
-              sizeCm={activeSizeCm}
-              bleedMm={3}
-              dpi={300}
-              onLayoutChange={setLayout}
-              onClearImage={handleClearImage}
-              showHistoryControls={false}
-              onHistoryChange={handleHistoryChange}
-            />
+
             {hasImage && (
-              <div className={styles.canvasHistoryActions}>
-                <button
-                  type="button"
-                  className={styles.topActionButton}
-                  onClick={handleUndo}
-                  disabled={!canUndo}
-                  aria-label="Deshacer"
-                >
-                  <UndoIcon className={styles.topActionIcon} />
-                </button>
-                <button
-                  type="button"
-                  className={styles.topActionButton}
-                  onClick={handleRedo}
-                  disabled={!canRedo}
-                  aria-label="Rehacer"
-                >
-                  <RedoIcon className={styles.topActionIcon} />
-                </button>
-                <button
-                  type="button"
-                  className={`${styles.topActionButton} ${styles.deleteActionButton}`}
-                  onClick={handleClearImage}
-                  aria-label="Eliminar imagen"
-                >
-                  <TrashIcon className={styles.topActionIcon} />
-                </button>
-              </div>
+              <EditorCanvas
+                ref={canvasRef}
+                imageUrl={imageUrl}
+                imageFile={uploaded?.file}
+                sizeCm={activeSizeCm}
+                bleedMm={3}
+                dpi={300}
+                onLayoutChange={setLayout}
+                onClearImage={handleClearImage}
+                showHistoryControls={false}
+                onHistoryChange={handleHistoryChange}
+              />
+
             )}
             {!hasImage && (
               <div className={styles.uploadOverlay}>
