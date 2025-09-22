@@ -25,6 +25,10 @@ const CONFIG_ARROW_ICON_SRC = resolveIconAsset('down.svg');
 
 const iconStroke = 2;
 
+const CANVAS_MAX_WIDTH = 1280;
+const CANVAS_IDEAL_HEIGHT = 760;
+const CANVAS_MIN_HEIGHT = 520;
+
 
 const UndoIcon = (props) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={iconStroke} strokeLinecap="round" strokeLinejoin="round" {...props}>
@@ -106,6 +110,11 @@ export default function Home() {
   const navigate = useNavigate();
   const canvasRef = useRef(null);
   const designNameInputRef = useRef(null);
+  const pageRef = useRef(null);
+  const headingRef = useRef(null);
+  const editorRef = useRef(null);
+  const footerRef = useRef(null);
+  const [canvasFit, setCanvasFit] = useState({ height: null, maxWidth: null });
   const flow = useFlow();
 
   const handleClearImage = useCallback(() => {
@@ -329,6 +338,103 @@ export default function Home() {
     .filter(Boolean)
     .join(' ');
 
+  const recomputeCanvasFit = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    const pageEl = pageRef.current;
+    const editorEl = editorRef.current;
+    if (!pageEl || !editorEl) return;
+
+    const viewportWidth = window.innerWidth || 0;
+    const viewportHeight = window.innerHeight || 0;
+    const headerEl = document.querySelector('header');
+    const headerHeight = headerEl?.getBoundingClientRect()?.height || 0;
+
+    const pageStyles = window.getComputedStyle(pageEl);
+    const parsePx = value => {
+      const parsed = Number.parseFloat(value);
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+    const paddingTop = parsePx(pageStyles?.paddingTop);
+    const paddingBottom = parsePx(pageStyles?.paddingBottom);
+    const paddingLeft = parsePx(pageStyles?.paddingLeft);
+    const paddingRight = parsePx(pageStyles?.paddingRight);
+    const pageGap = parsePx(pageStyles?.rowGap || pageStyles?.gap);
+
+    const availableWidth = viewportWidth - paddingLeft - paddingRight;
+    const widthLimit = availableWidth > 0
+      ? Math.min(CANVAS_MAX_WIDTH, availableWidth)
+      : CANVAS_MAX_WIDTH;
+
+    const isDesktop = viewportWidth >= 960;
+
+    if (!isDesktop) {
+      setCanvasFit(prev => (
+        prev.height === null && prev.maxWidth === widthLimit
+          ? prev
+          : { height: null, maxWidth: widthLimit }
+      ));
+      return;
+    }
+
+    const headingHeight = headingRef.current?.getBoundingClientRect()?.height || 0;
+    const editorStyles = window.getComputedStyle(editorEl);
+    const editorGap = parsePx(editorStyles?.rowGap || editorStyles?.gap);
+    const footerHeight = footerRef.current?.getBoundingClientRect()?.height || 0;
+
+    const availableHeight = viewportHeight
+      - headerHeight
+      - paddingTop
+      - paddingBottom
+      - pageGap
+      - editorGap
+      - headingHeight
+      - footerHeight;
+
+    let nextHeight = CANVAS_IDEAL_HEIGHT;
+    if (availableHeight > 0) {
+      nextHeight = Math.min(CANVAS_IDEAL_HEIGHT, availableHeight);
+      if (availableHeight >= CANVAS_MIN_HEIGHT) {
+        nextHeight = Math.max(nextHeight, CANVAS_MIN_HEIGHT);
+      }
+    } else {
+      nextHeight = CANVAS_MIN_HEIGHT;
+    }
+
+    setCanvasFit(prev => (
+      prev.height === nextHeight && prev.maxWidth === widthLimit
+        ? prev
+        : { height: nextHeight, maxWidth: widthLimit }
+    ));
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const handleResize = () => recomputeCanvasFit();
+    recomputeCanvasFit();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [recomputeCanvasFit]);
+
+  useEffect(() => {
+    recomputeCanvasFit();
+  }, [recomputeCanvasFit, hasImage, configOpen, err, level, ackLow]);
+
+  useEffect(() => {
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(() => recomputeCanvasFit());
+    const observed = [headingRef.current, footerRef.current].filter(Boolean);
+    observed.forEach(el => observer.observe(el));
+    return () => observer.disconnect();
+  }, [recomputeCanvasFit]);
+
+  const editorMaxWidthStyle = useMemo(() => (
+    canvasFit.maxWidth ? { maxWidth: `${canvasFit.maxWidth}px` } : undefined
+  ), [canvasFit.maxWidth]);
+
+  const canvasStageStyle = useMemo(() => (
+    canvasFit.height ? { height: `${canvasFit.height}px` } : undefined
+  ), [canvasFit.height]);
+
   const configDropdown = (
     <div className={styles.configDropdown}>
       <button
@@ -395,7 +501,7 @@ export default function Home() {
   );
 
   return (
-    <div className={styles.page}>
+    <div className={styles.page} ref={pageRef}>
       <SeoJsonLd
         title={title}
         description={description}
@@ -408,12 +514,20 @@ export default function Home() {
           sameAs: ['https://www.instagram.com/mgmgamers.store']
         }}
       />
-      <section className={styles.editor}>
-        <div className={styles.editorHeader}>
-          <h1 className={styles.title}>Crea tu mousepad</h1>
-        </div>
+      <div
+        className={styles.pageHeading}
+        ref={headingRef}
+        style={editorMaxWidthStyle}
+      >
+        <h1 className={styles.title}>Crea tu mousepad</h1>
+      </div>
 
-        <div className={canvasStageClasses}>
+      <section
+        className={styles.editor}
+        ref={editorRef}
+        style={editorMaxWidthStyle}
+      >
+        <div className={canvasStageClasses} style={canvasStageStyle}>
           <div className={styles.canvasViewport}>
 
             <EditorCanvas
@@ -455,7 +569,7 @@ export default function Home() {
           </div>
         </div>
 
-        <div className={styles.footerRow}>
+        <div className={styles.footerRow} ref={footerRef}>
           <div className={styles.feedbackGroup}>
             {hasImage && level === 'bad' && (
               <label className={styles.ackLabel}>
