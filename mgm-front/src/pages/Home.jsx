@@ -22,6 +22,34 @@ import { resolveIconAsset } from '@/lib/iconRegistry.js';
 const CONFIG_ICON_SRC = resolveIconAsset('wheel.svg');
 const CONFIG_ARROW_ICON_SRC = resolveIconAsset('down.svg');
 
+
+const iconStroke = 2;
+
+
+const UndoIcon = (props) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={iconStroke} strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <path d="M9 9 5 13l4 4" />
+    <path d="M20 13a7 7 0 0 0-7-7H5" />
+  </svg>
+);
+
+const RedoIcon = (props) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={iconStroke} strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <path d="M15 9 19 13l-4 4" />
+    <path d="M4 13a7 7 0 0 1 7-7h8" />
+  </svg>
+);
+
+const TrashIcon = (props) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={iconStroke} strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <path d="M4 7h16" />
+    <path d="M10 11v6" />
+    <path d="M14 11v6" />
+    <path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12" />
+    <path d="M9 7V4h6v3" />
+  </svg>
+);
+
 export default function Home() {
 
   // archivo subido
@@ -39,9 +67,11 @@ export default function Home() {
   }, [uploaded?.localUrl]);
 
   useEffect(() => {
+
     if (uploaded) {
       setConfigOpen(true);
     }
+
   }, [uploaded]);
 
   // No se ejecutan filtros rápidos al subir imagen
@@ -73,6 +103,7 @@ export default function Home() {
 
   const [priceAmount, setPriceAmount] = useState(0);
   const PRICE_CURRENCY = 'ARS';
+  const [historyCounts, setHistoryCounts] = useState({ undo: 0, redo: 0 });
 
   // layout del canvas
   const [layout, setLayout] = useState(null);
@@ -84,6 +115,18 @@ export default function Home() {
   const canvasRef = useRef(null);
   const flow = useFlow();
 
+  const handleHistoryChange = useCallback((counts) => {
+    setHistoryCounts(counts);
+  }, []);
+
+  const handleUndo = useCallback(() => {
+    canvasRef.current?.undo?.();
+  }, []);
+
+  const handleRedo = useCallback(() => {
+    canvasRef.current?.redo?.();
+  }, []);
+
   const handleClearImage = useCallback(() => {
     setUploaded(null);
     setLayout(null);
@@ -91,6 +134,7 @@ export default function Home() {
     setAckLow(false);
     setErr('');
     setPriceAmount(0);
+    setHistoryCounts({ undo: 0, redo: 0 });
   }, []);
 
   const effDpi = useMemo(() => {
@@ -261,22 +305,26 @@ export default function Home() {
   const description = 'Mousepad Profesionales Personalizados, Gamers, diseño y medida que quieras. Perfectos para gaming control y speed.';
   const url = 'https://www.mgmgamers.store/';
   const hasImage = Boolean(uploaded);
-  const accordionClassNames = [
-    styles.configAccordion,
-    configOpen ? styles.configAccordionOpen : '',
-    !hasImage ? styles.configAccordionDisabled : '',
+  const canUndo = historyCounts.undo > 0;
+  const canRedo = historyCounts.redo > 0;
+
+  const configTriggerClasses = [
+    styles.configTrigger,
+    configOpen ? styles.configTriggerActive : '',
+    !hasImage ? styles.configTriggerDisabled : '',
   ]
     .filter(Boolean)
     .join(' ');
-  const accordionContentClasses = [
-    styles.configContent,
-    !hasImage ? styles.configContentDisabled : '',
+
+  const configPanelClasses = [
+    styles.configPanel,
+    !hasImage ? styles.configPanelDisabled : '',
   ]
     .filter(Boolean)
     .join(' ');
 
   return (
-    <div className={styles.container}>
+    <div className={styles.page}>
       <SeoJsonLd
         title={title}
         description={description}
@@ -289,101 +337,163 @@ export default function Home() {
           sameAs: ['https://www.instagram.com/mgmgamers.store']
         }}
       />
-      <div className={styles.sidebar}>
-        <div className={accordionClassNames}>
-          <button
-            type="button"
-            className={styles.configHeader}
-            onClick={() => setConfigOpen(open => !open)}
-            disabled={!hasImage}
-            aria-expanded={configOpen}
-            aria-controls="configuracion-editor"
-          >
-            <span className={styles.configHeaderLeft}>
-              <img
-                src={CONFIG_ICON_SRC}
-                alt=""
-                className={styles.configIcon}
-                aria-hidden="true"
-              />
-              <span className={styles.configTitle}>Configura tu mousepad</span>
-            </span>
-            <img
-              src={CONFIG_ARROW_ICON_SRC}
-              alt=""
-              className={`${styles.configArrowIcon} ${configOpen ? styles.configArrowIconOpen : ''}`}
-              aria-hidden="true"
-            />
-          </button>
-          {configOpen && (
-            <div
-              id="configuracion-editor"
-              className={accordionContentClasses}
-              aria-disabled={!hasImage}
+      <section className={styles.editor}>
+        <div className={styles.editorHeader}>
+          <div className={styles.headerPrimary}>
+            <h1 className={styles.title}>Crea tu mousepad</h1>
+            <div className={styles.configDropdown}>
+              <button
+                type="button"
+                className={configTriggerClasses}
+                onClick={() => setConfigOpen(open => !open)}
+                disabled={!hasImage}
+                aria-expanded={configOpen}
+                aria-controls="configuracion-editor"
+              >
+                <span className={styles.configTriggerIcon} aria-hidden="true">
+                  <img src={CONFIG_ICON_SRC} alt="" />
+                </span>
+                <span className={styles.configTriggerLabel}>Configura tu mousepad</span>
+                <span className={styles.configTriggerArrow} aria-hidden="true">
+                  <img
+                    src={CONFIG_ARROW_ICON_SRC}
+                    alt=""
+                    className={configOpen ? styles.configTriggerArrowOpen : ''}
+                  />
+                </span>
+              </button>
+              {configOpen && (
+                <div
+                  id="configuracion-editor"
+                  className={configPanelClasses}
+                  aria-disabled={!hasImage}
+                >
+                  <div className={styles.field}>
+                    <label className={styles.fieldLabel} htmlFor="design-name">
+                      Nombre de tu diseño
+                    </label>
+                    <input
+                      type="text"
+                      id="design-name"
+                      className={styles.textInput}
+                      placeholder="Ej: Nubes y cielo rosa"
+                      value={designName}
+                      onChange={e => setDesignName(e.target.value)}
+                      disabled={!hasImage}
+                    />
+                  </div>
+                  <SizeControls
+                    material={material}
+                    size={size}
+                    mode={mode}
+                    onChange={handleSizeChange}
+                    locked={material === 'Glasspad'}
+                    disabled={!hasImage}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+          <div className={styles.headerActions}>
+            <button
+              type="button"
+              className={styles.topActionButton}
+              onClick={handleUndo}
+              disabled={!hasImage || !canUndo}
+              aria-label="Deshacer"
             >
-              <div className={styles.field}>
-                <label className={styles.fieldLabel} htmlFor="design-name">Nombre de tu diseño</label>
-                <input
-                  type="text"
-                  id="design-name"
-                  className={styles.textInput}
-                  placeholder="Ej: Nubes y cielo rosa"
-                  value={designName}
-                  onChange={e => setDesignName(e.target.value)}
-                  disabled={!hasImage}
+              <UndoIcon className={styles.topActionIcon} />
+            </button>
+            <button
+              type="button"
+              className={styles.topActionButton}
+              onClick={handleRedo}
+              disabled={!hasImage || !canRedo}
+              aria-label="Rehacer"
+            >
+              <RedoIcon className={styles.topActionIcon} />
+            </button>
+            <button
+              type="button"
+              className={`${styles.topActionButton} ${styles.deleteActionButton}`}
+              onClick={handleClearImage}
+              disabled={!hasImage}
+              aria-label="Eliminar imagen"
+            >
+              <TrashIcon className={styles.topActionIcon} />
+            </button>
+          </div>
+        </div>
+
+        <div className={styles.canvasStage}>
+          <div className={styles.canvasViewport}>
+            <EditorCanvas
+              ref={canvasRef}
+              imageUrl={imageUrl}
+              imageFile={uploaded?.file}
+              sizeCm={activeSizeCm}
+              bleedMm={3}
+              dpi={300}
+              onLayoutChange={setLayout}
+              onClearImage={handleClearImage}
+              showHistoryControls={false}
+              onHistoryChange={handleHistoryChange}
+            />
+            {!hasImage && (
+              <div className={styles.uploadOverlay}>
+                <UploadStep
+                  className={styles.uploadControl}
+                  onUploaded={file => {
+                    setUploaded(file);
+                    setAckLow(false);
+                  }}
+                  renderTrigger={({ openPicker, busy }) => (
+                    <button
+                      type="button"
+                      className={styles.uploadButton}
+                      onClick={openPicker}
+                      disabled={busy}
+                    >
+                      <span className={styles.uploadButtonIcon}>+</span>
+                      <span className={styles.uploadButtonText}>
+                        {busy ? 'Subiendo…' : 'Agregar imagen'}
+                      </span>
+                    </button>
+                  )}
                 />
               </div>
-              <SizeControls
-                material={material}
-                size={size}
-                mode={mode}
-                onChange={handleSizeChange}
-                locked={material === 'Glasspad'}
-                disabled={!hasImage}
-              />
-            </div>
+            )}
+          </div>
+        </div>
+
+        <div className={styles.footerRow}>
+          <div className={styles.feedbackGroup}>
+            {hasImage && level === 'bad' && (
+              <label className={styles.ackLabel}>
+                <input
+                  type="checkbox"
+                  checked={ackLow}
+                  onChange={e => setAckLow(e.target.checked)}
+                />{' '}
+                <span>Acepto imprimir en baja calidad ({effDpi} DPI)</span>
+              </label>
+            )}
+            {err && <p className={`errorText ${styles.errorMessage}`}>{err}</p>}
+          </div>
+          {hasImage && (
+            <button
+              className={styles.continueButton}
+              disabled={busy || trimmedDesignName.length < 2}
+              onClick={handleContinue}
+            >
+              Continuar
+            </button>
           )}
         </div>
-      </div>
+      </section>
 
-      <div className={styles.main}>
-        <UploadStep onUploaded={file => { setUploaded(file); setAckLow(false); }} />
-
-        <EditorCanvas
-          ref={canvasRef}
-          imageUrl={imageUrl}
-          imageFile={uploaded?.file}
-          sizeCm={activeSizeCm}
-          bleedMm={3}
-          dpi={300}
-          onLayoutChange={setLayout}
-          onClearImage={handleClearImage}
-        />
-
-        {hasImage && level === 'bad' && (
-          <label className={styles.ackLabel}>
-            <input
-              type="checkbox"
-              checked={ackLow}
-              onChange={e => setAckLow(e.target.checked)}
-            />{' '}
-            Acepto imprimir en baja calidad ({effDpi} DPI)
-          </label>
-        )}
-
-        {hasImage && (
-          <button
-            className={styles.continueButton}
-            disabled={busy || trimmedDesignName.length < 2}
-            onClick={handleContinue}
-          >
-            Continuar
-          </button>
-        )}
-
-        {err && <p className={`errorText ${styles.error}`}>{err}</p>}
-      </div>
       <LoadingOverlay show={busy} messages={["Creando tu pedido…"]} />
     </div>
   );
+
 }
