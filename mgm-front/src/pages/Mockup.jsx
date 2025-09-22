@@ -25,6 +25,9 @@ export default function Mockup() {
 
     if (mode !== 'checkout' && mode !== 'cart' && mode !== 'private') return;
 
+    let cartTarget;
+    let cartPopup;
+
     try {
       setBusy(true);
       if (mode === 'cart' && typeof window !== 'undefined') {
