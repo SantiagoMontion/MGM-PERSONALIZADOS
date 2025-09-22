@@ -64,6 +64,16 @@ const ACTION_ICON_MAP = {
 
 };
 
+const ToolbarTooltip = ({ label, children, disabled = false }) => (
+  <div
+    className={styles.iconButtonWithTooltip}
+    data-tooltip-disabled={disabled ? "true" : undefined}
+  >
+    {children}
+    <span className={styles.toolbarTooltip}>{label}</span>
+  </div>
+);
+
 // ---------- Editor ----------
 const EditorCanvas = forwardRef(function EditorCanvas(
   {
@@ -1564,273 +1574,259 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
       {/* Toolbar */}
       <div className={styles.toolbar}>
-        <button
-          type="button"
-          onClick={() => alignEdge("left")}
-          disabled={!imgEl}
-          aria-label="Alinear a la izquierda"
-          title="Alinear a la izquierda"
-          className={styles.iconOnlyButton}
-        >
-          {missingIcons.izquierda ? (
-            <span className={styles.iconFallback} aria-hidden="true" />
-          ) : (
-            <img
-              src={ACTION_ICON_MAP.izquierda}
-              alt="Izquierda"
-              className={styles.iconOnlyButtonImage}
-
-              onError={handleIconError("izquierda")}
-
-            />
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={centerHoriz}
-          disabled={!imgEl}
-          aria-label="Centrar horizontal"
-          title="Centrar horizontal"
-          className={styles.iconOnlyButton}
-        >
-          {missingIcons.centrado_V ? (
-            <span className={styles.iconFallback} aria-hidden="true" />
-          ) : (
-            <img
-              src={ACTION_ICON_MAP.centrado_V}
-              alt="Centrar horizontal"
-              className={styles.iconOnlyButtonImage}
-
-              onError={handleIconError("centrado_V")}
-
-            />
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={() => alignEdge("right")}
-          disabled={!imgEl}
-          aria-label="Alinear a la derecha"
-          title="Alinear a la derecha"
-          className={styles.iconOnlyButton}
-        >
-          {missingIcons.derecha ? (
-            <span className={styles.iconFallback} aria-hidden="true" />
-          ) : (
-            <img
-              src={ACTION_ICON_MAP.derecha}
-              alt="Derecha"
-              className={styles.iconOnlyButtonImage}
-
-              onError={handleIconError("derecha")}
-
-            />
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={() => alignEdge("top")}
-          disabled={!imgEl}
-          aria-label="Alinear arriba"
-          title="Alinear arriba"
-          className={styles.iconOnlyButton}
-        >
-          {missingIcons.arriba ? (
-            <span className={styles.iconFallback} aria-hidden="true" />
-          ) : (
-            <img
-              src={ACTION_ICON_MAP.arriba}
-              alt="Arriba"
-              className={styles.iconOnlyButtonImage}
-
-              onError={handleIconError("arriba")}
-
-            />
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={centerVert}
-          disabled={!imgEl}
-          aria-label="Centrar vertical"
-          title="Centrar vertical"
-          className={styles.iconOnlyButton}
-        >
-          {missingIcons.centrado_h ? (
-            <span className={styles.iconFallback} aria-hidden="true" />
-          ) : (
-            <img
-              src={ACTION_ICON_MAP.centrado_h}
-              alt="Centrar vertical"
-              className={styles.iconOnlyButtonImage}
-
-              onError={handleIconError("centrado_h")}
-
-            />
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={() => alignEdge("bottom")}
-          disabled={!imgEl}
-          aria-label="Alinear abajo"
-          title="Alinear abajo"
-          className={styles.iconOnlyButton}
-        >
-          {missingIcons.abajo ? (
-            <span className={styles.iconFallback} aria-hidden="true" />
-          ) : (
-            <img
-              src={ACTION_ICON_MAP.abajo}
-              alt="Abajo"
-              className={styles.iconOnlyButtonImage}
-
-              onError={handleIconError("abajo")}
-            />
-          )}
-
-        </button>
-        <button
-          type="button"
-          onClick={rotate90}
-          disabled={!imgEl}
-          aria-label="Rotar 90°"
-          title="Rotar 90°"
-          className={styles.iconOnlyButton}
-        >
-          {missingIcons.rotar ? (
-            <span className={styles.iconFallback} aria-hidden="true" />
-          ) : (
-            <img
-              src={ACTION_ICON_MAP.rotar}
-              alt="Rotar"
-              className={styles.iconOnlyButtonImage}
-
-              onError={handleIconError("rotar")}
-
-            />
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={flipVertical}
-          disabled={!imgEl}
-          aria-label="Espejo vertical"
-          title="Espejo vertical"
-          className={styles.iconOnlyButton}
-        >
-          {missingIcons.espejo_v ? (
-            <span className={styles.iconFallback} aria-hidden="true" />
-          ) : (
-            <img
-              src={ACTION_ICON_MAP.espejo_v}
-              alt="Espejo vertical"
-              className={styles.iconOnlyButtonImage}
-
-              onError={handleIconError("espejo_v")}
-
-            />
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={flipHorizontal}
-          disabled={!imgEl}
-          aria-label="Espejo horizontal"
-          title="Espejo horizontal"
-          className={styles.iconOnlyButton}
-        >
-          {missingIcons.espejo_h ? (
-            <span className={styles.iconFallback} aria-hidden="true" />
-          ) : (
-            <img
-              src={ACTION_ICON_MAP.espejo_h}
-              alt="Espejo horizontal"
-              className={styles.iconOnlyButtonImage}
-
-              onError={handleIconError("espejo_h")}
-
-            />
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={fitCover}
-          disabled={!imgEl}
-          aria-label="Cubrir"
-          title="Cubrir"
-          className={styles.iconOnlyButton}
-        >
-          {missingIcons.cubrir ? (
-            <span className={styles.iconFallback} aria-hidden="true" />
-          ) : (
-            <img
-              src={ACTION_ICON_MAP.cubrir}
-              alt="Cubrir"
-              className={styles.iconOnlyButtonImage}
-
-              onError={handleIconError("cubrir")}
-
-            />
-          )}
-        </button>
-
-        <div className={styles.colorWrapper}>
+        <ToolbarTooltip label="Alinear a la izquierda">
           <button
             type="button"
-            onClick={toggleContain}
+            onClick={() => alignEdge("left")}
             disabled={!imgEl}
-            aria-label="Contener"
-            title="Contener"
+            aria-label="Alinear a la izquierda"
             className={styles.iconOnlyButton}
           >
-            {missingIcons.contener ? (
+            {missingIcons.izquierda ? (
               <span className={styles.iconFallback} aria-hidden="true" />
             ) : (
               <img
-                src={ACTION_ICON_MAP.contener}
-                alt="Contener"
+                src={ACTION_ICON_MAP.izquierda}
+                alt="Alinear a la izquierda"
                 className={styles.iconOnlyButtonImage}
-
-                onError={handleIconError("contener")}
-
+                onError={handleIconError("izquierda")}
               />
             )}
           </button>
-          {mode === "contain" && imgEl && (
-            <div className={styles.colorPopoverWrap}>
-              <ColorPopover
-                value={bgColor}
-                onChange={setBgColor}
-                open={colorOpen}
-                onClose={closeColor}
-                onPickFromCanvas={() => startPickColor(setBgColor)}
+        </ToolbarTooltip>
+        <ToolbarTooltip label="Alinear verticalmente">
+          <button
+            type="button"
+            onClick={centerHoriz}
+            disabled={!imgEl}
+            aria-label="Alinear verticalmente"
+            className={styles.iconOnlyButton}
+          >
+            {missingIcons.centrado_V ? (
+              <span className={styles.iconFallback} aria-hidden="true" />
+            ) : (
+              <img
+                src={ACTION_ICON_MAP.centrado_V}
+                alt="Alinear verticalmente"
+                className={styles.iconOnlyButtonImage}
+                onError={handleIconError("centrado_V")}
               />
-            </div>
-          )}
-        </div>
-
-        <button
-          type="button"
-          onClick={fitStretchCentered}
-          disabled={!imgEl}
-          aria-label="Estirar"
-          title="Estirar"
-          className={styles.iconOnlyButton}
-        >
-          {missingIcons.estirar ? (
-            <span className={styles.iconFallback} aria-hidden="true" />
-          ) : (
-            <img
-              src={ACTION_ICON_MAP.estirar}
-              alt="Estirar"
-              className={styles.iconOnlyButtonImage}
-
-              onError={handleIconError("estirar")}
-
-            />
-          )}
-        </button>
+            )}
+          </button>
+        </ToolbarTooltip>
+        <ToolbarTooltip label="Alinear a la derecha">
+          <button
+            type="button"
+            onClick={() => alignEdge("right")}
+            disabled={!imgEl}
+            aria-label="Alinear a la derecha"
+            className={styles.iconOnlyButton}
+          >
+            {missingIcons.derecha ? (
+              <span className={styles.iconFallback} aria-hidden="true" />
+            ) : (
+              <img
+                src={ACTION_ICON_MAP.derecha}
+                alt="Alinear a la derecha"
+                className={styles.iconOnlyButtonImage}
+                onError={handleIconError("derecha")}
+              />
+            )}
+          </button>
+        </ToolbarTooltip>
+        <ToolbarTooltip label="Alinear arriba">
+          <button
+            type="button"
+            onClick={() => alignEdge("top")}
+            disabled={!imgEl}
+            aria-label="Alinear arriba"
+            className={styles.iconOnlyButton}
+          >
+            {missingIcons.arriba ? (
+              <span className={styles.iconFallback} aria-hidden="true" />
+            ) : (
+              <img
+                src={ACTION_ICON_MAP.arriba}
+                alt="Alinear arriba"
+                className={styles.iconOnlyButtonImage}
+                onError={handleIconError("arriba")}
+              />
+            )}
+          </button>
+        </ToolbarTooltip>
+        <ToolbarTooltip label="Alinear horizontalmente">
+          <button
+            type="button"
+            onClick={centerVert}
+            disabled={!imgEl}
+            aria-label="Alinear horizontalmente"
+            className={styles.iconOnlyButton}
+          >
+            {missingIcons.centrado_h ? (
+              <span className={styles.iconFallback} aria-hidden="true" />
+            ) : (
+              <img
+                src={ACTION_ICON_MAP.centrado_h}
+                alt="Alinear horizontalmente"
+                className={styles.iconOnlyButtonImage}
+                onError={handleIconError("centrado_h")}
+              />
+            )}
+          </button>
+        </ToolbarTooltip>
+        <ToolbarTooltip label="Alinear abajo">
+          <button
+            type="button"
+            onClick={() => alignEdge("bottom")}
+            disabled={!imgEl}
+            aria-label="Alinear abajo"
+            className={styles.iconOnlyButton}
+          >
+            {missingIcons.abajo ? (
+              <span className={styles.iconFallback} aria-hidden="true" />
+            ) : (
+              <img
+                src={ACTION_ICON_MAP.abajo}
+                alt="Alinear abajo"
+                className={styles.iconOnlyButtonImage}
+                onError={handleIconError("abajo")}
+              />
+            )}
+          </button>
+        </ToolbarTooltip>
+        <ToolbarTooltip label="Rotar imagen 90°">
+          <button
+            type="button"
+            onClick={rotate90}
+            disabled={!imgEl}
+            aria-label="Rotar imagen 90°"
+            className={styles.iconOnlyButton}
+          >
+            {missingIcons.rotar ? (
+              <span className={styles.iconFallback} aria-hidden="true" />
+            ) : (
+              <img
+                src={ACTION_ICON_MAP.rotar}
+                alt="Rotar imagen 90°"
+                className={styles.iconOnlyButtonImage}
+                onError={handleIconError("rotar")}
+              />
+            )}
+          </button>
+        </ToolbarTooltip>
+        <ToolbarTooltip label="Voltear horizontalmente">
+          <button
+            type="button"
+            onClick={flipHorizontal}
+            disabled={!imgEl}
+            aria-label="Voltear horizontalmente"
+            className={styles.iconOnlyButton}
+          >
+            {missingIcons.espejo_h ? (
+              <span className={styles.iconFallback} aria-hidden="true" />
+            ) : (
+              <img
+                src={ACTION_ICON_MAP.espejo_h}
+                alt="Voltear horizontalmente"
+                className={styles.iconOnlyButtonImage}
+                onError={handleIconError("espejo_h")}
+              />
+            )}
+          </button>
+        </ToolbarTooltip>
+        <ToolbarTooltip label="Voltear verticalmente">
+          <button
+            type="button"
+            onClick={flipVertical}
+            disabled={!imgEl}
+            aria-label="Voltear verticalmente"
+            className={styles.iconOnlyButton}
+          >
+            {missingIcons.espejo_v ? (
+              <span className={styles.iconFallback} aria-hidden="true" />
+            ) : (
+              <img
+                src={ACTION_ICON_MAP.espejo_v}
+                alt="Voltear verticalmente"
+                className={styles.iconOnlyButtonImage}
+                onError={handleIconError("espejo_v")}
+              />
+            )}
+          </button>
+        </ToolbarTooltip>
+        <ToolbarTooltip label="Cubrir superficie">
+          <button
+            type="button"
+            onClick={fitCover}
+            disabled={!imgEl}
+            aria-label="Cubrir superficie"
+            className={styles.iconOnlyButton}
+          >
+            {missingIcons.cubrir ? (
+              <span className={styles.iconFallback} aria-hidden="true" />
+            ) : (
+              <img
+                src={ACTION_ICON_MAP.cubrir}
+                alt="Cubrir superficie"
+                className={styles.iconOnlyButtonImage}
+                onError={handleIconError("cubrir")}
+              />
+            )}
+          </button>
+        </ToolbarTooltip>
+        <ToolbarTooltip label="Diseño completo" disabled={colorOpen}>
+          <div className={styles.colorWrapper}>
+            <button
+              type="button"
+              onClick={toggleContain}
+              disabled={!imgEl}
+              aria-label="Diseño completo"
+              className={styles.iconOnlyButton}
+            >
+              {missingIcons.contener ? (
+                <span className={styles.iconFallback} aria-hidden="true" />
+              ) : (
+                <img
+                  src={ACTION_ICON_MAP.contener}
+                  alt="Diseño completo"
+                  className={styles.iconOnlyButtonImage}
+                  onError={handleIconError("contener")}
+                />
+              )}
+            </button>
+            {mode === "contain" && imgEl && (
+              <div className={styles.colorPopoverWrap}>
+                <ColorPopover
+                  value={bgColor}
+                  onChange={setBgColor}
+                  open={colorOpen}
+                  onClose={closeColor}
+                  onPickFromCanvas={() => startPickColor(setBgColor)}
+                />
+              </div>
+            )}
+          </div>
+        </ToolbarTooltip>
+        <ToolbarTooltip label="Estirar imagen">
+          <button
+            type="button"
+            onClick={fitStretchCentered}
+            disabled={!imgEl}
+            aria-label="Estirar imagen"
+            className={styles.iconOnlyButton}
+          >
+            {missingIcons.estirar ? (
+              <span className={styles.iconFallback} aria-hidden="true" />
+            ) : (
+              <img
+                src={ACTION_ICON_MAP.estirar}
+                alt="Estirar imagen"
+                className={styles.iconOnlyButtonImage}
+                onError={handleIconError("estirar")}
+              />
+            )}
+          </button>
+        </ToolbarTooltip>
         <span
           className={`${styles.qualityBadge} ${
             quality.color === "#ef4444"

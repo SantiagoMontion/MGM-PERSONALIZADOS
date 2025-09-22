@@ -295,6 +295,65 @@
   );
 }
 
+.iconButtonWithTooltip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.toolbarTooltip {
+  position: absolute;
+  top: calc(100% + 14px);
+  left: 50%;
+  transform: translate(-50%, 6px);
+  padding: 8px 18px;
+  border-radius: 999px;
+  background: rgba(23, 23, 31, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.5);
+  color: rgba(244, 244, 249, 0.95);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  transition-delay: 0s;
+  z-index: 30;
+}
+
+.toolbarTooltip::after {
+  content: "";
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  background: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: none;
+  border-right: none;
+  transform: translateX(-50%) rotate(45deg);
+  border-top-left-radius: 3px;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.35);
+}
+
+.iconButtonWithTooltip:hover .toolbarTooltip,
+.iconButtonWithTooltip:focus-within .toolbarTooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0);
+  transition-delay: 1s;
+}
+
+.iconButtonWithTooltip[data-tooltip-disabled="true"] .toolbarTooltip {
+  display: none;
+}
+
 .colorWrapper {
   position: relative;
   display: inline-flex;
