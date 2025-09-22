@@ -1,8 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { HexColorPicker, HexColorInput } from "react-colorful";
+import eyedropperIcon from "../icons/tintero.svg";
 import styles from "./EditorCanvas.module.css";
-
-const EYEDROPPER_ICON = "/icons/tintero.svg";
 
 export default function ColorPopover({
   value,
@@ -77,7 +76,7 @@ export default function ColorPopover({
             <span className={styles.eyedropperFallback} aria-hidden="true" />
           ) : (
             <img
-              src={EYEDROPPER_ICON}
+              src={eyedropperIcon}
               alt=""
               className={styles.eyedropperIcon}
               onError={() => setIconError(true)}
