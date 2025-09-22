@@ -340,9 +340,14 @@
   pointer-events: none;
   opacity: 0;
   visibility: hidden;
-  transition: none;
-  transition-delay: 0s;
+  transition: opacity 0.18s ease, transform 0.18s ease;
   z-index: 30;
+}
+
+.toolbarTooltipVisible {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0);
 }
 
 .toolbarTooltip::after {
@@ -359,15 +364,6 @@
   transform: translateX(-50%) rotate(45deg);
   border-top-left-radius: 3px;
   box-shadow: 0 10px 20px rgba(0, 0, 0, 0.35);
-}
-
-.iconButtonWithTooltip:hover .toolbarTooltip,
-.iconButtonWithTooltip:focus-within .toolbarTooltip {
-  opacity: 1;
-  visibility: visible;
-  transform: translate(-50%, 0);
-  transition: opacity 0.18s ease, transform 0.18s ease;
-  transition-delay: 0.7s;
 }
 
 .iconButtonWithTooltip[data-tooltip-disabled="true"] .toolbarTooltip {
