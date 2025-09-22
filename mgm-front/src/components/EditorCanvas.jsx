@@ -46,6 +46,21 @@ const CORNER_ANCHORS = new Set([
   "bottom-right",
 ]);
 
+const ACTION_ICON_MAP = {
+  izquierda: "/icons/izquierda.svg",
+  centrado_V: "/icons/centrado_V.svg",
+  derecha: "/icons/derecha.svg",
+  arriba: "/icons/arriba.svg",
+  centrado_h: "/icons/centrado_h.svg",
+  abajo: "/icons/abajo.svg",
+  rotar: "/icons/rotar.svg",
+  espejo_v: "/icons/espejo_v.svg",
+  espejo_h: "/icons/espejo_h.svg",
+  cubrir: "/icons/cubrir.svg",
+  contener: "/icons/contener.svg",
+  estirar: "/icons/estirar.svg",
+};
+
 // ---------- Editor ----------
 const EditorCanvas = forwardRef(function EditorCanvas(
   {
@@ -106,6 +121,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const pickingColorRef = useRef(false);
   const pickCallbackRef = useRef(null);
   const [isPickingColor, setIsPickingColor] = useState(false);
+  const [missingIcons, setMissingIcons] = useState({});
 
   const pointerWorld = (stage) => {
     const pt = stage.getPointerPosition();
@@ -1108,13 +1124,53 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     <div className={styles.colorWrapper}>
       {/* Toolbar */}
       <div className={styles.toolbar}>
-        <button onClick={fitCover} disabled={!imgEl}>
-          Cubrir
+        <button
+          type="button"
+          onClick={fitCover}
+          disabled={!imgEl}
+          aria-label="Cubrir"
+          title="Cubrir"
+          className={styles.iconOnlyButton}
+        >
+          {missingIcons.cubrir ? (
+            <span className={styles.iconFallback} aria-hidden="true" />
+          ) : (
+            <img
+              src={ACTION_ICON_MAP.cubrir}
+              alt="Cubrir"
+              className={styles.iconOnlyButtonImage}
+              onError={() =>
+                setMissingIcons((prev) =>
+                  prev.cubrir ? prev : { ...prev, cubrir: true },
+                )
+              }
+            />
+          )}
         </button>
 
         <div className={styles.colorWrapper}>
-          <button onClick={toggleContain} disabled={!imgEl}>
-            Contener
+          <button
+            type="button"
+            onClick={toggleContain}
+            disabled={!imgEl}
+            aria-label="Contener"
+            title="Contener"
+            className={styles.iconOnlyButton}
+          >
+            {missingIcons.contener ? (
+              <span className={styles.iconFallback} aria-hidden="true" />
+            ) : (
+              <img
+                src={ACTION_ICON_MAP.contener}
+                alt="Contener"
+                className={styles.iconOnlyButtonImage}
+                onError={() =>
+                  setMissingIcons((prev) =>
+                    prev.contener ? prev : { ...prev, contener: true },
+                  )
+                }
+              />
+            )}
           </button>
           {mode === "contain" && imgEl && (
             <div className={styles.colorPopoverWrap}>
@@ -1129,27 +1185,167 @@ const EditorCanvas = forwardRef(function EditorCanvas(
           )}
         </div>
 
-        <button onClick={fitStretchCentered} disabled={!imgEl}>
-          Estirar
+        <button
+          type="button"
+          onClick={fitStretchCentered}
+          disabled={!imgEl}
+          aria-label="Estirar"
+          title="Estirar"
+          className={styles.iconOnlyButton}
+        >
+          {missingIcons.estirar ? (
+            <span className={styles.iconFallback} aria-hidden="true" />
+          ) : (
+            <img
+              src={ACTION_ICON_MAP.estirar}
+              alt="Estirar"
+              className={styles.iconOnlyButtonImage}
+              onError={() =>
+                setMissingIcons((prev) =>
+                  prev.estirar ? prev : { ...prev, estirar: true },
+                )
+              }
+            />
+          )}
         </button>
 
-        <button onClick={centerHoriz} disabled={!imgEl}>
-          Centrar H
+        <button
+          type="button"
+          onClick={centerHoriz}
+          disabled={!imgEl}
+          aria-label="Centrar horizontal"
+          title="Centrar horizontal"
+          className={styles.iconOnlyButton}
+        >
+          {missingIcons.centrado_h ? (
+            <span className={styles.iconFallback} aria-hidden="true" />
+          ) : (
+            <img
+              src={ACTION_ICON_MAP.centrado_h}
+              alt="Centrar horizontal"
+              className={styles.iconOnlyButtonImage}
+              onError={() =>
+                setMissingIcons((prev) =>
+                  prev.centrado_h ? prev : { ...prev, centrado_h: true },
+                )
+              }
+            />
+          )}
         </button>
-        <button onClick={centerVert} disabled={!imgEl}>
-          Centrar V
+        <button
+          type="button"
+          onClick={centerVert}
+          disabled={!imgEl}
+          aria-label="Centrar vertical"
+          title="Centrar vertical"
+          className={styles.iconOnlyButton}
+        >
+          {missingIcons.centrado_V ? (
+            <span className={styles.iconFallback} aria-hidden="true" />
+          ) : (
+            <img
+              src={ACTION_ICON_MAP.centrado_V}
+              alt="Centrar vertical"
+              className={styles.iconOnlyButtonImage}
+              onError={() =>
+                setMissingIcons((prev) =>
+                  prev.centrado_V ? prev : { ...prev, centrado_V: true },
+                )
+              }
+            />
+          )}
         </button>
-        <button onClick={() => alignEdge("left")} disabled={!imgEl}>
-          Izq
+        <button
+          type="button"
+          onClick={() => alignEdge("left")}
+          disabled={!imgEl}
+          aria-label="Alinear a la izquierda"
+          title="Alinear a la izquierda"
+          className={styles.iconOnlyButton}
+        >
+          {missingIcons.izquierda ? (
+            <span className={styles.iconFallback} aria-hidden="true" />
+          ) : (
+            <img
+              src={ACTION_ICON_MAP.izquierda}
+              alt="Izquierda"
+              className={styles.iconOnlyButtonImage}
+              onError={() =>
+                setMissingIcons((prev) =>
+                  prev.izquierda ? prev : { ...prev, izquierda: true },
+                )
+              }
+            />
+          )}
         </button>
-        <button onClick={() => alignEdge("right")} disabled={!imgEl}>
-          Der
+        <button
+          type="button"
+          onClick={() => alignEdge("right")}
+          disabled={!imgEl}
+          aria-label="Alinear a la derecha"
+          title="Alinear a la derecha"
+          className={styles.iconOnlyButton}
+        >
+          {missingIcons.derecha ? (
+            <span className={styles.iconFallback} aria-hidden="true" />
+          ) : (
+            <img
+              src={ACTION_ICON_MAP.derecha}
+              alt="Derecha"
+              className={styles.iconOnlyButtonImage}
+              onError={() =>
+                setMissingIcons((prev) =>
+                  prev.derecha ? prev : { ...prev, derecha: true },
+                )
+              }
+            />
+          )}
         </button>
-        <button onClick={() => alignEdge("top")} disabled={!imgEl}>
-          Arriba
+        <button
+          type="button"
+          onClick={() => alignEdge("top")}
+          disabled={!imgEl}
+          aria-label="Alinear arriba"
+          title="Alinear arriba"
+          className={styles.iconOnlyButton}
+        >
+          {missingIcons.arriba ? (
+            <span className={styles.iconFallback} aria-hidden="true" />
+          ) : (
+            <img
+              src={ACTION_ICON_MAP.arriba}
+              alt="Arriba"
+              className={styles.iconOnlyButtonImage}
+              onError={() =>
+                setMissingIcons((prev) =>
+                  prev.arriba ? prev : { ...prev, arriba: true },
+                )
+              }
+            />
+          )}
         </button>
-        <button onClick={() => alignEdge("bottom")} disabled={!imgEl}>
-          Abajo
+        <button
+          type="button"
+          onClick={() => alignEdge("bottom")}
+          disabled={!imgEl}
+          aria-label="Alinear abajo"
+          title="Alinear abajo"
+          className={styles.iconOnlyButton}
+        >
+          {missingIcons.abajo ? (
+            <span className={styles.iconFallback} aria-hidden="true" />
+          ) : (
+            <img
+              src={ACTION_ICON_MAP.abajo}
+              alt="Abajo"
+              className={styles.iconOnlyButtonImage}
+              onError={() =>
+                setMissingIcons((prev) =>
+                  prev.abajo ? prev : { ...prev, abajo: true },
+                )
+              }
+            />
+          )}
         </button>
         <span
           className={`${styles.qualityBadge} ${
