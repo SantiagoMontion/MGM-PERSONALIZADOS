@@ -45,6 +45,16 @@ const HATE_TERMS = [
   'reichsadler',
   'schutzstaffel',
   'hitlerjugend',
+  '1488',
+  '14/88',
+  'fourteen words',
+  '14 words',
+  'stormfront',
+  'blood and soil',
+  'blut und boden',
+  'white pride worldwide',
+  'wpww',
+  'aryan brotherhood',
 ];
 
 function normalizeHateCheck(input: string | null | undefined) {
