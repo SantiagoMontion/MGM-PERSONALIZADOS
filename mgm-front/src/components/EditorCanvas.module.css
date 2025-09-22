@@ -104,6 +104,54 @@
   flex-wrap: wrap;
 }
 
+.iconOnlyButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.iconOnlyButton:not(:disabled) {
+  cursor: pointer;
+}
+
+.iconOnlyButton:not(:disabled):hover {
+  background: #f3f4f6;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.1);
+}
+
+.iconOnlyButton:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.iconOnlyButtonImage {
+  width: 24px;
+  height: 24px;
+  display: block;
+  object-fit: contain;
+}
+
+.iconFallback {
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  border: 1px dashed #d1d5db;
+  background: repeating-linear-gradient(
+    135deg,
+    rgba(209, 213, 219, 0.4),
+    rgba(209, 213, 219, 0.4) 6px,
+    rgba(243, 244, 246, 0.4) 6px,
+    rgba(243, 244, 246, 0.4) 12px
+  );
+}
+
 .colorWrapper {
   position: relative;
   display: inline-flex;
