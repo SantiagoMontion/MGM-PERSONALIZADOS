@@ -65,6 +65,13 @@ const ACTION_ICON_MAP = {
 };
 
 
+const HISTORY_ICON_SPECS = {
+  undo: { src: resolveIconAsset("undo.svg"), fallbackLabel: "↶" },
+  redo: { src: resolveIconAsset("redo.svg"), fallbackLabel: "↷" },
+  delete: { src: resolveIconAsset("delete.svg"), fallbackLabel: "✕" },
+};
+
+
 const ToolbarTooltip = ({ label, children, disabled = false }) => (
   <div
     className={styles.iconButtonWithTooltip}
