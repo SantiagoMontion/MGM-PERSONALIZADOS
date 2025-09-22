@@ -386,7 +386,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     const pixelRatio = Math.max(1, 2 * baseScale * viewScale);
     node.cache({ pixelRatio });
     node.filters([Konva.Filters.Blur]);
-    node.blurRadius(4);
+    node.blurRadius(1);
     node.getLayer()?.batchDraw();
   }, [
     hasGlassOverlay,
