@@ -44,6 +44,13 @@
 /* fila del checkbox: texto izq, check der */
 
 
+<<<<<<< HEAD
+=======
+/* botón ocupa todo el ancho del stack */
+.continueButton {
+  width: 100%;
+}
+>>>>>>> 1032552 (fix changes)
 .pageHeading {
   width: 100%;
   max-width: 1920px !important;
@@ -171,10 +178,15 @@
   font-size: 1rem;
   cursor: pointer;
   width: 404px;
+<<<<<<< HEAD
   min-width: 404px;
   justify-content: space-around;
   min-height: 44px;
 
+=======
+  justify-content: space-around;
+  
+>>>>>>> 1032552 (fix changes)
 }
 
 .configTrigger:hover:not(:disabled) {
@@ -460,7 +472,11 @@
   overflow: hidden;
   border-radius: 16px;
   border: 1px solid rgba(128,128,128,.45);
+<<<<<<< HEAD
   background: #282828cb;
+=======
+  background: #282828b4;
+>>>>>>> 1032552 (fix changes)
   color: rgba(247,247,249,.98);
   font-family: 'Poppins', sans-serif;
   font-size: 15px;
@@ -497,7 +513,11 @@
 }
 .uploadButton:not(:disabled):hover {
   border-color: rgba(200, 200, 200, 0.774);
+<<<<<<< HEAD
   box-shadow: 0 24px 48px rgba(0,0,0,.45);
+=======
+  
+>>>>>>> 1032552 (fix changes)
 }
 
 /* Focus accesible */
@@ -575,7 +595,7 @@
 }
 
 .ackLabel:hover {
-  background: rgba(40, 40, 40, 0.68);
+  background: rgba(77, 77, 77, 0.68);
   border-color: rgba(128, 128, 128, 0.32);
 }
 
@@ -624,6 +644,7 @@
   justify-content: center;
   text-align: center;
   cursor: pointer;
+<<<<<<< HEAD
 
 }
 
@@ -639,6 +660,9 @@
   right: var(--canvas-floating-right);
   bottom: var(--canvas-floating-bottom);
   z-index: 40;
+=======
+ 
+>>>>>>> 1032552 (fix changes)
 }
 
 .continueButton:disabled {
