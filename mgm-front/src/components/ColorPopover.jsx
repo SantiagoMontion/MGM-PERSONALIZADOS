@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { HexColorPicker, HexColorInput } from "react-colorful";
 import { resolveIconAsset } from "@/lib/iconRegistry.js";
 import styles from "./EditorCanvas.module.css";
@@ -14,6 +14,7 @@ const PICKER_BASE_HEIGHT = 416;
 export default function ColorPopover({
   value,
   onChange,
+  onChangeComplete,
   open,
   onClose,
   onPickFromCanvas,
@@ -27,6 +28,7 @@ export default function ColorPopover({
     width: PICKER_BASE_WIDTH * PICKER_SCALE,
     height: PICKER_BASE_HEIGHT * PICKER_SCALE,
   });
+  const changeCompleteTimeoutRef = useRef(null);
 
   useEffect(() => setHex(value || "#ffffff"), [value]);
 
@@ -50,6 +52,13 @@ export default function ColorPopover({
   useEffect(() => {
     if (open) setIconError(false);
   }, [open]);
+
+  useEffect(() => () => {
+    if (changeCompleteTimeoutRef.current) {
+      clearTimeout(changeCompleteTimeoutRef.current);
+      changeCompleteTimeoutRef.current = null;
+    }
+  }, []);
 
   useEffect(() => {
     if (!open) {
@@ -101,13 +110,32 @@ export default function ColorPopover({
     });
   }, [open, inputId]);
 
+  const emitColorChange = useCallback(
+    (nextHex, { immediate = false } = {}) => {
+      setHex(nextHex);
+      onChange?.(nextHex);
+      if (!onChangeComplete) return;
+      if (changeCompleteTimeoutRef.current) {
+        clearTimeout(changeCompleteTimeoutRef.current);
+        changeCompleteTimeoutRef.current = null;
+      }
+      if (immediate) {
+        onChangeComplete(nextHex);
+        return;
+      }
+      changeCompleteTimeoutRef.current = setTimeout(() => {
+        onChangeComplete(nextHex);
+      }, 120);
+    },
+    [onChange, onChangeComplete],
+  );
+
   const handlePick = async () => {
     try {
       if (window.EyeDropper) {
         const ed = new window.EyeDropper();
         const { sRGBHex } = await ed.open();
-        onChange?.(sRGBHex);
-        setHex(sRGBHex);
+        emitColorChange(sRGBHex, { immediate: true });
         return;
       }
     } catch {
@@ -137,10 +165,7 @@ export default function ColorPopover({
         <div className={styles.pickerArea}>
           <HexColorPicker
             color={hex}
-            onChange={(c) => {
-              setHex(c);
-              onChange?.(c);
-            }}
+            onChange={(c) => emitColorChange(c)}
             className={styles.colorPicker}
           />
         </div>
@@ -173,8 +198,7 @@ export default function ColorPopover({
               color={hex}
               onChange={(c) => {
                 const normalized = c.startsWith("#") ? c : `#${c}`;
-                setHex(normalized);
-                onChange?.(normalized);
+                emitColorChange(normalized);
               }}
               prefixed
               className={styles.hexInput}
