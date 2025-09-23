@@ -64,6 +64,18 @@ const ACTION_ICON_MAP = {
 
 };
 
+const DEFAULT_BG_COLOR = "#ffffff";
+
+const normalizeHexColor = (value) => {
+  if (typeof value !== "string") {
+    if (value == null) return null;
+    value = String(value);
+  }
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return trimmed.startsWith("#") ? trimmed : `#${trimmed}`;
+};
+
 const HISTORY_ICON_SPECS = {
   undo: { src: resolveIconAsset("undo.svg"), fallbackLabel: "↶" },
   redo: { src: resolveIconAsset("redo.svg"), fallbackLabel: "↷" },
@@ -416,7 +428,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const [mode, setMode] = useState("cover"); // 'cover' | 'contain' | 'stretch'
   const stickyFitRef = useRef(null);
   const skipStickyFitOnceRef = useRef(false);
-  const [bgColor, setBgColor] = useState("#ffffff");
+  const [bgColor, setBgColor] = useState(DEFAULT_BG_COLOR);
+  const lastCommittedBgColorRef = useRef(DEFAULT_BG_COLOR);
   const [activeAlign, setActiveAlign] = useState({ horizontal: null, vertical: null });
   const isTransformingRef = useRef(false);
   const setKeepRatioImmediate = useCallback(
@@ -1302,10 +1315,9 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     }
   }, [isPickerOpen, imgEl, setPickerOpen]);
 
-  const handleBgColorApply = useCallback(
-    (hex) => {
-      if (!hex) return;
-      const normalized = hex.startsWith("#") ? hex : `#${hex}`;
+  const applyBgColor = useCallback(
+    (hex, { notify = false } = {}) => {
+      const normalized = normalizeHexColor(hex) || DEFAULT_BG_COLOR;
       let didChange = false;
       setBgColor((prev) => {
         if (prev?.toLowerCase() === normalized.toLowerCase()) {
@@ -1314,11 +1326,34 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         didChange = true;
         return normalized;
       });
-      if (didChange) {
-        onPickedColor?.(normalized);
+      if (notify) {
+        const lastCommitted = lastCommittedBgColorRef.current;
+        if (
+          didChange ||
+          !lastCommitted ||
+          lastCommitted.toLowerCase() !== normalized.toLowerCase()
+        ) {
+          lastCommittedBgColorRef.current = normalized;
+          onPickedColor?.(normalized);
+        }
       }
+      return normalized;
     },
     [onPickedColor],
+  );
+
+  const handleBgColorPreview = useCallback(
+    (hex) => {
+      applyBgColor(hex);
+    },
+    [applyBgColor],
+  );
+
+  const handleBgColorCommit = useCallback(
+    (hex) => {
+      applyBgColor(hex, { notify: true });
+    },
+    [applyBgColor],
   );
   const iconButtonClass = (isActive) =>
     isActive
@@ -2020,13 +2055,14 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                 <div className={styles.colorPopoverWrap}>
                   <ColorPopover
                     value={bgColor}
-                    onChangeComplete={handleBgColorApply}
+                    onChange={handleBgColorPreview}
+                    onChangeComplete={handleBgColorCommit}
                     open={colorOpen}
                     onClose={closeColor}
                     anchorRef={containButtonRef}
                     onPickFromCanvas={() =>
                       startPickColor((hex) => {
-                        handleBgColorApply(hex);
+                        handleBgColorCommit(hex);
                       })
                     }
                   />
