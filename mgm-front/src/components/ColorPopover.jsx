@@ -18,6 +18,7 @@ export default function ColorPopover({
   open,
   onClose,
   onPickFromCanvas,
+  anchorRef,
 }) {
   const wrapperRef = useRef(null);
   const contentRef = useRef(null);
@@ -36,7 +37,12 @@ export default function ColorPopover({
     if (!open) return;
     const onDown = (e) => {
       if (!wrapperRef.current) return;
-      if (!wrapperRef.current.contains(e.target)) onClose?.();
+      if (
+        !wrapperRef.current.contains(e.target) &&
+        !(anchorRef?.current && anchorRef.current.contains(e.target))
+      ) {
+        onClose?.();
+      }
     };
     const onKey = (e) => {
       if (e.key === "Escape") onClose?.();
@@ -47,7 +53,7 @@ export default function ColorPopover({
       document.removeEventListener("mousedown", onDown);
       document.removeEventListener("keydown", onKey);
     };
-  }, [open, onClose]);
+  }, [open, onClose, anchorRef]);
 
   useEffect(() => {
     if (open) setIconError(false);

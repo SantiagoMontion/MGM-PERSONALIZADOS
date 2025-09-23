@@ -64,12 +64,6 @@ const ACTION_ICON_MAP = {
 
 };
 
-const COLOR_PICKER_STATE = {
-  CLOSED: "CLOSED",
-  OPEN: "OPEN",
-};
-
-
 const HISTORY_ICON_SPECS = {
   undo: { src: resolveIconAsset("undo.svg"), fallbackLabel: "↶" },
   redo: { src: resolveIconAsset("redo.svg"), fallbackLabel: "↷" },
@@ -1239,47 +1233,75 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   }));
 
   // popover color
-  const [colorPickerState, setColorPickerState] = useState(
-    COLOR_PICKER_STATE.CLOSED,
+  const containButtonRef = useRef(null);
+  const [isPickerOpen, setIsPickerOpen] = useState(false);
+  const pickerInteractionLockRef = useRef(false);
+  const pickerLockTimeoutRef = useRef(null);
+  const colorOpen = isPickerOpen;
+  const setPickerOpen = useCallback(
+    (nextOpen) => {
+      setIsPickerOpen((prev) => {
+        if (prev === nextOpen) return prev;
+        if (pickerLockTimeoutRef.current) {
+          clearTimeout(pickerLockTimeoutRef.current);
+        }
+        pickerInteractionLockRef.current = true;
+        pickerLockTimeoutRef.current = setTimeout(() => {
+          pickerInteractionLockRef.current = false;
+          pickerLockTimeoutRef.current = null;
+        }, 250);
+        return nextOpen;
+      });
+    },
+    [setIsPickerOpen],
   );
-  const colorOpen = colorPickerState === COLOR_PICKER_STATE.OPEN;
-  const [colorToast, setColorToast] = useState(null);
+
+  useEffect(() => {
+    return () => {
+      if (pickerLockTimeoutRef.current) {
+        clearTimeout(pickerLockTimeoutRef.current);
+        pickerLockTimeoutRef.current = null;
+      }
+      pickerInteractionLockRef.current = false;
+    };
+  }, []);
+
   const [busy, setBusy] = useState(false);
   const [lastDiag, setLastDiag] = useState(null);
 
   const closeColor = useCallback(() => {
-    setColorPickerState(COLOR_PICKER_STATE.CLOSED);
-  }, []);
+    setPickerOpen(false);
+  }, [setPickerOpen]);
 
-  const toggleContain = useCallback(() => {
-    if (!imgEl) return;
-    if (colorPickerState === COLOR_PICKER_STATE.CLOSED) {
-      if (mode !== "contain") {
-        fitContain();
+  const handleContainButtonClick = useCallback(
+    (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!imgEl || pickerInteractionLockRef.current) return;
+      if (!isPickerOpen) {
+        if (mode !== "contain") {
+          fitContain();
+        }
+        setPickerOpen(true);
+        return;
       }
-      setColorPickerState(COLOR_PICKER_STATE.OPEN);
-    } else if (colorPickerState === COLOR_PICKER_STATE.OPEN) {
-      setColorPickerState(COLOR_PICKER_STATE.CLOSED);
-    }
-  }, [imgEl, colorPickerState, mode, fitContain]);
+      setPickerOpen(false);
+    },
+    [imgEl, isPickerOpen, mode, fitContain, setPickerOpen],
+  );
 
   useEffect(() => {
-    if (colorPickerState === COLOR_PICKER_STATE.OPEN && mode !== "contain") {
-      setColorPickerState(COLOR_PICKER_STATE.CLOSED);
+    if (isPickerOpen && mode !== "contain") {
+      setPickerOpen(false);
     }
-  }, [colorPickerState, mode]);
+  }, [isPickerOpen, mode, setPickerOpen]);
 
   useEffect(() => {
-    if (colorPickerState === COLOR_PICKER_STATE.OPEN && !imgEl) {
-      setColorPickerState(COLOR_PICKER_STATE.CLOSED);
+    if (isPickerOpen && !imgEl) {
+      setPickerOpen(false);
     }
-  }, [colorPickerState, imgEl]);
+  }, [isPickerOpen, imgEl, setPickerOpen]);
 
-  useEffect(() => {
-    if (!colorToast) return undefined;
-    const timer = setTimeout(() => setColorToast(null), 2400);
-    return () => clearTimeout(timer);
-  }, [colorToast]);
   const handleBgColorApply = useCallback(
     (hex) => {
       if (!hex) return;
@@ -1294,7 +1316,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       });
       if (didChange) {
         onPickedColor?.(normalized);
-        setColorToast({ id: Date.now(), message: "Color aplicado" });
       }
     },
     [onPickedColor],
@@ -1976,7 +1997,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
             <div className={styles.colorWrapper}>
               <button
                 type="button"
-                onClick={toggleContain}
+                ref={containButtonRef}
+                onClick={handleContainButtonClick}
                 disabled={!imgEl}
                 aria-label="Contener"
                 aria-expanded={colorOpen}
@@ -2001,6 +2023,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                     onChangeComplete={handleBgColorApply}
                     open={colorOpen}
                     onClose={closeColor}
+                    anchorRef={containButtonRef}
                     onPickFromCanvas={() =>
                       startPickColor((hex) => {
                         handleBgColorApply(hex);
@@ -2056,17 +2079,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
           </button>
         )}
           </div>
-          {colorToast ? (
-            <div
-              key={colorToast.id}
-              className={styles.colorToast}
-              role="status"
-              aria-live="polite"
-              aria-atomic="true"
-            >
-              {colorToast.message}
-            </div>
-          ) : null}
         </div>
       </div>
     </div>
