@@ -611,15 +611,6 @@ export default function Home() {
                   </div>
                 )}
               </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className={styles.sectionTwo}>
-        <div className={styles.sectionTwoInner} style={editorMaxWidthStyle}>
-          <div className={styles.footerRow}>
-            <div className={styles.feedbackGroup}>
               {hasImage && level === 'bad' && (
                 <label className={styles.ackLabel}>
                   <span className={styles.ackLabelText}>
@@ -633,20 +624,31 @@ export default function Home() {
                   />
                 </label>
               )}
-              {err && <p className={`errorText ${styles.errorMessage}`}>{err}</p>}
+              {hasImage && (
+                <button
+                  className={styles.continueButton}
+                  disabled={busy}
+                  onClick={handleContinue}
+                >
+                  Continuar
+                </button>
+              )}
             </div>
-            {hasImage && (
-              <button
-                className={styles.continueButton}
-                disabled={busy}
-                onClick={handleContinue}
-              >
-                Continuar
-              </button>
-            )}
           </div>
         </div>
       </section>
+
+      {err && (
+        <section className={styles.sectionTwo}>
+          <div className={styles.sectionTwoInner} style={editorMaxWidthStyle}>
+            <div className={styles.footerRow}>
+              <div className={styles.feedbackGroup}>
+                <p className={`errorText ${styles.errorMessage}`}>{err}</p>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       <LoadingOverlay show={busy} messages={["Creando tu pedido…"]} />
     </div>

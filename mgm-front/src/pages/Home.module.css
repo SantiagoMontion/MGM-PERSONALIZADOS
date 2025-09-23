@@ -44,10 +44,6 @@
 /* fila del checkbox: texto izq, check der */
 
 
-/* botón ocupa todo el ancho del stack */
-.continueButton {
-  width: 100%;
-}
 .pageHeading {
   width: 100%;
   max-width: 1920px !important;
@@ -382,6 +378,12 @@
   border-radius: 12px;
 
   min-height: 320px;
+  --canvas-actions-right: 24px;
+  --canvas-actions-bottom: 24px;
+  --canvas-actions-gap: 12px;
+  --canvas-continue-height: 48px;
+  --canvas-actions-right: calc(24px + env(safe-area-inset-right, 0px));
+  --canvas-actions-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
 }
 
 .canvasStageEmpty {
@@ -522,10 +524,17 @@
 }
 
 .ackLabel {
+  position: absolute;
+  right: var(--canvas-actions-right);
+  bottom: calc(
+    var(--canvas-actions-bottom) + var(--canvas-continue-height) +
+      var(--canvas-actions-gap)
+  );
+  z-index: 40;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  width: 100%;
+  width: clamp(220px, 26vw, 320px);
   min-height: 44px;
   padding: 12px 24px;
   border-radius: 11px;
@@ -576,8 +585,13 @@
 }
 
 .continueButton {
-  width: 100%;
-  min-height: 52px;
+  position: absolute;
+  right: var(--canvas-actions-right);
+  bottom: var(--canvas-actions-bottom);
+  z-index: 40;
+  width: clamp(220px, 26vw, 320px);
+  min-height: var(--canvas-continue-height);
+  height: var(--canvas-continue-height);
   border-radius: 11px;
   border: 1px solid #34343b;
   background: #282828a8;
