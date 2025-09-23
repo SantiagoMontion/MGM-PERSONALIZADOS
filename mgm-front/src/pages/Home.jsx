@@ -1,5 +1,12 @@
 // src/pages/Home.jsx
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import SeoJsonLd from '../components/SeoJsonLd';
 
@@ -89,6 +96,10 @@ export default function Home() {
   const headingRef = useRef(null);
   const lienzoCardRef = useRef(null);
   const configDropdownRef = useRef(null);
+  const configTriggerButtonRef = useRef(null);
+  const configPanelRef = useRef(null);
+  const [configPanelStyle, setConfigPanelStyle] = useState({});
+  const wasConfigOpenRef = useRef(false);
   const [canvasFit, setCanvasFit] = useState({ height: null, maxWidth: null, sectionOneMinHeight: null });
   const flow = useFlow();
 
@@ -297,6 +308,100 @@ export default function Home() {
     .filter(Boolean)
     .join(' ');
 
+  const updateConfigPanelPosition = useCallback(() => {
+    if (!configOpen) return;
+    if (typeof window === 'undefined') return;
+
+    const triggerEl = configTriggerButtonRef.current;
+    const panelEl = configPanelRef.current;
+    if (!triggerEl || !panelEl) return;
+
+    const docEl = document.documentElement;
+    const docStyles = window.getComputedStyle(docEl);
+    const safeAreaTop = Number.parseFloat(docStyles.getPropertyValue('--safe-area-top')) || 0;
+    const safeAreaRight = Number.parseFloat(docStyles.getPropertyValue('--safe-area-right')) || 0;
+    const safeAreaBottom = Number.parseFloat(docStyles.getPropertyValue('--safe-area-bottom')) || 0;
+    const safeAreaLeft = Number.parseFloat(docStyles.getPropertyValue('--safe-area-left')) || 0;
+
+    const EDGE_MARGIN = 12;
+    const GAP = 12;
+
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const triggerRect = triggerEl.getBoundingClientRect();
+    const panelRect = panelEl.getBoundingClientRect();
+
+    const topLimit = safeAreaTop + EDGE_MARGIN;
+    const bottomLimit = viewportHeight - safeAreaBottom - EDGE_MARGIN;
+
+    const preferredTop = triggerRect.bottom + GAP;
+    const preferredBottom = triggerRect.top - GAP;
+    const spaceBelow = bottomLimit - preferredTop;
+    const spaceAbove = preferredBottom - topLimit;
+    const constrainedSpaceBelow = Math.max(spaceBelow, 0);
+    const constrainedSpaceAbove = Math.max(spaceAbove, 0);
+    const shouldFlip = panelRect.height > constrainedSpaceBelow
+      && constrainedSpaceAbove > constrainedSpaceBelow;
+
+    let top = shouldFlip
+      ? preferredBottom - panelRect.height
+      : preferredTop;
+
+    if (top < topLimit) {
+      top = topLimit;
+    }
+
+    if (top + panelRect.height > bottomLimit) {
+      top = Math.max(topLimit, bottomLimit - panelRect.height);
+    }
+
+    const availableSpace = Math.max(bottomLimit - top, 0);
+    const constrainedMaxHeight = Math.min(availableSpace, viewportHeight * 0.7);
+    const resolvedMaxHeight = Math.max(
+      0,
+      Math.min(panelRect.height, constrainedMaxHeight),
+    );
+
+    const maxWidthAvailable = Math.max(
+      viewportWidth - safeAreaLeft - safeAreaRight - EDGE_MARGIN * 2,
+      0,
+    );
+    const constrainedMaxWidth = Math.min(520, Math.max(maxWidthAvailable, 0));
+    const fallbackWidth = Math.min(panelRect.width, 520);
+    const widthForPosition = constrainedMaxWidth > 0
+      ? Math.min(panelRect.width, constrainedMaxWidth)
+      : fallbackWidth;
+    const minLeft = safeAreaLeft + EDGE_MARGIN;
+    const maxLeft = viewportWidth - safeAreaRight - EDGE_MARGIN - widthForPosition;
+    let left = triggerRect.left;
+    if (left < minLeft) {
+      left = minLeft;
+    }
+    if (left > maxLeft) {
+      left = Math.max(minLeft, maxLeft);
+    }
+
+    setConfigPanelStyle((prev) => {
+      const next = {
+        position: 'fixed',
+        top: `${top}px`,
+        left: `${left}px`,
+        maxHeight: `${resolvedMaxHeight}px`,
+        maxWidth: `${constrainedMaxWidth > 0 ? constrainedMaxWidth : fallbackWidth}px`,
+      };
+      if (
+        prev.position === next.position
+        && prev.top === next.top
+        && prev.left === next.left
+        && prev.maxHeight === next.maxHeight
+        && prev.maxWidth === next.maxWidth
+      ) {
+        return prev;
+      }
+      return next;
+    });
+  }, [configOpen]);
+
   const designNameInputClasses = [
     styles.textInput,
     designNameError ? styles.textInputError : '',
@@ -446,6 +551,97 @@ export default function Home() {
     return () => document.removeEventListener('pointerdown', handlePointerDown);
   }, [configOpen]);
 
+  useLayoutEffect(() => {
+    if (!configOpen) return undefined;
+    if (typeof window === 'undefined') return undefined;
+
+    updateConfigPanelPosition();
+    const frame = window.requestAnimationFrame(() => updateConfigPanelPosition());
+
+    let panelObserver;
+    let triggerObserver;
+    if (typeof ResizeObserver !== 'undefined') {
+      if (configPanelRef.current) {
+        panelObserver = new ResizeObserver(() => updateConfigPanelPosition());
+        panelObserver.observe(configPanelRef.current);
+      }
+      if (configTriggerButtonRef.current) {
+        triggerObserver = new ResizeObserver(() => updateConfigPanelPosition());
+        triggerObserver.observe(configTriggerButtonRef.current);
+      }
+    }
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      if (panelObserver) panelObserver.disconnect();
+      if (triggerObserver) triggerObserver.disconnect();
+    };
+  }, [configOpen, updateConfigPanelPosition]);
+
+  useEffect(() => {
+    if (!configOpen) return undefined;
+    if (typeof window === 'undefined') return undefined;
+
+    const handleLayoutChange = () => updateConfigPanelPosition();
+    window.addEventListener('resize', handleLayoutChange);
+    window.addEventListener('scroll', handleLayoutChange, true);
+
+    const { visualViewport } = window;
+    if (visualViewport) {
+      visualViewport.addEventListener('resize', handleLayoutChange);
+      visualViewport.addEventListener('scroll', handleLayoutChange);
+    }
+
+    return () => {
+      window.removeEventListener('resize', handleLayoutChange);
+      window.removeEventListener('scroll', handleLayoutChange, true);
+      if (visualViewport) {
+        visualViewport.removeEventListener('resize', handleLayoutChange);
+        visualViewport.removeEventListener('scroll', handleLayoutChange);
+      }
+    };
+  }, [configOpen, updateConfigPanelPosition]);
+
+  useEffect(() => {
+    if (!configOpen) return undefined;
+    if (typeof document === 'undefined') return undefined;
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setConfigOpen(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [configOpen]);
+
+  useEffect(() => {
+    if (!configOpen) return undefined;
+    if (!hasImage) return undefined;
+    if (typeof window === 'undefined') return undefined;
+
+    const frame = window.requestAnimationFrame(() => {
+      designNameInputRef.current?.focus?.();
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [configOpen, hasImage]);
+
+  useEffect(() => {
+    if (configOpen) {
+      wasConfigOpenRef.current = true;
+      return;
+    }
+    if (!wasConfigOpenRef.current) return;
+    wasConfigOpenRef.current = false;
+    const triggerEl = configTriggerButtonRef.current;
+    if (triggerEl && !triggerEl.disabled) {
+      triggerEl.focus();
+    }
+  }, [configOpen]);
+
   const editorMaxWidthStyle = useMemo(() => (
     canvasFit.maxWidth ? { maxWidth: `${canvasFit.maxWidth}px` } : undefined
   ), [canvasFit.maxWidth]);
@@ -468,8 +664,11 @@ export default function Home() {
         className={configTriggerClasses}
         onClick={() => setConfigOpen((open) => !open)}
         disabled={!hasImage}
+        ref={configTriggerButtonRef}
         aria-expanded={configOpen}
         aria-controls="configuracion-editor"
+        aria-haspopup="menu"
+        aria-label="Configura tu mousepad"
       >
         <span className={styles.configTriggerIcon} aria-hidden="true">
           <img src={CONFIG_ICON_SRC} alt="" />
@@ -488,6 +687,9 @@ export default function Home() {
           id="configuracion-editor"
           className={configPanelClasses}
           aria-disabled={!hasImage}
+          ref={configPanelRef}
+          style={configPanelStyle}
+          role="menu"
         >
           <div className={styles.field}>
             <label className={styles.fieldLabel} htmlFor="design-name">
