@@ -78,40 +78,42 @@ export default function ColorPopover({
         <label className={styles.visuallyHidden} htmlFor={inputId}>
           Hex
         </label>
-        <button
-          type="button"
-          title="Elegir del lienzo"
-          aria-label="Elegir color del lienzo"
-          onClick={handlePick}
-          className={styles.eyedropperButton}
-        >
-          {showEyedropperIcon ? (
-            <img
-              src={EYEDROPPER_ICON_SRC}
-              alt=""
-              className={styles.eyedropperIcon}
-              onError={() => setIconError(true)}
-              draggable="false"
-            />
-          ) : (
-            <span className={styles.eyedropperFallback} aria-hidden="true" />
-          )}
-        </button>
-        <HexColorInput
-          id={inputId}
-          color={hex}
-          onChange={(c) => {
-            const normalized = c.startsWith("#") ? c : `#${c}`;
-            setHex(normalized);
-            onChange?.(normalized);
-          }}
-          prefixed
-          className={styles.hexInput}
-          spellCheck={false}
-          autoComplete="off"
-          autoCorrect="off"
-          autoCapitalize="off"
-        />
+        <div className={styles.hexInputWrapper}>
+          <button
+            type="button"
+            title="Elegir del lienzo"
+            aria-label="Elegir color del lienzo"
+            onClick={handlePick}
+            className={styles.eyedropperButton}
+          >
+            {showEyedropperIcon ? (
+              <img
+                src={EYEDROPPER_ICON_SRC}
+                alt=""
+                className={styles.eyedropperIcon}
+                onError={() => setIconError(true)}
+                draggable="false"
+              />
+            ) : (
+              <span className={styles.eyedropperFallback} aria-hidden="true" />
+            )}
+          </button>
+          <HexColorInput
+            id={inputId}
+            color={hex}
+            onChange={(c) => {
+              const normalized = c.startsWith("#") ? c : `#${c}`;
+              setHex(normalized);
+              onChange?.(normalized);
+            }}
+            prefixed
+            className={styles.hexInput}
+            spellCheck={false}
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+          />
+        </div>
       </div>
     </div>
   );
