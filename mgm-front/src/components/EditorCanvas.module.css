@@ -268,6 +268,13 @@
   pointer-events: auto;
 }
 
+.toolbarScroller {
+  display: inline-flex;
+  justify-content: center;
+  pointer-events: auto;
+  min-width: 0;
+}
+
 .iconOnlyButton {
   display: inline-flex;
   align-items: center;
@@ -287,6 +294,7 @@
     border-color 0.18s ease,
     background 0.18s ease,
     opacity 0.18s ease;
+  scroll-snap-align: start;
 }
 
 .iconOnlyButtonActive {
@@ -436,6 +444,39 @@
   align-items: center;
   gap: 10px;
   pointer-events: none;
+}
+
+@media (max-width: 768px) {
+  .toolbarStack {
+    align-items: stretch;
+  }
+
+  .toolbarScroller {
+    display: flex;
+    width: 100%;
+    justify-content: flex-start;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x mandatory;
+    scroll-padding-inline: 16px;
+    padding-inline: 16px;
+    touch-action: pan-x;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+
+  .toolbarScroller::-webkit-scrollbar {
+    display: none;
+  }
+
+  .toolbar {
+    flex: none;
+    flex-wrap: nowrap;
+    width: max-content;
+    max-width: none;
+    justify-content: flex-start;
+  }
 }
 
 .colorToast {
