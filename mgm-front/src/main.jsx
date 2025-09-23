@@ -14,6 +14,7 @@ import MousepadsPersonalizados from './pages/MousepadsPersonalizados.jsx';
 import ComoFunciona from './pages/ComoFunciona.jsx';
 import PreguntasFrecuentes from './pages/PreguntasFrecuentes.jsx';
 import Busqueda from './pages/Busqueda.jsx';
+import Tutorial from './pages/Tutorial.jsx';
 import NotFound, { NotFoundBoundary } from './pages/NotFound.jsx';
 import { OrderFlowProvider } from './store/orderFlow';
 import { FlowProvider } from './state/flow.js';
@@ -33,6 +34,7 @@ const routes = [
       { path: '/mousepads-personalizados', element: <MousepadsPersonalizados /> },
       { path: '/como-funciona', element: <ComoFunciona /> },
       { path: '/preguntas-frecuentes', element: <PreguntasFrecuentes /> },
+      { path: '/tutorial', element: <Tutorial /> },
       { path: '/busqueda', element: <Busqueda /> },
       { path: '/confirm', element: <Confirm /> },
       { path: '/mockup', element: <Mockup /> },

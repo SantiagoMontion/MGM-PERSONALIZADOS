@@ -1,6 +1,6 @@
 // src/pages/Home.jsx
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import SeoJsonLd from '../components/SeoJsonLd';
 
 import UploadStep from '../components/UploadStep';
@@ -21,6 +21,7 @@ import { resolveIconAsset } from '@/lib/iconRegistry.js';
 
 const CONFIG_ICON_SRC = resolveIconAsset('wheel.svg');
 const CONFIG_ARROW_ICON_SRC = resolveIconAsset('down.svg');
+const TUTORIAL_ICON_SRC = resolveIconAsset('play.svg');
 
 
 const iconStroke = 2;
@@ -519,7 +520,14 @@ export default function Home() {
         ref={headingRef}
         style={editorMaxWidthStyle}
       >
-        <h1 className={styles.title}>Crea tu mousepad</h1>
+        <Link to="/tutorial" className={styles.tutorialButton}>
+          <span>Ver tutorial</span>
+          <img
+            src={TUTORIAL_ICON_SRC}
+            alt=""
+            className={styles.tutorialButtonIcon}
+          />
+        </Link>
       </div>
 
       <section
