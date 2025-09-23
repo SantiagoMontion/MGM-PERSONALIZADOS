@@ -10,6 +10,17 @@ const EYEDROPPER_ICON_SRC = resolveIconAsset("tintero.svg", {
 const PICKER_SCALE = 0.5;
 const PICKER_BASE_WIDTH = 320;
 const PICKER_BASE_HEIGHT = 416;
+const DEFAULT_COLOR = "#ffffff";
+
+const ensurePrefixedHex = (value) => {
+  if (typeof value !== "string") {
+    if (value == null) return null;
+    value = String(value);
+  }
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return trimmed.startsWith("#") ? trimmed : `#${trimmed}`;
+};
 
 export default function ColorPopover({
   value,
@@ -23,15 +34,21 @@ export default function ColorPopover({
   const wrapperRef = useRef(null);
   const contentRef = useRef(null);
   const inputId = useId();
-  const [hex, setHex] = useState(value || "#ffffff");
+  const [hex, setHex] = useState(value || DEFAULT_COLOR);
   const [iconError, setIconError] = useState(false);
   const [wrapperSize, setWrapperSize] = useState({
     width: PICKER_BASE_WIDTH * PICKER_SCALE,
     height: PICKER_BASE_HEIGHT * PICKER_SCALE,
   });
-  const changeCompleteTimeoutRef = useRef(null);
-
-  useEffect(() => setHex(value || "#ffffff"), [value]);
+  const previewFrameRef = useRef(null);
+  const latestColorRef = useRef(ensurePrefixedHex(value) || DEFAULT_COLOR);
+  const pointerActiveRef = useRef(false);
+  const wasOpenRef = useRef(open);
+  useEffect(() => {
+    const normalized = ensurePrefixedHex(value) || DEFAULT_COLOR;
+    setHex(normalized);
+    latestColorRef.current = normalized;
+  }, [value]);
 
   useEffect(() => {
     if (!open) return;
@@ -59,12 +76,15 @@ export default function ColorPopover({
     if (open) setIconError(false);
   }, [open]);
 
-  useEffect(() => () => {
-    if (changeCompleteTimeoutRef.current) {
-      clearTimeout(changeCompleteTimeoutRef.current);
-      changeCompleteTimeoutRef.current = null;
-    }
-  }, []);
+  useEffect(
+    () => () => {
+      if (previewFrameRef.current != null) {
+        cancelAnimationFrame(previewFrameRef.current);
+        previewFrameRef.current = null;
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!open) {
@@ -116,22 +136,79 @@ export default function ColorPopover({
     });
   }, [open, inputId]);
 
-  const emitColorChange = useCallback(
-    (nextHex, { immediate = false } = {}) => {
-      setHex(nextHex);
-      onChange?.(nextHex);
-      if (!onChangeComplete) return;
-      if (changeCompleteTimeoutRef.current) {
-        clearTimeout(changeCompleteTimeoutRef.current);
-        changeCompleteTimeoutRef.current = null;
+  const previewNextColor = useCallback(
+    (nextHex) => {
+      const normalized = ensurePrefixedHex(nextHex) || DEFAULT_COLOR;
+      setHex(normalized);
+      latestColorRef.current = normalized;
+      if (!onChange) return;
+      if (previewFrameRef.current != null) return;
+      previewFrameRef.current = requestAnimationFrame(() => {
+        previewFrameRef.current = null;
+        onChange(latestColorRef.current);
+      });
+    },
+    [onChange],
+  );
+
+  const flushPreview = useCallback(() => {
+    if (previewFrameRef.current != null) {
+      cancelAnimationFrame(previewFrameRef.current);
+      previewFrameRef.current = null;
+      if (onChange) {
+        onChange(latestColorRef.current);
       }
-      if (immediate) {
-        onChangeComplete(nextHex);
-        return;
+    }
+    return latestColorRef.current;
+  }, [onChange]);
+
+  const emitChangeComplete = useCallback(() => {
+    if (!onChangeComplete) return;
+    const color = flushPreview();
+    if (!color) return;
+    onChangeComplete(color);
+  }, [flushPreview, onChangeComplete]);
+
+  const handlePickerPointerDown = useCallback(() => {
+    pointerActiveRef.current = true;
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const handlePointerUp = () => {
+      if (!pointerActiveRef.current) return;
+      pointerActiveRef.current = false;
+      emitChangeComplete();
+    };
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerUp);
+    return () => {
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerUp);
+    };
+  }, [open, emitChangeComplete]);
+
+  useEffect(() => {
+    if (wasOpenRef.current && !open) {
+      pointerActiveRef.current = false;
+      emitChangeComplete();
+    }
+    wasOpenRef.current = open;
+  }, [open, emitChangeComplete]);
+
+  const applyImmediateColor = useCallback(
+    (nextHex, { commit = false } = {}) => {
+      const normalized = ensurePrefixedHex(nextHex) || DEFAULT_COLOR;
+      setHex(normalized);
+      latestColorRef.current = normalized;
+      if (previewFrameRef.current != null) {
+        cancelAnimationFrame(previewFrameRef.current);
+        previewFrameRef.current = null;
       }
-      changeCompleteTimeoutRef.current = setTimeout(() => {
-        onChangeComplete(nextHex);
-      }, 120);
+      onChange?.(normalized);
+      if (commit) {
+        onChangeComplete?.(normalized);
+      }
     },
     [onChange, onChangeComplete],
   );
@@ -141,7 +218,7 @@ export default function ColorPopover({
       if (window.EyeDropper) {
         const ed = new window.EyeDropper();
         const { sRGBHex } = await ed.open();
-        emitColorChange(sRGBHex, { immediate: true });
+        applyImmediateColor(sRGBHex, { commit: true });
         return;
       }
     } catch {
@@ -171,7 +248,8 @@ export default function ColorPopover({
         <div className={styles.pickerArea}>
           <HexColorPicker
             color={hex}
-            onChange={(c) => emitColorChange(c)}
+            onChange={previewNextColor}
+            onPointerDown={handlePickerPointerDown}
             className={styles.colorPicker}
           />
         </div>
@@ -203,8 +281,14 @@ export default function ColorPopover({
               id={inputId}
               color={hex}
               onChange={(c) => {
-                const normalized = c.startsWith("#") ? c : `#${c}`;
-                emitColorChange(normalized);
+                const normalized = ensurePrefixedHex(c) || DEFAULT_COLOR;
+                previewNextColor(normalized);
+              }}
+              onBlur={emitChangeComplete}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  emitChangeComplete();
+                }
               }}
               prefixed
               className={styles.hexInput}
