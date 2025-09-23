@@ -541,7 +541,7 @@
 .historyControls {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 2px;
 }
 
 .historyButton {
@@ -549,9 +549,9 @@
   height: 44px;
   margin: 0;
   padding: 0;
-  border-radius: 14px;
-  border: 1px solid rgba(104, 104, 142, 0.45);
-  background: rgba(16, 16, 24, 0.85);
+  border-radius: 5px;
+  border: 1px solid #8080802c;
+  background: #282828cb;
   color: #e5e7ff;
   font-size: 0.65rem;
   font-weight: 600;
@@ -608,12 +608,12 @@
 }
 
 .historyButtonDanger {
-  border-color: rgba(239, 68, 68, 0.65);
+  border-color: #80808036;
 }
 
 .historyButtonDanger:not(:disabled):hover {
-  background: rgba(239, 68, 68, 0.9);
-  border-color: rgba(239, 68, 68, 0.9);
+  background: rgba(177, 48, 48, 0.9);
+  border-color: rgba(177, 48, 48, 0.9);
 }
 
 .spinnerOverlay {
