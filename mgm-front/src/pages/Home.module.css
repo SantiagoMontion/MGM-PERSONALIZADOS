@@ -44,13 +44,22 @@
 /* fila del checkbox: texto izq, check der */
 
 
-<<<<<<< HEAD
-=======
+/* STACK centrado */
+.footerRow {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: min(100%, 534px);   /* ← ancho pedido */
+  margin: 0 auto;            /* ← centrado en la pantalla */
+}
+
+/* fila del checkbox: texto izq, check der */
+
+
 /* botón ocupa todo el ancho del stack */
 .continueButton {
   width: 100%;
 }
->>>>>>> 1032552 (fix changes)
 .pageHeading {
   width: 100%;
   max-width: 1920px !important;
@@ -177,16 +186,7 @@
   font-weight: 400;
   font-size: 1rem;
   cursor: pointer;
-  width: 404px;
-<<<<<<< HEAD
-  min-width: 404px;
-  justify-content: space-around;
-  min-height: 44px;
-
-=======
-  justify-content: space-around;
-  
->>>>>>> 1032552 (fix changes)
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
 
 .configTrigger:hover:not(:disabled) {
@@ -471,13 +471,9 @@
   position: relative;                 /* para el fill */
   overflow: hidden;
   border-radius: 16px;
-  border: 1px solid rgba(128,128,128,.45);
-<<<<<<< HEAD
-  background: #282828cb;
-=======
-  background: #282828b4;
->>>>>>> 1032552 (fix changes)
-  color: rgba(247,247,249,.98);
+  border: 1px solid rgba(63, 63, 77, 0.65);
+  background: rgba(20, 20, 26, 0.92);
+  color: rgba(235, 236, 245, 0.95);
   font-family: 'Poppins', sans-serif;
   font-size: 15px;
   font-weight: 400;
@@ -512,12 +508,9 @@
   transform: scaleX(1);
 }
 .uploadButton:not(:disabled):hover {
-  border-color: rgba(200, 200, 200, 0.774);
-<<<<<<< HEAD
-  box-shadow: 0 24px 48px rgba(0,0,0,.45);
-=======
-  
->>>>>>> 1032552 (fix changes)
+  background: rgba(26, 26, 34, 0.96);
+  border-color: rgba(170, 170, 190, 0.75);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.45);
 }
 
 /* Focus accesible */
@@ -644,25 +637,8 @@
   justify-content: center;
   text-align: center;
   cursor: pointer;
-<<<<<<< HEAD
-
-}
-
-.canvasAck {
-  position: absolute;
-  right: var(--canvas-floating-right);
-  bottom: calc(var(--canvas-floating-bottom) + var(--canvas-continue-height, 48px) + var(--canvas-floating-gap, 12px));
-  z-index: 40;
-}
-
-.canvasContinue {
-  position: absolute;
-  right: var(--canvas-floating-right);
-  bottom: var(--canvas-floating-bottom);
-  z-index: 40;
-=======
- 
->>>>>>> 1032552 (fix changes)
+  transition: background-color 0.18s ease, border-color 0.18s ease,
+    box-shadow 0.18s ease;
 }
 
 .continueButton:disabled {

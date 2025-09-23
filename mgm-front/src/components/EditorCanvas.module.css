@@ -292,14 +292,10 @@
     transform 0.18s ease,
    
     border-color 0.18s ease,
-<<<<<<< HEAD
-    background 0.18s ease,
+
     opacity 0.18s ease;
   scroll-snap-align: start;
-=======
-    
-    
->>>>>>> 1032552 (fix changes)
+
 }
 
 .iconOnlyButtonActive {
