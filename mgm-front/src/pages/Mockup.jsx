@@ -193,7 +193,7 @@ export default function Mockup() {
         <button disabled={busy} onClick={() => handle('cart')}>Agregar al carrito y seguir creando</button>
         <button disabled={busy} onClick={() => handle('checkout')}>Comprar ahora</button>
         <button disabled={busy} onClick={() => handle('private')}>Comprar en privado</button>
-        <button disabled={busy} onClick={handleDownloadPdf}>Descargar PDF</button>
+        <button disabled={busy} onClick={handleDownloadPdf} style={{ display: 'none' }}>Descargar PDF</button>
       </div>
     </div>
   );
