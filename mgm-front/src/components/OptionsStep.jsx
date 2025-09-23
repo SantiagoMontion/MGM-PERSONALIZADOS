@@ -149,9 +149,9 @@ export default function OptionsStep({ uploaded, onSubmitted }) {
 
         <label>Encaje
           <select value={fit} onChange={e=>setFit(e.target.value)}>
-            <option value="cover">Cubrir</option>
-            <option value="contain">Contener</option>
-            <option value="stretch">Estirar</option>
+            <option value="cover">Cubrir superficie</option>
+            <option value="contain">Diseño completo</option>
+            <option value="stretch">Estirar imagen</option>
           </select>
         </label>
       </div>
