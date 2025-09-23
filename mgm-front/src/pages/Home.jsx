@@ -27,33 +27,9 @@ const TUTORIAL_ICON_SRC = resolveIconAsset('play.svg');
 const iconStroke = 2;
 
 const CANVAS_MAX_WIDTH = 1280;
-const CANVAS_IDEAL_HEIGHT = 760;
-const CANVAS_MIN_HEIGHT = 520;
+const CANVAS_IDEAL_HEIGHT = 960;
+const CANVAS_MIN_HEIGHT = 420;
 
-
-const UndoIcon = (props) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={iconStroke} strokeLinecap="round" strokeLinejoin="round" {...props}>
-    <path d="M9 9 5 13l4 4" />
-    <path d="M20 13a7 7 0 0 0-7-7H5" />
-  </svg>
-);
-
-const RedoIcon = (props) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={iconStroke} strokeLinecap="round" strokeLinejoin="round" {...props}>
-    <path d="M15 9 19 13l-4 4" />
-    <path d="M4 13a7 7 0 0 1 7-7h8" />
-  </svg>
-);
-
-const TrashIcon = (props) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={iconStroke} strokeLinecap="round" strokeLinejoin="round" {...props}>
-    <path d="M4 7h16" />
-    <path d="M10 11v6" />
-    <path d="M14 11v6" />
-    <path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12" />
-    <path d="M9 7V4h6v3" />
-  </svg>
-);
 
 export default function Home() {
 
