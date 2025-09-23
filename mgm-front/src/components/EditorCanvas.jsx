@@ -32,7 +32,7 @@ const mmToCm = (mm) => mm / 10;
 const VIEW_ZOOM_MIN = 0.3;
 const VIEW_ZOOM_MAX = 12;
 const IMG_ZOOM_MAX = 400; // límite amplio cuando mantengo proporción
-const STAGE_BG = "#e5e7eb";
+const STAGE_BG = "#181818";
 const SNAP_LIVE_CM = 2.0;
 const RELEASE_BASE_CM = 0.8;
 const RELEASE_MIN_CM = 0.2;
@@ -2010,7 +2010,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               )}
             </button>
           </ToolbarTooltip>
-          <ToolbarTooltip label="Cubrir">
+          <ToolbarTooltip label="Cubrir superficie">
             <button
               type="button"
               onClick={fitCover}
@@ -2031,7 +2031,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
             </button>
           </ToolbarTooltip>
 
-          <ToolbarTooltip label="Contener" disabled={!imgEl}>
+          <ToolbarTooltip label="Diseño completo" disabled={!imgEl}>
             <div className={styles.colorWrapper}>
               <button
                 type="button"
@@ -2074,7 +2074,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               )}
             </div>
           </ToolbarTooltip>
-          <ToolbarTooltip label="Estirar">
+          <ToolbarTooltip label="Estirar imagen">
             <button
               type="button"
               onClick={fitStretchCentered}
