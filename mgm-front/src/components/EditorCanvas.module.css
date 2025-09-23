@@ -504,7 +504,7 @@
   position: absolute;
   top: 16px;
   left: 16px;
-  z-index: 30;
+  z-index: 2;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -515,7 +515,7 @@
   position: absolute;
   top: 16px;
   right: 16px;
-  z-index: 30;
+  z-index: 2;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -523,10 +523,13 @@
 
 .overlayBottomCenter {
   position: absolute;
-  bottom: 16px;
+  bottom: calc(
+    var(--toolbar-offset, 24px)
+    + var(--safe-bottom, env(safe-area-inset-bottom, 0px))
+  );
   left: 50%;
   transform: translateX(-50%);
-  z-index: 30;
+  z-index: 2;
   display: flex;
   justify-content: center;
   width: 100%;
@@ -659,7 +662,6 @@
   }
 
   .overlayBottomCenter {
-    bottom: 12px;
     max-width: calc(100% - 24px);
   }
 }
