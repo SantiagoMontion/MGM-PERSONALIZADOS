@@ -556,8 +556,12 @@ export default function Home() {
                       className={styles.uploadButton}
                       onClick={openPicker}
                       disabled={busy}
+                      aria-label="Agregar imagen"
+                      role="button"
                     >
-                      <span className={styles.uploadButtonIcon}>+</span>
+                      <span className={styles.uploadButtonIcon} aria-hidden="true">
+                        +
+                      </span>
                       <span className={styles.uploadButtonText}>
                         {busy ? 'Subiendo…' : 'Agregar imagen'}
                       </span>
