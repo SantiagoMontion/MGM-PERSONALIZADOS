@@ -64,6 +64,11 @@ const ACTION_ICON_MAP = {
 
 };
 
+const COLOR_PICKER_STATE = {
+  CLOSED: "CLOSED",
+  OPEN: "OPEN",
+};
+
 
 const HISTORY_ICON_SPECS = {
   undo: { src: resolveIconAsset("undo.svg"), fallbackLabel: "↶" },
@@ -1234,29 +1239,57 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   }));
 
   // popover color
-  const [colorOpen, setColorOpen] = useState(false);
+  const [colorPickerState, setColorPickerState] = useState(
+    COLOR_PICKER_STATE.CLOSED,
+  );
+  const colorOpen = colorPickerState === COLOR_PICKER_STATE.OPEN;
+  const [colorToast, setColorToast] = useState(null);
   const [busy, setBusy] = useState(false);
   const [lastDiag, setLastDiag] = useState(null);
-  const toggleContain = () => {
+
+  const closeColor = useCallback(() => {
+    setColorPickerState(COLOR_PICKER_STATE.CLOSED);
+  }, []);
+
+  const confirmContainColor = useCallback(() => {
+    const normalized = (bgColor || "#ffffff").startsWith("#")
+      ? bgColor
+      : `#${bgColor}`;
+    setBgColor(normalized);
+    onPickedColor?.(normalized);
+    setColorPickerState(COLOR_PICKER_STATE.CLOSED);
+    setColorToast({ id: Date.now(), message: "Color aplicado" });
+  }, [bgColor, onPickedColor]);
+
+  const toggleContain = useCallback(() => {
     if (!imgEl) return;
-    if (mode === "contain") {
-      setColorOpen((prev) => !prev);
+    if (colorPickerState === COLOR_PICKER_STATE.CLOSED) {
+      if (mode !== "contain") {
+        fitContain();
+      }
+      setColorPickerState(COLOR_PICKER_STATE.OPEN);
       return;
     }
-    fitContain();
-    setColorOpen(true);
-  };
-  const closeColor = () => setColorOpen(false);
+    confirmContainColor();
+  }, [imgEl, colorPickerState, mode, fitContain, confirmContainColor]);
+
   useEffect(() => {
-    if (mode !== "contain" && colorOpen) {
-      setColorOpen(false);
+    if (colorPickerState === COLOR_PICKER_STATE.OPEN && mode !== "contain") {
+      setColorPickerState(COLOR_PICKER_STATE.CLOSED);
     }
-  }, [mode, colorOpen]);
+  }, [colorPickerState, mode]);
+
   useEffect(() => {
-    if (!imgEl && colorOpen) {
-      setColorOpen(false);
+    if (colorPickerState === COLOR_PICKER_STATE.OPEN && !imgEl) {
+      setColorPickerState(COLOR_PICKER_STATE.CLOSED);
     }
-  }, [imgEl, colorOpen]);
+  }, [colorPickerState, imgEl]);
+
+  useEffect(() => {
+    if (!colorToast) return undefined;
+    const timer = setTimeout(() => setColorToast(null), 2400);
+    return () => clearTimeout(timer);
+  }, [colorToast]);
   const handleBgColorChange = useCallback(
     (hex) => {
       setBgColor(hex);
@@ -1716,7 +1749,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
       <div className={styles.overlayBottomCenter}>
         {/* Toolbar */}
-        <div className={styles.toolbar}>
+        <div className={styles.toolbarStack}>
+          <div className={styles.toolbar}>
           <ToolbarTooltip label="Alinear a la izquierda">
             <button
               type="button"
@@ -1936,13 +1970,20 @@ const EditorCanvas = forwardRef(function EditorCanvas(
             </button>
           </ToolbarTooltip>
 
-          <ToolbarTooltip label="Contener" disabled={!imgEl}>
+          <ToolbarTooltip
+            label={colorOpen ? "Guardar color" : "Contener"}
+            disabled={!imgEl}
+          >
             <div className={styles.colorWrapper}>
               <button
                 type="button"
                 onClick={toggleContain}
                 disabled={!imgEl}
-                aria-label="Contener"
+                aria-label={
+                  colorOpen ? "Guardar color de fondo" : "Contener"
+                }
+                aria-expanded={colorOpen}
+                aria-pressed={colorOpen}
                 className={iconButtonClass(mode === "contain")}
               >
                 {missingIcons.contener ? (
@@ -1950,7 +1991,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                 ) : (
                   <img
                     src={ACTION_ICON_MAP.contener}
-                    alt="Contener"
+                    alt={colorOpen ? "Guardar color" : "Contener"}
                     className={styles.iconOnlyButtonImage}
                     onError={handleIconError("contener")}
                   />
@@ -1966,6 +2007,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                     onPickFromCanvas={() =>
                       startPickColor((hex) => {
                         setBgColor(hex);
+                        onPickedColor?.(hex);
                       })
                     }
                   />
@@ -2017,6 +2059,18 @@ const EditorCanvas = forwardRef(function EditorCanvas(
             {busy ? "Creando…" : "Crear job"}
           </button>
         )}
+          </div>
+          {colorToast ? (
+            <div
+              key={colorToast.id}
+              className={styles.colorToast}
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              {colorToast.message}
+            </div>
+          ) : null}
         </div>
       </div>
     </div>
