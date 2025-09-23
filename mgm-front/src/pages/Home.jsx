@@ -25,8 +25,8 @@ const CONFIG_ARROW_ICON_SRC = resolveIconAsset('down.svg');
 
 const iconStroke = 2;
 
-const CANVAS_MAX_WIDTH = 1400;
-const CANVAS_IDEAL_HEIGHT = 840;
+const CANVAS_MAX_WIDTH = 1280;
+const CANVAS_IDEAL_HEIGHT = 760;
 const CANVAS_MIN_HEIGHT = 520;
 
 
@@ -358,6 +358,8 @@ export default function Home() {
     const paddingBottom = parsePx(pageStyles?.paddingBottom);
     const paddingLeft = parsePx(pageStyles?.paddingLeft);
     const paddingRight = parsePx(pageStyles?.paddingRight);
+    const pageGap = parsePx(pageStyles?.rowGap || pageStyles?.gap);
+
     const availableWidth = viewportWidth - paddingLeft - paddingRight;
     const widthLimit = availableWidth > 0
       ? Math.min(CANVAS_MAX_WIDTH, availableWidth)
@@ -377,21 +379,16 @@ export default function Home() {
     const headingHeight = headingRef.current?.getBoundingClientRect()?.height || 0;
     const editorStyles = window.getComputedStyle(editorEl);
     const editorGap = parsePx(editorStyles?.rowGap || editorStyles?.gap);
-    const editorPaddingTop = parsePx(editorStyles?.paddingTop);
-    const editorPaddingBottom = parsePx(editorStyles?.paddingBottom);
-    const editorMarginTop = parsePx(editorStyles?.marginTop);
-    const editorMarginBottom = parsePx(editorStyles?.marginBottom);
+    const footerHeight = footerRef.current?.getBoundingClientRect()?.height || 0;
 
     const availableHeight = viewportHeight
       - headerHeight
       - paddingTop
       - paddingBottom
-      - editorPaddingTop
-      - editorPaddingBottom
-      - editorMarginTop
-      - editorMarginBottom
+      - pageGap
       - editorGap
-      - headingHeight;
+      - headingHeight
+      - footerHeight;
 
     let nextHeight = CANVAS_IDEAL_HEIGHT;
     if (availableHeight > 0) {
@@ -517,31 +514,34 @@ export default function Home() {
           sameAs: ['https://www.instagram.com/mgmgamers.store']
         }}
       />
+      <div
+        className={styles.pageHeading}
+        ref={headingRef}
+        style={editorMaxWidthStyle}
+      >
+        <h1 className={styles.title}>Crea tu mousepad</h1>
+      </div>
+
       <section
         className={styles.editor}
         ref={editorRef}
         style={editorMaxWidthStyle}
       >
-        <div className={styles.editorHeading} ref={headingRef}>
-          <h1 className={styles.title}>Crea tu mousepad</h1>
-        </div>
+        <div className={canvasStageClasses} style={canvasStageStyle}>
+          <div className={styles.canvasViewport}>
 
-        <div className={styles.editorStage}>
-          <div className={canvasStageClasses} style={canvasStageStyle}>
-            <div className={styles.canvasViewport}>
-
-              <EditorCanvas
-                ref={canvasRef}
-                imageUrl={imageUrl}
-                imageFile={uploaded?.file}
-                sizeCm={activeSizeCm}
-                bleedMm={3}
-                dpi={300}
-                onLayoutChange={setLayout}
-                onClearImage={handleClearImage}
-                showCanvas={isCanvasReady}
-                topLeftOverlay={configDropdown}
-              />
+            <EditorCanvas
+              ref={canvasRef}
+              imageUrl={imageUrl}
+              imageFile={uploaded?.file}
+              sizeCm={activeSizeCm}
+              bleedMm={3}
+              dpi={300}
+              onLayoutChange={setLayout}
+              onClearImage={handleClearImage}
+              showCanvas={isCanvasReady}
+              topLeftOverlay={configDropdown}
+            />
             {!hasImage && (
               <div className={styles.uploadOverlay}>
                 <UploadStep
@@ -572,10 +572,7 @@ export default function Home() {
             )}
           </div>
         </div>
-        </div>
-      </section>
 
-      <section className={styles.afterFold} style={editorMaxWidthStyle}>
         <div className={styles.footerRow} ref={footerRef}>
           <div className={styles.feedbackGroup}>
             {hasImage && level === 'bad' && (
