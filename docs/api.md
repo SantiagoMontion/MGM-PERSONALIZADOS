@@ -14,6 +14,8 @@ Requests are throttled per client IP. Current limits:
 | POST | `/api/upload-url` | 60 s | 30 |
 | POST | `/api/create-cart-link` | 60 s | 45 |
 | POST | `/api/create-checkout` | 60 s | 45 |
+| POST | `/api/ensure-product-publication` | 60 s | 30 |
+| POST | `/api/variant-status` | 60 s | 90 |
 | POST | `/api/shopify-webhook` | 60 s | 60 |
 | GET | `/api/search-assets` | 60 s | 30 |
 
@@ -46,6 +48,14 @@ Generates a Shopify cart URL. Request body must be JSON matching:
 ### `POST /api/create-checkout`
 
 Builds a Shopify checkout URL with the same body schema as `create-cart-link`. Returns `{ ok: true, url }`. Validation and error codes mirror the cart-link endpoint.
+
+### `POST /api/ensure-product-publication`
+
+Ensures a Shopify product is published to the Online Store channel. The request body must include `productId` (numeric or GraphQL ID). When the product is already available it returns `{ ok: true, published: true }`. Otherwise it triggers publication using the `SHOPIFY_PUBLICATION_ID` (or auto-detected channel) and verifies the resulting status. Responds with `400` for invalid payloads, `404` if the product cannot be found and `502` when Shopify rejects the publication check.
+
+### `POST /api/variant-status`
+
+Checks whether a product variant is published and available for sale in the Online Store channel. Accepts `variantId` (numeric or GraphQL ID) and optional `productId`. Returns `{ ok: true, ready, published, available }` where `ready` is `true` when the variant is published and available. Intended for short polling loops (exponential backoff up to ~30 s) after creating a product. Returns `404` when the variant is not yet accessible and `502` when Shopify cannot fulfill the status query.
 
 ### `POST /api/upload-url`
 

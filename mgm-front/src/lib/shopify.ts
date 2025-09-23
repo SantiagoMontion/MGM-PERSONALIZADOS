@@ -1,6 +1,8 @@
 import { apiFetch } from './api';
 import { FlowState } from '@/state/flow';
 
+const DEFAULT_STORE_BASE = 'https://www.mgmgamers.store';
+
 const PRODUCT_LABELS = {
   mousepad: 'Mousepad',
   glasspad: 'Glasspad',
@@ -282,4 +284,154 @@ export async function createJobAndProduct(mode: 'checkout' | 'cart' | 'private',
       },
     });
   }
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => { setTimeout(resolve, ms); });
+}
+
+function normalizeVariantNumericId(value?: string | number | null) {
+  if (value == null) return '';
+  const raw = String(value).trim();
+  if (!raw) return '';
+  if (/^\d+$/.test(raw)) return raw;
+  const match = raw.match(/(\d+)(?:[^\d]*)$/);
+  return match ? match[1] : '';
+}
+
+function clampQuantity(quantity?: number) {
+  if (!Number.isFinite(quantity) || !quantity) return 1;
+  return Math.min(Math.max(Math.floor(quantity), 1), 99);
+}
+
+export function buildCartPermalink(
+  variantId: string | number | undefined,
+  quantity = 1,
+  options?: { returnTo?: string; baseUrl?: string },
+) {
+  const numericId = normalizeVariantNumericId(variantId);
+  if (!numericId) return '';
+  const qty = clampQuantity(quantity);
+  const baseRaw = typeof options?.baseUrl === 'string' && options.baseUrl.trim()
+    ? options.baseUrl.trim()
+    : DEFAULT_STORE_BASE;
+  let cartUrl: URL;
+  try {
+    cartUrl = new URL(`/cart/${numericId}:${qty}`, baseRaw);
+  } catch (err) {
+    console.error('[buildCartPermalink] invalid base url', err);
+    return '';
+  }
+  const rawReturn = typeof options?.returnTo === 'string' ? options.returnTo.trim() : '';
+  const returnTo = rawReturn || '/cart';
+  cartUrl.searchParams.set('return_to', returnTo.startsWith('/') ? returnTo : `/${returnTo.replace(/^\/+/, '')}`);
+  return cartUrl.toString();
+}
+
+export interface EnsurePublicationResponse {
+  ok: boolean;
+  published?: boolean;
+  publicationId?: string | null;
+  [key: string]: unknown;
+}
+
+export async function ensureProductPublication(productId?: string | null): Promise<EnsurePublicationResponse> {
+  if (!productId) {
+    return { ok: false, published: false };
+  }
+  const resp = await apiFetch('/api/ensure-product-publication', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ productId }),
+  });
+  const json: EnsurePublicationResponse | null = await resp.json().catch(() => null);
+  if (!resp.ok || !json?.ok) {
+    const error = new Error(json?.error ? String(json.error) : `ensure_publication_${resp.status}`);
+    (error as Error & { response?: unknown }).response = json;
+    throw error;
+  }
+  return json;
+}
+
+export interface VariantStatusSuccess {
+  ok: true;
+  ready?: boolean;
+  published?: boolean;
+  available?: boolean;
+  variantPublished?: boolean;
+  productPublished?: boolean;
+  [key: string]: unknown;
+}
+
+export interface VariantStatusError {
+  ok: false;
+  error?: string;
+  [key: string]: unknown;
+}
+
+export type VariantStatusResponse = VariantStatusSuccess | VariantStatusError | null;
+
+export interface WaitVariantOptions {
+  timeoutMs?: number;
+  initialDelayMs?: number;
+  maxDelayMs?: number;
+  signal?: AbortSignal;
+}
+
+export async function waitForVariantAvailability(
+  variantId: string | number,
+  productId?: string | number,
+  options: WaitVariantOptions = {},
+) {
+  const { timeoutMs = 30_000, initialDelayMs = 600, maxDelayMs = 4_000, signal } = options;
+  const numericVariant = normalizeVariantNumericId(variantId);
+  if (!numericVariant) {
+    throw new Error('invalid_variant_id');
+  }
+  const payload: Record<string, unknown> = { variantId: numericVariant };
+  if (productId != null) {
+    payload.productId = productId;
+  }
+  const start = Date.now();
+  let attempt = 0;
+  let delay = Math.max(200, initialDelayMs);
+  let lastResponse: VariantStatusResponse = null;
+
+  while (Date.now() - start < timeoutMs) {
+    if (signal?.aborted) {
+      const abortError = new Error('aborted');
+      abortError.name = 'AbortError';
+      throw abortError;
+    }
+    attempt += 1;
+    try {
+      const resp = await apiFetch('/api/variant-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const json = await resp.json().catch(() => null);
+      lastResponse = json;
+      if (resp.ok && json?.ok) {
+        const ready = Boolean(json.ready || (json.published && json.available));
+        if (ready) {
+          return { ready: true, timedOut: false, attempts: attempt, lastResponse: json };
+        }
+      } else if (resp.status === 404) {
+        // Variant not found yet; continue polling
+      } else if (resp.status >= 500) {
+        console.warn('[waitForVariantAvailability] transient error', resp.status);
+      } else {
+        const error = new Error(json?.error ? String(json.error) : `variant_status_${resp.status}`);
+        (error as Error & { response?: unknown }).response = json;
+        throw error;
+      }
+    } catch (err) {
+      if ((err as Error)?.name === 'AbortError') throw err;
+      console.error('[waitForVariantAvailability] poll error', err);
+    }
+    await sleep(delay);
+    delay = Math.min(Math.floor(delay * 1.6), maxDelayMs);
+  }
+  return { ready: false, timedOut: true, attempts: attempt, lastResponse };
 }

@@ -18,6 +18,8 @@ const RATE_LIMITS = {
   'POST upload-url': { limit: 30, windowMs: 60_000 },
   'POST create-cart-link': { limit: 45, windowMs: 60_000 },
   'POST create-checkout': { limit: 45, windowMs: 60_000 },
+  'POST ensure-product-publication': { limit: 30, windowMs: 60_000 },
+  'POST variant-status': { limit: 90, windowMs: 60_000 },
   'GET search-assets': { limit: 30, windowMs: 60_000 },
   'POST shopify-webhook': { limit: 60, windowMs: 60_000 },
 };
@@ -54,6 +56,14 @@ export default withCors(async function handler(req, res) {
       }
       case 'POST create-checkout': {
         const m = await import('../lib/handlers/createCheckout.js');
+        return m.default(req, res);
+      }
+      case 'POST ensure-product-publication': {
+        const m = await import('../lib/handlers/ensureProductPublication.js');
+        return m.default(req, res);
+      }
+      case 'POST variant-status': {
+        const m = await import('../lib/handlers/variantStatus.js');
         return m.default(req, res);
       }
       case 'POST finalize-assets': {
