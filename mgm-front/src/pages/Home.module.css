@@ -1,17 +1,16 @@
 .page {
-  display: flex;
-  flex-direction: column;
-  gap: 32px;
-  padding: 32px 48px 56px;
-  min-height: 100%;
-}
+  --header-h: 88px;
+  --editor-max-w: 1400px;
+  --lienzo-max-h: 840px;
+  --page-padding-block-start: 32px;
+  --page-padding-block-end: 72px;
 
-.pageHeading {
-  width: 100%;
-  max-width: 1280px;
-  margin: 0 auto;
   display: flex;
   flex-direction: column;
+  align-items: center;
+  gap: 64px;
+  padding: var(--page-padding-block-start) 48px var(--page-padding-block-end);
+  min-height: 100%;
 }
 
 .editor {
@@ -19,8 +18,31 @@
   flex-direction: column;
   gap: 32px;
   width: 100%;
-  max-width: 1280px;
+  max-width: var(--editor-max-w);
   margin: 0 auto;
+  min-height: calc(100vh - var(--header-h) - var(--page-padding-block-start) - var(--page-padding-block-end));
+}
+
+.editorHeading {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.editorStage {
+  flex: 1;
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  min-height: 0;
+}
+
+.afterFold {
+  width: 100%;
+  max-width: var(--editor-max-w);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .configAccordion {
@@ -270,7 +292,9 @@
   border-radius: 30px;
   padding: 32px;
   min-height: 320px;
-  height: clamp(560px, 70vh, 760px);
+  width: 100%;
+  height: clamp(520px, 72vh, var(--lienzo-max-h));
+  max-height: var(--lienzo-max-h);
 }
 
 .canvasStageEmpty {
@@ -409,24 +433,36 @@
 
 @media (max-width: 960px) {
   .page {
-    padding: 28px 28px 48px;
+    --header-h: 80px;
+    --page-padding-block-start: 28px;
+    --page-padding-block-end: 56px;
+    gap: 56px;
+    padding: var(--page-padding-block-start) 28px var(--page-padding-block-end);
   }
 
-  .pageHeading,
-  .editor {
+  .editor,
+  .afterFold {
     max-width: 100%;
+  }
+
+  .editor {
+    gap: 28px;
   }
 
   .canvasStage {
     padding: 28px;
-    height: auto;
-    min-height: 520px;
+    height: clamp(500px, 68vh, var(--lienzo-max-h));
+    min-height: 500px;
   }
 }
 
 @media (max-width: 640px) {
   .page {
-    padding: 22px 18px 40px;
+    --header-h: 72px;
+    --page-padding-block-start: 24px;
+    --page-padding-block-end: 48px;
+    gap: 48px;
+    padding: var(--page-padding-block-start) 18px var(--page-padding-block-end);
   }
 
   .editor {
@@ -449,8 +485,8 @@
   .canvasStage {
     padding: 22px;
     border-radius: 24px;
-    height: auto;
-    min-height: 460px;
+    height: clamp(420px, 72vh, var(--lienzo-max-h));
+    min-height: 420px;
   }
 
   .canvasHistoryActions {
