@@ -51,11 +51,11 @@ Builds a Shopify checkout URL with the same body schema as `create-cart-link`. R
 
 ### `POST /api/ensure-product-publication`
 
-Ensures a Shopify product is published to the Online Store channel. The request body must include `productId` (numeric or GraphQL ID). When the product is already available it returns `{ ok: true, published: true }`. Otherwise it triggers publication using the `SHOPIFY_PUBLICATION_ID` (or auto-detected channel) and verifies the resulting status. Responds with `400` for invalid payloads, `404` if the product cannot be found and `502` when Shopify rejects the publication check.
+Ensures a Shopify product is published to the Online Store channel. The request body must include `productId` (numeric or GraphQL ID). The handler dynamically discovers the Online Store publication (ignoring an invalid `SHOPIFY_PUBLICATION_ID` if necessary), republishes the product with retry/backoff on transient errors and returns metadata such as `publicationIdSource`, `recoveries` and `publishAttempts`. Verification failures are returned in the `verification` field without aborting the flow. Responds with `400` for invalid payloads, `404` if the product cannot be found and `502` when Shopify rejects all publication attempts.
 
 ### `POST /api/variant-status`
 
-Checks whether a product variant is published and available for sale in the Online Store channel. Accepts `variantId` (numeric or GraphQL ID) and optional `productId`. Returns `{ ok: true, ready, published, available }` where `ready` is `true` when the variant is published and available. Intended for short polling loops (exponential backoff up to ~30 s) after creating a product. Returns `404` when the variant is not yet accessible and `502` when Shopify cannot fulfill the status query.
+Checks whether a product variant is visible and available for sale through the Storefront API. Accepts `variantId` (numeric or GraphQL ID) and `productId`. Returns `{ ok: true, ready, published, available, variantPresent }`, where `ready` becomes `true` once the variant appears in the Storefront product response with `availableForSale === true`. Intended for short polling loops (exponential backoff up to ~45 s) after creating a product. Responds with `404` when the product is not yet visible and `502` when the Storefront API cannot fulfill the status query.
 
 ### `POST /api/upload-url`
 

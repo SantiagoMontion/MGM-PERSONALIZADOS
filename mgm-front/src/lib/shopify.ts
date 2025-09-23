@@ -350,6 +350,22 @@ export async function ensureProductPublication(productId?: string | null): Promi
     (error as Error & { response?: unknown }).response = json;
     throw error;
   }
+  try {
+    if (Array.isArray(json.recoveries) && json.recoveries.includes('publication_missing_detected')) {
+      console.info('[cart-flow] publication_missing detectado', json.recoveries);
+    }
+    if (json.publicationId && typeof json.publicationIdSource === 'string') {
+      const source = json.publicationIdSource;
+      if (source && source !== 'env') {
+        console.info('[cart-flow] publicationId elegido dinámicamente', { id: json.publicationId, source });
+      }
+    }
+    if (typeof json.publishAttempts === 'number' && Number.isFinite(json.publishAttempts)) {
+      console.info('[cart-flow] publish attempts', json.publishAttempts);
+    }
+  } catch (logErr) {
+    console.debug?.('[ensureProductPublication] log_failed', logErr);
+  }
   return json;
 }
 
@@ -383,15 +399,20 @@ export async function waitForVariantAvailability(
   productId?: string | number,
   options: WaitVariantOptions = {},
 ) {
-  const { timeoutMs = 30_000, initialDelayMs = 600, maxDelayMs = 4_000, signal } = options;
+  const { timeoutMs = 45_000, initialDelayMs = 600, maxDelayMs = 2_400, signal } = options;
   const numericVariant = normalizeVariantNumericId(variantId);
   if (!numericVariant) {
     throw new Error('invalid_variant_id');
   }
-  const payload: Record<string, unknown> = { variantId: numericVariant };
-  if (productId != null) {
-    payload.productId = productId;
+  const normalizedProductId = typeof productId === 'string'
+    ? productId.trim()
+    : typeof productId === 'number'
+      ? String(productId)
+      : '';
+  if (!normalizedProductId) {
+    throw new Error('invalid_product_id');
   }
+  const payload: Record<string, unknown> = { variantId: numericVariant, productId: normalizedProductId };
   const start = Date.now();
   let attempt = 0;
   let delay = Math.max(200, initialDelayMs);
@@ -413,12 +434,22 @@ export async function waitForVariantAvailability(
       const json = await resp.json().catch(() => null);
       lastResponse = json;
       if (resp.ok && json?.ok) {
-        const ready = Boolean(json.ready || (json.published && json.available));
+        const ready = Boolean(json.ready || (json.variantPresent && json.available));
+        if (typeof console !== 'undefined' && typeof console.info === 'function') {
+          console.info('[cart-flow] poll variant', {
+            attempt,
+            ready,
+            variantPresent: json.variantPresent,
+            available: json.available,
+            nextDelayMs: Math.min(delay * 2, maxDelayMs),
+          });
+        }
         if (ready) {
+          if (typeof console !== 'undefined' && typeof console.info === 'function') {
+            console.info('[cart-flow] variant disponible en Storefront', { attempt });
+          }
           return { ready: true, timedOut: false, attempts: attempt, lastResponse: json };
         }
-      } else if (resp.status === 404) {
-        // Variant not found yet; continue polling
       } else if (resp.status >= 500) {
         console.warn('[waitForVariantAvailability] transient error', resp.status);
       } else {
@@ -431,7 +462,7 @@ export async function waitForVariantAvailability(
       console.error('[waitForVariantAvailability] poll error', err);
     }
     await sleep(delay);
-    delay = Math.min(Math.floor(delay * 1.6), maxDelayMs);
+    delay = Math.min(delay * 2, maxDelayMs);
   }
   return { ready: false, timedOut: true, attempts: attempt, lastResponse };
 }

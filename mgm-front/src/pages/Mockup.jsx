@@ -174,6 +174,9 @@ export default function Mockup() {
         throw new Error('invalid_cart_permalink');
       }
       setPendingCart({ ...current, permalink });
+      if (typeof console !== 'undefined' && typeof console.info === 'function') {
+        console.info('[cart-flow] permalink listo', permalink);
+      }
 
       setCartStatus('adding');
       const opened = openCartWindow(permalink);
