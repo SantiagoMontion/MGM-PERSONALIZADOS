@@ -368,9 +368,9 @@
 
 .toolbarTooltip {
   position: absolute;
-  top: calc(100% + 14px);
+  bottom: calc(100% + 14px);
   left: 50%;
-  transform: translate(-50%, 6px);
+  transform: translate(-50%, -6px);
   padding: 8px 18px;
   border-radius: 999px;
   background: rgba(23, 23, 31, 0.96);
@@ -398,17 +398,18 @@
 .toolbarTooltip::after {
   content: "";
   position: absolute;
-  top: -6px;
+  top: auto;
+  bottom: -6px;
   left: 50%;
   width: 12px;
   height: 12px;
   background: inherit;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-bottom: none;
-  border-right: none;
+  border-top: none;
+  border-left: none;
   transform: translateX(-50%) rotate(45deg);
-  border-top-left-radius: 3px;
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.35);
+  border-bottom-right-radius: 3px;
+  box-shadow: 0 -10px 20px rgba(0, 0, 0, 0.35);
 }
 
 .iconButtonWithTooltip[data-tooltip-disabled="true"] .toolbarTooltip {
