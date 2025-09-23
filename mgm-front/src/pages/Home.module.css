@@ -418,7 +418,7 @@
   --canvas-floating-right: calc(24px + env(safe-area-inset-right, 0px));
   --canvas-floating-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
   --canvas-floating-gap: 12px;
-  --canvas-continue-height: 48px;
+  --canvas-continue-height: clamp(48px, 6vw, 52px);
   display: flex;
   flex-direction: column;
   background: rgba(12, 12, 18, 0.95);
@@ -567,46 +567,123 @@
 }
 
 .ackLabel {
-  display: flex;
+  position: relative;
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  width: clamp(220px, 26vw, 320px);
-  min-height: 44px;
-  padding: 12px 24px;
-  border-radius: 11px;
-  border: 1px solid rgba(128, 128, 128, 0.2);
-  background: rgba(40, 40, 40, 0.6);
-  color: inherit;
+  gap: 8px;
+  min-height: 36px;
+  padding: 4px 6px;
+  border-radius: 8px;
+  background: none;
+  border: none;
+  box-shadow: none;
+  color: rgba(235, 236, 245, 0.78);
   font-size: 13px;
   font-weight: 400;
   letter-spacing: 0;
   line-height: 1.4;
   cursor: pointer;
-  gap: 12px;
-  transition: background-color 0.18s ease, border-color 0.18s ease,
-    box-shadow 0.18s ease;
+  text-align: left;
+  transition: color 0.18s ease;
 }
 
 .ackLabel:hover {
-  background: rgba(77, 77, 77, 0.68);
-  border-color: rgba(128, 128, 128, 0.32);
+  color: rgba(235, 236, 245, 0.88);
 }
 
 .ackLabel:focus-within {
-  border-color: rgba(128, 128, 128, 0.4);
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.15);
+  outline: 2px solid rgba(235, 236, 245, 0.45);
+  outline-offset: 2px;
+}
+
+@supports selector(:has(:focus-visible)) {
+  .ackLabel:focus-within {
+    outline: none;
+  }
+
+  .ackLabel:has(.ackCheckbox:focus-visible) {
+    outline: 2px solid rgba(235, 236, 245, 0.5);
+    outline-offset: 2px;
+  }
 }
 
 .ackLabelText {
-  flex: 1 1 auto;
-  margin-right: 12px;
+  flex: 0 1 auto;
   min-width: 0;
+  margin: 0;
+  color: inherit;
+  line-height: 1.4;
+  white-space: normal;
 }
 
 .ackCheckbox {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   margin: 0;
-  flex-shrink: 0;
-  accent-color: initial;
+  opacity: 0;
+  pointer-events: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.ackCheckbox:focus-visible {
+  outline: none;
+}
+
+.ackIndicator {
+  --ack-indicator-size: 12px;
+  flex: 0 0 auto;
+  width: var(--ack-indicator-size);
+  height: var(--ack-indicator-size);
+  border-radius: 999px;
+  border: 1px solid rgba(235, 236, 245, 0.45);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(235, 236, 245, 0.88);
+  position: relative;
+  pointer-events: none;
+  transition: border-color 0.18s ease, color 0.18s ease;
+}
+
+.ackIndicator::after {
+  content: "";
+  width: calc(var(--ack-indicator-size) - 4px);
+  height: calc(var(--ack-indicator-size) - 4px);
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0;
+  transform: scale(0.4);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.ackCheckbox:checked + .ackIndicator {
+  border-color: rgba(235, 236, 245, 0.85);
+}
+
+.ackCheckbox:checked + .ackIndicator::after {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.canvasAck {
+  position: absolute;
+  right: var(--canvas-floating-right);
+  bottom: calc(
+    var(--canvas-floating-bottom) + var(--canvas-continue-height) + var(--canvas-floating-gap)
+  );
+  z-index: 60;
+  max-width: min(320px, calc(100% - var(--canvas-floating-right)));
+}
+
+.canvasContinue {
+  position: absolute;
+  right: var(--canvas-floating-right);
+  bottom: var(--canvas-floating-bottom);
+  z-index: 60;
+  max-width: min(320px, calc(100% - var(--canvas-floating-right)));
 }
 
 .errorMessage {
