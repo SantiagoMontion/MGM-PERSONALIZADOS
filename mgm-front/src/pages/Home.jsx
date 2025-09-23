@@ -25,8 +25,6 @@ const TUTORIAL_ICON_SRC = resolveIconAsset('play.svg');
 
 
 const CANVAS_MAX_WIDTH = 1280;
-const LIENZO_MIN_HEIGHT = 560;
-const LIENZO_MAX_VH = 0.88;
 
 
 export default function Home() {
@@ -86,11 +84,12 @@ export default function Home() {
   const canvasRef = useRef(null);
   const designNameInputRef = useRef(null);
   const pageRef = useRef(null);
+  const sectionOneRef = useRef(null);
+  const sectionOneInnerRef = useRef(null);
   const headingRef = useRef(null);
-  const editorRef = useRef(null);
-  const footerRef = useRef(null);
+  const lienzoCardRef = useRef(null);
   const configDropdownRef = useRef(null);
-  const [canvasFit, setCanvasFit] = useState({ height: null, maxWidth: null });
+  const [canvasFit, setCanvasFit] = useState({ height: null, maxWidth: null, sectionOneMinHeight: null });
   const flow = useFlow();
 
   const handleClearImage = useCallback(() => {
@@ -317,8 +316,7 @@ export default function Home() {
   const recomputeCanvasFit = useCallback(() => {
     if (typeof window === 'undefined') return;
     const pageEl = pageRef.current;
-    const editorEl = editorRef.current;
-    if (!pageEl || !editorEl) return;
+    if (!pageEl) return;
 
     const viewportWidth = window.innerWidth || 0;
     const viewportHeight = window.innerHeight || 0;
@@ -330,10 +328,8 @@ export default function Home() {
 
     const pageStyles = window.getComputedStyle(pageEl);
     const paddingTop = parsePx(pageStyles?.paddingTop);
-    const paddingBottom = parsePx(pageStyles?.paddingBottom);
     const paddingLeft = parsePx(pageStyles?.paddingLeft);
     const paddingRight = parsePx(pageStyles?.paddingRight);
-    const pageGap = parsePx(pageStyles?.rowGap || pageStyles?.gap);
 
     const availableWidth = viewportWidth - paddingLeft - paddingRight;
     const widthLimit = availableWidth > 0
@@ -344,9 +340,11 @@ export default function Home() {
 
     if (!isDesktop) {
       setCanvasFit((prev) => (
-        prev.height === null && prev.maxWidth === widthLimit
+        prev.height === null
+          && prev.maxWidth === widthLimit
+          && prev.sectionOneMinHeight === null
           ? prev
-          : { height: null, maxWidth: widthLimit }
+          : { height: null, maxWidth: widthLimit, sectionOneMinHeight: null }
       ));
       return;
     }
@@ -355,38 +353,59 @@ export default function Home() {
       .querySelector('header')
       ?.getBoundingClientRect()?.height || 0;
 
+    const sectionOneAvailable = Math.max(0, viewportHeight - headerHeight);
+
+    const pageRect = pageEl.getBoundingClientRect();
     const headingEl = headingRef.current;
-    const headingRect = headingEl?.getBoundingClientRect();
-    const headingStyles = headingEl ? window.getComputedStyle(headingEl) : null;
-    const headingMarginTop = parsePx(headingStyles?.marginTop);
-    const headingMarginBottom = parsePx(headingStyles?.marginBottom);
-    const titleGap = (headingRect?.height || 0) + headingMarginTop + headingMarginBottom;
+    const lienzoEl = lienzoCardRef.current;
+    const sectionInnerEl = sectionOneInnerRef.current;
 
-    const editorStyles = window.getComputedStyle(editorEl);
-    const editorGap = parsePx(editorStyles?.rowGap || editorStyles?.gap);
+    let spacingBeforeTitle = paddingTop;
+    let titleHeightRaw = 0;
+    let titleMarginBottom = 0;
 
-    const footerEl = footerRef.current;
-    const footerRect = footerEl?.getBoundingClientRect();
-    const footerStyles = footerEl ? window.getComputedStyle(footerEl) : null;
-    const footerMarginTop = parsePx(footerStyles?.marginTop);
-    const footerMarginBottom = parsePx(footerStyles?.marginBottom);
-    const footerBlock = (footerRect?.height || 0) + footerMarginTop + footerMarginBottom;
+    if (headingEl) {
+      const headingRect = headingEl.getBoundingClientRect();
+      const headingStyles = window.getComputedStyle(headingEl);
+      titleHeightRaw = headingRect.height;
+      titleMarginBottom = parsePx(headingStyles?.marginBottom);
+      if (pageRect) {
+        spacingBeforeTitle = Math.max(
+          paddingTop,
+          headingRect.top - pageRect.top,
+        );
+      }
+    }
 
-    const outerGap = paddingTop + paddingBottom + pageGap + editorGap + footerBlock;
+    let outerGap = 0;
+    if (headingEl && lienzoEl) {
+      const headingRect = headingEl.getBoundingClientRect();
+      const lienzoRect = lienzoEl.getBoundingClientRect();
+      outerGap = Math.max(0, lienzoRect.top - headingRect.bottom);
+    } else if (sectionInnerEl) {
+      const sectionInnerStyles = window.getComputedStyle(sectionInnerEl);
+      outerGap = parsePx(sectionInnerStyles?.rowGap || sectionInnerStyles?.gap);
+    }
 
-    const rawHeight = viewportHeight - headerHeight - titleGap - outerGap;
-    const maxHeight = Math.max(LIENZO_MIN_HEIGHT, viewportHeight * LIENZO_MAX_VH);
+    if (!Number.isFinite(outerGap)) outerGap = 0;
 
-    const nextHeight = Math.max(
-      LIENZO_MIN_HEIGHT,
-      Math.min(maxHeight, Number.isFinite(rawHeight) ? rawHeight : LIENZO_MIN_HEIGHT),
-    );
+    const titleBlockHeight = spacingBeforeTitle + titleHeightRaw + titleMarginBottom;
+    const maxAvailableLienzo = Math.max(0, sectionOneAvailable - titleBlockHeight - outerGap);
+    const lienzoHeight = maxAvailableLienzo;
+    const sectionOneMinHeight = Math.max(0, sectionOneAvailable - spacingBeforeTitle);
 
-    setCanvasFit((prev) => (
-      prev.height === nextHeight && prev.maxWidth === widthLimit
+    setCanvasFit((prev) => {
+      const next = {
+        height: lienzoHeight,
+        maxWidth: widthLimit,
+        sectionOneMinHeight,
+      };
+      return prev.height === next.height
+        && prev.maxWidth === next.maxWidth
+        && prev.sectionOneMinHeight === next.sectionOneMinHeight
         ? prev
-        : { height: nextHeight, maxWidth: widthLimit }
-    ));
+        : next;
+    });
   }, []);
 
   useEffect(() => {
@@ -404,7 +423,11 @@ export default function Home() {
   useEffect(() => {
     if (typeof ResizeObserver === 'undefined') return undefined;
     const observer = new ResizeObserver(() => recomputeCanvasFit());
-    const observed = [headingRef.current, footerRef.current].filter(Boolean);
+    const observed = [
+      headingRef.current,
+      sectionOneInnerRef.current,
+      lienzoCardRef.current,
+    ].filter(Boolean);
     observed.forEach(el => observer.observe(el));
     return () => observer.disconnect();
   }, [recomputeCanvasFit]);
@@ -426,6 +449,17 @@ export default function Home() {
   const editorMaxWidthStyle = useMemo(() => (
     canvasFit.maxWidth ? { maxWidth: `${canvasFit.maxWidth}px` } : undefined
   ), [canvasFit.maxWidth]);
+
+  const sectionOneStyle = useMemo(() => (
+    canvasFit.sectionOneMinHeight != null
+      ? { minHeight: `${canvasFit.sectionOneMinHeight}px` }
+      : undefined
+  ), [canvasFit.sectionOneMinHeight]);
+
+  const editorContainerClasses = useMemo(
+    () => `${styles.editor} ${styles.editorFullHeight}`,
+    [],
+  );
 
   const configDropdown = (
     <div className={styles.configDropdown} ref={configDropdownRef}>
@@ -506,96 +540,108 @@ export default function Home() {
           sameAs: ['https://www.instagram.com/mgmgamers.store']
         }}
       />
-      <div
-        className={styles.pageHeading}
-        ref={headingRef}
-        style={editorMaxWidthStyle}
-      >
-        <Link to="/tutorial" className={styles.tutorialButton}>
-          <span>Ver tutorial</span>
-          <img
-            src={TUTORIAL_ICON_SRC}
-            alt=""
-            className={styles.tutorialButtonIcon}
-          />
-        </Link>
-      </div>
 
       <section
-        className={styles.editor}
-        ref={editorRef}
-        style={editorMaxWidthStyle}
+        className={styles.sectionOne}
+        ref={sectionOneRef}
+        style={sectionOneStyle}
       >
-        <div className={canvasStageClasses}>
-          <div className={styles.canvasViewport}>
+        <div
+          className={styles.sectionOneInner}
+          ref={sectionOneInnerRef}
+          style={editorMaxWidthStyle}
+        >
+          <div
+            className={styles.pageHeading}
+            ref={headingRef}
+          >
+            <Link to="/tutorial" className={styles.tutorialButton}>
+              <span>Ver tutorial</span>
+              <img
+                src={TUTORIAL_ICON_SRC}
+                alt=""
+                className={styles.tutorialButtonIcon}
+              />
+            </Link>
+          </div>
 
-            <EditorCanvas
-              ref={canvasRef}
-              imageUrl={imageUrl}
-              imageFile={uploaded?.file}
-              sizeCm={activeSizeCm}
-              bleedMm={3}
-              dpi={300}
-              onLayoutChange={setLayout}
-              onClearImage={handleClearImage}
-              showCanvas={isCanvasReady}
-              topLeftOverlay={configDropdown}
-              lienzoHeight={canvasFit.height}
-            />
-            {!hasImage && (
-              <div className={styles.uploadOverlay}>
-                <UploadStep
-                  className={styles.uploadControl}
-                  onUploaded={file => {
-                    setUploaded(file);
-                    setAckLow(false);
-                  }}
-                  renderTrigger={({ openPicker, busy }) => (
-                    <button
-                      type="button"
-                      className={styles.uploadButton}
-                      onClick={openPicker}
-                      disabled={busy}
-                      aria-label="Agregar imagen"
-                      role="button"
-                    >
-                      <span className={styles.uploadButtonIcon} aria-hidden="true">
-                        +
-                      </span>
-                      <span className={styles.uploadButtonText}>
-                        {busy ? 'Subiendo…' : 'Agregar imagen'}
-                      </span>
-                    </button>
-                  )}
+          <div className={editorContainerClasses}>
+            <div className={canvasStageClasses} ref={lienzoCardRef}>
+              <div className={styles.canvasViewport}>
+
+                <EditorCanvas
+                  ref={canvasRef}
+                  imageUrl={imageUrl}
+                  imageFile={uploaded?.file}
+                  sizeCm={activeSizeCm}
+                  bleedMm={3}
+                  dpi={300}
+                  onLayoutChange={setLayout}
+                  onClearImage={handleClearImage}
+                  showCanvas={isCanvasReady}
+                  topLeftOverlay={configDropdown}
+                  lienzoHeight={canvasFit.height}
                 />
+                {!hasImage && (
+                  <div className={styles.uploadOverlay}>
+                    <UploadStep
+                      className={styles.uploadControl}
+                      onUploaded={file => {
+                        setUploaded(file);
+                        setAckLow(false);
+                      }}
+                      renderTrigger={({ openPicker, busy }) => (
+                        <button
+                          type="button"
+                          className={styles.uploadButton}
+                          onClick={openPicker}
+                          disabled={busy}
+                          aria-label="Agregar imagen"
+                          role="button"
+                        >
+                          <span className={styles.uploadButtonIcon} aria-hidden="true">
+                            +
+                          </span>
+                          <span className={styles.uploadButtonText}>
+                            {busy ? 'Subiendo…' : 'Agregar imagen'}
+                          </span>
+                        </button>
+                      )}
+                    />
+                  </div>
+                )}
               </div>
-            )}
+            </div>
           </div>
         </div>
+      </section>
 
-        <div className={styles.footerRow} ref={footerRef}>
-          <div className={styles.feedbackGroup}>
-            {hasImage && level === 'bad' && (
-              <label className={styles.ackLabel}>
-                <input
-                  type="checkbox"
-                  checked={ackLow}
-                  onChange={e => setAckLow(e.target.checked)}
-                />{' '}
-                <span>Acepto imprimir en baja calidad ({effDpi} DPI)</span>
-              </label>
+      <section className={styles.sectionTwo}>
+        <div className={styles.sectionTwoInner} style={editorMaxWidthStyle}>
+          <div className={styles.footerRow}>
+            <div className={styles.feedbackGroup}>
+              {hasImage && level === 'bad' && (
+                <label className={styles.ackLabel}>
+                  <input
+                    type="checkbox"
+                    checked={ackLow}
+                    onChange={e => setAckLow(e.target.checked)}
+                  />{' '}
+                  <span>Acepto imprimir en baja calidad ({effDpi} DPI)</span>
+                </label>
+              )}
+              {err && <p className={`errorText ${styles.errorMessage}`}>{err}</p>}
+            </div>
+            {hasImage && (
+              <button
+                className={styles.continueButton}
+                disabled={busy}
+                onClick={handleContinue}
+              >
+                Continuar
+              </button>
             )}
-            {err && <p className={`errorText ${styles.errorMessage}`}>{err}</p>}
           </div>
-          {hasImage && (
-            <button
-              className={styles.continueButton}
-              disabled={busy}
-              onClick={handleContinue}
-            >
-              Continuar
-            </button>
-          )}
         </div>
       </section>
 
