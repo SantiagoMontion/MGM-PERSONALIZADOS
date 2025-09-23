@@ -24,8 +24,6 @@ const CONFIG_ARROW_ICON_SRC = resolveIconAsset('down.svg');
 const TUTORIAL_ICON_SRC = resolveIconAsset('play.svg');
 
 
-const iconStroke = 2;
-
 const CANVAS_MAX_WIDTH = 1280;
 const CANVAS_IDEAL_HEIGHT = 960;
 const CANVAS_MIN_HEIGHT = 420;
@@ -91,6 +89,7 @@ export default function Home() {
   const headingRef = useRef(null);
   const editorRef = useRef(null);
   const footerRef = useRef(null);
+  const configDropdownRef = useRef(null);
   const [canvasFit, setCanvasFit] = useState({ height: null, maxWidth: null });
   const flow = useFlow();
 
@@ -404,6 +403,20 @@ export default function Home() {
     return () => observer.disconnect();
   }, [recomputeCanvasFit]);
 
+  useEffect(() => {
+    if (typeof document === 'undefined') return undefined;
+    if (!configOpen) return undefined;
+
+    const handlePointerDown = (event) => {
+      if (!configDropdownRef.current) return;
+      if (configDropdownRef.current.contains(event.target)) return;
+      setConfigOpen(false);
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, [configOpen]);
+
   const editorMaxWidthStyle = useMemo(() => (
     canvasFit.maxWidth ? { maxWidth: `${canvasFit.maxWidth}px` } : undefined
   ), [canvasFit.maxWidth]);
@@ -413,7 +426,7 @@ export default function Home() {
   ), [canvasFit.height]);
 
   const configDropdown = (
-    <div className={styles.configDropdown}>
+    <div className={styles.configDropdown} ref={configDropdownRef}>
       <button
         type="button"
         className={configTriggerClasses}
