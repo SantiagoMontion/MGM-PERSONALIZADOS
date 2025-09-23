@@ -815,15 +815,16 @@ export default function Home() {
               </div>
               {hasImage && level === 'bad' && (
                 <label className={`${styles.ackLabel} ${styles.canvasAck}`}>
-                  <span className={styles.ackLabelText}>
-                    Acepto imprimir en baja calidad ({effDpi} DPI)
-                  </span>
                   <input
                     className={styles.ackCheckbox}
                     type="checkbox"
                     checked={ackLow}
                     onChange={e => setAckLow(e.target.checked)}
                   />
+                  <span className={styles.ackIndicator} aria-hidden="true" />
+                  <span className={styles.ackLabelText}>
+                    Acepto imprimir en baja calidad ({effDpi} DPI)
+                  </span>
                 </label>
               )}
               {hasImage && (
