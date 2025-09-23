@@ -622,12 +622,15 @@ export default function Home() {
             <div className={styles.feedbackGroup}>
               {hasImage && level === 'bad' && (
                 <label className={styles.ackLabel}>
+                  <span className={styles.ackLabelText}>
+                    Acepto imprimir en baja calidad ({effDpi} DPI)
+                  </span>
                   <input
+                    className={styles.ackCheckbox}
                     type="checkbox"
                     checked={ackLow}
                     onChange={e => setAckLow(e.target.checked)}
-                  />{' '}
-                  <span>Acepto imprimir en baja calidad ({effDpi} DPI)</span>
+                  />
                 </label>
               )}
               {err && <p className={`errorText ${styles.errorMessage}`}>{err}</p>}
