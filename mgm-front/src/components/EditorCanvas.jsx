@@ -161,6 +161,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     showHistoryControls = true,
     onHistoryChange,
     topLeftOverlay,
+    lienzoHeight,
   },
   ref,
 ) {
@@ -1373,6 +1374,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   ]
     .filter(Boolean)
     .join(' ');
+  const lienzoStyle = lienzoHeight != null ? { height: `${lienzoHeight}px` } : undefined;
+  const canvasSurfaceStyle = useMemo(() => ({ height: '100%' }), []);
   // track latest callback to avoid effect loops when parent re-renders
   const layoutChangeRef = useRef(onLayoutChange);
   useEffect(() => {
@@ -1446,10 +1449,10 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
   return (
     <div className={styles.editorRoot}>
-      <div className={styles.lienzo}>
+      <div className={styles.lienzo} style={lienzoStyle}>
         {/* Canvas */}
-        <div ref={wrapRef} className={wrapperClassName}>
-        <Stage
+        <div ref={wrapRef} className={wrapperClassName} style={canvasSurfaceStyle}>
+          <Stage
           ref={stageRef}
           width={wrapSize.w}
           height={wrapSize.h}

@@ -25,8 +25,8 @@ const TUTORIAL_ICON_SRC = resolveIconAsset('play.svg');
 
 
 const CANVAS_MAX_WIDTH = 1280;
-const CANVAS_IDEAL_HEIGHT = 960;
-const CANVAS_MIN_HEIGHT = 420;
+const LIENZO_MIN_HEIGHT = 560;
+const LIENZO_MAX_VH = 0.88;
 
 
 export default function Home() {
@@ -322,14 +322,13 @@ export default function Home() {
 
     const viewportWidth = window.innerWidth || 0;
     const viewportHeight = window.innerHeight || 0;
-    const headerEl = document.querySelector('header');
-    const headerHeight = headerEl?.getBoundingClientRect()?.height || 0;
 
-    const pageStyles = window.getComputedStyle(pageEl);
-    const parsePx = value => {
+    const parsePx = (value) => {
       const parsed = Number.parseFloat(value);
       return Number.isFinite(parsed) ? parsed : 0;
     };
+
+    const pageStyles = window.getComputedStyle(pageEl);
     const paddingTop = parsePx(pageStyles?.paddingTop);
     const paddingBottom = parsePx(pageStyles?.paddingBottom);
     const paddingLeft = parsePx(pageStyles?.paddingLeft);
@@ -344,7 +343,7 @@ export default function Home() {
     const isDesktop = viewportWidth >= 960;
 
     if (!isDesktop) {
-      setCanvasFit(prev => (
+      setCanvasFit((prev) => (
         prev.height === null && prev.maxWidth === widthLimit
           ? prev
           : { height: null, maxWidth: widthLimit }
@@ -352,31 +351,38 @@ export default function Home() {
       return;
     }
 
-    const headingHeight = headingRef.current?.getBoundingClientRect()?.height || 0;
+    const headerHeight = document
+      .querySelector('header')
+      ?.getBoundingClientRect()?.height || 0;
+
+    const headingEl = headingRef.current;
+    const headingRect = headingEl?.getBoundingClientRect();
+    const headingStyles = headingEl ? window.getComputedStyle(headingEl) : null;
+    const headingMarginTop = parsePx(headingStyles?.marginTop);
+    const headingMarginBottom = parsePx(headingStyles?.marginBottom);
+    const titleGap = (headingRect?.height || 0) + headingMarginTop + headingMarginBottom;
+
     const editorStyles = window.getComputedStyle(editorEl);
     const editorGap = parsePx(editorStyles?.rowGap || editorStyles?.gap);
-    const footerHeight = footerRef.current?.getBoundingClientRect()?.height || 0;
 
-    const availableHeight = viewportHeight
-      - headerHeight
-      - paddingTop
-      - paddingBottom
-      - pageGap
-      - editorGap
-      - headingHeight
-      - footerHeight;
+    const footerEl = footerRef.current;
+    const footerRect = footerEl?.getBoundingClientRect();
+    const footerStyles = footerEl ? window.getComputedStyle(footerEl) : null;
+    const footerMarginTop = parsePx(footerStyles?.marginTop);
+    const footerMarginBottom = parsePx(footerStyles?.marginBottom);
+    const footerBlock = (footerRect?.height || 0) + footerMarginTop + footerMarginBottom;
 
-    let nextHeight = CANVAS_IDEAL_HEIGHT;
-    if (availableHeight > 0) {
-      nextHeight = Math.min(CANVAS_IDEAL_HEIGHT, availableHeight);
-      if (availableHeight >= CANVAS_MIN_HEIGHT) {
-        nextHeight = Math.max(nextHeight, CANVAS_MIN_HEIGHT);
-      }
-    } else {
-      nextHeight = CANVAS_MIN_HEIGHT;
-    }
+    const outerGap = paddingTop + paddingBottom + pageGap + editorGap + footerBlock;
 
-    setCanvasFit(prev => (
+    const rawHeight = viewportHeight - headerHeight - titleGap - outerGap;
+    const maxHeight = Math.max(LIENZO_MIN_HEIGHT, viewportHeight * LIENZO_MAX_VH);
+
+    const nextHeight = Math.max(
+      LIENZO_MIN_HEIGHT,
+      Math.min(maxHeight, Number.isFinite(rawHeight) ? rawHeight : LIENZO_MIN_HEIGHT),
+    );
+
+    setCanvasFit((prev) => (
       prev.height === nextHeight && prev.maxWidth === widthLimit
         ? prev
         : { height: nextHeight, maxWidth: widthLimit }
@@ -420,10 +426,6 @@ export default function Home() {
   const editorMaxWidthStyle = useMemo(() => (
     canvasFit.maxWidth ? { maxWidth: `${canvasFit.maxWidth}px` } : undefined
   ), [canvasFit.maxWidth]);
-
-  const canvasStageStyle = useMemo(() => (
-    canvasFit.height ? { height: `${canvasFit.height}px` } : undefined
-  ), [canvasFit.height]);
 
   const configDropdown = (
     <div className={styles.configDropdown} ref={configDropdownRef}>
@@ -524,7 +526,7 @@ export default function Home() {
         ref={editorRef}
         style={editorMaxWidthStyle}
       >
-        <div className={canvasStageClasses} style={canvasStageStyle}>
+        <div className={canvasStageClasses}>
           <div className={styles.canvasViewport}>
 
             <EditorCanvas
@@ -538,6 +540,7 @@ export default function Home() {
               onClearImage={handleClearImage}
               showCanvas={isCanvasReady}
               topLeftOverlay={configDropdown}
+              lienzoHeight={canvasFit.height}
             />
             {!hasImage && (
               <div className={styles.uploadOverlay}>
