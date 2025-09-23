@@ -64,7 +64,7 @@ export default function ColorPopover({
 
   return (
     <div ref={boxRef} className={styles.colorPopover}>
-      <div className={styles.colorPickerShell}>
+      <div className={styles.pickerArea}>
         <HexColorPicker
           color={hex}
           onChange={(c) => {
@@ -74,46 +74,44 @@ export default function ColorPopover({
           className={styles.colorPicker}
         />
       </div>
-      <div className={styles.hexField}>
-        <label className={styles.hexLabel} htmlFor={inputId}>
+      <div className={styles.hexRow}>
+        <label className={styles.visuallyHidden} htmlFor={inputId}>
           Hex
         </label>
-        <div className={styles.hexInputWrapper}>
-          <button
-            type="button"
-            title="Elegir del lienzo"
-            aria-label="Elegir color del lienzo"
-            onClick={handlePick}
-            className={styles.eyedropperButton}
-          >
-            {showEyedropperIcon ? (
-              <img
-                src={EYEDROPPER_ICON_SRC}
-                alt=""
-                className={styles.eyedropperIcon}
-                onError={() => setIconError(true)}
-                draggable="false"
-              />
-            ) : (
-              <span className={styles.eyedropperFallback} aria-hidden="true" />
-            )}
-          </button>
-          <HexColorInput
-            id={inputId}
-            color={hex}
-            onChange={(c) => {
-              const normalized = c.startsWith("#") ? c : `#${c}`;
-              setHex(normalized);
-              onChange?.(normalized);
-            }}
-            prefixed
-            className={styles.hexInput}
-            spellCheck={false}
-            autoComplete="off"
-            autoCorrect="off"
-            autoCapitalize="off"
-          />
-        </div>
+        <button
+          type="button"
+          title="Elegir del lienzo"
+          aria-label="Elegir color del lienzo"
+          onClick={handlePick}
+          className={styles.eyedropperButton}
+        >
+          {showEyedropperIcon ? (
+            <img
+              src={EYEDROPPER_ICON_SRC}
+              alt=""
+              className={styles.eyedropperIcon}
+              onError={() => setIconError(true)}
+              draggable="false"
+            />
+          ) : (
+            <span className={styles.eyedropperFallback} aria-hidden="true" />
+          )}
+        </button>
+        <HexColorInput
+          id={inputId}
+          color={hex}
+          onChange={(c) => {
+            const normalized = c.startsWith("#") ? c : `#${c}`;
+            setHex(normalized);
+            onChange?.(normalized);
+          }}
+          prefixed
+          className={styles.hexInput}
+          spellCheck={false}
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+        />
       </div>
     </div>
   );

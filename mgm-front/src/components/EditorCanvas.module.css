@@ -1,7 +1,7 @@
 .colorPopover {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 0;
   padding: 16px;
   width: 320px;
   max-width: calc(100vw - 48px);
@@ -12,35 +12,44 @@
   color: #f3f4f6;
 }
 
-.colorPickerShell {
+.pickerArea {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  flex: 1 1 auto;
   width: 100%;
+  border: 1px solid rgba(15, 15, 20, 0.7);
+  border-bottom: none;
+  border-radius: 16px 16px 0 0;
+  background: #1f1f23;
+  overflow: hidden;
 }
 
 .colorPicker {
   width: 100%;
+  height: 100%;
 }
 
 .colorPicker :global(.react-colorful) {
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  height: auto;
+  gap: 0;
+  height: 100%;
+  min-height: 0;
 }
 
 .colorPicker :global(.react-colorful__saturation) {
   width: 100%;
   aspect-ratio: 1 / 1;
-  border-radius: 14px;
+  border-radius: 0;
   overflow: hidden;
-  border: 1px solid rgba(15, 15, 20, 0.7);
+  border: none;
   background-color: #1f1f23;
   background-image: linear-gradient(0deg, #000, transparent),
     linear-gradient(90deg, #fff, rgba(255, 255, 255, 0));
   box-shadow: none;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .colorPicker :global(.react-colorful__saturation-pointer) {
@@ -54,11 +63,12 @@
 
 .colorPicker :global(.react-colorful__hue) {
   height: 12px;
-  border-radius: 8px;
+  border-radius: 0;
   margin: 0;
   width: 100%;
-  border: 1px solid rgba(15, 15, 20, 0.7);
+  border: none;
   box-shadow: none;
+  flex-shrink: 0;
 }
 
 .colorPicker :global(.react-colorful__hue-pointer) {
@@ -72,11 +82,12 @@
 
 .colorPicker :global(.react-colorful__alpha) {
   height: 12px;
-  border-radius: 8px;
+  border-radius: 0;
   margin: 0;
   width: 100%;
-  border: 1px solid rgba(15, 15, 20, 0.7);
+  border: none;
   box-shadow: none;
+  flex-shrink: 0;
 }
 
 .colorPicker :global(.react-colorful__alpha-pointer) {
@@ -86,39 +97,6 @@
   border: 2px solid #ffffff;
   box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
   background: #ffffff;
-}
-
-.eyedropperButton {
-  position: absolute;
-  left: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  border: none;
-  border-radius: 8px;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-  transition: background-color 0.18s ease, color 0.18s ease;
-  z-index: 1;
-}
-
-.eyedropperButton:hover {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.eyedropperButton:active {
-  background: rgba(255, 255, 255, 0.14);
-}
-
-.eyedropperButton:focus-visible {
-  outline: 2px solid rgba(255, 255, 255, 0.65);
-  outline-offset: 2px;
 }
 
 .eyedropperIcon {
@@ -135,43 +113,77 @@
   border: 2px dashed rgba(249, 250, 251, 0.55);
 }
 
-.hexField {
+.hexRow {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px;
-  border-radius: 12px;
+  align-items: stretch;
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid rgba(15, 15, 20, 0.7);
+  border-top: none;
+  border-radius: 0 0 16px 16px;
   background: #25252c;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  width: 100%;
+  overflow: hidden;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
-.hexInputWrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-  width: 100%;
+.hexRow:focus-within {
+  border-color: rgba(255, 255, 255, 0.24);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
-.hexLabel {
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: rgba(249, 250, 251, 0.72);
+.hexRow:focus-within .eyedropperButton {
+  border-right-color: rgba(255, 255, 255, 0.24);
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
   white-space: nowrap;
-  align-self: flex-start;
+  border: 0;
+}
+
+.eyedropperButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  min-width: 48px;
+  height: 100%;
+  padding: 0;
+  border: none;
+  border-right: 1px solid rgba(15, 15, 20, 0.7);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  transition: background-color 0.18s ease, color 0.18s ease;
+}
+
+.eyedropperButton:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.eyedropperButton:active {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.eyedropperButton:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.65);
+  outline-offset: -2px;
 }
 
 .hexInput {
   flex: 1;
-  width: 100%;
   min-width: 0;
-  padding: 6px 10px;
-  padding-left: 46px;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: #1b1b22;
+  width: 100%;
+  height: 100%;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
   color: #f9fafb;
   font-size: 15px;
   font-family: "JetBrains Mono", "SFMono-Regular", Menlo, monospace;
@@ -181,7 +193,6 @@
 
 .hexInput:focus {
   outline: none;
-  border-color: rgba(255, 255, 255, 0.24);
 }
 
 .hexInput::placeholder {
