@@ -1251,16 +1251,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     setColorPickerState(COLOR_PICKER_STATE.CLOSED);
   }, []);
 
-  const confirmContainColor = useCallback(() => {
-    const normalized = (bgColor || "#ffffff").startsWith("#")
-      ? bgColor
-      : `#${bgColor}`;
-    setBgColor(normalized);
-    onPickedColor?.(normalized);
-    setColorPickerState(COLOR_PICKER_STATE.CLOSED);
-    setColorToast({ id: Date.now(), message: "Color aplicado" });
-  }, [bgColor, onPickedColor]);
-
   const toggleContain = useCallback(() => {
     if (!imgEl) return;
     if (colorPickerState === COLOR_PICKER_STATE.CLOSED) {
@@ -1268,10 +1258,10 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         fitContain();
       }
       setColorPickerState(COLOR_PICKER_STATE.OPEN);
-      return;
+    } else if (colorPickerState === COLOR_PICKER_STATE.OPEN) {
+      setColorPickerState(COLOR_PICKER_STATE.CLOSED);
     }
-    confirmContainColor();
-  }, [imgEl, colorPickerState, mode, fitContain, confirmContainColor]);
+  }, [imgEl, colorPickerState, mode, fitContain]);
 
   useEffect(() => {
     if (colorPickerState === COLOR_PICKER_STATE.OPEN && mode !== "contain") {
@@ -1290,10 +1280,22 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     const timer = setTimeout(() => setColorToast(null), 2400);
     return () => clearTimeout(timer);
   }, [colorToast]);
-  const handleBgColorChange = useCallback(
+  const handleBgColorApply = useCallback(
     (hex) => {
-      setBgColor(hex);
-      onPickedColor?.(hex);
+      if (!hex) return;
+      const normalized = hex.startsWith("#") ? hex : `#${hex}`;
+      let didChange = false;
+      setBgColor((prev) => {
+        if (prev?.toLowerCase() === normalized.toLowerCase()) {
+          return prev;
+        }
+        didChange = true;
+        return normalized;
+      });
+      if (didChange) {
+        onPickedColor?.(normalized);
+        setColorToast({ id: Date.now(), message: "Color aplicado" });
+      }
     },
     [onPickedColor],
   );
@@ -1970,18 +1972,13 @@ const EditorCanvas = forwardRef(function EditorCanvas(
             </button>
           </ToolbarTooltip>
 
-          <ToolbarTooltip
-            label={colorOpen ? "Guardar color" : "Contener"}
-            disabled={!imgEl}
-          >
+          <ToolbarTooltip label="Contener" disabled={!imgEl}>
             <div className={styles.colorWrapper}>
               <button
                 type="button"
                 onClick={toggleContain}
                 disabled={!imgEl}
-                aria-label={
-                  colorOpen ? "Guardar color de fondo" : "Contener"
-                }
+                aria-label="Contener"
                 aria-expanded={colorOpen}
                 aria-pressed={colorOpen}
                 className={iconButtonClass(mode === "contain")}
@@ -1991,7 +1988,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                 ) : (
                   <img
                     src={ACTION_ICON_MAP.contener}
-                    alt={colorOpen ? "Guardar color" : "Contener"}
+                    alt="Contener"
                     className={styles.iconOnlyButtonImage}
                     onError={handleIconError("contener")}
                   />
@@ -2001,13 +1998,12 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                 <div className={styles.colorPopoverWrap}>
                   <ColorPopover
                     value={bgColor}
-                    onChange={handleBgColorChange}
+                    onChangeComplete={handleBgColorApply}
                     open={colorOpen}
                     onClose={closeColor}
                     onPickFromCanvas={() =>
                       startPickColor((hex) => {
-                        setBgColor(hex);
-                        onPickedColor?.(hex);
+                        handleBgColorApply(hex);
                       })
                     }
                   />
