@@ -1,14 +1,24 @@
 .page {
-  display: flex;
-  flex-direction: column;
-  gap: 32px;
+  --header-h: calc(28px + 40px + 12px);
+  --title-gap: 120px;
+  --outer-gap: 32px;
+  --toolbar-h: 66px;
+  --toolbar-offset: 24px;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --section-max-width: 1920px;
+  display: grid;
+  grid-template-rows: min-content minmax(0, 1fr);
+  row-gap: var(--outer-gap);
+  justify-items: center;
+  align-content: start;
   padding: 32px 48px 56px;
-  min-height: 100%;
+  width: 100%;
+  min-height: calc(100vh - var(--header-h));
+  box-sizing: border-box;
 }
 
 .pageHeading {
-  width: 100%;
-  max-width: 1920px !important;
+  width: min(100%, var(--section-max-width));
   margin: 0 auto;
   display: flex;
   flex-direction: column;
@@ -17,13 +27,13 @@
 }
 
 .editor {
-  display: flex;
-  flex-direction: column;
-  gap: 32px;
-  width: 100%;
-  max-width: 1920px !important;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  row-gap: var(--outer-gap);
+  width: min(100%, var(--section-max-width));
   margin: 0 auto;
-  max-height: 800px !important;
+  height: 100%;
+  min-height: 0;
 }
 
 .configAccordion {
@@ -332,9 +342,35 @@
   background: rgba(12, 12, 18, 0.95);
   border: 1px solid rgba(63, 63, 77, 0.55);
   border-radius: 30px;
-  
-  min-height: 320px;
-  height: clamp(560px, 70vh, 760px);
+  min-height: 560px;
+  height: clamp(
+    560px,
+    calc(
+      100vh
+      - var(--header-h, 80px)
+      - var(--title-gap, 120px)
+      - var(--outer-gap, 32px)
+    ),
+    86vh
+  );
+  max-height: min(
+    86vh,
+    max(
+      560px,
+      calc(
+        100vh
+        - var(--header-h, 80px)
+        - var(--title-gap, 120px)
+        - var(--outer-gap, 32px)
+      )
+    )
+  );
+  padding-bottom: calc(
+    var(--toolbar-h, 66px)
+    + var(--toolbar-offset, 24px)
+    + var(--safe-bottom, env(safe-area-inset-bottom, 0px))
+  );
+  min-width: 0;
 }
 
 .canvasStageEmpty {
@@ -345,6 +381,7 @@
 .canvasViewport {
   position: relative;
   flex: 1;
+  min-height: 0;
   display: flex;
 }
 
@@ -506,16 +543,30 @@
 @media (max-width: 960px) {
   .page {
     padding: 28px 28px 48px;
+    --outer-gap: 28px;
+    --toolbar-offset: 20px;
   }
 
   .pageHeading,
   .editor {
-    max-width: 100%;
+    width: 100%;
+    max-width: none;
+  }
+
+  .editor {
+    row-gap: var(--outer-gap);
   }
 
   .canvasStage {
     padding: 28px;
+    padding-bottom: calc(
+      28px
+      + var(--toolbar-h, 66px)
+      + var(--toolbar-offset, 24px)
+      + var(--safe-bottom, env(safe-area-inset-bottom, 0px))
+    );
     height: auto;
+    max-height: none;
     min-height: 520px;
   }
 }
@@ -523,10 +574,12 @@
 @media (max-width: 640px) {
   .page {
     padding: 22px 18px 40px;
+    --outer-gap: 24px;
+    --toolbar-offset: 16px;
   }
 
   .editor {
-    gap: 24px;
+    row-gap: var(--outer-gap);
   }
 
   .configDropdown {
@@ -544,8 +597,15 @@
 
   .canvasStage {
     padding: 22px;
+    padding-bottom: calc(
+      22px
+      + var(--toolbar-h, 66px)
+      + var(--toolbar-offset, 24px)
+      + var(--safe-bottom, env(safe-area-inset-bottom, 0px))
+    );
     border-radius: 24px;
     height: auto;
+    max-height: none;
     min-height: 460px;
   }
 
