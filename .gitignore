@@ -12,3 +12,4 @@ assets-local/
 .DS_Store
 .vercel
 tests/fixtures/
+".env" 
