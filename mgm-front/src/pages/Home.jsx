@@ -611,17 +611,8 @@ export default function Home() {
                   </div>
                 )}
               </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className={styles.sectionTwo}>
-        <div className={styles.sectionTwoInner} style={editorMaxWidthStyle}>
-          <div className={styles.footerRow}>
-            <div className={styles.feedbackGroup}>
               {hasImage && level === 'bad' && (
-                <label className={styles.ackLabel}>
+                <label className={`${styles.ackLabel} ${styles.canvasAck}`}>
                   <span className={styles.ackLabelText}>
                     Acepto imprimir en baja calidad ({effDpi} DPI)
                   </span>
@@ -633,17 +624,26 @@ export default function Home() {
                   />
                 </label>
               )}
+              {hasImage && (
+                <button
+                  className={`${styles.continueButton} ${styles.canvasContinue}`}
+                  disabled={busy}
+                  onClick={handleContinue}
+                >
+                  Continuar
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className={styles.sectionTwo}>
+        <div className={styles.sectionTwoInner} style={editorMaxWidthStyle}>
+          <div className={styles.footerRow}>
+            <div className={styles.feedbackGroup}>
               {err && <p className={`errorText ${styles.errorMessage}`}>{err}</p>}
             </div>
-            {hasImage && (
-              <button
-                className={styles.continueButton}
-                disabled={busy}
-                onClick={handleContinue}
-              >
-                Continuar
-              </button>
-            )}
           </div>
         </div>
       </section>
