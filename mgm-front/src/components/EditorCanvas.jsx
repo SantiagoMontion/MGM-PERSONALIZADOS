@@ -1811,7 +1811,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       <div className={styles.overlayBottomCenter}>
         {/* Toolbar */}
         <div className={styles.toolbarStack}>
-          <div className={styles.toolbar}>
+          <div className={styles.toolbarScroller}>
+            <div className={styles.toolbar}>
           <ToolbarTooltip label="Alinear a la izquierda">
             <button
               type="button"
@@ -2117,6 +2118,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
             {busy ? "Creando…" : "Crear job"}
           </button>
         )}
+            </div>
           </div>
         </div>
       </div>
