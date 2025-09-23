@@ -64,6 +64,12 @@ const ACTION_ICON_MAP = {
 
 };
 
+const COLOR_PICKER_STATE = {
+  CLOSED: "CLOSED",
+  OPEN: "OPEN",
+};
+
+
 const HISTORY_ICON_SPECS = {
   undo: { src: resolveIconAsset("undo.svg"), fallbackLabel: "↶" },
   redo: { src: resolveIconAsset("redo.svg"), fallbackLabel: "↷" },
@@ -1233,44 +1239,57 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   }));
 
   // popover color
-  const [colorPickerTrigger, setColorPickerTrigger] = useState(null);
-  const colorOpen = Boolean(colorPickerTrigger);
+  const [colorPickerState, setColorPickerState] = useState(
+    COLOR_PICKER_STATE.CLOSED,
+  );
+  const colorOpen = colorPickerState === COLOR_PICKER_STATE.OPEN;
+  const [colorToast, setColorToast] = useState(null);
   const [busy, setBusy] = useState(false);
   const [lastDiag, setLastDiag] = useState(null);
 
   const closeColor = useCallback(() => {
-    setColorPickerTrigger(null);
+    setColorPickerState(COLOR_PICKER_STATE.CLOSED);
   }, []);
 
-  const toggleColorMode = useCallback(
-    (targetMode) => {
-      if (!imgEl) return;
-      if (colorPickerTrigger === targetMode) {
-        setColorPickerTrigger(null);
-        return;
-      }
-      if (targetMode === "contain" && mode !== "contain") {
+  const confirmContainColor = useCallback(() => {
+    const normalized = (bgColor || "#ffffff").startsWith("#")
+      ? bgColor
+      : `#${bgColor}`;
+    setBgColor(normalized);
+    onPickedColor?.(normalized);
+    setColorPickerState(COLOR_PICKER_STATE.CLOSED);
+    setColorToast({ id: Date.now(), message: "Color aplicado" });
+  }, [bgColor, onPickedColor]);
+
+  const toggleContain = useCallback(() => {
+    if (!imgEl) return;
+    if (colorPickerState === COLOR_PICKER_STATE.CLOSED) {
+      if (mode !== "contain") {
         fitContain();
-      } else if (targetMode === "cover" && mode !== "cover") {
-        fitCover();
       }
-      setColorPickerTrigger(targetMode);
-    },
-    [imgEl, colorPickerTrigger, mode, fitContain, fitCover],
-  );
+      setColorPickerState(COLOR_PICKER_STATE.OPEN);
+      return;
+    }
+    confirmContainColor();
+  }, [imgEl, colorPickerState, mode, fitContain, confirmContainColor]);
 
   useEffect(() => {
-    if (!imgEl && colorPickerTrigger) {
-      setColorPickerTrigger(null);
+    if (colorPickerState === COLOR_PICKER_STATE.OPEN && mode !== "contain") {
+      setColorPickerState(COLOR_PICKER_STATE.CLOSED);
     }
-  }, [imgEl, colorPickerTrigger]);
+  }, [colorPickerState, mode]);
 
   useEffect(() => {
-    if (!colorPickerTrigger) return;
-    if (mode !== "contain" && mode !== "cover") {
-      setColorPickerTrigger(null);
+    if (colorPickerState === COLOR_PICKER_STATE.OPEN && !imgEl) {
+      setColorPickerState(COLOR_PICKER_STATE.CLOSED);
     }
-  }, [mode, colorPickerTrigger]);
+  }, [colorPickerState, imgEl]);
+
+  useEffect(() => {
+    if (!colorToast) return undefined;
+    const timer = setTimeout(() => setColorToast(null), 2400);
+    return () => clearTimeout(timer);
+  }, [colorToast]);
   const handleBgColorChange = useCallback(
     (hex) => {
       setBgColor(hex);
@@ -1930,37 +1949,41 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               )}
             </button>
           </ToolbarTooltip>
-          <div className={styles.colorWrapper}>
-            <ToolbarTooltip label="Diseño completo" disabled={!imgEl}>
+          <ToolbarTooltip label="Cubrir">
+            <button
+              type="button"
+              onClick={fitCover}
+              disabled={!imgEl}
+              aria-label="Cubrir"
+              className={iconButtonClass(mode === "cover")}
+            >
+              {missingIcons.cubrir ? (
+                <span className={styles.iconFallback} aria-hidden="true" />
+              ) : (
+                <img
+                  src={ACTION_ICON_MAP.cubrir}
+                  alt="Cubrir"
+                  className={styles.iconOnlyButtonImage}
+                  onError={handleIconError("cubrir")}
+                />
+              )}
+            </button>
+          </ToolbarTooltip>
+
+          <ToolbarTooltip
+            label={colorOpen ? "Guardar color" : "Contener"}
+            disabled={!imgEl}
+          >
+            <div className={styles.colorWrapper}>
               <button
                 type="button"
-                onClick={() => toggleColorMode("cover")}
+                onClick={toggleContain}
                 disabled={!imgEl}
-                aria-label="Diseño completo"
-                aria-expanded={colorOpen && colorPickerTrigger === "cover"}
-                aria-pressed={colorPickerTrigger === "cover"}
-                className={iconButtonClass(mode === "cover")}
-              >
-                {missingIcons.cubrir ? (
-                  <span className={styles.iconFallback} aria-hidden="true" />
-                ) : (
-                  <img
-                    src={ACTION_ICON_MAP.cubrir}
-                    alt="Diseño completo"
-                    className={styles.iconOnlyButtonImage}
-                    onError={handleIconError("cubrir")}
-                  />
-                )}
-              </button>
-            </ToolbarTooltip>
-            <ToolbarTooltip label="Contener" disabled={!imgEl}>
-              <button
-                type="button"
-                onClick={() => toggleColorMode("contain")}
-                disabled={!imgEl}
-                aria-label="Contener"
-                aria-expanded={colorOpen && colorPickerTrigger === "contain"}
-                aria-pressed={colorPickerTrigger === "contain"}
+                aria-label={
+                  colorOpen ? "Guardar color de fondo" : "Contener"
+                }
+                aria-expanded={colorOpen}
+                aria-pressed={colorOpen}
                 className={iconButtonClass(mode === "contain")}
               >
                 {missingIcons.contener ? (
@@ -1968,39 +1991,31 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                 ) : (
                   <img
                     src={ACTION_ICON_MAP.contener}
-                    alt="Contener"
+                    alt={colorOpen ? "Guardar color" : "Contener"}
                     className={styles.iconOnlyButtonImage}
                     onError={handleIconError("contener")}
                   />
                 )}
               </button>
-            </ToolbarTooltip>
-            {colorOpen && (
-              <div
-                className={`${styles.colorPopoverWrap} ${
-                  colorPickerTrigger === "contain"
-                    ? styles.colorPopoverAlignRight
-                    : ""
-                }`}
-              >
-                <ColorPopover
-                  value={bgColor}
-                  onChange={handleBgColorChange}
-                  open={colorOpen}
-                  onClose={closeColor}
-                  onPickFromCanvas={() =>
-                    startPickColor((hex) => {
-                      setBgColor(hex);
-                      onPickedColor?.(hex);
-                    })
-                  }
-                  activeMode={colorPickerTrigger}
-                  onToggleMode={toggleColorMode}
-                  quality={quality}
-                />
-              </div>
-            )}
-          </div>
+              {mode === "contain" && colorOpen && (
+                <div className={styles.colorPopoverWrap}>
+                  <ColorPopover
+                    value={bgColor}
+                    onChange={handleBgColorChange}
+                    open={colorOpen}
+                    onClose={closeColor}
+                    onPickFromCanvas={() =>
+                      startPickColor((hex) => {
+                        setBgColor(hex);
+                        onPickedColor?.(hex);
+                      })
+                    }
+                  />
+                </div>
+
+              )}
+            </div>
+          </ToolbarTooltip>
           <ToolbarTooltip label="Estirar">
             <button
               type="button"
@@ -2045,6 +2060,17 @@ const EditorCanvas = forwardRef(function EditorCanvas(
           </button>
         )}
           </div>
+          {colorToast ? (
+            <div
+              key={colorToast.id}
+              className={styles.colorToast}
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              {colorToast.message}
+            </div>
+          ) : null}
         </div>
       </div>
     </div>
