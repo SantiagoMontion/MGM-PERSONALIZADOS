@@ -1448,7 +1448,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   }
 
   return (
-    <div className={styles.editorRoot}>
+    <>
+      <div className={styles.editorRoot}>
       <div className={styles.lienzo} style={lienzoStyle}>
         {/* Canvas */}
         <div ref={wrapRef} className={wrapperClassName} style={canvasSurfaceStyle}>
@@ -1810,9 +1811,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
       <div className={styles.overlayBottomCenter}>
         {/* Toolbar */}
-        <div className={styles.toolbarStack}>
-          <div className={styles.toolbarScroller}>
-            <div className={styles.toolbar}>
+        <div className={styles.toolbarScroller}>
+          <div className={styles.toolbar}>
           <ToolbarTooltip label="Alinear a la izquierda">
             <button
               type="button"
@@ -2124,8 +2124,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       </div>
     </div>
 
-    {lastDiag && <p className={styles.errorBox}>{lastDiag}</p>}
-  </div>
+      {lastDiag && <p className={styles.errorBox}>{lastDiag}</p>}
+    </>
   );
 });
 
