@@ -495,25 +495,74 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
   // Ajuste inicial: imagen contenida y centrada una sola vez por carga
   useEffect(() => {
-    if (!imgBaseCm || didInitRef.current) return;
-    const s = Math.min(workCm.w / imgBaseCm.w, workCm.h / imgBaseCm.h);
-    const w = imgBaseCm.w * s,
-      h = imgBaseCm.h * s;
+    if (!imgBaseCm || !imgEl || didInitRef.current) return;
+
+    const containerWidth = wrapRef.current?.clientWidth ?? wrapSize.w;
+    const containerHeight = wrapRef.current?.clientHeight ?? wrapSize.h;
+
+    if (!(containerWidth > 0 && containerHeight > 0)) return;
+
+    const baseContainScale = Math.min(
+      workCm.w / imgBaseCm.w,
+      workCm.h / imgBaseCm.h,
+    );
+
+    if (!Number.isFinite(baseContainScale) || baseContainScale <= 0) return;
+
+    const dispWcm = imgBaseCm.w * baseContainScale;
+    const dispHcm = imgBaseCm.h * baseContainScale;
+
     const initial = {
-      x_cm: (workCm.w - w) / 2,
-      y_cm: (workCm.h - h) / 2,
-      scaleX: s,
-      scaleY: s,
+      x_cm: (workCm.w - dispWcm) / 2,
+      y_cm: (workCm.h - dispHcm) / 2,
+      scaleX: baseContainScale,
+      scaleY: baseContainScale,
       rotation_deg: 0,
       flipX: false,
       flipY: false,
     };
-    setImgTx({ ...initial });
+
+    const padding = 0.1;
+    const usableW = Math.max(0, containerWidth * (1 - 2 * padding));
+    const usableH = Math.max(0, containerHeight * (1 - 2 * padding));
+
+    const dispWpx = dispWcm * baseScale;
+    const dispHpx = dispHcm * baseScale;
+
+    let nextViewScale = 1;
+    if (dispWpx > 0 && dispHpx > 0 && usableW > 0 && usableH > 0) {
+      const containScalePx = Math.min(usableW / dispWpx, usableH / dispHpx);
+      const padded = Math.max(0.15, Math.min(containScalePx, 1));
+      nextViewScale = Math.max(
+        VIEW_ZOOM_MIN,
+        Math.min(padded, VIEW_ZOOM_MAX),
+      );
+    }
+
+    setImgTx(initial);
     setMode("contain");
     stickyFitRef.current = "contain";
     skipStickyFitOnceRef.current = true;
+    setViewScale(nextViewScale);
+
+    const stageW = workCm.w * baseScale * nextViewScale;
+    const stageH = workCm.h * baseScale * nextViewScale;
+
+    setViewPos({
+      x: (containerWidth - stageW) / 2,
+      y: (containerHeight - stageH) / 2,
+    });
+
     didInitRef.current = true;
-  }, [imgBaseCm, workCm.w, workCm.h]);
+  }, [
+    imgBaseCm,
+    imgEl,
+    workCm.w,
+    workCm.h,
+    baseScale,
+    wrapSize.w,
+    wrapSize.h,
+  ]);
 
   // medidas visuales (para offset centro)
   const dispW = imgBaseCm ? imgBaseCm.w * Math.abs(imgTx.scaleX) : 0;
