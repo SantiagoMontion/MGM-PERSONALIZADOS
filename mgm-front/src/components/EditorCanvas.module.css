@@ -263,9 +263,13 @@
   border-radius: 14px;
   border: 1px solid #80808070;
   background: #282828cb;
-  
+
   max-width: 100%;
   pointer-events: auto;
+}
+
+.toolbar > * {
+  flex: 0 0 auto;
 }
 
 .toolbarScroller {
@@ -273,6 +277,8 @@
   justify-content: center;
   pointer-events: auto;
   min-width: 0;
+  max-width: 100%;
+  white-space: nowrap;
 }
 
 .iconOnlyButton {
@@ -438,16 +444,9 @@
   margin-bottom: 8px;
 }
 
-.toolbarStack {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  pointer-events: none;
-}
 
 @media (max-width: 768px) {
-  .toolbarStack {
+  .overlayBottomCenter {
     align-items: stretch;
   }
 
@@ -569,7 +568,10 @@
   transform: translateX(-50%);
   z-index: 30;
   display: flex;
+  flex-direction: column;
+  align-items: center;
   justify-content: center;
+  gap: 10px;
   width: 100%;
   max-width: calc(100% - 32px);
   pointer-events: none;
