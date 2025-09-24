@@ -522,7 +522,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       flipY: false,
     };
 
-    const padding = 0.1;
+    const padding = 0.22;
     const usableW = Math.max(0, containerWidth * (1 - 2 * padding));
     const usableH = Math.max(0, containerHeight * (1 - 2 * padding));
 
@@ -532,11 +532,14 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     let nextViewScale = 1;
     if (dispWpx > 0 && dispHpx > 0 && usableW > 0 && usableH > 0) {
       const containScalePx = Math.min(usableW / dispWpx, usableH / dispHpx);
-      const padded = Math.max(0.15, Math.min(containScalePx, 1));
-      nextViewScale = Math.max(
+      const safeContain = Math.max(0, Math.min(containScalePx, 1));
+      const clamped = Math.max(
         VIEW_ZOOM_MIN,
-        Math.min(padded, VIEW_ZOOM_MAX),
+        Math.min(safeContain, VIEW_ZOOM_MAX),
       );
+      if (Number.isFinite(clamped)) {
+        nextViewScale = clamped;
+      }
     }
 
     setImgTx(initial);
