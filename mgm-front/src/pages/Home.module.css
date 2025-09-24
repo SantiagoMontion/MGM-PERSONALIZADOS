@@ -458,7 +458,7 @@
 }
 
 .uploadButton {
-  /* — Mantengo tu layout tal cual — */
+ 
   width: min(100%, 220px);
   min-height: 52px;
   height: 52px;
@@ -471,8 +471,8 @@
   position: relative;                 /* para el fill */
   overflow: hidden;
   border-radius: 16px;
-  border: 1px solid rgba(63, 63, 77, 0.65);
-  background: rgba(20, 20, 26, 0.92);
+  border: 1px solid #34343b;
+  background: #282828a8;
   color: rgba(235, 236, 245, 0.95);
   font-family: 'Poppins', sans-serif;
   font-size: 15px;
@@ -508,9 +508,9 @@
   transform: scaleX(1);
 }
 .uploadButton:not(:disabled):hover {
-  background: rgba(26, 26, 34, 0.96);
+ 
   border-color: rgba(170, 170, 190, 0.75);
-  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.45);
+  
 }
 
 /* Focus accesible */
