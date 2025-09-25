@@ -8,6 +8,14 @@ const PRODUCT_LABELS = {
   glasspad: 'Glasspad',
 } as const;
 
+export const ONLINE_STORE_MISSING_MESSAGE = [
+  'No pudimos encontrar el canal Online Store para publicar este producto.',
+  'Revisá: 1) que el canal esté instalado, 2) que la app tenga el scope write_publications.',
+  'Luego probá de nuevo.',
+].join('\n');
+
+export const ONLINE_STORE_DISABLED_MESSAGE = 'Tu tienda no tiene el canal Online Store habilitado. Instalalo o bien omití la publicación y usa Storefront para el carrito.';
+
 function slugify(value: string, fallback = 'mockup') {
   const base = (value || '').toString();
   const cleaned = base
@@ -85,25 +93,51 @@ export async function blobToBase64(b: Blob): Promise<string> {
   });
 }
 
-export async function createJobAndProduct(mode: 'checkout' | 'cart' | 'private', flow: FlowState) {
-  if (!flow.mockupBlob) throw new Error('missing_mockup');
-  const mockupDataUrl = await blobToBase64(flow.mockupBlob);
-  const productType = flow.productType === 'glasspad' ? 'glasspad' : 'mousepad';
-  const productLabel = PRODUCT_LABELS[productType];
-  const designName = (flow.designName || '').trim();
-  const materialLabel = (flow.material || '').trim() || (productType === 'glasspad' ? 'Glasspad' : '');
-  const widthCm = safeNumber((flow.editorState as any)?.size_cm?.w);
-  const heightCm = safeNumber((flow.editorState as any)?.size_cm?.h);
-  const approxDpi = safeNumber(flow.approxDpi);
-  const priceTransferRaw = safeNumber(flow.priceTransfer);
-  const priceNormalRaw = safeNumber(flow.priceNormal);
+export interface CreateJobOptions {
+  reuseLastProduct?: boolean;
+  skipPublication?: boolean;
+}
+
+export async function createJobAndProduct(
+  mode: 'checkout' | 'cart' | 'private',
+  flow: FlowState,
+  options: CreateJobOptions = {},
+) {
+  const { reuseLastProduct = false, skipPublication = false } = options;
+  const lastProduct = flow.lastProduct;
+  const isPrivate = mode === 'private';
+  const requestedVisibility: 'public' | 'private' = isPrivate ? 'private' : 'public';
+  const canReuse = reuseLastProduct
+    && lastProduct?.productId
+    && lastProduct?.variantId
+    && lastProduct.visibility === requestedVisibility;
+
+  const customerEmail = typeof flow.customerEmail === 'string' ? flow.customerEmail.trim() : '';
+
+  let publish: any = null;
+  let productId: string | undefined;
+  let variantId: string | undefined;
+  let productHandle: string | undefined;
+  let productUrl: string | undefined;
+  let visibilityResult: 'public' | 'private' = requestedVisibility;
+
+  let mockupDataUrl = '';
+  let productType: 'glasspad' | 'mousepad' = flow.productType === 'glasspad' ? 'glasspad' : 'mousepad';
+  let productLabel = PRODUCT_LABELS[productType];
+  let designName = (flow.designName || '').trim();
+  let materialLabel = (flow.material || '').trim() || (productType === 'glasspad' ? 'Glasspad' : '');
+  let widthCm = safeNumber((flow.editorState as any)?.size_cm?.w);
+  let heightCm = safeNumber((flow.editorState as any)?.size_cm?.h);
+  let approxDpi = safeNumber(flow.approxDpi);
+  let priceTransferRaw = safeNumber(flow.priceTransfer);
+  let priceNormalRaw = safeNumber(flow.priceNormal);
   const priceCurrencyRaw = typeof flow.priceCurrency === 'string' ? flow.priceCurrency : 'ARS';
-  const priceCurrency = priceCurrencyRaw.trim() || 'ARS';
-  const measurementLabel = formatMeasurement(widthCm, heightCm);
-  const productTitle = productType === 'glasspad'
+  let priceCurrency = priceCurrencyRaw.trim() || 'ARS';
+  let measurementLabel = formatMeasurement(widthCm, heightCm);
+  let productTitle = productType === 'glasspad'
     ? buildGlasspadTitle(designName, measurementLabel)
     : buildDefaultTitle(productLabel, designName, measurementLabel, materialLabel);
-  const metaDescription = buildMetaDescription(productLabel, designName, measurementLabel, materialLabel);
+  let metaDescription = buildMetaDescription(productLabel, designName, measurementLabel, materialLabel);
 
   const extraTags: string[] = [`currency-${priceCurrency.toLowerCase()}`];
   if (materialLabel) {
@@ -111,77 +145,140 @@ export async function createJobAndProduct(mode: 'checkout' | 'cart' | 'private',
     if (materialTag) extraTags.push(`material-${materialTag}`);
   }
   if (flow.lowQualityAck) extraTags.push('calidad-baja');
-  const filename = `${slugify(designName || productTitle)}.png`;
-  const imageAlt = `Mockup ${productTitle}`;
+  let filename = `${slugify(designName || productTitle)}.png`;
+  let imageAlt = `Mockup ${productTitle}`;
 
-  const customerEmail = typeof flow.customerEmail === 'string' ? flow.customerEmail.trim() : '';
-  const isPrivate = mode === 'private';
-  const requestedVisibility: 'public' | 'private' = isPrivate ? 'private' : 'public';
+  if (!canReuse) {
+    if (!flow.mockupBlob) throw new Error('missing_mockup');
+    mockupDataUrl = await blobToBase64(flow.mockupBlob);
 
-  let priceTransfer = priceTransferRaw;
-  let priceNormal = priceNormalRaw;
+    let priceTransfer = priceTransferRaw;
+    let priceNormal = priceNormalRaw;
 
-  if (isPrivate) {
-    const markupFactor = 1.25;
-    const applyMarkup = (value?: number) => {
-      if (typeof value !== 'number') return value;
-      return Math.round(value * markupFactor * 100) / 100;
-    };
-    priceTransfer = applyMarkup(priceTransferRaw);
-    priceNormal = applyMarkup(priceNormalRaw);
-  }
+    if (isPrivate) {
+      const markupFactor = 1.25;
+      const applyMarkup = (value?: number) => {
+        if (typeof value !== 'number') return value;
+        return Math.round(value * markupFactor * 100) / 100;
+      };
+      priceTransfer = applyMarkup(priceTransferRaw);
+      priceNormal = applyMarkup(priceNormalRaw);
+    }
 
-  if (isPrivate) {
-    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailPattern.test(customerEmail)) {
-      const err: Error & { reason?: string } = new Error('missing_customer_email');
-      err.reason = 'missing_customer_email';
+    if (isPrivate) {
+      const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailPattern.test(customerEmail)) {
+        const err: Error & { reason?: string } = new Error('missing_customer_email');
+        err.reason = 'missing_customer_email';
+        throw err;
+      }
+    }
+
+    const publishResp = await apiFetch('/api/publish-product', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        productType,
+        mockupDataUrl,
+        designName,
+        title: productTitle,
+        material: materialLabel,
+        widthCm,
+        heightCm,
+        approxDpi,
+        priceTransfer,
+        priceNormal,
+        priceCurrency,
+        lowQualityAck: Boolean(flow.lowQualityAck),
+        imageAlt,
+        filename,
+        tags: extraTags,
+        description: '',
+        seoDescription: metaDescription,
+        visibility: requestedVisibility,
+      }),
+    });
+    const publishData = await publishResp.json().catch(() => null);
+    publish = publishData;
+    if (!publishResp.ok || !publish?.ok) {
+      const reason = publish?.reason || publish?.error || `publish_failed_${publishResp.status}`;
+      const err: Error & { reason?: string; friendlyMessage?: string; missing?: string[] } = new Error(reason);
+      err.reason = reason;
+      if (typeof publish?.message === 'string' && publish.message.trim()) {
+        err.friendlyMessage = publish.message.trim();
+      }
+      if (Array.isArray(publish?.missing) && publish.missing.length) {
+        err.missing = publish.missing;
+      }
+      if (publish?.productId) productId = String(publish.productId);
+      if (publish?.variantId) variantId = String(publish.variantId);
+      if (typeof publish?.productHandle === 'string') productHandle = publish.productHandle;
+      if (typeof publish?.productUrl === 'string') productUrl = publish.productUrl;
+      if (publish?.visibility === 'private') visibilityResult = 'private';
       throw err;
     }
+  } else {
+    publish = {
+      ok: true,
+      productId: lastProduct?.productId,
+      variantId: lastProduct?.variantId,
+      productHandle: lastProduct?.productHandle,
+      productUrl: lastProduct?.productUrl,
+      visibility: lastProduct?.visibility,
+    };
+    productId = lastProduct?.productId;
+    variantId = lastProduct?.variantId;
+    productHandle = lastProduct?.productHandle;
+    productUrl = lastProduct?.productUrl;
+    visibilityResult = lastProduct?.visibility || requestedVisibility;
+
+    if (!variantId) {
+      const err = new Error('missing_variant');
+      (err as Error & { reason?: string }).reason = 'missing_variant';
+      throw err;
+    }
+
+    if (!skipPublication && productId) {
+      try {
+        await ensureProductPublication(productId);
+      } catch (error: any) {
+        const detail = error?.response;
+        const rawReason = typeof detail?.error === 'string'
+          ? detail.error
+          : typeof error?.reason === 'string'
+            ? error.reason
+            : typeof error?.message === 'string'
+              ? error.message
+              : 'ensure_publication_failed';
+        const normalizedReason = rawReason === 'publication_missing'
+          ? 'online_store_publication_missing'
+          : rawReason;
+        const err: Error & { reason?: string; friendlyMessage?: string } = new Error(normalizedReason);
+        err.reason = normalizedReason;
+        if (normalizedReason === 'online_store_publication_missing') {
+          err.friendlyMessage = ONLINE_STORE_MISSING_MESSAGE;
+        }
+        throw err;
+      }
+    }
   }
 
-  const publishResp = await apiFetch('/api/publish-product', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      productType,
-      mockupDataUrl,
-      designName,
-      title: productTitle,
-      material: materialLabel,
-      widthCm,
-      heightCm,
-      approxDpi,
-      priceTransfer,
-      priceNormal,
-      priceCurrency,
-      lowQualityAck: Boolean(flow.lowQualityAck),
-      imageAlt,
-      filename,
-      tags: extraTags,
-      description: '',
-      seoDescription: metaDescription,
-      visibility: requestedVisibility,
-    }),
-  });
-  const publish = await publishResp.json().catch(() => null);
-  if (!publishResp.ok || !publish?.ok) {
-    const reason = publish?.reason || publish?.error || `publish_failed_${publishResp.status}`;
-    const err: Error & { reason?: string; friendlyMessage?: string; missing?: string[] } = new Error(reason);
-    err.reason = reason;
-    if (typeof publish?.message === 'string' && publish.message.trim()) {
-      err.friendlyMessage = publish.message.trim();
-    }
-    if (Array.isArray(publish?.missing) && publish.missing.length) {
-      err.missing = publish.missing;
-    }
+  if (!publish || typeof publish !== 'object') {
+    const err = new Error('publish_failed');
+    (err as Error & { reason?: string }).reason = 'publish_failed';
     throw err;
   }
 
-  const productId: string | undefined = publish.productId ? String(publish.productId) : undefined;
-  const variantId: string | undefined = publish.variantId ? String(publish.variantId) : undefined;
+  productId = publish.productId ? String(publish.productId) : productId;
+  variantId = publish.variantId ? String(publish.variantId) : variantId;
+  productHandle = typeof publish.productHandle === 'string' ? publish.productHandle : productHandle;
+  productUrl = typeof publish.productUrl === 'string'
+    ? publish.productUrl
+    : productUrl || (productHandle ? `${DEFAULT_STORE_BASE}/products/${productHandle}` : undefined);
+  visibilityResult = publish?.visibility === 'private' ? 'private' : visibilityResult;
+
   if (!variantId) {
-    flow.set({ lastProduct: { productId, productUrl: publish.productUrl, productHandle: publish.productHandle } });
+    flow.set({ lastProduct: { productId, productUrl, productHandle, visibility: visibilityResult } });
     throw new Error('missing_variant');
   }
 
@@ -200,8 +297,8 @@ export async function createJobAndProduct(mode: 'checkout' | 'cart' | 'private',
   } = {
     productId,
     variantId,
-    productUrl: publish.productUrl,
-    visibility: publish?.visibility === 'private' ? 'private' : requestedVisibility,
+    productUrl,
+    visibility: visibilityResult,
   };
 
   try {
@@ -270,19 +367,21 @@ export async function createJobAndProduct(mode: 'checkout' | 'cart' | 'private',
     }
     return result;
   } finally {
-    flow.set({
-      lastProduct: {
-        productId,
-        variantId,
-        cartUrl: result.cartUrl,
-        checkoutUrl: result.checkoutUrl,
-        productUrl: publish.productUrl,
-        productHandle: publish.productHandle,
-        visibility: result.visibility,
-        draftOrderId: result.draftOrderId,
-        draftOrderName: result.draftOrderName,
-      },
-    });
+    if (productId || variantId || productHandle || productUrl || result.cartUrl || result.checkoutUrl) {
+      flow.set({
+        lastProduct: {
+          productId,
+          variantId,
+          cartUrl: result.cartUrl,
+          checkoutUrl: result.checkoutUrl,
+          productUrl,
+          productHandle,
+          visibility: result.visibility,
+          draftOrderId: result.draftOrderId,
+          draftOrderName: result.draftOrderName,
+        },
+      });
+    }
   }
 }
 
