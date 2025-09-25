@@ -130,7 +130,6 @@ export async function createJobAndProduct(
   let heightCm = safeNumber((flow.editorState as any)?.size_cm?.h);
   let approxDpi = safeNumber(flow.approxDpi);
   let priceTransferRaw = safeNumber(flow.priceTransfer);
-  let priceNormalRaw = safeNumber(flow.priceNormal);
   const priceCurrencyRaw = typeof flow.priceCurrency === 'string' ? flow.priceCurrency : 'ARS';
   let priceCurrency = priceCurrencyRaw.trim() || 'ARS';
   let measurementLabel = formatMeasurement(widthCm, heightCm);
@@ -151,19 +150,6 @@ export async function createJobAndProduct(
   if (!canReuse) {
     if (!flow.mockupBlob) throw new Error('missing_mockup');
     mockupDataUrl = await blobToBase64(flow.mockupBlob);
-
-    let priceTransfer = priceTransferRaw;
-    let priceNormal = priceNormalRaw;
-
-    if (isPrivate) {
-      const markupFactor = 1.25;
-      const applyMarkup = (value?: number) => {
-        if (typeof value !== 'number') return value;
-        return Math.round(value * markupFactor * 100) / 100;
-      };
-      priceTransfer = applyMarkup(priceTransferRaw);
-      priceNormal = applyMarkup(priceNormalRaw);
-    }
 
     if (isPrivate) {
       const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -186,8 +172,7 @@ export async function createJobAndProduct(
         widthCm,
         heightCm,
         approxDpi,
-        priceTransfer,
-        priceNormal,
+        priceTransfer: priceTransferRaw,
         priceCurrency,
         lowQualityAck: Boolean(flow.lowQualityAck),
         imageAlt,
@@ -196,6 +181,7 @@ export async function createJobAndProduct(
         description: '',
         seoDescription: metaDescription,
         visibility: requestedVisibility,
+        isPrivate,
       }),
     });
     const publishData = await publishResp.json().catch(() => null);

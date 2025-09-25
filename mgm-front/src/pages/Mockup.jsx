@@ -237,7 +237,7 @@ export default function Mockup() {
       }
 
       setCartStatus('waiting');
-      const waitResult = await waitForVariantAvailability(current.variantId, current.productId, { timeoutMs: 30_000 });
+      const waitResult = await waitForVariantAvailability(current.variantId, current.productId);
       if (!waitResult.ready) {
         setCartStatus('idle');
         setBusy(false);
