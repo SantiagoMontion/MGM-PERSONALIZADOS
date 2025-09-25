@@ -143,6 +143,11 @@ export default function Mockup() {
         ? error.missing.join(', ')
         : 'SHOPIFY_STORE_DOMAIN, SHOPIFY_ADMIN_TOKEN';
       friendly = `La integración con Shopify no está configurada. Faltan las variables: ${missing}.`;
+    } else if (reasonRaw === 'shopify_scope_missing') {
+      const missing = Array.isArray(error?.missing) && error.missing.length
+        ? error.missing.join(', ')
+        : 'write_products';
+      friendly = `La app de Shopify no tiene permisos suficientes. Reinstalá la app concediendo los scopes: ${missing}.`;
     } else if (reasonRaw === 'shopify_storefront_env_missing') {
       const missing = Array.isArray(error?.missing) && error.missing.length
         ? error.missing.join(', ')
