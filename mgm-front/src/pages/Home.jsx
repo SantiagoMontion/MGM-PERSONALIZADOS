@@ -757,7 +757,7 @@ export default function Home() {
             className={styles.pageHeading}
             ref={headingRef}
           >
-            <Link to="/tutorial" className={styles.tutorialButton}>
+            <Link target="_blank" rel="noopener" to="/tutorial" className={styles.tutorialButton}>
               <span>Ver tutorial</span>
               <img
                 src={TUTORIAL_ICON_SRC}
