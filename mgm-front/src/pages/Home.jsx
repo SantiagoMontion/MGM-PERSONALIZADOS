@@ -835,7 +835,7 @@ export default function Home() {
                   />
                   <span className={styles.ackIndicator} aria-hidden="true" />
                   <span className={styles.ackLabelText}>
-                    Acepto imprimir en baja calidad ({effDpi} DPI)
+                    Acepto Que la imagen está en baja calidad ({effDpi} DPI)
                   </span>
                 </label>
               )}
