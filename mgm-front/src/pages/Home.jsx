@@ -835,7 +835,7 @@ export default function Home() {
                   />
                   <span className={styles.ackIndicator} aria-hidden="true" />
                   <span className={styles.ackLabelText}>
-                    Acepto la calidad imagen subida ({effDpi} DPI)
+                    Acepto la calidad de imagen ({effDpi} DPI)
                   </span>
                 </label>
               )}
