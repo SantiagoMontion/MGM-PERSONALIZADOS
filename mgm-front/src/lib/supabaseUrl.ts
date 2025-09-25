@@ -6,11 +6,15 @@ export function canonicalizeSupabaseUploadsUrl(input: string): string {
     let p = u.pathname
       .replace(
         "/storage/v1/object/upload/sign/uploads/",
-        "/storage/v1/object/uploads/",
+        "/storage/v1/object/public/uploads/",
       )
       .replace(
         "/storage/v1/object/sign/uploads/",
+        "/storage/v1/object/public/uploads/",
+      )
+      .replace(
         "/storage/v1/object/uploads/",
+        "/storage/v1/object/public/uploads/",
       );
     // eliminar query (?token=...)
     return `${u.origin}${p}`;
@@ -25,5 +29,5 @@ export function buildUploadsUrlFromObjectKey(
   object_key: string,
 ): string {
   const origin = new URL(signed_url).origin; // https://<project>.supabase.co
-  return `${origin}/storage/v1/object/uploads/${object_key}`;
+  return `${origin}/storage/v1/object/public/uploads/${object_key}`;
 }

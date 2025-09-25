@@ -1,7 +1,15 @@
 // src/lib/jobPayload.js
 
-export const uploadsPrefix =
-  "https://vxkewodclwozoennpqqv.supabase.co/storage/v1/object/uploads/";
+const DEFAULT_UPLOADS_PREFIX =
+  "https://vxkewodclwozoennpqqv.supabase.co/storage/v1/object/public/uploads/";
+
+function buildUploadsPrefix() {
+  const base = (import.meta?.env?.VITE_SUPABASE_URL || "").trim();
+  if (!base) return DEFAULT_UPLOADS_PREFIX;
+  return `${base.replace(/\/$/, "")}/storage/v1/object/public/uploads/`;
+}
+
+export const uploadsPrefix = buildUploadsPrefix();
 
 export function makeJobId() {
   try {
@@ -18,11 +26,15 @@ export function canonicalizeSupabaseUploadsUrl(input) {
     let p = u.pathname
       .replace(
         "/storage/v1/object/upload/sign/uploads/",
-        "/storage/v1/object/uploads/",
+        "/storage/v1/object/public/uploads/",
       )
       .replace(
         "/storage/v1/object/sign/uploads/",
+        "/storage/v1/object/public/uploads/",
+      )
+      .replace(
         "/storage/v1/object/uploads/",
+        "/storage/v1/object/public/uploads/",
       );
     return `${u.origin}${p}`;
   } catch {
@@ -32,7 +44,7 @@ export function canonicalizeSupabaseUploadsUrl(input) {
 
 export function buildUploadsUrlFromObjectKey(baseUrl, object_key) {
   const origin = baseUrl.replace(/\/$/, "");
-  return `${origin}/storage/v1/object/uploads/${object_key}`;
+  return `${origin}/storage/v1/object/public/uploads/${object_key}`;
 }
 
 function normalizeFit(mode) {
