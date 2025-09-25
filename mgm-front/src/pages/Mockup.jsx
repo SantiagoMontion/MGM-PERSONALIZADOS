@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PDFDocument } from 'pdf-lib';
 import Toast from '@/components/Toast.jsx';
@@ -29,6 +29,11 @@ export default function Mockup() {
   const [cartStatus, setCartStatus] = useState('idle');
   const [pendingCart, setPendingCart] = useState(null);
   const [toast, setToast] = useState(null);
+  const [isBuyPromptOpen, setBuyPromptOpen] = useState(false);
+  const buyNowButtonRef = useRef(null);
+  const modalRef = useRef(null);
+  const firstActionButtonRef = useRef(null);
+  const wasModalOpenedRef = useRef(false);
 
   if (!flow.mockupUrl) {
     return (
@@ -40,6 +45,76 @@ export default function Mockup() {
   }
 
   const cartButtonLabel = CART_STATUS_LABELS[cartStatus] || CART_STATUS_LABELS.idle;
+  const buyPromptTitleId = 'buy-choice-title';
+  const buyPromptDescriptionId = 'buy-choice-description';
+
+  useEffect(() => {
+    if (!isBuyPromptOpen) return;
+    wasModalOpenedRef.current = true;
+    const timer = setTimeout(() => {
+      try {
+        firstActionButtonRef.current?.focus?.();
+      } catch (focusErr) {
+        console.warn('[buy-prompt-focus]', focusErr);
+      }
+    }, 0);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [isBuyPromptOpen]);
+
+  useEffect(() => {
+    if (isBuyPromptOpen) return;
+    if (!wasModalOpenedRef.current) return;
+    try {
+      buyNowButtonRef.current?.focus?.();
+    } catch (focusErr) {
+      console.warn('[buy-prompt-return-focus]', focusErr);
+    }
+  }, [isBuyPromptOpen]);
+
+  useEffect(() => {
+    if (!isBuyPromptOpen) return;
+    function handleKeyDown(event) {
+      if (event.key === 'Escape' || event.key === 'Esc') {
+        if (busy) return;
+        event.preventDefault();
+        setBuyPromptOpen(false);
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const container = modalRef.current;
+      if (!container) return;
+      const focusable = Array.from(container.querySelectorAll('button:not([disabled])'));
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+      if (event.shiftKey) {
+        if (active === first || !container.contains(active)) {
+          event.preventDefault();
+          try {
+            last.focus();
+          } catch (focusErr) {
+            console.warn('[buy-prompt-trap-focus]', focusErr);
+          }
+        }
+      } else {
+        if (active === last) {
+          event.preventDefault();
+          try {
+            first.focus();
+          } catch (focusErr) {
+            console.warn('[buy-prompt-trap-focus]', focusErr);
+          }
+        }
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isBuyPromptOpen, busy]);
 
   function showFriendlyError(error) {
     console.error('[mockup]', error);
@@ -328,10 +403,131 @@ export default function Mockup() {
       <div style={{ marginTop: 16, display: 'flex', gap: 12, justifyContent: 'center' }}>
         <button disabled={busy} onClick={() => { flow.reset(); navigate('/'); }}>Cancelar y volver</button>
         <button disabled={busy} onClick={() => handle('cart')}>{cartButtonLabel}</button>
-        <button disabled={busy} onClick={() => handle('checkout')}>Comprar ahora</button>
-        <button disabled={busy} onClick={() => handle('private')}>Comprar en privado</button>
+        <button
+          disabled={busy}
+          ref={buyNowButtonRef}
+          onClick={() => {
+            if (busy) return;
+            setBuyPromptOpen(true);
+          }}
+        >
+          Comprar ahora
+        </button>
+        <button
+          disabled={busy}
+          onClick={() => handle('private')}
+          style={{ display: 'none' }}
+          aria-hidden="true"
+          tabIndex={-1}
+        >
+          Comprar en privado
+        </button>
         <button disabled={busy} onClick={handleDownloadPdf} style={{ display: 'none' }}>Descargar PDF</button>
       </div>
+      {isBuyPromptOpen ? (
+        <div
+          role="presentation"
+          onClick={() => {
+            if (busy) return;
+            setBuyPromptOpen(false);
+          }}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.4)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16,
+            zIndex: 1000,
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={buyPromptTitleId}
+            aria-describedby={buyPromptDescriptionId}
+            ref={modalRef}
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              position: 'relative',
+              background: '#fff',
+              borderRadius: 12,
+              width: '100%',
+              maxWidth: 520,
+              boxShadow: '0 20px 40px rgba(0, 0, 0, 0.25)',
+              padding: 24,
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                if (busy) return;
+                setBuyPromptOpen(false);
+              }}
+              disabled={busy}
+              aria-label="Cerrar"
+              style={{
+                position: 'absolute',
+                top: 12,
+                right: 12,
+                border: 'none',
+                background: 'transparent',
+                cursor: busy ? 'default' : 'pointer',
+                fontSize: 20,
+                lineHeight: 1,
+              }}
+            >
+              ×
+            </button>
+            <h2 id={buyPromptTitleId} style={{ margin: '0 0 12px 0', fontSize: 22 }}>
+              ¿Quieres comprarlo en privado o público?
+            </h2>
+            <p id={buyPromptDescriptionId} style={{ margin: '0 0 20px 0', fontSize: 14, color: '#555' }}>
+              Público: tu diseño será visible en la tienda. Privado: solo vos verás el producto.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <button
+                ref={firstActionButtonRef}
+                disabled={busy}
+                onClick={() => {
+                  setBuyPromptOpen(false);
+                  handle('checkout');
+                }}
+                style={{
+                  padding: '12px 16px',
+                  borderRadius: 8,
+                  border: 'none',
+                  backgroundColor: '#0070f3',
+                  color: '#fff',
+                  fontSize: 16,
+                  cursor: busy ? 'default' : 'pointer',
+                }}
+              >
+                Comprar ahora (público)
+              </button>
+              <button
+                disabled={busy}
+                onClick={() => {
+                  setBuyPromptOpen(false);
+                  handle('private');
+                }}
+                style={{
+                  padding: '12px 16px',
+                  borderRadius: 8,
+                  border: '1px solid #0070f3',
+                  backgroundColor: '#fff',
+                  color: '#0070f3',
+                  fontSize: 16,
+                  cursor: busy ? 'default' : 'pointer',
+                }}
+              >
+                Comprar en privado
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {toast ? (
         <Toast
           message={toast.message}
