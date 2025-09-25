@@ -193,7 +193,7 @@ export default function Home() {
       return;
     }
     setDesignNameError('');
-    if (level === 'bad' && !ackLow) {
+    if (ackLowMissing) {
       setErr('Confirmá que aceptás continuar con la calidad baja.');
       return;
     }
@@ -293,6 +293,8 @@ export default function Home() {
   const url = 'https://www.mgmgamers.store/';
   const hasImage = Boolean(uploaded);
   const isCanvasReady = Boolean(hasImage && imageUrl);
+  const requiresLowAck = hasImage && level === 'bad';
+  const ackLowMissing = requiresLowAck && !ackLow;
   const configTriggerClasses = [
     styles.configTrigger,
     configOpen ? styles.configTriggerActive : '',
@@ -813,13 +815,23 @@ export default function Home() {
                   </div>
                 )}
               </div>
-              {hasImage && level === 'bad' && (
-                <label className={`${styles.ackLabel} ${styles.canvasAck}`}>
+              {requiresLowAck && (
+                <label
+                  className={`${styles.ackLabel} ${styles.canvasAck} ${ackLowMissing ? styles.ackLabelInvalid : ''}`.trim()}
+                >
                   <input
                     className={styles.ackCheckbox}
                     type="checkbox"
                     checked={ackLow}
-                    onChange={e => setAckLow(e.target.checked)}
+                    onChange={e => {
+                      setAckLow(e.target.checked);
+                      if (e.target.checked && err === 'Confirmá que aceptás continuar con la calidad baja.') {
+                        setErr('');
+                      }
+                    }}
+                    required={requiresLowAck}
+                    aria-required={requiresLowAck}
+                    aria-invalid={ackLowMissing}
                   />
                   <span className={styles.ackIndicator} aria-hidden="true" />
                   <span className={styles.ackLabelText}>
@@ -830,7 +842,7 @@ export default function Home() {
               {hasImage && (
                 <button
                   className={`${styles.continueButton} ${styles.canvasContinue}`}
-                  disabled={busy}
+                  disabled={busy || ackLowMissing}
                   onClick={handleContinue}
                 >
                   Continuar

@@ -568,8 +568,9 @@
 
 .ackLabel {
   position: relative;
-  display: inline-flex;
+  display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   min-height: 36px;
   padding: 4px 6px;
@@ -583,8 +584,9 @@
   letter-spacing: 0;
   line-height: 1.4;
   cursor: pointer;
-  text-align: left;
-  transition: color 0.18s ease;
+  text-align: center;
+  width: 100%;
+  transition: color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
 }
 
 .ackLabel:hover {
@@ -614,6 +616,7 @@
   color: inherit;
   line-height: 1.4;
   white-space: normal;
+  text-align: inherit;
 }
 
 .ackCheckbox {
@@ -671,11 +674,21 @@
 .canvasAck {
   position: absolute;
   right: var(--canvas-floating-right);
-  bottom: calc(
-    var(--canvas-floating-bottom) + var(--canvas-continue-height) + var(--canvas-floating-gap)
-  );
+  bottom: calc(var(--canvas-floating-bottom) + var(--canvas-continue-height) + 6px);
   z-index: 60;
+  width: clamp(220px, 26vw, 320px);
   max-width: min(320px, calc(100% - var(--canvas-floating-right)));
+}
+
+.ackLabelInvalid {
+  color: rgba(252, 165, 165, 0.92);
+  background: rgba(64, 18, 24, 0.35);
+  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.45);
+}
+
+.ackLabelInvalid .ackIndicator {
+  border-color: rgba(239, 68, 68, 0.65);
+  color: rgba(239, 68, 68, 0.85);
 }
 
 .canvasContinue {
