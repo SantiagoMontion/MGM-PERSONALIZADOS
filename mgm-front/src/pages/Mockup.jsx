@@ -51,6 +51,15 @@ export default function Mockup() {
   const buyPromptDescriptionId = 'buy-choice-description';
 
   useEffect(() => {
+    setToast(null);
+    setPendingCart(null);
+    setCartStatus('idle');
+    setBusy(false);
+    setBuyPromptOpen(false);
+    wasModalOpenedRef.current = false;
+  }, [flow.mockupUrl]);
+
+  useEffect(() => {
     if (!isBuyPromptOpen) return;
     wasModalOpenedRef.current = true;
     const timer = setTimeout(() => {
