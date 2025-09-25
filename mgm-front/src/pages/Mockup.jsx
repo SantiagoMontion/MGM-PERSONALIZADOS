@@ -206,6 +206,25 @@ export default function Mockup() {
     }
   }
 
+  function extractWarningMessages(warnings, warningMessages) {
+    if (Array.isArray(warningMessages) && warningMessages.length) {
+      return warningMessages
+        .map((msg) => (typeof msg === 'string' ? msg.trim() : ''))
+        .filter((msg) => Boolean(msg));
+    }
+    if (Array.isArray(warnings) && warnings.length) {
+      return warnings
+        .map((entry) => {
+          if (!entry) return '';
+          if (typeof entry === 'string') return entry;
+          if (typeof entry.message === 'string') return entry.message;
+          return '';
+        })
+        .filter((msg) => Boolean(msg));
+    }
+    return [];
+  }
+
   async function startCartFlow(options = {}) {
     const skipCreation = Boolean(options.skipCreation);
     const skipPublication = Boolean(options.skipPublication);
@@ -218,6 +237,15 @@ export default function Mockup() {
         setCartStatus('creating');
         const result = await createJobAndProduct('cart', flow, skipCreation ? { reuseLastProduct: true, skipPublication } : {});
         if (!result?.variantId) throw new Error('missing_variant');
+        const warningMessages = extractWarningMessages(result?.warnings, result?.warningMessages);
+        if (warningMessages.length) {
+          try {
+            console.warn('[cart-flow] warnings', warningMessages);
+          } catch (warnErr) {
+            console.debug?.('[cart-flow] warn_log_failed', warnErr);
+          }
+          setToast({ message: warningMessages.join(' ') });
+        }
         current = {
           productId: result.productId,
           variantId: result.variantId,
@@ -352,6 +380,15 @@ export default function Mockup() {
     try {
       setBusy(true);
       const result = await createJobAndProduct(mode, submissionFlow, options);
+      const warningMessages = extractWarningMessages(result?.warnings, result?.warningMessages);
+      if (warningMessages.length) {
+        try {
+          console.warn(`[${mode}-flow] warnings`, warningMessages);
+        } catch (warnErr) {
+          console.debug?.('[handle] warn_log_failed', warnErr);
+        }
+        setToast({ message: warningMessages.join(' ') });
+      }
       if (mode === 'checkout' && result.checkoutUrl) {
         window.location.assign(result.checkoutUrl);
         return;

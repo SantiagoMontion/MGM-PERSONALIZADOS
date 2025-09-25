@@ -93,6 +93,28 @@ export async function blobToBase64(b: Blob): Promise<string> {
   });
 }
 
+function sanitizeWarningMessages(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return (value as unknown[])
+    .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
+    .filter((msg): msg is string => Boolean(msg));
+}
+
+function deriveWarningMessagesFromWarnings(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return (value as unknown[])
+    .map((entry) => {
+      if (!entry) return '';
+      if (typeof entry === 'string') return entry;
+      if (typeof (entry as { message?: unknown }).message === 'string') {
+        return String((entry as { message: string }).message);
+      }
+      return '';
+    })
+    .map((msg) => (typeof msg === 'string' ? msg.trim() : ''))
+    .filter((msg): msg is string => Boolean(msg));
+}
+
 export interface CreateJobOptions {
   reuseLastProduct?: boolean;
   skipPublication?: boolean;
@@ -120,6 +142,8 @@ export async function createJobAndProduct(
   let productHandle: string | undefined;
   let productUrl: string | undefined;
   let visibilityResult: 'public' | 'private' = requestedVisibility;
+  let collectedWarnings: any[] | undefined;
+  let collectedWarningMessages: string[] | undefined;
 
   let mockupDataUrl = '';
   let productType: 'glasspad' | 'mousepad' = flow.productType === 'glasspad' ? 'glasspad' : 'mousepad';
@@ -186,6 +210,13 @@ export async function createJobAndProduct(
     });
     const publishData = await publishResp.json().catch(() => null);
     publish = publishData;
+    if (Array.isArray(publishData?.warnings) && publishData.warnings.length) {
+      collectedWarnings = publishData.warnings;
+    }
+    const initialWarningMessages = sanitizeWarningMessages(publishData?.warningMessages);
+    if (initialWarningMessages.length) {
+      collectedWarningMessages = initialWarningMessages;
+    }
     if (!publishResp.ok || !publish?.ok) {
       const reason = publish?.reason || publish?.error || `publish_failed_${publishResp.status}`;
       const err: Error & { reason?: string; friendlyMessage?: string; missing?: string[] } = new Error(reason);
@@ -204,6 +235,10 @@ export async function createJobAndProduct(
       throw err;
     }
   } else {
+    const reuseWarnings = Array.isArray(lastProduct?.warnings) && lastProduct.warnings?.length
+      ? lastProduct.warnings
+      : undefined;
+    const reuseWarningMessages = sanitizeWarningMessages(lastProduct?.warningMessages);
     publish = {
       ok: true,
       productId: lastProduct?.productId,
@@ -211,12 +246,16 @@ export async function createJobAndProduct(
       productHandle: lastProduct?.productHandle,
       productUrl: lastProduct?.productUrl,
       visibility: lastProduct?.visibility,
+      ...(reuseWarnings ? { warnings: reuseWarnings } : {}),
+      ...(reuseWarningMessages.length ? { warningMessages: reuseWarningMessages } : {}),
     };
     productId = lastProduct?.productId;
     variantId = lastProduct?.variantId;
     productHandle = lastProduct?.productHandle;
     productUrl = lastProduct?.productUrl;
     visibilityResult = lastProduct?.visibility || requestedVisibility;
+    collectedWarnings = reuseWarnings;
+    collectedWarningMessages = reuseWarningMessages.length ? reuseWarningMessages : undefined;
 
     if (!variantId) {
       const err = new Error('missing_variant');
@@ -255,6 +294,30 @@ export async function createJobAndProduct(
     throw err;
   }
 
+  if (!collectedWarnings && Array.isArray(publish.warnings) && publish.warnings.length) {
+    collectedWarnings = publish.warnings;
+  }
+  if (!collectedWarningMessages) {
+    const publishWarningMessages = sanitizeWarningMessages(publish.warningMessages);
+    if (publishWarningMessages.length) {
+      collectedWarningMessages = publishWarningMessages;
+    }
+  }
+  if (!collectedWarningMessages && collectedWarnings && collectedWarnings.length) {
+    const derivedMessages = deriveWarningMessagesFromWarnings(collectedWarnings);
+    if (derivedMessages.length) {
+      collectedWarningMessages = derivedMessages;
+    }
+  }
+
+  if (collectedWarningMessages && collectedWarningMessages.length) {
+    try {
+      console.warn('[createJobAndProduct] warnings', collectedWarningMessages);
+    } catch (warnErr) {
+      console.debug?.('[createJobAndProduct] warn_log_failed', warnErr);
+    }
+  }
+
   productId = publish.productId ? String(publish.productId) : productId;
   variantId = publish.variantId ? String(publish.variantId) : variantId;
   productHandle = typeof publish.productHandle === 'string' ? publish.productHandle : productHandle;
@@ -264,7 +327,20 @@ export async function createJobAndProduct(
   visibilityResult = publish?.visibility === 'private' ? 'private' : visibilityResult;
 
   if (!variantId) {
-    flow.set({ lastProduct: { productId, productUrl, productHandle, visibility: visibilityResult } });
+    const warningsPayload = collectedWarnings && collectedWarnings.length ? collectedWarnings : undefined;
+    const warningMessagesPayload = collectedWarningMessages && collectedWarningMessages.length
+      ? collectedWarningMessages
+      : undefined;
+    flow.set({
+      lastProduct: {
+        productId,
+        productUrl,
+        productHandle,
+        visibility: visibilityResult,
+        ...(warningsPayload ? { warnings: warningsPayload } : {}),
+        ...(warningMessagesPayload ? { warningMessages: warningMessagesPayload } : {}),
+      },
+    });
     throw new Error('missing_variant');
   }
 
@@ -280,11 +356,17 @@ export async function createJobAndProduct(
     visibility: 'public' | 'private';
     draftOrderId?: string;
     draftOrderName?: string;
+    warnings?: any[];
+    warningMessages?: string[];
   } = {
     productId,
     variantId,
     productUrl,
     visibility: visibilityResult,
+    ...(collectedWarnings && collectedWarnings.length ? { warnings: collectedWarnings } : {}),
+    ...(collectedWarningMessages && collectedWarningMessages.length
+      ? { warningMessages: collectedWarningMessages }
+      : {}),
   };
 
   try {
@@ -365,6 +447,10 @@ export async function createJobAndProduct(
           visibility: result.visibility,
           draftOrderId: result.draftOrderId,
           draftOrderName: result.draftOrderName,
+          ...(collectedWarnings && collectedWarnings.length ? { warnings: collectedWarnings } : {}),
+          ...(collectedWarningMessages && collectedWarningMessages.length
+            ? { warningMessages: collectedWarningMessages }
+            : {}),
         },
       });
     }
