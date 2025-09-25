@@ -8,6 +8,8 @@ import { buildExportBaseName } from '@/lib/filename.ts';
 import {
   buildCartPermalink,
   createJobAndProduct,
+  ONLINE_STORE_DISABLED_MESSAGE,
+  ONLINE_STORE_MISSING_MESSAGE,
   ensureProductPublication,
   waitForVariantAvailability,
 } from '@/lib/shopify.ts';
@@ -134,6 +136,8 @@ export default function Mockup() {
     else if (reasonRaw === 'missing_customer_email' || reasonRaw === 'missing_email') friendly = 'Completá un correo electrónico válido para comprar en privado.';
     else if (reasonRaw.startsWith('publish_failed')) friendly = 'Shopify rechazó la creación del producto. Revisá los datos enviados.';
     else if (reasonRaw === 'shopify_error') friendly = 'Shopify devolvió un error al crear el producto.';
+    else if (reasonRaw === 'product_not_active') friendly = 'El producto quedó como borrador en Shopify. Verificá la visibilidad y reintentá.';
+    else if (reasonRaw === 'product_missing_variant') friendly = 'Shopify no devolvió variantes para el producto creado.';
     else if (reasonRaw === 'shopify_env_missing') {
       const missing = Array.isArray(error?.missing) && error.missing.length
         ? error.missing.join(', ')
@@ -204,6 +208,7 @@ export default function Mockup() {
 
   async function startCartFlow(options = {}) {
     const skipCreation = Boolean(options.skipCreation);
+    const skipPublication = Boolean(options.skipPublication);
     if (busy && cartStatus !== 'idle' && !skipCreation) return;
     setToast(null);
     let current = pendingCart;
@@ -211,7 +216,7 @@ export default function Mockup() {
       setBusy(true);
       if (!skipCreation || !current) {
         setCartStatus('creating');
-        const result = await createJobAndProduct('cart', flow);
+        const result = await createJobAndProduct('cart', flow, skipCreation ? { reuseLastProduct: true, skipPublication } : {});
         if (!result?.variantId) throw new Error('missing_variant');
         current = {
           productId: result.productId,
@@ -223,7 +228,7 @@ export default function Mockup() {
       if (!current?.variantId) throw new Error('missing_variant');
 
       setCartStatus('publishing');
-      if (current.productId) {
+      if (!skipPublication && current.productId) {
         try {
           await ensureProductPublication(current.productId);
         } catch (err) {
@@ -271,6 +276,28 @@ export default function Mockup() {
       setCartStatus('idle');
       setBusy(false);
       if (err?.name === 'AbortError') return;
+      const reason = typeof err?.reason === 'string' ? err.reason : '';
+      if (reason === 'online_store_publication_missing' || reason === 'online_store_publication_empty') {
+        const friendly = typeof err?.friendlyMessage === 'string' && err.friendlyMessage
+          ? err.friendlyMessage
+          : reason === 'online_store_publication_empty'
+            ? ONLINE_STORE_DISABLED_MESSAGE
+            : ONLINE_STORE_MISSING_MESSAGE;
+        setToast({
+          message: friendly,
+          actionLabel: 'Reintentar',
+          action: () => {
+            setToast(null);
+            startCartFlow({ skipCreation: true });
+          },
+          secondaryActionLabel: 'Omitir publicación (avanzado)',
+          secondaryAction: () => {
+            setToast(null);
+            startCartFlow({ skipCreation: true, skipPublication: true });
+          },
+        });
+        return;
+      }
       if (err?.message === 'invalid_cart_permalink') {
         setToast({
           message: 'No pudimos agregar tu producto al carrito',
@@ -283,7 +310,7 @@ export default function Mockup() {
     }
   }
 
-  async function handle(mode) {
+  async function handle(mode, options = {}) {
     if (mode !== 'checkout' && mode !== 'cart' && mode !== 'private') return;
 
     if (mode === 'cart') {
@@ -324,7 +351,7 @@ export default function Mockup() {
 
     try {
       setBusy(true);
-      const result = await createJobAndProduct(mode, submissionFlow);
+      const result = await createJobAndProduct(mode, submissionFlow, options);
       if (mode === 'checkout' && result.checkoutUrl) {
         window.location.assign(result.checkoutUrl);
         return;
@@ -339,6 +366,28 @@ export default function Mockup() {
       }
       alert('El producto se creó pero no se pudo obtener un enlace.');
     } catch (error) {
+      const reason = typeof error?.reason === 'string' ? error.reason : '';
+      if (reason === 'online_store_publication_missing' || reason === 'online_store_publication_empty') {
+        const friendly = typeof error?.friendlyMessage === 'string' && error.friendlyMessage
+          ? error.friendlyMessage
+          : reason === 'online_store_publication_empty'
+            ? ONLINE_STORE_DISABLED_MESSAGE
+            : ONLINE_STORE_MISSING_MESSAGE;
+        setToast({
+          message: friendly,
+          actionLabel: 'Reintentar',
+          action: () => {
+            setToast(null);
+            handle(mode, { reuseLastProduct: true });
+          },
+          secondaryActionLabel: 'Omitir publicación (avanzado)',
+          secondaryAction: () => {
+            setToast(null);
+            handle(mode, { reuseLastProduct: true, skipPublication: true });
+          },
+        });
+        return;
+      }
       showFriendlyError(error);
     } finally {
       setBusy(false);
@@ -533,6 +582,8 @@ export default function Mockup() {
           message={toast.message}
           actionLabel={toast.actionLabel}
           onAction={toast.action}
+          secondaryActionLabel={toast.secondaryActionLabel}
+          onSecondaryAction={toast.secondaryAction}
           onClose={() => setToast(null)}
         />
       ) : null}

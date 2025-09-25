@@ -5,7 +5,7 @@
   transform: translateX(-50%);
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
   padding: 12px 16px;
   background: rgba(17, 17, 17, 0.94);
   color: #f5f5f5;
@@ -22,6 +22,12 @@
   font-size: 0.95rem;
 }
 
+.actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 .action {
   border: 1px solid transparent;
   background: #2563eb;
@@ -36,6 +42,22 @@
 .action:hover:not(:disabled) {
   background: #1d4ed8;
   transform: translateY(-1px);
+}
+
+.secondaryAction {
+  border: 1px solid rgba(245, 245, 245, 0.6);
+  background: transparent;
+  color: #f5f5f5;
+  font-weight: 500;
+  padding: 0.4em 0.9em;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.secondaryAction:hover:not(:disabled) {
+  background: rgba(245, 245, 245, 0.12);
+  color: #e0e7ff;
 }
 
 .close {
