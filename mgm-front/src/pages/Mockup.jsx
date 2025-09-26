@@ -327,20 +327,13 @@ export default function Mockup() {
       if (!current?.variantId) throw new Error('missing_variant');
 
       setCartStatus('adding');
-      let publicationId = typeof current?.publicationId === 'string' ? current.publicationId.trim() : '';
       if (!skipPublication && current.productId) {
         try {
           const ensureResult = await ensureProductPublication(current.productId);
-          const ensuredPublicationId = typeof ensureResult?.publicationId === 'string'
-            ? ensureResult.publicationId.trim()
-            : '';
-          if (ensuredPublicationId) {
-            publicationId = ensuredPublicationId;
-          }
-          if (publicationId && current.publicationId !== publicationId) {
+          if (ensureResult?.publicationId && ensureResult.publicationId !== current.publicationId) {
             current = {
               ...current,
-              publicationId,
+              publicationId: ensureResult.publicationId,
             };
             setPendingCart(current);
           }
@@ -359,19 +352,11 @@ export default function Mockup() {
           console.debug?.('[cart-flow] wait_variant_start_log_failed', logErr);
         }
         try {
-          const publicationIdForStorefront = typeof publicationId === 'string' && publicationId.trim()
-            ? publicationId.trim()
-            : typeof current.publicationId === 'string'
-              ? current.publicationId.trim()
-              : '';
-          const verifyPublication = publicationIdForStorefront
-            ? () => verifyProductPublicationStatus(current.productId)
-            : undefined;
+          const verifyPublication = () => verifyProductPublicationStatus(current.productId);
           const pollResult = await waitForVariantAvailability(
             current.variantId,
             current.productId,
             {
-              publicationId: publicationIdForStorefront,
               verifyProductPublication: verifyPublication,
             },
           );
