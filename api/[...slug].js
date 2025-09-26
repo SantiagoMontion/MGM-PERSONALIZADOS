@@ -23,6 +23,7 @@ const RATE_LIMITS = {
   'POST product-publication-status': { limit: 45, windowMs: 60_000 },
   'POST variant-status': { limit: 90, windowMs: 60_000 },
   'GET search-assets': { limit: 30, windowMs: 60_000 },
+  'GET outputs/search': { limit: 30, windowMs: 60_000 },
   'POST shopify-webhook': { limit: 60, windowMs: 60_000 },
 };
 
@@ -99,6 +100,13 @@ export default withCors(async function handler(req, res) {
       case 'GET search-assets': {
         const { searchAssets } = await import('../lib/api/handlers/assets.js');
         const { status, body } = await searchAssets({ query: req.query });
+        res.statusCode = status;
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        return res.end(JSON.stringify(body));
+      }
+      case 'GET outputs/search': {
+        const { searchOutputFiles } = await import('../lib/api/handlers/outputsSearch.js');
+        const { status, body } = await searchOutputFiles({ query: req.query });
         res.statusCode = status;
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         return res.end(JSON.stringify(body));

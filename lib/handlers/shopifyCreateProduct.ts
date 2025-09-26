@@ -3,9 +3,7 @@ import sharp from 'sharp';
 import { buildCorsHeaders } from '../cors';
 import { shopifyAdmin } from '../shopify';
 import { slugifyName, sizeLabel } from '../_lib/slug.js';
-import { supa } from '../supa.js';
-
-const OUTPUT_BUCKET = 'outputs';
+import savePrintPdfToSupabase from '../_lib/savePrintPdfToSupabase.js';
 
 type DataUrlPayload = {
   mimeType: string;
@@ -42,74 +40,36 @@ function safeNumber(value: unknown): number | null {
   return Number.isFinite(coerced) ? coerced : null;
 }
 
-function buildStorageBaseKey({
-  productHandle,
-  productId,
+function buildPdfFilename({
   designName,
   widthCm,
   heightCm,
   material,
 }: {
-  productHandle?: string;
-  productId?: string;
   designName?: string;
   widthCm?: number | null;
   heightCm?: number | null;
   material?: string;
 }) {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const designSlug = slugifyName(designName || '') || null;
-  const materialSlug = slugifyName(material || '') || null;
+  const designSlug = slugifyName(designName || '') || 'design';
   const width = safeNumber(widthCm);
   const height = safeNumber(heightCm);
   const measurement = width && height ? sizeLabel(width, height) : null;
-  const handleSlug = slugifyName(productHandle || '') || null;
-  const numericId = (productId || '').replace(/[^0-9a-z]+/gi, '').slice(-10);
-  const identifier = handleSlug || (numericId ? `p${numericId}` : randomUUID().slice(0, 8));
-  const descriptorParts = [designSlug, measurement ? measurement.toLowerCase() : null, materialSlug]
-    .filter(Boolean);
-  const descriptor = descriptorParts.length ? descriptorParts.join('-') : 'design';
-  return `products/${year}/${month}/${identifier}/${descriptor}`;
-}
-
-function buildPublicUrl(key: string) {
-  const base = String(process.env.SUPABASE_URL || '').replace(/\/?$/, '');
-  return `${base}/storage/v1/object/public/${OUTPUT_BUCKET}/${key}`;
-}
-
-async function uploadToSupabase(
-  key: string,
-  buffer: Buffer,
-  contentType: string,
-) {
-  const storage = supa.storage.from(OUTPUT_BUCKET);
-  const size = buffer?.length ?? 0;
-  console.info('shopify-create-product upload:start', {
-    key,
-    bucketName: OUTPUT_BUCKET,
-    size,
-    type: contentType,
-  });
-  const { error } = await storage.upload(key, buffer, {
-    contentType,
-    upsert: true,
-    cacheControl: '3600',
-  });
-  if (error) {
-    console.error('shopify-create-product upload:error', {
-      key,
-      bucketName: OUTPUT_BUCKET,
-      size,
-      type: contentType,
-      status: (error as any)?.status || (error as any)?.statusCode || null,
-      message: error?.message,
-      name: error?.name,
-    });
-    throw error;
-  }
-  return buildPublicUrl(key);
+  const materialRaw = typeof material === 'string' ? material : '';
+  const materialSegment = materialRaw
+    ? materialRaw
+        .normalize('NFD')
+        .replace(/\p{Diacritic}/gu, '')
+        .replace(/[^a-zA-Z0-9]+/g, '-')
+        .toUpperCase()
+        .replace(/^-+|-+$/g, '') || 'CUSTOM'
+    : 'CUSTOM';
+  const hash = randomUUID().replace(/[^a-z0-9]+/gi, '').slice(0, 8) || randomUUID().slice(0, 8);
+  const parts = [designSlug];
+  if (measurement) parts.push(measurement);
+  parts.push(materialSegment);
+  parts.push(hash);
+  return `${parts.join('-')}.pdf`;
 }
 
 function formatDimension(value: unknown): string | undefined {
@@ -224,36 +184,47 @@ export default async function handler(req: any, res: any) {
     const variantId = String(product?.variants?.[0]?.id || '');
     const checkoutUrl = `${pubBase}/cart/${variantId}:1`;
     try {
-      const baseKey = buildStorageBaseKey({
-        productHandle: product?.handle,
-        productId: product?.id ? String(product.id) : undefined,
+      const pdfFilename = buildPdfFilename({
         designName: designNameForPath,
         widthCm: width,
         heightCm: height,
         material: mode,
       });
-      const mockupExt = mockupPayload.extension === 'bin' || mockupPayload.extension === 'pdf'
-        ? 'png'
-        : mockupPayload.extension;
-      const pdfKey = `${baseKey}/print.pdf`;
-      const mockupKey = `${baseKey}/mockup.${mockupExt}`;
-      const [pdfUrl, mockupUrl] = await Promise.all([
-        uploadToSupabase(pdfKey, pdfBuffer, 'application/pdf'),
-        uploadToSupabase(mockupKey, mockupPayload.buffer, mockupPayload.mimeType),
-      ]);
+      const pdfMetadata: Record<string, string | boolean> = {
+        private: true,
+        createdBy: 'editor',
+      };
+      if (product?.id) pdfMetadata.productId = String(product.id);
+      if (variantId) pdfMetadata.variantId = variantId;
+
+      const { path: pdfPath, signedUrl: pdfSignedUrl, expiresIn } = await savePrintPdfToSupabase(
+        pdfBuffer,
+        pdfFilename,
+        pdfMetadata,
+      );
+
       return res.status(200).json({
         ok: true,
         productUrl,
         checkoutUrl,
         assets: {
-          pdf_url: pdfUrl,
-          mockup_url: mockupUrl,
-          storage_key_prefix: baseKey,
+          pdf_url: pdfSignedUrl,
+          pdf_path: pdfPath,
+          pdf_expires_in: expiresIn,
+        },
+        pdf: {
+          path: pdfPath,
+          download_url: pdfSignedUrl,
+          expires_in: expiresIn,
         },
       });
     } catch (uploadErr: any) {
+      const reason = typeof uploadErr?.code === 'string' ? uploadErr.code : 'supabase_upload_failed';
       console.error('shopify_create_product_supabase', uploadErr);
-      return res.status(500).json({ ok: false, message: 'supabase_upload_failed' });
+      const message = reason === 'supabase_credentials_missing'
+        ? 'Faltan credenciales de Supabase'
+        : 'supabase_upload_failed';
+      return res.status(500).json({ ok: false, message, reason });
     }
   } catch (e: any) {
     const status = Number(e?.status) || 500;
