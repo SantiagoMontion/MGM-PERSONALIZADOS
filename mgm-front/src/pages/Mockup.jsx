@@ -7,13 +7,11 @@ import { downloadBlob } from '@/lib/mockup.js';
 import styles from './Mockup.module.css';
 import { buildExportBaseName } from '@/lib/filename.ts';
 import {
-  addVariantToCartStorefront,
   buildCartPermalink,
   createJobAndProduct,
   ONLINE_STORE_DISABLED_MESSAGE,
   ONLINE_STORE_MISSING_MESSAGE,
   ensureProductPublication,
-  waitForVariantAvailability,
 } from '@/lib/shopify.ts';
 
 const CART_STATUS_LABELS = {
@@ -292,6 +290,7 @@ export default function Mockup() {
     const baseCartOptions = normalizedDiscountCode ? { discountCode: normalizedDiscountCode } : {};
     try {
       setBusy(true);
+      let latestCartUrl = '';
       if (!skipCreation || !current) {
         setCartStatus('creating');
         const result = await createJobAndProduct(
@@ -311,10 +310,14 @@ export default function Mockup() {
           }
           setToast({ message: warningMessages.join(' ') });
         }
+        latestCartUrl = typeof result?.cartUrl === 'string' ? result.cartUrl : '';
         current = {
           productId: result.productId,
           variantId: result.variantId,
           quantity: CART_DEFAULT_QUANTITY,
+          ...(latestCartUrl ? { webUrl: latestCartUrl } : {}),
+          ...(result?.cartId ? { cartId: result.cartId } : {}),
+          ...(result?.cartToken ? { cartToken: result.cartToken } : {}),
         };
         setPendingCart(current);
       }
@@ -329,68 +332,13 @@ export default function Mockup() {
         }
       }
 
-      const waitResult = await waitForVariantAvailability(current.variantId, current.productId);
-      if (!waitResult.ready) {
-        setCartStatus('idle');
-        setBusy(false);
-        setToast({
-          message: 'Tu producto se está creando, probá de nuevo',
-          actionLabel: 'Reintentar',
-          action: () => startCartFlow({ skipCreation: true }),
-        });
-        return;
-      }
-
-      let cartUrl = '';
-      try {
-        const storefrontResult = await addVariantToCartStorefront(
-          current.variantId,
-          current.quantity || CART_DEFAULT_QUANTITY,
-        );
-        cartUrl = storefrontResult.webUrl;
-        current = {
-          ...current,
-          cartId: storefrontResult.cartId,
-          webUrl: storefrontResult.webUrl,
-        };
-        setPendingCart(current);
-      } catch (storefrontError) {
-        const storeErr = storefrontError && typeof storefrontError === 'object'
-          ? storefrontError
-          : {};
-        try {
-          console.error('[cart-flow] storefront cart failed', {
-            error: storefrontError,
-            reason: typeof storeErr.reason === 'string' ? storeErr.reason : undefined,
-            requestId: typeof storeErr.requestId === 'string' ? storeErr.requestId : undefined,
-            userErrors: Array.isArray(storeErr.userErrors) ? storeErr.userErrors : undefined,
-          });
-        } catch (logErr) {
-          console.warn('[cart-flow] storefront cart log failed', logErr);
-        }
-        const fallbackUrl = buildCartPermalink(
+      let cartUrl = latestCartUrl || current?.webUrl || '';
+      if (!cartUrl) {
+        cartUrl = buildCartPermalink(
           current.variantId,
           current.quantity || CART_DEFAULT_QUANTITY,
           normalizedDiscountCode ? { discountCode: normalizedDiscountCode } : undefined,
         );
-        if (fallbackUrl) {
-          cartUrl = fallbackUrl;
-          current = {
-            ...current,
-            webUrl: fallbackUrl,
-          };
-          setPendingCart(current);
-          try {
-            console.info('[cart-flow] cart_permalink_redirect', { url: fallbackUrl });
-          } catch (logErr) {
-            console.warn('[cart-flow] cart_permalink_log_failed', logErr);
-          }
-        } else {
-          setCartStatus('idle');
-          setBusy(false);
-          showCartFailureToast('');
-          return;
-        }
       }
 
       if (!cartUrl) {
@@ -398,6 +346,14 @@ export default function Mockup() {
         setBusy(false);
         showCartFailureToast('');
         return;
+      }
+
+      if (!current?.webUrl || current.webUrl !== cartUrl) {
+        current = {
+          ...current,
+          webUrl: cartUrl,
+        };
+        setPendingCart(current);
       }
 
       openCartAndFinalize(cartUrl);
