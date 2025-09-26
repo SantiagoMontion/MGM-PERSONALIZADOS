@@ -201,6 +201,7 @@ export interface CreateJobOptions {
   reuseLastProduct?: boolean;
   skipPublication?: boolean;
   onPrivateStageChange?: (stage: 'creating_product' | 'creating_checkout') => void;
+  discountCode?: string;
 }
 
 export async function createJobAndProduct(
@@ -212,10 +213,12 @@ export async function createJobAndProduct(
     reuseLastProduct = false,
     skipPublication = false,
     onPrivateStageChange,
+    discountCode,
   } = options;
   const lastProduct = flow.lastProduct;
   const isPrivate = mode === 'private';
   const requestedVisibility: 'public' | 'private' = isPrivate ? 'private' : 'public';
+  const normalizedDiscountCode = typeof discountCode === 'string' ? discountCode.trim() : '';
   const canReuse = reuseLastProduct
     && lastProduct?.productId
     && lastProduct?.variantId
@@ -490,6 +493,7 @@ export async function createJobAndProduct(
         quantity: 1,
         ...(customerEmail ? { email: customerEmail } : {}),
         ...(isPrivate ? { mode: 'private' as const } : { mode }),
+        ...(!isPrivate && normalizedDiscountCode ? { discount: normalizedDiscountCode } : {}),
       };
       if (isPrivate && privateDraftOrder?.note) {
         checkoutPayload.note = privateDraftOrder.note;
@@ -549,6 +553,7 @@ export async function createJobAndProduct(
           productId,
           variantId,
           quantity: 1,
+          ...(normalizedDiscountCode && mode !== 'private' ? { discount: normalizedDiscountCode } : {}),
         }),
       });
       const cl = await clResp.json().catch(() => null);
@@ -626,7 +631,7 @@ function clampQuantity(quantity?: number) {
 export function buildCartPermalink(
   variantId: string | number | undefined,
   quantity = 1,
-  options?: { returnTo?: string; baseUrl?: string },
+  options?: { returnTo?: string; baseUrl?: string; discountCode?: string },
 ) {
   const numericId = normalizeVariantNumericId(variantId);
   if (!numericId) return '';
@@ -644,6 +649,10 @@ export function buildCartPermalink(
   const rawReturn = typeof options?.returnTo === 'string' ? options.returnTo.trim() : '';
   const returnTo = rawReturn || '/cart';
   cartUrl.searchParams.set('return_to', returnTo.startsWith('/') ? returnTo : `/${returnTo.replace(/^\/+/, '')}`);
+  const discountCode = typeof options?.discountCode === 'string' ? options.discountCode.trim() : '';
+  if (discountCode) {
+    cartUrl.searchParams.set('discount', discountCode);
+  }
   return cartUrl.toString();
 }
 

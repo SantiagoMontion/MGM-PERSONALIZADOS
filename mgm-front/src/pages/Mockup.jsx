@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { PDFDocument } from 'pdf-lib';
 import Toast from '@/components/Toast.jsx';
 import { useFlow } from '@/state/flow.js';
@@ -28,6 +28,7 @@ const CART_DEFAULT_QUANTITY = 1;
 export default function Mockup() {
   const flow = useFlow();
   const navigate = useNavigate();
+  const location = useLocation();
   const [busy, setBusy] = useState(false);
   const [cartStatus, setCartStatus] = useState('idle');
   const [pendingCart, setPendingCart] = useState(null);
@@ -41,6 +42,39 @@ export default function Mockup() {
   const cartButtonLabel = CART_STATUS_LABELS[cartStatus] || CART_STATUS_LABELS.idle;
   const buyPromptTitleId = 'buy-choice-title';
   const buyPromptDescriptionId = 'buy-choice-description';
+  const discountCode = useMemo(() => {
+    if (typeof window === 'undefined') return '';
+    try {
+      const params = new URLSearchParams(location.search);
+      const code = params.get('discount');
+      if (typeof code === 'string' && code.trim()) {
+        return code.trim();
+      }
+      try {
+        const stored = window.sessionStorage.getItem('MGM_discountCode');
+        return typeof stored === 'string' ? stored.trim() : '';
+      } catch (storageErr) {
+        console.warn('[mockup-discount-storage-read]', storageErr);
+        return '';
+      }
+    } catch (err) {
+      console.warn('[mockup-discount-parse]', err);
+      return '';
+    }
+  }, [location.search]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      if (discountCode) {
+        window.sessionStorage.setItem('MGM_discountCode', discountCode);
+      } else {
+        window.sessionStorage.removeItem('MGM_discountCode');
+      }
+    } catch (err) {
+      console.warn('[mockup-discount-storage-write]', err);
+    }
+  }, [discountCode]);
 
   useEffect(() => {
     setToast(null);
@@ -167,16 +201,16 @@ export default function Mockup() {
   function openCartTab(url) {
     if (typeof window === 'undefined' || !url) return false;
     try {
-      const popup = window.open(url, '_blank', 'noopener');
-      if (popup) {
-        try {
-          popup.focus?.();
-        } catch (focusErr) {
-          console.warn('[cart-popup-focus]', focusErr);
-        }
-        return true;
+      const popup = window.open(url, '_blank');
+      if (!popup) {
+        return false;
       }
-      window.open(url, '_blank', 'noopener');
+      try {
+        popup.opener = null;
+        popup.focus?.();
+      } catch (focusErr) {
+        console.warn('[cart-popup-focus]', focusErr);
+      }
       return true;
     } catch (err) {
       console.error('[openCartTab]', err);
@@ -254,11 +288,19 @@ export default function Mockup() {
     if (busy && cartStatus !== 'idle' && !skipCreation) return;
     setToast(null);
     let current = pendingCart;
+    const normalizedDiscountCode = discountCode || '';
+    const baseCartOptions = normalizedDiscountCode ? { discountCode: normalizedDiscountCode } : {};
     try {
       setBusy(true);
       if (!skipCreation || !current) {
         setCartStatus('creating');
-        const result = await createJobAndProduct('cart', flow, skipCreation ? { reuseLastProduct: true, skipPublication } : {});
+        const result = await createJobAndProduct(
+          'cart',
+          flow,
+          skipCreation
+            ? { reuseLastProduct: true, skipPublication, ...(normalizedDiscountCode ? { discountCode: normalizedDiscountCode } : {}) }
+            : baseCartOptions,
+        );
         if (!result?.variantId) throw new Error('missing_variant');
         const warningMessages = extractWarningMessages(result?.warnings, result?.warningMessages);
         if (warningMessages.length) {
@@ -329,6 +371,7 @@ export default function Mockup() {
         const fallbackUrl = buildCartPermalink(
           current.variantId,
           current.quantity || CART_DEFAULT_QUANTITY,
+          normalizedDiscountCode ? { discountCode: normalizedDiscountCode } : undefined,
         );
         if (fallbackUrl) {
           cartUrl = fallbackUrl;
@@ -441,7 +484,12 @@ export default function Mockup() {
         setToast({ message: 'Creando producto privado…' });
         jobOptions = { ...options, onPrivateStageChange: stageCallback };
       }
-      const result = await createJobAndProduct(mode, submissionFlow, jobOptions);
+      const normalizedDiscountCode = discountCode || '';
+      const jobOptionsWithDiscount =
+        mode === 'private' || !normalizedDiscountCode
+          ? jobOptions
+          : { ...jobOptions, discountCode: normalizedDiscountCode };
+      const result = await createJobAndProduct(mode, submissionFlow, jobOptionsWithDiscount);
       const warningMessages = extractWarningMessages(result?.warnings, result?.warningMessages);
       if (warningMessages.length) {
         try {
