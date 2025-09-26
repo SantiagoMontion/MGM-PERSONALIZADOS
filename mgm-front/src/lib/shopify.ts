@@ -577,17 +577,6 @@ function resolveStorefrontConfig(): { ok: true; config: StorefrontConfig } | { o
   };
 }
 
-function getStoredCartId(): string {
-  if (typeof window === 'undefined' || !window.localStorage) return '';
-  try {
-    const value = window.localStorage.getItem(STOREFRONT_CART_STORAGE_KEY);
-    return value ? value.trim() : '';
-  } catch (err) {
-    console.warn('[storefront-cart] read failed', err);
-    return '';
-  }
-}
-
 function setStoredCartId(cartId?: string | null) {
   if (typeof window === 'undefined' || !window.localStorage) return;
   try {
@@ -640,14 +629,7 @@ interface StorefrontGraphQLResponse<T> {
   errors?: StorefrontGraphQLError[];
 }
 
-function extractUserErrors(payload?: StorefrontCartPayload | null) {
-  if (!payload?.userErrors?.length) return [];
-  return payload.userErrors
-    .map((entry) => (entry && typeof entry.message === 'string' ? entry.message.trim() : ''))
-    .filter((message): message is string => Boolean(message));
-}
-
-async function performStorefrontCartMutation(
+async function performStorefrontGraphQL<T>(
   config: StorefrontConfig,
   query: string,
   variables: Record<string, unknown>,
@@ -663,8 +645,23 @@ async function performStorefrontCartMutation(
     body: JSON.stringify({ query, variables }),
   });
   const requestId = response.headers.get('x-request-id') || response.headers.get('X-Request-Id');
-  const payload = (await response.json().catch(() => null)) as StorefrontGraphQLResponse<StorefrontCartResponse> | null;
+  const payload = (await response.json().catch(() => null)) as StorefrontGraphQLResponse<T> | null;
   return { response, payload, requestId: requestId || undefined };
+}
+
+function extractUserErrors(payload?: StorefrontCartPayload | null) {
+  if (!payload?.userErrors?.length) return [];
+  return payload.userErrors
+    .map((entry) => (entry && typeof entry.message === 'string' ? entry.message.trim() : ''))
+    .filter((message): message is string => Boolean(message));
+}
+
+async function performStorefrontCartMutation(
+  config: StorefrontConfig,
+  query: string,
+  variables: Record<string, unknown>,
+) {
+  return performStorefrontGraphQL<StorefrontCartResponse>(config, query, variables);
 }
 
 const CART_CREATE_MUTATION = `mutation CartCreate($lines: [CartLineInput!]!) {
@@ -681,6 +678,21 @@ const CART_LINES_ADD_MUTATION = `mutation CartLinesAdd($cartId: ID!, $lines: [Ca
   }
 }`;
 
+const VARIANT_AVAILABILITY_QUERY = `query VariantAvailability($id: ID!) {
+  node(id: $id) {
+    __typename
+    ... on ProductVariant {
+      id
+      availableForSale
+      product {
+        id
+        handle
+        onlineStoreUrl
+      }
+    }
+  }
+}`;
+
 export interface StorefrontCartSuccess {
   cartId: string;
   webUrl: string;
@@ -692,89 +704,49 @@ export async function addVariantToCartStorefront(
 ): Promise<StorefrontCartSuccess> {
   const configResult = resolveStorefrontConfig();
   if (!configResult.ok) {
+    try {
+      console.error('[cart-flow] storefront_env_missing', { missing: configResult.missing });
+    } catch (logErr) {
+      console.warn?.('[cart-flow] storefront_env_missing_log_failed', logErr);
+    }
     const error = new Error('shopify_storefront_env_missing');
     (error as Error & { reason?: string; missing?: string[] }).reason = 'shopify_storefront_env_missing';
     (error as Error & { reason?: string; missing?: string[] }).missing = configResult.missing;
     throw error;
   }
+  try {
+    console.info('[cart-flow] storefront_env_ok');
+  } catch (logErr) {
+    console.warn?.('[cart-flow] storefront_env_log_failed', logErr);
+  }
   const { config } = configResult;
   const merchandiseId = buildVariantGid(variantId);
   const lines = [{ merchandiseId, quantity: clampQuantity(quantity) }];
-
-  const attemptAdd = async (cartId: string) => {
-    const { response, payload, requestId } = await performStorefrontCartMutation(
+  const { response: createResponse, payload: createPayload, requestId: createRequestId } =
+    await performStorefrontCartMutation(
       config,
-      CART_LINES_ADD_MUTATION,
-      { cartId, lines },
+      CART_CREATE_MUTATION,
+      { lines: [] },
     );
-    const data = payload?.data?.cartLinesAdd;
-    const userErrors = extractUserErrors(data);
-    if (!response.ok || payload?.errors?.length || userErrors.length) {
-      const error = new Error('shopify_storefront_user_error');
-      (error as Error & { reason?: string; requestId?: string; userErrors?: string[] }).reason = 'shopify_storefront_user_error';
-      if (requestId) (error as Error & { requestId?: string }).requestId = requestId;
-      if (userErrors.length) {
-        (error as Error & { userErrors?: string[] }).userErrors = userErrors;
-      }
-      if (payload?.errors?.length) {
-        const messages = payload.errors
-          .map((entry) => (entry?.message ? String(entry.message).trim() : ''))
-          .filter(Boolean);
-        if (messages.length) {
-          const combined = messages.join(' | ');
-          (error as Error & { userErrors?: string[] }).userErrors = [
-            ...((error as Error & { userErrors?: string[] }).userErrors || []),
-            combined,
-          ];
-        }
-      }
-      (error as Error & { status?: number }).status = response.status;
-      throw error;
-    }
-    const cartIdResult = data?.cart?.id ? String(data.cart.id) : '';
-    const webUrl = data?.cart?.webUrl ? String(data.cart.webUrl) : '';
-    if (!cartIdResult || !webUrl) {
-      const error = new Error('shopify_storefront_cart_missing');
-      (error as Error & { reason?: string; requestId?: string }).reason = 'shopify_storefront_cart_missing';
-      if (requestId) (error as Error & { requestId?: string }).requestId = requestId;
-      throw error;
-    }
-    setStoredCartId(cartIdResult);
-    return { cartId: cartIdResult, webUrl };
-  };
-
-  const storedCartId = getStoredCartId();
-  if (storedCartId) {
+  const createData = createPayload?.data?.cartCreate;
+  const createUserErrors = extractUserErrors(createData);
+  if (!createResponse.ok || createPayload?.errors?.length || createUserErrors.length) {
     try {
-      return await attemptAdd(storedCartId);
-    } catch (error) {
-      setStoredCartId(null);
-      const reason = typeof (error as { reason?: unknown })?.reason === 'string'
-        ? String((error as { reason?: unknown }).reason)
-        : '';
-      if (reason === 'shopify_storefront_env_missing') {
-        throw error;
-      }
-      if (reason === 'shopify_storefront_user_error') {
-        throw error;
-      }
+      console.error('[cart-flow] cart_create_error', {
+        requestId: createRequestId,
+        status: createResponse.status,
+        userErrors: createUserErrors,
+        graphQLErrors: createPayload?.errors,
+      });
+    } catch (logErr) {
+      console.warn?.('[cart-flow] cart_create_log_failed', logErr);
     }
-  }
-
-  const { response, payload, requestId } = await performStorefrontCartMutation(
-    config,
-    CART_CREATE_MUTATION,
-    { lines },
-  );
-  const data = payload?.data?.cartCreate;
-  const userErrors = extractUserErrors(data);
-  if (!response.ok || payload?.errors?.length || userErrors.length) {
-    const error = new Error('shopify_storefront_user_error');
-    (error as Error & { reason?: string; requestId?: string; userErrors?: string[] }).reason = 'shopify_storefront_user_error';
-    if (requestId) (error as Error & { requestId?: string }).requestId = requestId;
-    if (userErrors.length) (error as Error & { userErrors?: string[] }).userErrors = userErrors;
-    if (payload?.errors?.length) {
-      const messages = payload.errors
+    const error = new Error('shopify_cart_user_error');
+    (error as Error & { reason?: string; requestId?: string; userErrors?: string[] }).reason = 'shopify_cart_user_error';
+    if (createRequestId) (error as Error & { requestId?: string }).requestId = createRequestId;
+    if (createUserErrors.length) (error as Error & { userErrors?: string[] }).userErrors = createUserErrors;
+    if (createPayload?.errors?.length) {
+      const messages = createPayload.errors
         .map((entry) => (entry?.message ? String(entry.message).trim() : ''))
         .filter(Boolean);
       if (messages.length) {
@@ -784,65 +756,95 @@ export async function addVariantToCartStorefront(
         ];
       }
     }
-    (error as Error & { status?: number }).status = response.status;
+    (error as Error & { status?: number }).status = createResponse.status;
     throw error;
   }
-  const cartIdResult = data?.cart?.id ? String(data.cart.id) : '';
-  const webUrl = data?.cart?.webUrl ? String(data.cart.webUrl) : '';
-  if (!cartIdResult || !webUrl) {
+  const createdCartId = createData?.cart?.id ? String(createData.cart.id) : '';
+  const createdWebUrl = createData?.cart?.webUrl ? String(createData.cart.webUrl) : '';
+  if (!createdCartId || !createdWebUrl) {
+    try {
+      console.error('[cart-flow] cart_create_error', {
+        requestId: createRequestId,
+        status: createResponse.status,
+        message: 'Missing cart id/webUrl',
+      });
+    } catch (logErr) {
+      console.warn?.('[cart-flow] cart_create_log_failed', logErr);
+    }
     const error = new Error('shopify_storefront_cart_missing');
     (error as Error & { reason?: string; requestId?: string }).reason = 'shopify_storefront_cart_missing';
-    if (requestId) (error as Error & { requestId?: string }).requestId = requestId;
+    if (createRequestId) (error as Error & { requestId?: string }).requestId = createRequestId;
     throw error;
   }
-  setStoredCartId(cartIdResult);
-  return { cartId: cartIdResult, webUrl };
-}
-
-export interface AjaxCartSuccess {
-  webUrl: string;
-}
-
-export async function addVariantToCartAjax(
-  variantId: string | number,
-  quantity = 1,
-): Promise<AjaxCartSuccess> {
-  const numericId = normalizeVariantNumericId(variantId);
-  if (!numericId) {
-    const error = new Error('invalid_variant_id');
-    (error as Error & { reason?: string }).reason = 'invalid_variant_id';
-    throw error;
+  setStoredCartId(createdCartId);
+  try {
+    console.info('[cart-flow] cart_create_success', { requestId: createRequestId, cartId: createdCartId });
+  } catch (logErr) {
+    console.warn?.('[cart-flow] cart_create_log_failed', logErr);
   }
-  const endpoint = `${DEFAULT_STORE_BASE.replace(/\/+$/, '')}/cart/add.js`;
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    },
-    credentials: 'include',
-    body: JSON.stringify({ id: Number(numericId), quantity: clampQuantity(quantity) }),
-  });
-  if (!response.ok) {
-    let detail: unknown;
+
+  const { response: addResponse, payload: addPayload, requestId: addRequestId } =
+    await performStorefrontCartMutation(
+      config,
+      CART_LINES_ADD_MUTATION,
+      { cartId: createdCartId, lines },
+    );
+  const addData = addPayload?.data?.cartLinesAdd;
+  const addUserErrors = extractUserErrors(addData);
+  if (!addResponse.ok || addPayload?.errors?.length || addUserErrors.length) {
     try {
-      detail = await response.json();
-    } catch {
-      try {
-        detail = await response.text();
-      } catch {
-        detail = null;
+      console.error('[cart-flow] cart_lines_add_error', {
+        requestId: addRequestId,
+        status: addResponse.status,
+        userErrors: addUserErrors,
+        graphQLErrors: addPayload?.errors,
+      });
+    } catch (logErr) {
+      console.warn?.('[cart-flow] cart_lines_add_log_failed', logErr);
+    }
+    const error = new Error('shopify_cart_user_error');
+    (error as Error & { reason?: string; requestId?: string; userErrors?: string[] }).reason = 'shopify_cart_user_error';
+    if (addRequestId) (error as Error & { requestId?: string }).requestId = addRequestId;
+    if (addUserErrors.length) (error as Error & { userErrors?: string[] }).userErrors = addUserErrors;
+    if (addPayload?.errors?.length) {
+      const messages = addPayload.errors
+        .map((entry) => (entry?.message ? String(entry.message).trim() : ''))
+        .filter(Boolean);
+      if (messages.length) {
+        (error as Error & { userErrors?: string[] }).userErrors = [
+          ...((error as Error & { userErrors?: string[] }).userErrors || []),
+          messages.join(' | '),
+        ];
       }
     }
-    const error = new Error('shopify_ajax_cart_failed');
-    (error as Error & { reason?: string; detail?: unknown; status?: number }).reason = 'shopify_ajax_cart_failed';
-    (error as Error & { detail?: unknown }).detail = detail;
-    (error as Error & { status?: number }).status = response.status;
-    const requestId = response.headers.get('x-request-id') || response.headers.get('X-Request-Id');
-    if (requestId) (error as Error & { requestId?: string }).requestId = requestId;
+    (error as Error & { status?: number }).status = addResponse.status;
     throw error;
   }
-  return { webUrl: `${DEFAULT_STORE_BASE.replace(/\/+$/, '')}/cart` };
+  const finalCartId = addData?.cart?.id ? String(addData.cart.id) : createdCartId;
+  const finalWebUrl = addData?.cart?.webUrl ? String(addData.cart.webUrl) : createdWebUrl;
+  if (!finalCartId || !finalWebUrl) {
+    try {
+      console.error('[cart-flow] cart_lines_add_error', {
+        requestId: addRequestId,
+        status: addResponse.status,
+        message: 'Missing cart id/webUrl',
+      });
+    } catch (logErr) {
+      console.warn?.('[cart-flow] cart_lines_add_log_failed', logErr);
+    }
+    const error = new Error('shopify_storefront_cart_missing');
+    (error as Error & { reason?: string; requestId?: string }).reason = 'shopify_storefront_cart_missing';
+    if (addRequestId) (error as Error & { requestId?: string }).requestId = addRequestId;
+    throw error;
+  }
+  setStoredCartId(finalCartId);
+  try {
+    console.info('[cart-flow] cart_lines_add_success', { requestId: addRequestId, cartId: finalCartId });
+  } catch (logErr) {
+    console.warn?.('[cart-flow] cart_lines_add_log_failed', logErr);
+  }
+
+  return { cartId: finalCartId, webUrl: finalWebUrl };
 }
 
 export interface EnsurePublicationResponse {
@@ -886,23 +888,18 @@ export async function ensureProductPublication(productId?: string | null): Promi
   return json;
 }
 
-export interface VariantStatusSuccess {
-  ok: true;
-  ready?: boolean;
-  published?: boolean;
-  available?: boolean;
-  variantPublished?: boolean;
-  productPublished?: boolean;
-  [key: string]: unknown;
+interface VariantPollData {
+  node?: {
+    __typename?: string | null;
+    id?: string | null;
+    availableForSale?: boolean | null;
+    product?: {
+      id?: string | null;
+      handle?: string | null;
+      onlineStoreUrl?: string | null;
+    } | null;
+  } | null;
 }
-
-export interface VariantStatusError {
-  ok: false;
-  error?: string;
-  [key: string]: unknown;
-}
-
-export type VariantStatusResponse = VariantStatusSuccess | VariantStatusError | null;
 
 export interface WaitVariantOptions {
   timeoutMs?: number;
@@ -929,13 +926,24 @@ export async function waitForVariantAvailability(
   if (!normalizedProductId) {
     throw new Error('invalid_product_id');
   }
-  const payload: Record<string, unknown> = { variantId: numericVariant, productId: normalizedProductId };
+  const configResult = resolveStorefrontConfig();
+  if (!configResult.ok) {
+    try {
+      console.warn('[waitForVariantAvailability] storefront env missing', { missing: configResult.missing });
+    } catch (logErr) {
+      console.warn?.('[waitForVariantAvailability] env_log_failed', logErr);
+    }
+    return { ready: true, timedOut: false, attempts: 0, lastResponse: null };
+  }
+  const { config } = configResult;
+  const variantGid = buildVariantGid(numericVariant);
   const start = Date.now();
   let attempt = 0;
   let delay = Math.max(200, initialDelayMs);
-  let lastResponse: VariantStatusResponse = null;
+  let lastResponse: VariantPollData | null = null;
+  const maxAttempts = Math.max(1, Math.min(5, Math.floor(timeoutMs / Math.max(delay, 1))));
 
-  while (Date.now() - start < timeoutMs) {
+  while (Date.now() - start < timeoutMs && attempt < maxAttempts) {
     if (signal?.aborted) {
       const abortError = new Error('aborted');
       abortError.name = 'AbortError';
@@ -943,41 +951,47 @@ export async function waitForVariantAvailability(
     }
     attempt += 1;
     try {
-      const resp = await apiFetch('/api/variant-status', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const json = await resp.json().catch(() => null);
-      lastResponse = json;
-      if (resp.ok && json?.ok) {
-        const ready = Boolean(json.ready || (json.variantPresent && json.available));
-        if (typeof console !== 'undefined' && typeof console.info === 'function') {
-          console.info('[cart-flow] poll variant', {
-            attempt,
-            ready,
-            variantPresent: json.variantPresent,
-            available: json.available,
-            nextDelayMs: Math.min(delay * 2, maxDelayMs),
-          });
+      const { response, payload, requestId } = await performStorefrontGraphQL<VariantPollData>(
+        config,
+        VARIANT_AVAILABILITY_QUERY,
+        { id: variantGid },
+      );
+      const data = payload?.data || null;
+      lastResponse = data;
+      const variantNode = data?.node;
+      const variantPresent = Boolean(variantNode && typeof variantNode.id === 'string' && variantNode.id);
+      const availableForSale = Boolean(variantNode && (variantNode as { availableForSale?: boolean | null }).availableForSale);
+      try {
+        console.info('[cart-flow] poll variant', {
+          attempt,
+          variantPresent,
+          availableForSale,
+          requestId,
+          nextDelayMs: attempt < maxAttempts ? Math.min(delay * 2, maxDelayMs) : null,
+        });
+      } catch (logErr) {
+        console.warn?.('[waitForVariantAvailability] poll_log_failed', logErr);
+      }
+      if (variantPresent) {
+        try {
+          console.info('[cart-flow] variant disponible en Storefront', { attempt, requestId });
+        } catch (logErr) {
+          console.warn?.('[waitForVariantAvailability] ready_log_failed', logErr);
         }
-        if (ready) {
-          if (typeof console !== 'undefined' && typeof console.info === 'function') {
-            console.info('[cart-flow] variant disponible en Storefront', { attempt });
-          }
-          return { ready: true, timedOut: false, attempts: attempt, lastResponse: json };
-        }
-      } else if (resp.status >= 500) {
-        console.warn('[waitForVariantAvailability] transient error', resp.status);
-      } else {
-        const error = new Error(json?.error ? String(json.error) : `variant_status_${resp.status}`);
-        (error as Error & { response?: unknown }).response = json;
-        throw error;
+        return { ready: true, timedOut: false, attempts: attempt, lastResponse: data };
+      }
+      if (!response.ok || payload?.errors?.length) {
+        console.warn('[waitForVariantAvailability] storefront response issue', {
+          status: response.status,
+          requestId,
+          errors: payload?.errors,
+        });
       }
     } catch (err) {
       if ((err as Error)?.name === 'AbortError') throw err;
       console.error('[waitForVariantAvailability] poll error', err);
     }
+    if (attempt >= maxAttempts) break;
     await sleep(delay);
     delay = Math.min(delay * 2, maxDelayMs);
   }
