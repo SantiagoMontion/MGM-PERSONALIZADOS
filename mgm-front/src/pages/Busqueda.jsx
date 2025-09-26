@@ -69,9 +69,9 @@ export default function Busqueda() {
         limit: String(PAGE_LIMIT),
         offset: String(Math.max(0, nextOffset)),
       });
-      const response = await apiFetch(`/api/outputs/search?${params.toString()}`);
+      const response = await apiFetch(`/api/prints/search?${params.toString()}`);
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
+      if (!response.ok || payload?.ok === false) {
         const message = typeof payload?.message === 'string'
           ? payload.message
           : typeof payload?.error === 'string'
