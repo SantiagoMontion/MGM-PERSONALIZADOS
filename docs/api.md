@@ -59,10 +59,17 @@ Checks whether a product variant is visible and available for sale through the S
 
 ### `POST /api/upload-url`
 
-Creates a public Supabase storage URL for an upload. Requires:
+Creates a Supabase Storage upload target for the original artwork. Requires:
 
 - `design_name`, `ext`, `mime`, `size_bytes`, `material`, `w_cm`, `h_cm`, `sha256`.
 - Rejects files above `MAX_UPLOAD_MB` (defaults to 40 MB) or sizes exceeding material limits.
+
+Returns:
+
+- `object_key`: path within the `uploads` bucket.
+- `file_original_url` / `canonical_url`: deterministic public URL to persist on the job record.
+- `upload_url`: direct REST endpoint (`/storage/v1/object/uploads/...`) kept for backwards compatibility.
+- `upload`: `{ signed_url, token, expires_in }` for `PUT` uploads using Supabase's signed URLs (recommended).
 
 ### `POST /api/submit-job`
 
