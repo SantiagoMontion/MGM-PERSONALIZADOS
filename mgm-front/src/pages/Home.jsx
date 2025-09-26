@@ -451,9 +451,8 @@ export default function Home() {
   }, [configOpen]);
 
   const designNameInputClasses = [
-    styles.textInput,
     styles.inputText,
-    designNameError ? styles.textInputError : '',
+    designNameError ? styles.inputTextError : '',
   ]
     .filter(Boolean)
     .join(' ');
@@ -740,40 +739,42 @@ export default function Home() {
           style={configPanelStyle}
           role="menu"
         >
-          <div className={styles.configForm}>
-            <div className={`${styles.field} ${styles.formRow}`}>
-              <label className={styles.fieldLabel} htmlFor="design-name">
-                Nombre de tu diseño
-              </label>
-              <input
-                type="text"
-                id="design-name"
-                ref={designNameInputRef}
-                className={designNameInputClasses}
-                placeholder="Ej: Nubes y cielo rosa"
-                value={designName}
-                onChange={handleDesignNameChange}
-                disabled={!hasImage}
-                aria-invalid={designNameError ? 'true' : 'false'}
-                aria-describedby={
-                  designNameError ? 'design-name-error' : undefined
-                }
-              />
-              {designNameError && (
-                <p className={styles.fieldError} id="design-name-error">
-                  {designNameError}
-                </p>
-              )}
-            </div>
-            <div className={styles.fieldBlock}>
-              <SizeControls
-                material={material}
-                size={size}
-                mode={mode}
-                onChange={handleSizeChange}
-                locked={material === 'Glasspad'}
-                disabled={!hasImage}
-              />
+          <div className={styles.configSheet}>
+            <div className={styles.configForm}>
+              <div className={`${styles.field} ${styles.formRow}`}>
+                <label className={styles.configSectionTitle} htmlFor="design-name">
+                  Nombre de tu diseño
+                </label>
+                <input
+                  type="text"
+                  id="design-name"
+                  ref={designNameInputRef}
+                  className={designNameInputClasses}
+                  placeholder="Ej: Nubes y cielo rosa"
+                  value={designName}
+                  onChange={handleDesignNameChange}
+                  disabled={!hasImage}
+                  aria-invalid={designNameError ? 'true' : 'false'}
+                  aria-describedby={
+                    designNameError ? 'design-name-error' : undefined
+                  }
+                />
+                {designNameError && (
+                  <p className={styles.errorMessage} id="design-name-error">
+                    {designNameError}
+                  </p>
+                )}
+              </div>
+              <div className={styles.fieldBlock}>
+                <SizeControls
+                  material={material}
+                  size={size}
+                  mode={mode}
+                  onChange={handleSizeChange}
+                  locked={material === 'Glasspad'}
+                  disabled={!hasImage}
+                />
+              </div>
             </div>
           </div>
         </div>

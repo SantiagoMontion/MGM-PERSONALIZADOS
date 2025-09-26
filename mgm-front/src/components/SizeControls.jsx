@@ -359,10 +359,10 @@ export default function SizeControls({ material, size, onChange, locked = false,
   ]
     .filter(Boolean)
     .join(' ');
-  const inputControlClassName = [
-    styles.inputControl,
-    styles.inputNumber,
-    disabled ? styles.inputControlDisabled : '',
+
+  const measureFieldClass = (isDisabled) => [
+    styles.measureField,
+    isDisabled ? styles.measureFieldDisabled : '',
   ]
     .filter(Boolean)
     .join(' ');
@@ -372,80 +372,75 @@ export default function SizeControls({ material, size, onChange, locked = false,
     <div className={containerClasses} aria-disabled={disabled}>
       <div className={`${styles.section} ${styles.formRow}`}>
         <span className={styles.groupLabel}>Medidas (cm)</span>
-        <div className={`${styles.dimensionsRow} ${styles.inputGroup}`}>
-          <label className={styles.inputLabel}>
-            <span className={styles.visuallyHidden}>Largo</span>
-            <div className={inputControlClassName}>
-              <span className={styles.inputAffix} aria-hidden="true">
-                Largo
-              </span>
-              <img
-                src={WIDTH_ICON_SRC}
-                alt=""
-                className={styles.inputIcon}
-                aria-hidden="true"
-              />
-              <input
-                ref={wInputRef}
-                className={`${styles.input} ${styles.inputNumber}`}
-                value={isGlasspad ? GLASSPAD_SIZE_CM.w : wText}
-                onChange={!isGlasspad ? handleWChange : undefined}
-                onBlur={!isGlasspad ? handleWBlur : undefined}
-                onKeyDown={!isGlasspad ? handleDimensionKeyDown('w') : undefined}
-                inputMode="decimal"
-                pattern="[0-9]*"
-                aria-invalid={errors.w ? 'true' : 'false'}
-                aria-describedby={errors.w ? widthErrorId : undefined}
-                disabled={locked || isGlasspad || disabled}
-              />
-            </div>
-            {errors.w && (
-              <p className="errorText" id={widthErrorId} aria-live="polite">
-                {errors.w}
-              </p>
-            )}
+        <div className={styles.measureRow}>
+          <label className={measureFieldClass(locked || isGlasspad || disabled)}>
+            <span className={styles.measureLabel}>Largo</span>
+            <img
+              src={WIDTH_ICON_SRC}
+              alt=""
+              className={styles.measureIcon}
+              aria-hidden="true"
+            />
+            <input
+              ref={wInputRef}
+              className={styles.measureInput}
+              value={isGlasspad ? GLASSPAD_SIZE_CM.w : wText}
+              onChange={!isGlasspad ? handleWChange : undefined}
+              onBlur={!isGlasspad ? handleWBlur : undefined}
+              onKeyDown={!isGlasspad ? handleDimensionKeyDown('w') : undefined}
+              inputMode="decimal"
+              pattern="[0-9]*"
+              aria-invalid={errors.w ? 'true' : 'false'}
+              aria-describedby={errors.w ? widthErrorId : undefined}
+              disabled={locked || isGlasspad || disabled}
+            />
           </label>
-          <label className={styles.inputLabel}>
-            <span className={styles.visuallyHidden}>Ancho</span>
-            <div className={inputControlClassName}>
-              <span className={styles.inputAffix} aria-hidden="true">
-                Ancho
-              </span>
-              <img
-                src={HEIGHT_ICON_SRC}
-                alt=""
-                className={styles.inputIcon}
-                aria-hidden="true"
-              />
-              <input
-                ref={hInputRef}
-                className={`${styles.input} ${styles.inputNumber}`}
-                value={isGlasspad ? GLASSPAD_SIZE_CM.h : hText}
-                onChange={!isGlasspad ? handleHChange : undefined}
-                onBlur={!isGlasspad ? handleHBlur : undefined}
-                onKeyDown={!isGlasspad ? handleDimensionKeyDown('h') : undefined}
-                inputMode="decimal"
-                pattern="[0-9]*"
-                aria-invalid={errors.h ? 'true' : 'false'}
-                aria-describedby={errors.h ? heightErrorId : undefined}
-                disabled={locked || isGlasspad || disabled}
-              />
-            </div>
-            {errors.h && (
-              <p className="errorText" id={heightErrorId} aria-live="polite">
-                {errors.h}
-              </p>
-            )}
+          <label className={measureFieldClass(locked || isGlasspad || disabled)}>
+            <span className={styles.measureLabel}>Ancho</span>
+            <img
+              src={HEIGHT_ICON_SRC}
+              alt=""
+              className={styles.measureIcon}
+              aria-hidden="true"
+            />
+            <input
+              ref={hInputRef}
+              className={styles.measureInput}
+              value={isGlasspad ? GLASSPAD_SIZE_CM.h : hText}
+              onChange={!isGlasspad ? handleHChange : undefined}
+              onBlur={!isGlasspad ? handleHBlur : undefined}
+              onKeyDown={!isGlasspad ? handleDimensionKeyDown('h') : undefined}
+              inputMode="decimal"
+              pattern="[0-9]*"
+              aria-invalid={errors.h ? 'true' : 'false'}
+              aria-describedby={errors.h ? heightErrorId : undefined}
+              disabled={locked || isGlasspad || disabled}
+            />
           </label>
         </div>
 
+        {(errors.w || errors.h) && (
+          <div className={styles.measureErrors}>
+            {errors.w && (
+              <p className={styles.measureError} id={widthErrorId} aria-live="polite">
+                {errors.w}
+              </p>
+            )}
+            {errors.h && (
+              <p className={styles.measureError} id={heightErrorId} aria-live="polite">
+                {errors.h}
+              </p>
+            )}
+          </div>
+        )}
+
         {presets.length > 0 && (
-          <div className={`${styles.presets} ${styles.quickSizeChips}`}>
+          <div className={styles.quickSizes}>
             {presets.map(p => (
               <button
                 key={`${p.w}x${p.h}`}
                 type="button"
-                className={styles.presetButton}
+                className={styles.quickChip}
                 onClick={() => applyPreset(p.w, p.h)}
                 disabled={locked || disabled}
               >
@@ -499,7 +494,7 @@ export default function SizeControls({ material, size, onChange, locked = false,
                 <div
                   id={seriesMenuId}
                   role="listbox"
-                  className={styles.selectMenuFloating}
+                  className={styles.selectMenu}
                   style={floatingMenuStyle}
                   ref={seriesMenuRef}
                 >
