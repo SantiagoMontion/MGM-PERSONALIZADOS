@@ -17,6 +17,8 @@ export type FlowState = {
   lastProduct?: {
     productId?: string;
     variantId?: string;
+    variantIdNumeric?: string;
+    variantIdGid?: string;
     cartUrl?: string;
     checkoutUrl?: string;
     productUrl?: string;
