@@ -50,11 +50,11 @@
 }
 
 .previewTitle {
-  margin: 0 0 clamp(16px, 4vh, 28px);
   font-size: clamp(26px, 4vw, 44px);
   font-weight: 600;
   letter-spacing: 0.02em;
   color: rgba(242, 243, 245, 0.98);
+  margin: 0 0 clamp(16px, 4vh, 28px);
 }
 
 .previewTitleOverlay {
@@ -63,6 +63,12 @@
   left: 50%;
   transform: translateX(-50%);
   margin: 0;
+  width: 100%;
+  padding: 0 clamp(12px, 4vw, 32px);
+  box-sizing: border-box;
+  white-space: nowrap;
+  display: inline-flex;
+  justify-content: center;
   text-shadow: 0 4px 22px rgba(0, 0, 0, 0.55);
   pointer-events: none;
   z-index: 1;
@@ -70,21 +76,6 @@
 
 .previewWithImage .previewTitle {
   margin: 0;
-}
-
-.previewTitle {
-  position: absolute;
-  top: clamp(18px, 4vw, 32px);
-  left: 50%;
-  transform: translateX(-50%);
-  margin: 0;
-  font-size: clamp(26px, 4vw, 44px);
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: rgba(242, 243, 245, 0.98);
-  text-shadow: 0 4px 22px rgba(0, 0, 0, 0.55);
-  pointer-events: none;
-  z-index: 1;
 }
 
 .mockupImage {
@@ -95,7 +86,6 @@
   object-fit: contain;
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  border: 1px solid rgba(255, 255, 255, 0.04);
 }
 
 .ctaRow {
