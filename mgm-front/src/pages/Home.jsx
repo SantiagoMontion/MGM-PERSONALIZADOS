@@ -18,7 +18,11 @@ import LoadingOverlay from '../components/LoadingOverlay';
 
 import { LIMITS, STANDARD, GLASSPAD_SIZE_CM } from '../lib/material.js';
 
-import { dpiLevel } from '../lib/dpi';
+import {
+  dpiLevel,
+  DPI_WARN_THRESHOLD,
+  DPI_LOW_THRESHOLD,
+} from '../lib/dpi';
 import styles from './Home.module.css';
 import { renderMockup1080 } from '../lib/mockup.js';
 import { quickHateSymbolCheck } from '@/lib/moderation.ts';
@@ -33,7 +37,7 @@ const TUTORIAL_ICON_SRC = resolveIconAsset('play.svg');
 
 
 const CANVAS_MAX_WIDTH = 1280;
-const ACK_LOW_ERROR_MESSAGE = 'Confirmá que aceptás continuar con la calidad baja.';
+const ACK_LOW_ERROR_MESSAGE = 'Confirmá que aceptás imprimir en baja calidad.';
 
 
 export default function Home() {
@@ -128,7 +132,10 @@ export default function Home() {
       )
     );
   }, [layout]);
-  const level = useMemo(() => (effDpi ? dpiLevel(effDpi, 300, 100) : null), [effDpi]);
+  const level = useMemo(
+    () => (effDpi ? dpiLevel(effDpi, DPI_WARN_THRESHOLD, DPI_LOW_THRESHOLD) : null),
+    [effDpi],
+  );
   const trimmedDesignName = useMemo(() => (designName || '').trim(), [designName]);
 
   function handleSizeChange(next) {
@@ -306,9 +313,15 @@ export default function Home() {
   const shouldShowAckError = ackLowError && ackLowMissing;
   useEffect(() => {
     if (!requiresLowAck) {
+      if (ackLow) {
+        setAckLow(false);
+      }
       setAckLowError(false);
+      if (err === ACK_LOW_ERROR_MESSAGE) {
+        setErr('');
+      }
     }
-  }, [requiresLowAck]);
+  }, [requiresLowAck, ackLow, err]);
   const configTriggerClasses = [
     styles.configTrigger,
     configOpen ? styles.configTriggerActive : '',
@@ -856,14 +869,14 @@ export default function Home() {
                   />
                   <span className={styles.ackIndicator} aria-hidden="true" />
                   <span className={`${styles.ackLabelText} ${shouldShowAckError ? `${styles.ackLabelTextError} is-error` : ''}`.trim()}>
-                    Acepto la calidad de imagen ({effDpi} DPI)
+                    Acepto imprimir en baja calidad ({effDpi} DPI)
                   </span>
                 </label>
               )}
               {hasImage && (
                 <button
                   className={`${styles.continueButton} ${styles.canvasContinue}`}
-                  disabled={busy}
+                  disabled={busy || ackLowMissing}
                   onClick={handleContinue}
                 >
                   Continuar

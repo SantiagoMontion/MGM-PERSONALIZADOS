@@ -1,10 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { z } from 'zod';
 import { STANDARD, LIMITS } from '../lib/material.js';
-import { dpiFor, dpiLevel } from '../lib/dpi';
+import {
+  dpiFor,
+  dpiLevel,
+  DPI_WARN_THRESHOLD,
+  DPI_LOW_THRESHOLD,
+} from '../lib/dpi';
 import styles from './OptionsStep.module.css';
 import { buildSubmitJobBody, prevalidateSubmitBody } from '../lib/jobPayload';
 import { submitJob } from '../lib/submitJob';
+
+const LOW_ACK_ERROR_MESSAGE = 'La calidad parece baja. Confirmá que aceptás continuar.';
 
 const Form = z.object({
   material: z.enum(['Classic','PRO','Glasspad']),
@@ -72,7 +79,19 @@ export default function OptionsStep({ uploaded, onSubmitted }) {
 
   // DPI estimado
   const dpiVal = useMemo(() => dpiFor(size.w, size.h, imgPx.w, imgPx.h), [size, imgPx]);
-  const level = useMemo(() => dpiLevel(dpiVal, 300, 100), [dpiVal]);
+  const level = useMemo(
+    () => dpiLevel(dpiVal, DPI_WARN_THRESHOLD, DPI_LOW_THRESHOLD),
+    [dpiVal],
+  );
+
+  useEffect(() => {
+    if (level !== 'bad') {
+      if (ackLow) setAckLow(false);
+      if (err === LOW_ACK_ERROR_MESSAGE) {
+        setErr('');
+      }
+    }
+  }, [level, ackLow, err]);
 
   async function submit() {
     setErr('');
@@ -92,7 +111,7 @@ export default function OptionsStep({ uploaded, onSubmitted }) {
     });
 
     if (level === 'bad' && !ackLow) {
-      setErr('La calidad parece baja. Confirmá que aceptás continuar.');
+      setErr(LOW_ACK_ERROR_MESSAGE);
       setBusy(false);
       return;
     }
@@ -203,15 +222,28 @@ export default function OptionsStep({ uploaded, onSubmitted }) {
         {level === 'bad' && (
           <div className={styles.ackRow}>
             <label>
-              <input type="checkbox" checked={ackLow} onChange={e=>setAckLow(e.target.checked)} />
-              Soy consciente de la baja calidad y quiero continuar.
+              <input
+                type="checkbox"
+                checked={ackLow}
+                onChange={e => {
+                  setAckLow(e.target.checked);
+                  if (e.target.checked && err === LOW_ACK_ERROR_MESSAGE) {
+                    setErr('');
+                  }
+                }}
+              />
+              Acepto imprimir en baja calidad.
             </label>
           </div>
         )}
       </div>
 
       {err && <p className="errorText">{err}</p>}
-      <button className={styles.submitButton} disabled={busy} onClick={submit}>
+      <button
+        className={styles.submitButton}
+        disabled={busy || (level === 'bad' && !ackLow)}
+        onClick={submit}
+      >
         {busy ? 'Enviando…' : 'Continuar'}
       </button>
     </div>
