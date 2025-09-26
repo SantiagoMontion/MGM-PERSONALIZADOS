@@ -46,3 +46,29 @@
 
 ._brand_1doot_43{font-size: 28px;}
 
+@media (max-width: 640px) {
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    flex-wrap: nowrap;
+  }
+
+  .header .brand,
+  .header span {
+    white-space: nowrap;
+  }
+
+  .brand {
+    font-size: clamp(16px, 4.2vw, 20px) !important;
+  }
+
+  .header span {
+    font-size: clamp(16px, 4.2vw, 20px) !important;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+  }
+}
+
