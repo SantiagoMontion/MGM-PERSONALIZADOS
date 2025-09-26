@@ -6,7 +6,6 @@ import { resolveIconAsset } from '../lib/iconRegistry.js';
 
 const WIDTH_ICON_SRC = resolveIconAsset('largo.svg');
 const HEIGHT_ICON_SRC = resolveIconAsset('ancho.svg');
-const DOWN_ICON_SRC = resolveIconAsset('down.svg');
 
 const INVALID_NUMBER_MESSAGE = 'Ingresá un número';
 const DIMENSION_MIN_CM = 1;
@@ -43,9 +42,9 @@ const formatDisplayValue = (value) => {
 };
 
 const MATERIAL_OPTIONS = [
-  { value: 'Glasspad', title: 'GLASSPAD', subtitle: 'speed' },
-  { value: 'PRO', title: 'PRO', subtitle: 'control' },
-  { value: 'Classic', title: 'CLASSIC', subtitle: 'híbrido' },
+  { value: 'Glasspad', main: 'GLASSPAD', variant: 'speed' },
+  { value: 'PRO', main: 'PRO', variant: 'control' },
+  { value: 'Classic', main: 'CLASSIC', variant: 'híbrido' },
 ];
 
 /**
@@ -326,12 +325,14 @@ export default function SizeControls({ material, size, onChange, locked = false,
 
   const containerClasses = [
     styles.container,
+    styles.fieldBlock,
     disabled ? styles.containerDisabled : '',
   ]
     .filter(Boolean)
     .join(' ');
   const inputControlClassName = [
     styles.inputControl,
+    styles.inputNumber,
     disabled ? styles.inputControlDisabled : '',
   ]
     .filter(Boolean)
@@ -340,9 +341,9 @@ export default function SizeControls({ material, size, onChange, locked = false,
   const activeMaterialOption = MATERIAL_OPTIONS.find((option) => option.value === material) || MATERIAL_OPTIONS[0];
   return (
     <div className={containerClasses} aria-disabled={disabled}>
-      <div className={styles.section}>
+      <div className={`${styles.section} ${styles.formRow}`}>
         <span className={styles.groupLabel}>Medidas (cm)</span>
-        <div className={styles.dimensionsRow}>
+        <div className={`${styles.dimensionsRow} ${styles.inputGroup}`}>
           <label className={styles.inputLabel}>
             <span className={styles.visuallyHidden}>Largo</span>
             <div className={inputControlClassName}>
@@ -357,7 +358,7 @@ export default function SizeControls({ material, size, onChange, locked = false,
               />
               <input
                 ref={wInputRef}
-                className={styles.input}
+                className={`${styles.input} ${styles.inputNumber}`}
                 value={isGlasspad ? GLASSPAD_SIZE_CM.w : wText}
                 onChange={!isGlasspad ? handleWChange : undefined}
                 onBlur={!isGlasspad ? handleWBlur : undefined}
@@ -389,7 +390,7 @@ export default function SizeControls({ material, size, onChange, locked = false,
               />
               <input
                 ref={hInputRef}
-                className={styles.input}
+                className={`${styles.input} ${styles.inputNumber}`}
                 value={isGlasspad ? GLASSPAD_SIZE_CM.h : hText}
                 onChange={!isGlasspad ? handleHChange : undefined}
                 onBlur={!isGlasspad ? handleHBlur : undefined}
@@ -410,7 +411,7 @@ export default function SizeControls({ material, size, onChange, locked = false,
         </div>
 
         {presets.length > 0 && (
-          <div className={styles.presets}>
+          <div className={`${styles.presets} ${styles.quickSizeChips}`}>
             {presets.map(p => (
               <button
                 key={`${p.w}x${p.h}`}
@@ -436,62 +437,40 @@ export default function SizeControls({ material, size, onChange, locked = false,
         )}
       </div>
 
-      <div className={`${styles.section} ${styles.seriesSection}`}>
+      <div className={`${styles.section} ${styles.seriesSection} ${styles.formRow}`}>
         <span className={styles.groupLabel}>Serie</span>
-        <div className={styles.seriesSelect} ref={seriesSelectRef}>
+        <div className={styles.selectGroup} ref={seriesSelectRef}>
           <button
             type="button"
-            className={[
-              styles.materialOption,
-              styles.seriesSelectTrigger,
-              disabled ? styles.materialOptionDisabled : '',
-            ].filter(Boolean).join(' ')}
+            className={styles.selectTrigger}
+            aria-haspopup="listbox"
+            aria-expanded={isSeriesOpen}
             onClick={() => {
               if (disabled) return;
               setSeriesOpen((prev) => !prev);
             }}
-            aria-haspopup="listbox"
-            aria-expanded={isSeriesOpen}
             disabled={disabled}
           >
-            <span className={styles.seriesSelectText}>
-              <span className={styles.materialOptionTitle}>{activeMaterialOption.title}</span>
-              <span className={styles.materialOptionSubtitle}>{activeMaterialOption.subtitle}</span>
+            <span className={styles.selectLabel}>
+              <strong className={styles.selectLabelStrong}>{activeMaterialOption.main}</strong>
+              <em className={styles.selectLabelSoft}>{activeMaterialOption.variant}</em>
             </span>
-            <img
-              src={DOWN_ICON_SRC}
-              alt=""
-              aria-hidden="true"
-              className={[
-                styles.seriesSelectIcon,
-                isSeriesOpen ? styles.seriesSelectIconOpen : '',
-              ].filter(Boolean).join(' ')}
-            />
+            <svg className={styles.selectChevron} viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2" />
+            </svg>
           </button>
+
           {isSeriesOpen && (
-            <div
-              className={styles.seriesOptions}
-              role="listbox"
-              aria-activedescendant={`material-option-${activeMaterialOption.value}`}
-            >
+            <div role="listbox" className={styles.selectMenu}>
               {MATERIAL_OPTIONS.map((option) => {
                 const isActive = material === option.value;
-                const optionClassName = [
-                  styles.materialOption,
-                  styles.seriesOptionItem,
-                  isActive ? styles.materialOptionActive : '',
-                ]
-                  .filter(Boolean)
-                  .join(' ');
-
                 return (
-                  <button
-                    id={`material-option-${option.value}`}
-                    key={option.value}
-                    type="button"
+                  <div
                     role="option"
+                    key={option.value}
                     aria-selected={isActive}
-                    className={optionClassName}
+                    className={styles.selectOption}
+                    tabIndex={0}
                     onClick={() => {
                       if (disabled) return;
                       setSeriesOpen(false);
@@ -499,10 +478,22 @@ export default function SizeControls({ material, size, onChange, locked = false,
                         onChange({ material: option.value });
                       }
                     }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        if (disabled) return;
+                        setSeriesOpen(false);
+                        if (option.value !== material) {
+                          onChange({ material: option.value });
+                        }
+                      }
+                    }}
                   >
-                    <span className={styles.materialOptionTitle}>{option.title}</span>
-                    <span className={styles.materialOptionSubtitle}>{option.subtitle}</span>
-                  </button>
+                    <span className={styles.selectLabel}>
+                      <strong className={styles.selectLabelStrong}>{option.main}</strong>
+                      <em className={styles.selectLabelSoft}>{option.variant}</em>
+                    </span>
+                  </div>
                 );
               })}
             </div>

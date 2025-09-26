@@ -268,6 +268,27 @@
   gap: 12px;
 }
 
+.configForm {
+  inline-size: min(100%, 720px);
+  margin-inline: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.formRow,
+.fieldBlock,
+.inputGroup,
+.selectGroup {
+  inline-size: 100%;
+}
+
+.inputText,
+.inputNumber,
+.quickSizeChips {
+  inline-size: 100%;
+}
+
 .fieldLabel {
   font-size: 0.75rem;
   text-transform: uppercase;
