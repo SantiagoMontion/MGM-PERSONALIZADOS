@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import createCartLink from '../lib/handlers/createCartLink.js';
+import cartLink from '../lib/handlers/cartLink.js';
 
 function createMockRes() {
   return {
@@ -41,7 +41,7 @@ function createFetchResponse(body, options = {}) {
   };
 }
 
-test('create-cart-link uses Storefront API and returns mgm cart link', async () => {
+test('cart/link uses Storefront API and returns mgm cart link', async () => {
   const prev = {
     STORE_DOMAIN: process.env.SHOPIFY_STORE_DOMAIN,
     STOREFRONT_DOMAIN: process.env.SHOPIFY_STOREFRONT_DOMAIN,
@@ -96,13 +96,13 @@ test('create-cart-link uses Storefront API and returns mgm cart link', async () 
     };
     const res = createMockRes();
 
-    await createCartLink(req, res);
+    await cartLink(req, res);
 
     assert.equal(callCount, 2);
     assert.equal(res.statusCode, 200);
     assert(res.jsonPayload);
-    const { webUrl, cart_method: cartMethod, checkout_url_now: checkoutUrl, cart_plain: cartPlain } = res.jsonPayload;
-    assert.equal(cartMethod, 'storefront');
+    const { webUrl, checkoutUrl, cartPlain, strategy } = res.jsonPayload;
+    assert.equal(strategy, 'storefront');
     assert.equal(webUrl, 'https://www.mgmgamers.store/cart/c/abcdef');
     assert.equal(checkoutUrl, 'https://www.mgmgamers.store/checkouts/abcdef');
     assert.equal(cartPlain, 'https://www.mgmgamers.store/cart');
@@ -114,7 +114,7 @@ test('create-cart-link uses Storefront API and returns mgm cart link', async () 
   }
 });
 
-test('create-cart-link falls back to legacy cart when Storefront env missing', async () => {
+test('cart/link falls back to permalink when Storefront env missing', async () => {
   const prev = {
     STORE_DOMAIN: process.env.SHOPIFY_STORE_DOMAIN,
     STOREFRONT_DOMAIN: process.env.SHOPIFY_STOREFRONT_DOMAIN,
@@ -139,15 +139,13 @@ test('create-cart-link falls back to legacy cart when Storefront env missing', a
     };
     const res = createMockRes();
 
-    await createCartLink(req, res);
+    await cartLink(req, res);
 
     assert.equal(res.statusCode, 200);
     assert(res.jsonPayload);
-    const { ok, webUrl, cart_method: cartMethod, reason } = res.jsonPayload;
-    assert.equal(ok, true);
-    assert.equal(cartMethod, 'permalink');
+    const { webUrl, strategy } = res.jsonPayload;
+    assert.equal(strategy, 'permalink');
     assert.equal(webUrl, 'https://www.mgmgamers.store/cart/123456789:2?return_to=/cart');
-    assert.ok(reason);
   } finally {
     global.fetch = prevFetch;
     process.env.SHOPIFY_STORE_DOMAIN = prev.STORE_DOMAIN;

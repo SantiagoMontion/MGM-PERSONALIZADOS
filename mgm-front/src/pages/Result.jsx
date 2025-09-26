@@ -8,10 +8,11 @@ export default function Result() {
   const navigate = useNavigate();
   const location = useLocation();
   const [urls, setUrls] = useState({
-    cart_url_follow: location.state?.cart_url_follow,
-    checkout_url_now: location.state?.checkout_url_now,
-    cart_plain: location.state?.cart_plain,
-    checkout_plain: location.state?.checkout_plain,
+    cartUrl: location.state?.cartUrl,
+    checkoutUrl: location.state?.checkoutUrl,
+    cartPlain: location.state?.cartPlain,
+    checkoutPlain: location.state?.checkoutPlain,
+    strategy: location.state?.strategy,
   });
   const [job, setJob] = useState(null);
   const [added, setAdded] = useState(
@@ -35,21 +36,22 @@ export default function Result() {
   }, [jobId]);
 
   useEffect(() => {
-    if (!urls.cart_url_follow || !urls.checkout_url_now) {
+    if (!urls.cartUrl || !urls.checkoutUrl) {
       async function ensureUrls() {
         try {
-          const res = await apiFetch(`/api/create-cart-link`, {
+          const res = await apiFetch(`/api/cart/link`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ job_id: jobId }),
           });
           const j = await res.json();
-          if (res.ok) {
+          if (res.ok && typeof j?.webUrl === "string") {
             setUrls({
-              cart_url_follow: j.cart_url_follow || j.cart_url,
-              checkout_url_now: j.checkout_url_now,
-              cart_plain: j.cart_plain,
-              checkout_plain: j.checkout_plain,
+              cartUrl: j.webUrl,
+              checkoutUrl: j.checkoutUrl,
+              cartPlain: j.cartPlain,
+              checkoutPlain: j.checkoutPlain,
+              strategy: j.strategy,
             });
           }
         } catch (error) {
@@ -61,8 +63,8 @@ export default function Result() {
   }, [urls, jobId]);
 
   useEffect(() => {
-    if (!autoOpened && !added && urls.cart_url_follow) {
-      const opened = openCartUrl(urls.cart_url_follow);
+    if (!autoOpened && !added && urls.cartUrl) {
+      const opened = openCartUrl(urls.cartUrl);
       setAutoOpened(true);
       if (opened) {
         try {
@@ -73,14 +75,15 @@ export default function Result() {
         setAdded(true);
       }
     }
-  }, [added, autoOpened, jobId, urls.cart_url_follow]);
+  }, [added, autoOpened, jobId, urls.cartUrl]);
 
-  if (!urls.cart_url_follow || !urls.checkout_url_now) {
+  if (!urls.cartUrl) {
     return <p>Preparando tu carrito…</p>;
   }
 
-  const hrefCart = added ? urls.cart_plain : urls.cart_url_follow;
-  const hrefCheckout = added ? urls.checkout_plain : urls.checkout_url_now;
+  const hrefCart = added && urls.cartPlain ? urls.cartPlain : urls.cartUrl;
+  const checkoutCandidate = added && urls.checkoutPlain ? urls.checkoutPlain : urls.checkoutUrl;
+  const hrefCheckout = checkoutCandidate || hrefCart;
   const openNew = (u) => window.open(u, "_blank", "noopener");
 
   return (

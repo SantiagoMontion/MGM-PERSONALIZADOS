@@ -16,8 +16,9 @@ const RATE_LIMITS = {
   'POST submit-job': { limit: 12, windowMs: 60_000 },
   'POST finalize-assets': { limit: 6, windowMs: 60_000 },
   'POST upload-url': { limit: 30, windowMs: 60_000 },
-  'POST create-cart-link': { limit: 45, windowMs: 60_000 },
+  'POST cart/link': { limit: 45, windowMs: 60_000 },
   'POST create-checkout': { limit: 45, windowMs: 60_000 },
+  'POST private/checkout': { limit: 45, windowMs: 60_000 },
   'POST ensure-product-publication': { limit: 30, windowMs: 60_000 },
   'POST product-publication-status': { limit: 45, windowMs: 60_000 },
   'POST variant-status': { limit: 90, windowMs: 60_000 },
@@ -51,12 +52,16 @@ export default withCors(async function handler(req, res) {
         const { publishProduct } = await import('../lib/handlers/publishProduct.js');
         return publishProduct(req, res);
       }
-      case 'POST create-cart-link': {
-        const m = await import('../lib/handlers/createCartLink.js');
+      case 'POST cart/link': {
+        const m = await import('../lib/handlers/cartLink.js');
         return m.default(req, res);
       }
       case 'POST create-checkout': {
         const m = await import('../lib/handlers/createCheckout.js');
+        return m.default(req, res);
+      }
+      case 'POST private/checkout': {
+        const m = await import('../lib/handlers/privateCheckout.js');
         return m.default(req, res);
       }
       case 'POST ensure-product-publication': {
