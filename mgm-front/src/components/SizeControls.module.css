@@ -219,18 +219,15 @@
   outline-offset: 3px;
 }
 
-.selectMenu {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  margin-top: 8px;
-  inline-size: 100%;
+.selectMenuFloating {
+  position: fixed;
+  z-index: 3000;
   border-radius: 12px;
   border: 1px solid rgba(128, 128, 128, 0.28);
   background: #1c1c1f;
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4);
-  overflow: hidden;
-  z-index: 20;
+  overflow: auto;
+  max-height: min(320px, 70vh);
 }
 
 .selectOption {

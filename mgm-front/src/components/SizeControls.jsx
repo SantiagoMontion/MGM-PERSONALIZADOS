@@ -1,8 +1,10 @@
 // src/components/SizeControls.jsx
 import { useEffect, useId, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import styles from './SizeControls.module.css';
 import { LIMITS, STANDARD, GLASSPAD_SIZE_CM } from '../lib/material.js';
 import { resolveIconAsset } from '../lib/iconRegistry.js';
+import { useFloatingMenu } from '../hooks/useFloatingMenu.js';
 
 const WIDTH_ICON_SRC = resolveIconAsset('largo.svg');
 const HEIGHT_ICON_SRC = resolveIconAsset('ancho.svg');
@@ -66,7 +68,13 @@ export default function SizeControls({ material, size, onChange, locked = false,
   const [errors, setErrors] = useState({ w: '', h: '' });
   const [isSeriesOpen, setSeriesOpen] = useState(false);
 
-  const seriesSelectRef = useRef(null);
+  const seriesTriggerRef = useRef(null);
+  const seriesMenuRef = useRef(null);
+  const seriesMenuId = useId();
+  const floatingMenuStyle = useFloatingMenu(seriesTriggerRef, isSeriesOpen);
+  const portalTarget = typeof document !== 'undefined'
+    ? document.getElementById('portal-root') || document.body
+    : null;
   const wInputRef = useRef(null);
   const hInputRef = useRef(null);
   const initialW = toNumeric(size.w);
@@ -135,19 +143,40 @@ export default function SizeControls({ material, size, onChange, locked = false,
   useEffect(() => {
     if (!isSeriesOpen) return undefined;
 
-    const handleClickOutside = (event) => {
-      if (!seriesSelectRef.current) return;
-      if (!seriesSelectRef.current.contains(event.target)) {
+    const handlePointerDown = (event) => {
+      const triggerEl = seriesTriggerRef.current;
+      const menuEl = seriesMenuRef.current;
+      if (!triggerEl || !menuEl) return;
+      if (triggerEl.contains(event.target) || menuEl.contains(event.target)) {
+        return;
+      }
+      setSeriesOpen(false);
+    };
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
         setSeriesOpen(false);
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('touchstart', handleClickOutside);
+    const handleFocusIn = (event) => {
+      const triggerEl = seriesTriggerRef.current;
+      const menuEl = seriesMenuRef.current;
+      if (!triggerEl || !menuEl) return;
+      if (triggerEl.contains(event.target) || menuEl.contains(event.target)) {
+        return;
+      }
+      setSeriesOpen(false);
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('focusin', handleFocusIn);
 
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('touchstart', handleClickOutside);
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('focusin', handleFocusIn);
     };
   }, [isSeriesOpen]);
 
@@ -439,12 +468,14 @@ export default function SizeControls({ material, size, onChange, locked = false,
 
       <div className={`${styles.section} ${styles.seriesSection} ${styles.formRow}`}>
         <span className={styles.groupLabel}>Serie</span>
-        <div className={styles.selectGroup} ref={seriesSelectRef}>
+        <div className={styles.selectGroup}>
           <button
             type="button"
             className={styles.selectTrigger}
             aria-haspopup="listbox"
             aria-expanded={isSeriesOpen}
+            aria-controls={seriesMenuId}
+            ref={seriesTriggerRef}
             onClick={() => {
               if (disabled) return;
               setSeriesOpen((prev) => !prev);
@@ -460,44 +491,56 @@ export default function SizeControls({ material, size, onChange, locked = false,
             </svg>
           </button>
 
-          {isSeriesOpen && (
-            <div role="listbox" className={styles.selectMenu}>
-              {MATERIAL_OPTIONS.map((option) => {
-                const isActive = material === option.value;
-                return (
-                  <div
-                    role="option"
-                    key={option.value}
-                    aria-selected={isActive}
-                    className={styles.selectOption}
-                    tabIndex={0}
-                    onClick={() => {
-                      if (disabled) return;
-                      setSeriesOpen(false);
-                      if (option.value !== material) {
-                        onChange({ material: option.value });
-                      }
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault();
-                        if (disabled) return;
-                        setSeriesOpen(false);
-                        if (option.value !== material) {
-                          onChange({ material: option.value });
-                        }
-                      }
-                    }}
-                  >
-                    <span className={styles.selectLabel}>
-                      <strong className={styles.selectLabelStrong}>{option.main}</strong>
-                      <em className={styles.selectLabelSoft}>{option.variant}</em>
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          {isSeriesOpen
+            && seriesTriggerRef.current
+            && portalTarget
+            && createPortal(
+              (
+                <div
+                  id={seriesMenuId}
+                  role="listbox"
+                  className={styles.selectMenuFloating}
+                  style={floatingMenuStyle}
+                  ref={seriesMenuRef}
+                >
+                  {MATERIAL_OPTIONS.map((option) => {
+                    const isActive = material === option.value;
+                    return (
+                      <div
+                        role="option"
+                        key={option.value}
+                        aria-selected={isActive}
+                        className={styles.selectOption}
+                        tabIndex={0}
+                        onClick={() => {
+                          if (disabled) return;
+                          setSeriesOpen(false);
+                          if (option.value !== material) {
+                            onChange({ material: option.value });
+                          }
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            if (disabled) return;
+                            setSeriesOpen(false);
+                            if (option.value !== material) {
+                              onChange({ material: option.value });
+                            }
+                          }
+                        }}
+                      >
+                        <span className={styles.selectLabel}>
+                          <strong className={styles.selectLabelStrong}>{option.main}</strong>
+                          <em className={styles.selectLabelSoft}>{option.variant}</em>
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ),
+              portalTarget,
+            )}
         </div>
       </div>
     </div>
