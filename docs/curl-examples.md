@@ -15,11 +15,11 @@ curl -X POST https://mgm-api.vercel.app/api/upload-url \
   }'
 ```
 
-La respuesta incluye `object_key` y `signed_url`.
+La respuesta incluye `object_key`, `file_original_url` y un objeto `upload` con `signed_url` + `token` (firmado para subir).
 
 ## 2. Subir el archivo con el `signed_url`
 ```bash
-curl -X PUT '<SIGNED_URL>' \
+curl -X PUT 'https://<project>.supabase.co/storage/v1/object/sign/uploads/<OBJECT_KEY>?token=<TOKEN>' \
   -H 'Content-Type: image/png' \
   --data-binary '@local.png'
 ```
