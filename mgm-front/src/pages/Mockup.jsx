@@ -134,6 +134,10 @@ export default function Mockup() {
     else if (reasonRaw === 'missing_variant') friendly = 'No se pudo obtener la variante del producto creado en Shopify.';
     else if (reasonRaw === 'cart_link_failed') friendly = 'No se pudo generar el enlace del carrito. Revisá la configuración de Shopify.';
     else if (reasonRaw === 'checkout_link_failed') friendly = 'No se pudo generar el enlace de compra.';
+    else if (reasonRaw === 'private_checkout_failed') friendly = 'No pudimos generar el checkout privado, probá de nuevo.';
+    else if (reasonRaw === 'draft_order_failed' || reasonRaw === 'draft_order_http_error' || reasonRaw === 'missing_invoice_url') {
+      friendly = 'No pudimos generar el checkout privado, probá de nuevo.';
+    }
     else if (reasonRaw === 'missing_customer_email' || reasonRaw === 'missing_email') friendly = 'Completá un correo electrónico válido para comprar en privado.';
     else if (reasonRaw.startsWith('publish_failed')) friendly = 'Shopify rechazó la creación del producto. Revisá los datos enviados.';
     else if (reasonRaw === 'shopify_error') friendly = 'Shopify devolvió un error al crear el producto.';
@@ -433,7 +437,19 @@ export default function Mockup() {
 
     try {
       setBusy(true);
-      const result = await createJobAndProduct(mode, submissionFlow, options);
+      let jobOptions = options;
+      if (mode === 'private') {
+        const stageCallback = (stage) => {
+          if (stage === 'creating_product') {
+            setToast({ message: 'Creando producto privado…' });
+          } else if (stage === 'creating_checkout') {
+            setToast({ message: 'Generando checkout privado…' });
+          }
+        };
+        setToast({ message: 'Creando producto privado…' });
+        jobOptions = { ...options, onPrivateStageChange: stageCallback };
+      }
+      const result = await createJobAndProduct(mode, submissionFlow, jobOptions);
       const warningMessages = extractWarningMessages(result?.warnings, result?.warningMessages);
       if (warningMessages.length) {
         try {
@@ -448,7 +464,15 @@ export default function Mockup() {
         return;
       }
       if (mode === 'private' && result.checkoutUrl) {
-        window.location.assign(result.checkoutUrl);
+        const opened = openCartTab(result.checkoutUrl);
+        if (!opened) {
+          try {
+            window.open(result.checkoutUrl, '_blank', 'noopener');
+          } catch (tabErr) {
+            console.warn('[private-checkout-open]', tabErr);
+          }
+        }
+        setToast({ message: 'Listo. Abrimos tu checkout privado en otra pestaña.' });
         return;
       }
       if (result.productUrl) {
@@ -478,6 +502,9 @@ export default function Mockup() {
           },
         });
         return;
+      }
+      if (mode === 'private') {
+        setToast(null);
       }
       showFriendlyError(error);
     } finally {

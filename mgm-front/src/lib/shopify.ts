@@ -50,6 +50,87 @@ function formatMeasurement(width?: number | null, height?: number | null): strin
   return `${w}x${h}`;
 }
 
+function readJobId(flow: FlowState): string {
+  const candidates = [
+    (flow as any)?.jobId,
+    (flow as any)?.job_id,
+    (flow as any)?.editorState?.job_id,
+    (flow as any)?.editorState?.jobId,
+    (flow as any)?.editorState?.job?.job_id,
+    (flow as any)?.editorState?.job?.id,
+  ];
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string') {
+      const trimmed = candidate.trim();
+      if (trimmed) return trimmed;
+    }
+  }
+  return '';
+}
+
+type PrivateDraftOrderMetadata = {
+  note?: string;
+  attributes: { name: string; value: string }[];
+};
+
+function buildPrivateDraftOrderMetadata(options: {
+  flow: FlowState;
+  measurement?: string;
+  productLabel: string;
+  materialLabel?: string;
+  customerEmail?: string;
+}): PrivateDraftOrderMetadata {
+  const { flow, measurement, productLabel, materialLabel, customerEmail } = options;
+  const lines: string[] = [];
+  const attributes: { name: string; value: string }[] = [];
+  const pushAttribute = (name: string, value: unknown) => {
+    if (typeof value !== 'string') return;
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    attributes.push({ name, value: trimmed.slice(0, 255) });
+  };
+
+  const jobId = readJobId(flow);
+  if (jobId) {
+    lines.push(`Job ID: ${jobId}`);
+    pushAttribute('job_id', jobId);
+  }
+
+  const designName = typeof flow.designName === 'string' ? flow.designName.trim() : '';
+  if (designName) {
+    lines.push(`Diseño: ${designName}`);
+    pushAttribute('design_name', designName);
+  }
+
+  if (productLabel) {
+    lines.push(`Producto: ${productLabel}`);
+    pushAttribute('product_label', productLabel);
+  }
+
+  if (materialLabel) {
+    lines.push(`Material: ${materialLabel}`);
+    pushAttribute('material', materialLabel);
+  }
+
+  if (measurement) {
+    lines.push(`Medida: ${measurement} cm`);
+    pushAttribute('measurement_cm', `${measurement} cm`);
+  }
+
+  if (customerEmail) {
+    lines.push(`Email cliente: ${customerEmail}`);
+    pushAttribute('customer_email', customerEmail);
+  }
+
+  const sourceLine = 'Origen: Editor personalizado';
+  lines.push(sourceLine);
+  pushAttribute('mgm_source', 'editor');
+
+  const note = lines.join('\n').slice(0, 1024);
+
+  return { note, attributes };
+}
+
 function buildGlasspadTitle(designName?: string, measurement?: string): string {
   const sections = ['Glasspad'];
   const normalizedName = (designName || '').trim();
@@ -119,6 +200,7 @@ function deriveWarningMessagesFromWarnings(value: unknown): string[] {
 export interface CreateJobOptions {
   reuseLastProduct?: boolean;
   skipPublication?: boolean;
+  onPrivateStageChange?: (stage: 'creating_product' | 'creating_checkout') => void;
 }
 
 export async function createJobAndProduct(
@@ -126,7 +208,11 @@ export async function createJobAndProduct(
   flow: FlowState,
   options: CreateJobOptions = {},
 ) {
-  const { reuseLastProduct = false, skipPublication = false } = options;
+  const {
+    reuseLastProduct = false,
+    skipPublication = false,
+    onPrivateStageChange,
+  } = options;
   const lastProduct = flow.lastProduct;
   const isPrivate = mode === 'private';
   const requestedVisibility: 'public' | 'private' = isPrivate ? 'private' : 'public';
@@ -163,12 +249,23 @@ export async function createJobAndProduct(
     : buildDefaultTitle(productLabel, designName, measurementLabel, materialLabel);
   let metaDescription = buildMetaDescription(productLabel, designName, measurementLabel, materialLabel);
 
+  const privateDraftOrder = isPrivate
+    ? buildPrivateDraftOrderMetadata({
+      flow,
+      measurement: measurementLabel,
+      productLabel,
+      materialLabel,
+      customerEmail,
+    })
+    : null;
+
   const extraTags: string[] = [`currency-${priceCurrency.toLowerCase()}`];
   if (materialLabel) {
     const materialTag = materialLabel.toLowerCase().replace(/[^a-z0-9]+/g, '-');
     if (materialTag) extraTags.push(`material-${materialTag}`);
   }
   if (flow.lowQualityAck) extraTags.push('calidad-baja');
+  if (isPrivate) extraTags.push('private');
   let filename = `${slugify(designName || productTitle)}.png`;
   let imageAlt = `Mockup ${productTitle}`;
 
@@ -182,6 +279,14 @@ export async function createJobAndProduct(
         const err: Error & { reason?: string } = new Error('missing_customer_email');
         err.reason = 'missing_customer_email';
         throw err;
+      }
+    }
+
+    if (isPrivate) {
+      try {
+        onPrivateStageChange?.('creating_product');
+      } catch (stageErr) {
+        console.debug?.('[createJobAndProduct] stage_callback_failed', stageErr);
       }
     }
 
@@ -264,7 +369,7 @@ export async function createJobAndProduct(
       throw err;
     }
 
-    if (!skipPublication && productId) {
+    if (!skipPublication && productId && !isPrivate) {
       try {
         await ensureProductPublication(productId);
       } catch (error: any) {
@@ -372,20 +477,62 @@ export async function createJobAndProduct(
 
   try {
     if (mode === 'checkout' || isPrivate) {
+      if (isPrivate) {
+        try {
+          onPrivateStageChange?.('creating_checkout');
+        } catch (stageErr) {
+          console.debug?.('[createJobAndProduct] stage_callback_failed', stageErr);
+        }
+      }
+      const checkoutPayload: Record<string, unknown> = {
+        productId,
+        variantId,
+        quantity: 1,
+        ...(customerEmail ? { email: customerEmail } : {}),
+        ...(isPrivate ? { mode: 'private' as const } : { mode }),
+      };
+      if (isPrivate && privateDraftOrder?.note) {
+        checkoutPayload.note = privateDraftOrder.note;
+      }
+      if (isPrivate && privateDraftOrder?.attributes?.length) {
+        checkoutPayload.noteAttributes = privateDraftOrder.attributes;
+      }
       const ckResp = await apiFetch('/api/create-checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          productId,
-          variantId,
-          quantity: 1,
-          ...(customerEmail ? { email: customerEmail } : {}),
-          ...(isPrivate ? { mode: 'private' as const } : { mode: mode }),
-        }),
+        body: JSON.stringify(checkoutPayload),
       });
       const ck = await ckResp.json().catch(() => null);
       if (!ckResp.ok || !ck?.url) {
-        throw new Error('checkout_link_failed');
+        const reason = typeof ck?.error === 'string' && ck.error
+          ? ck.error
+          : isPrivate
+            ? 'private_checkout_failed'
+            : 'checkout_link_failed';
+        const err: Error & {
+          reason?: string;
+          friendlyMessage?: string;
+          missing?: string[];
+          detail?: unknown;
+          status?: number;
+        } = new Error(reason);
+        err.reason = reason;
+        if (Array.isArray(ck?.missing) && ck.missing.length) {
+          err.missing = ck.missing;
+        }
+        if (ck?.detail) {
+          err.detail = ck.detail;
+        }
+        const message = typeof ck?.message === 'string' ? ck.message.trim() : '';
+        if (message) {
+          err.friendlyMessage = message;
+        } else if (isPrivate) {
+          err.friendlyMessage = 'No pudimos generar el checkout privado, probá de nuevo.';
+        }
+        if (typeof ckResp.status === 'number') {
+          err.status = ckResp.status;
+        }
+        throw err;
       }
       result.checkoutUrl = ck.url;
       if (ck.draft_order_id) {
