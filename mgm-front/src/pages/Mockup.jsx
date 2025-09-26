@@ -324,7 +324,7 @@ export default function Mockup() {
     setToast(null);
     let current = pendingCart;
     const normalizedDiscountCode = discountCode || '';
-    const baseCartOptions = normalizedDiscountCode ? { discountCode: normalizedDiscountCode } : {};
+    const creationCartOptions = normalizedDiscountCode ? { discountCode: normalizedDiscountCode } : {};
     try {
       setBusy(true);
       if (!skipCreation || !current) {
@@ -334,7 +334,7 @@ export default function Mockup() {
           flow,
           skipCreation
             ? { reuseLastProduct: true, skipPublication, ...(normalizedDiscountCode ? { discountCode: normalizedDiscountCode } : {}) }
-            : baseCartOptions,
+            : creationCartOptions,
         );
         if (!result?.variantId) throw new Error('missing_variant');
         const warningMessages = extractWarningMessages(result?.warnings, result?.warningMessages);
@@ -444,12 +444,12 @@ export default function Mockup() {
         showCartFailureToast('', { fallbackUrl: current?.fallbackUrl });
         return;
       }
-      const baseCartOptions = normalizedDiscountCode
+      const linkCartOptions = normalizedDiscountCode
         ? { baseUrl: CART_BASE_URL, discountCode: normalizedDiscountCode }
         : { baseUrl: CART_BASE_URL };
-      const cartUrl = buildCartAddUrl(current.variantId, desiredQuantity, baseCartOptions);
+      const cartUrl = buildCartAddUrl(current.variantId, desiredQuantity, linkCartOptions);
       const fallbackCandidate = buildCartPermalink(current.variantId, desiredQuantity, {
-        ...baseCartOptions,
+        ...linkCartOptions,
         returnTo: null,
       });
       const fallbackUrl = fallbackCandidate && fallbackCandidate !== cartUrl ? fallbackCandidate : '';
