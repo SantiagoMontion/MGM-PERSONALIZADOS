@@ -486,54 +486,98 @@ export default function Mockup() {
   }
 
   return (
-    <div style={{ padding: 32, textAlign: 'center' }}>
-      <img
-        src={flow.mockupUrl}
-        width={540}
-        height={540}
-        style={{ maxWidth: '100%', height: 'auto' }}
-        alt="Mockup"
-      />
-      <div style={{ marginTop: 16, display: 'flex', gap: 12, justifyContent: 'center' }}>
-        <button disabled={busy} onClick={() => { flow.reset(); navigate('/'); }}>Cancelar y volver</button>
-        <button disabled={busy} onClick={() => handle('cart')}>{cartButtonLabel}</button>
+    <div id="mockup-review" className={styles.review}>
+      <div className={styles.hero}>
+        <h1 className={styles.heroTitle}>¿Te gustó cómo quedó?</h1>
+      </div>
+      <main className={styles.main}>
+        <div className={styles.previewWrapper}>
+          <img
+            src={flow.mockupUrl}
+            className={styles.mockupImage}
+            alt="Vista previa de tu mousepad personalizado"
+          />
+        </div>
+        <div className={styles.ctaRow}>
+          <div className={styles.ctaCard}>
+            <button
+              type="button"
+              disabled={busy}
+              className={`${styles.ctaButton} ${styles.ctaButtonSecondary}`}
+              onClick={() => {
+                if (busy) return;
+                flow.reset();
+                navigate('/');
+              }}
+            >
+              Volver
+            </button>
+            <p className={styles.ctaHint}>
+              Volvé al editor para hacer los cambios que quieras ✏️
+            </p>
+          </div>
+          <div className={styles.ctaCard}>
+            <button
+              type="button"
+              disabled={busy}
+              className={`${styles.ctaButton} ${styles.ctaButtonPrimary}`}
+              onClick={() => handle('cart')}
+            >
+              {cartButtonLabel}
+            </button>
+            <p className={styles.ctaHint}>
+              Arma un carrito con todo lo que te guste y obtené envío gratis ❤️
+            </p>
+          </div>
+          <div className={styles.ctaCard}>
+            <button
+              type="button"
+              disabled={busy}
+              className={`${styles.ctaButton} ${styles.ctaButtonPrimary}`}
+              ref={buyNowButtonRef}
+              onClick={() => {
+                if (busy) return;
+                setBuyPromptOpen(true);
+              }}
+            >
+              Comprar ahora
+            </button>
+            <p className={styles.ctaHint}>
+              Finalizá tu compra para que tu creación se haga realidad ✨
+            </p>
+          </div>
+        </div>
         <button
+          type="button"
           disabled={busy}
-          ref={buyNowButtonRef}
-          onClick={() => {
-            if (busy) return;
-            setBuyPromptOpen(true);
-          }}
-        >
-          Comprar ahora
-        </button>
-        <button
-          disabled={busy}
+          className={styles.hiddenButton}
           onClick={() => handle('private')}
-          style={{ display: 'none' }}
           aria-hidden="true"
           tabIndex={-1}
         >
           Comprar en privado
         </button>
-        <button disabled={busy} onClick={handleDownloadPdf} style={{ display: 'none' }}>Descargar PDF</button>
-      </div>
+        <button
+          type="button"
+          disabled={busy}
+          className={styles.hiddenButton}
+          onClick={handleDownloadPdf}
+        >
+          Descargar PDF
+        </button>
+      </main>
+      <section className={styles.footerSection}>
+        <p className={styles.footerMessage}>
+          Nos encantaría que seas parte nuestra comunidad y por eso quiero convencerte 😎
+        </p>
+      </section>
       {isBuyPromptOpen ? (
         <div
           role="presentation"
+          className={styles.modalBackdrop}
           onClick={() => {
             if (busy) return;
             setBuyPromptOpen(false);
-          }}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.4)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 16,
-            zIndex: 1000,
           }}
         >
           <div
@@ -542,16 +586,8 @@ export default function Mockup() {
             aria-labelledby={buyPromptTitleId}
             aria-describedby={buyPromptDescriptionId}
             ref={modalRef}
+            className={styles.modalCard}
             onClick={(event) => event.stopPropagation()}
-            style={{
-              position: 'relative',
-              background: '#fff',
-              borderRadius: 12,
-              width: '100%',
-              maxWidth: 520,
-              boxShadow: '0 20px 40px rgba(0, 0, 0, 0.25)',
-              padding: 24,
-            }}
           >
             <button
               type="button"
@@ -561,59 +597,36 @@ export default function Mockup() {
               }}
               disabled={busy}
               aria-label="Cerrar"
-              style={{
-                position: 'absolute',
-                top: 12,
-                right: 12,
-                border: 'none',
-                background: 'transparent',
-                cursor: busy ? 'default' : 'pointer',
-                fontSize: 20,
-                lineHeight: 1,
-              }}
+              className={styles.modalClose}
             >
               ×
             </button>
-            <h2 id={buyPromptTitleId} style={{ margin: '0 0 12px 0', fontSize: 22 }}>
+            <h2 id={buyPromptTitleId} className={styles.modalTitle}>
               ¿Quieres comprarlo en privado o público?
             </h2>
-            <p id={buyPromptDescriptionId} style={{ margin: '0 0 20px 0', fontSize: 14, color: '#555' }}>
+            <p id={buyPromptDescriptionId} className={styles.modalDescription}>
               Público: tu diseño será visible en la tienda. Privado: solo vos verás el producto.
             </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div className={styles.modalActions}>
               <button
+                type="button"
                 ref={firstActionButtonRef}
                 disabled={busy}
+                className={styles.modalPrimary}
                 onClick={() => {
                   setBuyPromptOpen(false);
                   handle('checkout');
-                }}
-                style={{
-                  padding: '12px 16px',
-                  borderRadius: 8,
-                  border: 'none',
-                  backgroundColor: '#0070f3',
-                  color: '#fff',
-                  fontSize: 16,
-                  cursor: busy ? 'default' : 'pointer',
                 }}
               >
                 Comprar ahora (público)
               </button>
               <button
+                type="button"
                 disabled={busy}
+                className={styles.modalSecondary}
                 onClick={() => {
                   setBuyPromptOpen(false);
                   handle('private');
-                }}
-                style={{
-                  padding: '12px 16px',
-                  borderRadius: 8,
-                  border: '1px solid #0070f3',
-                  backgroundColor: '#fff',
-                  color: '#0070f3',
-                  fontSize: 16,
-                  cursor: busy ? 'default' : 'pointer',
                 }}
               >
                 Comprar en privado
