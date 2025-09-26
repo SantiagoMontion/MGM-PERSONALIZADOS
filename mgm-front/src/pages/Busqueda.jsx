@@ -1,39 +1,21 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { apiFetch } from '@/lib/api.js';
 import styles from './Busqueda.module.css';
 
-const STORAGE_KEY = 'mgmBusquedaAuth:v2';
-const PASSWORD_EXPIRATION_MS = 24 * 60 * 60 * 1000;
-const REQUIRED_PASSWORD = (import.meta.env.VITE_BUSQUEDA_PASSWORD ?? 'Spesia666').trim();
+const PAGE_LIMIT = 25;
 
-function readStoredAuth(passwordRequired) {
-  if (!passwordRequired) return true;
-  if (typeof window === 'undefined') return false;
-  const raw = window.localStorage.getItem(STORAGE_KEY);
-  if (!raw) return false;
-  try {
-    const stored = JSON.parse(raw);
-    let timestamp;
-    if (typeof stored === 'number') {
-      timestamp = stored;
-    } else if (stored && typeof stored === 'object') {
-      const candidate = stored.authorizedAt ?? stored.timestamp ?? stored.t;
-      timestamp = Number(candidate);
-    }
-    if (!Number.isFinite(timestamp)) {
-      window.localStorage.removeItem(STORAGE_KEY);
-      return false;
-    }
-    if (Date.now() - timestamp > PASSWORD_EXPIRATION_MS) {
-      window.localStorage.removeItem(STORAGE_KEY);
-      return false;
-    }
-    return true;
-  } catch {
-    window.localStorage.removeItem(STORAGE_KEY);
-    return false;
+function formatBytes(size) {
+  const value = Number(size);
+  if (!Number.isFinite(value) || value <= 0) return '—';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let index = 0;
+  let current = value;
+  while (current >= 1024 && index < units.length - 1) {
+    current /= 1024;
+    index += 1;
   }
+  return `${current < 10 && index > 0 ? current.toFixed(1) : Math.round(current)} ${units[index]}`;
 }
 
 function formatDate(value) {
@@ -50,254 +32,201 @@ function formatDate(value) {
   }
 }
 
-function ResultCard({ item }) {
-  const createdAt = formatDate(item.created_at);
-  const sizeText = useMemo(() => {
-    const w = Number(item.w_cm);
-    const h = Number(item.h_cm);
-    if (Number.isFinite(w) && Number.isFinite(h)) {
-      return `${w}×${h} cm`;
-    }
-    return null;
-  }, [item.h_cm, item.w_cm]);
-  const customerName = (item.customer_name || '').trim();
-  const customerEmail = (item.customer_email || '').trim();
-  const hasCustomer = customerName || customerEmail;
-  const [previewError, setPreviewError] = useState(false);
-  const previewAlt = item.design_name
-    ? `Vista previa de ${item.design_name}`
-    : 'Vista previa del diseño';
-
-  return (
-    <li className={styles.resultItem}>
-      <div className={styles.resultHeader}>
-        <div className={styles.resultTitleBlock}>
-          <span className={styles.jobId}>{item.job_id}</span>
-          <h3 className={styles.resultTitle}>{item.design_name || 'Sin nombre'}</h3>
-          <p className={styles.resultMeta}>
-            <span>{item.material || '—'}</span>
-            {sizeText ? <span> · {sizeText}</span> : null}
-          </p>
-          {hasCustomer ? (
-            <p className={styles.customerInfo}>
-              Cliente: {customerName ? <span>{customerName}</span> : null}
-              {customerName && customerEmail ? ' · ' : ''}
-              {customerEmail ? (
-                <a href={`mailto:${customerEmail}`} className={styles.customerEmail}>
-                  {customerEmail}
-                </a>
-              ) : null}
-            </p>
-          ) : null}
-        </div>
-        <div className={styles.resultDate}>
-          <span>{createdAt}</span>
-        </div>
-      </div>
-      {item.preview_url && !previewError ? (
-        <a
-          className={styles.preview}
-          href={item.preview_url}
-          target="_blank"
-          rel="noreferrer"
-          aria-label="Abrir vista previa en una nueva pestaña"
-        >
-          <img
-            className={styles.previewImage}
-            src={item.preview_url}
-            alt={previewAlt}
-            loading="lazy"
-            onError={() => setPreviewError(true)}
-          />
-        </a>
-      ) : null}
-      <div className={styles.linksRow}>
-        {item.file_original_url ? (
-          <a className={styles.link} href={item.file_original_url} target="_blank" rel="noreferrer">
-            Archivo original
-          </a>
-        ) : null}
-        {item.print_jpg_url ? (
-          <a className={styles.link} href={item.print_jpg_url} target="_blank" rel="noreferrer">
-            Print JPG
-          </a>
-        ) : null}
-        {item.pdf_url ? (
-          <a className={styles.link} href={item.pdf_url} target="_blank" rel="noreferrer">
-            PDF
-          </a>
-        ) : null}
-        {item.preview_url && previewError ? (
-          <a className={styles.link} href={item.preview_url} target="_blank" rel="noreferrer">
-            Vista previa
-          </a>
-        ) : null}
-      </div>
-    </li>
-  );
-}
-
 export default function Busqueda() {
-  const passwordRequired = REQUIRED_PASSWORD.length > 0;
-  const [isAuthorized, setIsAuthorized] = useState(() => readStoredAuth(passwordRequired));
-  const [passwordInput, setPasswordInput] = useState('');
-  const [passwordError, setPasswordError] = useState('');
-
-  const [term, setTerm] = useState('');
-  const [lastTerm, setLastTerm] = useState('');
+  const [query, setQuery] = useState('');
+  const [lastQuery, setLastQuery] = useState('');
   const [results, setResults] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [searched, setSearched] = useState(false);
 
-  useEffect(() => {
-    if (!passwordRequired) return;
-    if (typeof window === 'undefined') return;
-    if (!isAuthorized) {
-      window.localStorage.removeItem(STORAGE_KEY);
-    }
-  }, [isAuthorized, passwordRequired]);
+  const showingRange = useMemo(() => {
+    if (!searched || total === 0 || results.length === 0) return '';
+    const from = offset + 1;
+    const to = offset + results.length;
+    return `Mostrando ${from}-${to} de ${total}`;
+  }, [searched, total, results.length, offset]);
 
-  function handlePasswordSubmit(event) {
-    event.preventDefault();
-    if (!passwordRequired) {
-      setIsAuthorized(true);
-      return;
-    }
-    const candidate = passwordInput.trim();
-    if (candidate && candidate === REQUIRED_PASSWORD) {
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem(
-          STORAGE_KEY,
-          JSON.stringify({ authorizedAt: Date.now() })
-        );
-      }
-      setIsAuthorized(true);
-      setPasswordInput('');
-      setPasswordError('');
-    } else {
-      setPasswordError('Contraseña incorrecta.');
-    }
-  }
-
-  async function handleSearch(event) {
-    event.preventDefault();
-    const cleanTerm = term.trim();
-    if (!cleanTerm) {
+  async function performSearch(nextQuery, nextOffset = 0) {
+    const trimmed = nextQuery.trim();
+    if (!trimmed) {
       setError('Ingresá un término para buscar.');
       setResults([]);
-      setLastTerm('');
+      setTotal(0);
+      setSearched(false);
       return;
     }
+
     setLoading(true);
     setError('');
+    setSearched(true);
+
     try {
-      const response = await apiFetch(`/api/search-assets?term=${encodeURIComponent(cleanTerm)}`);
+      const params = new URLSearchParams({
+        query: trimmed,
+        limit: String(PAGE_LIMIT),
+        offset: String(Math.max(0, nextOffset)),
+      });
+      const response = await apiFetch(`/api/outputs/search?${params.toString()}`);
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        const message = payload?.error ? String(payload.error) : `Error ${response.status}`;
-        setError(message === 'missing_term' ? 'Ingresá un término para buscar.' : `No se pudo realizar la búsqueda (${message}).`);
+        const message = typeof payload?.message === 'string'
+          ? payload.message
+          : typeof payload?.error === 'string'
+            ? payload.error
+            : `Error ${response.status}`;
+        setError(message === 'missing_query' || message === 'query_too_short'
+          ? 'Ingresá al menos 2 caracteres para buscar.'
+          : `No se pudo realizar la búsqueda (${message}).`);
         setResults([]);
-        setLastTerm(cleanTerm);
-      } else {
-        setResults(Array.isArray(payload?.items) ? payload.items : []);
-        setLastTerm(cleanTerm);
+        setTotal(0);
+        setLastQuery(trimmed);
+        setOffset(nextOffset);
+        return;
       }
-    } catch (err) {
-      setError(`No se pudo realizar la búsqueda. ${String(err?.message || err)}`);
+
+      const items = Array.isArray(payload?.items) ? payload.items : [];
+      const pagination = payload?.pagination || {};
+      const totalItems = Number(pagination?.total) || items.length;
+      const usedOffset = Number(pagination?.offset) || nextOffset;
+
+      setResults(items);
+      setTotal(totalItems);
+      setOffset(usedOffset);
+      setLastQuery(trimmed);
+    } catch (requestError) {
+      console.error('[outputs-search]', requestError);
+      setError('Ocurrió un error al buscar en Supabase.');
       setResults([]);
+      setTotal(0);
     } finally {
       setLoading(false);
     }
   }
 
-  if (!isAuthorized) {
-    return (
-      <div className={styles.page}>
-        <Helmet>
-          <title>Búsqueda • MGM GAMERS</title>
-        </Helmet>
-        <h1 className={styles.heading}>Búsqueda interna</h1>
-        <form className={styles.card} onSubmit={handlePasswordSubmit}>
-          <p className={styles.description}>
-            Ingresá la contraseña para acceder al buscador interno de archivos generados en Supabase.
-          </p>
-          <p className={styles.passwordNote}>
-            Una vez validada, la contraseña se recordará por 24 horas en este navegador.
-          </p>
-          {!passwordRequired ? (
-            <p className={styles.passwordHint}>
-              No hay contraseña configurada. Definí <code>VITE_BUSQUEDA_PASSWORD</code> para activar la protección.
-            </p>
-          ) : null}
-          <label className={styles.label}>
-            Contraseña
-            <input
-              className={styles.input}
-              type="password"
-              value={passwordInput}
-              autoComplete="current-password"
-              onChange={(event) => {
-                setPasswordInput(event.target.value);
-                if (passwordError) setPasswordError('');
-              }}
-            />
-          </label>
-          {passwordError ? <p className={styles.error}>{passwordError}</p> : null}
-          <button type="submit" className={styles.primaryButton}>
-            Entrar
-          </button>
-        </form>
-      </div>
-    );
+  function handleSubmit(event) {
+    event.preventDefault();
+    performSearch(query, 0);
   }
+
+  function handlePrevious() {
+    if (loading) return;
+    const nextOffset = Math.max(0, offset - PAGE_LIMIT);
+    performSearch(lastQuery || query, nextOffset);
+  }
+
+  function handleNext() {
+    if (loading) return;
+    const nextOffset = offset + PAGE_LIMIT;
+    performSearch(lastQuery || query, nextOffset);
+  }
+
+  const canShowPagination = searched && total > PAGE_LIMIT;
+  const hasResults = results.length > 0;
+  const noResultsMessage = searched && !loading && !hasResults && !error;
 
   return (
     <div className={styles.page}>
       <Helmet>
-        <title>Búsqueda de archivos • MGM GAMERS</title>
+        <title>Buscar PDFs · MGM</title>
       </Helmet>
-      <h1 className={styles.heading}>Búsqueda de archivos</h1>
-      <div className={styles.card}>
-        <form className={styles.searchForm} onSubmit={handleSearch}>
-          <label className={styles.label}>
-            Término de búsqueda
+      <header className={styles.header}>
+        <h1 className={styles.title}>Buscador de PDFs</h1>
+        <p className={styles.description}>
+          Ingresá el nombre del archivo (sin la extensión) para encontrar y descargar el PDF imprimible.
+        </p>
+      </header>
+
+      <section className={styles.searchCard}>
+        <form className={styles.searchForm} onSubmit={handleSubmit}>
+          <div className={styles.inputWrapper}>
+            <label className={styles.label} htmlFor="busqueda-query">
+              Buscar PDF
+            </label>
             <input
+              id="busqueda-query"
               className={styles.input}
-              type="search"
-              placeholder="Nombre del diseño, material o ID"
-              value={term}
-              onChange={(event) => setTerm(event.target.value)}
+              type="text"
+              placeholder="Buscar por nombre de archivo, sin extensión…"
+              autoComplete="off"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
               disabled={loading}
             />
-          </label>
-          <button type="submit" className={styles.primaryButton} disabled={loading}>
+          </div>
+          <button type="submit" className={styles.searchButton} disabled={loading}>
             {loading ? 'Buscando…' : 'Buscar'}
           </button>
         </form>
-        {error ? <p className={styles.error}>{error}</p> : null}
-        {!error && lastTerm ? (
-          <p className={styles.summary}>
-            Mostrando <strong>{results.length}</strong> resultados para <mark className={styles.term}>&ldquo;{lastTerm}&rdquo;</mark>
-          </p>
+        {error ? (
+          <p className={`${styles.feedback} ${styles.error}`}>{error}</p>
+        ) : showingRange ? (
+          <p className={styles.feedback}>{showingRange}</p>
         ) : null}
-        {results.length > 0 ? (
-          <ul className={styles.resultsList}>
-            {results.map((item, index) => {
-              const key =
-                item.job_id ||
-                item.file_original_url ||
-                item.preview_url ||
-                item.pdf_url ||
-                item.print_jpg_url ||
-                `resultado-${index}`;
-              return <ResultCard key={key} item={item} />;
-            })}
-          </ul>
+      </section>
+
+      <section className={styles.resultsCard}>
+        <div className={styles.resultsTableWrapper}>
+          <table className={styles.resultsTable}>
+            <thead>
+              <tr>
+                <th scope="col">Archivo</th>
+                <th scope="col">Tamaño</th>
+                <th scope="col">Fecha</th>
+                <th scope="col">Descargar</th>
+              </tr>
+            </thead>
+            <tbody>
+              {hasResults ? (
+                results.map((item) => (
+                  <tr key={item.path}>
+                    <td className={styles.fileCell}>{item.name || '—'}</td>
+                    <td className={styles.sizeCell}>{formatBytes(item.size)}</td>
+                    <td className={styles.dateCell}>{formatDate(item.createdAt)}</td>
+                    <td>
+                      {item.downloadUrl ? (
+                        <a
+                          className={styles.downloadLink}
+                          href={item.downloadUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Descargar
+                        </a>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td className={styles.noResults} colSpan={4}>
+                    {noResultsMessage ? 'No encontramos PDFs que coincidan.' : 'Sin resultados aún.'}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        {canShowPagination ? (
+          <div className={styles.pagination}>
+            <button type="button" onClick={handlePrevious} disabled={loading || offset === 0}>
+              Anterior
+            </button>
+            <p className={styles.paginationStatus}>{showingRange}</p>
+            <button
+              type="button"
+              onClick={handleNext}
+              disabled={loading || offset + PAGE_LIMIT >= total}
+            >
+              Siguiente
+            </button>
+          </div>
         ) : null}
-        {!loading && !error && lastTerm && results.length === 0 ? (
-          <p className={styles.emptyState}>No se encontraron resultados para ese término.</p>
-        ) : null}
-      </div>
+      </section>
     </div>
   );
 }
