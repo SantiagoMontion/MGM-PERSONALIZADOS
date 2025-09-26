@@ -25,18 +25,6 @@
   position: relative;
 }
 
-.hero {
-  text-align: center;
-}
-
-.heroTitle {
-  font-size: clamp(28px, 4.5vw, 48px);
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  margin: 0;
-  margin-bottom: clamp(20px, 3vh, 28px);
-}
-
 .main {
   width: min(960px, 100%);
   margin: 0 auto;
@@ -47,14 +35,47 @@
 }
 
 .previewWrapper {
-  max-width: 900px;
+  position: relative;
+  max-width: min(640px, 90vw);
   margin: 0 auto clamp(20px, 4vh, 36px);
+  text-align: center;
+}
+
+.previewWithImage {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.previewTitle {
+  margin: 0 0 clamp(16px, 4vh, 28px);
+  font-size: clamp(26px, 4vw, 44px);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: rgba(242, 243, 245, 0.98);
+}
+
+.previewTitleOverlay {
+  position: absolute;
+  top: clamp(18px, 4vw, 32px);
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  text-shadow: 0 4px 22px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.previewWithImage .previewTitle {
+  margin: 0;
 }
 
 .mockupImage {
   display: block;
-  width: min(860px, 90vw);
+  width: 100%;
+  max-width: min(640px, 90vw);
   height: auto;
+  object-fit: contain;
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   border: 1px solid rgba(255, 255, 255, 0.04);
