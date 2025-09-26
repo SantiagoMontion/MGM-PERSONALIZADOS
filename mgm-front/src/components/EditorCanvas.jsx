@@ -1044,7 +1044,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     const stageH = workCm.h * baseScale;
     const targetX = (wrapSize.w - stageW) / 2;
     const targetY = (wrapSize.h - stageH) / 2;
-    setViewScale((prev) => (prev === 1 ? prev : 1));
     setViewPos((prev) => {
       if (
         Math.abs(prev.x - targetX) < 0.5 &&
