@@ -722,30 +722,13 @@ interface StorefrontConfig {
 
 function resolveStorefrontConfig(): { ok: true; config: StorefrontConfig } | { ok: false; missing: string[] } {
   const missing: string[] = [];
-  const domainRaw = readEnv([
-    'VITE_SHOPIFY_STOREFRONT_DOMAIN',
-    'VITE_SHOPIFY_DOMAIN',
-    'NEXT_PUBLIC_SHOPIFY_STOREFRONT_DOMAIN',
-    'NEXT_PUBLIC_SHOPIFY_DOMAIN',
-    'SHOPIFY_STOREFRONT_DOMAIN',
-    'SHOPIFY_DOMAIN',
-  ]);
-  const token = readEnv([
-    'VITE_SHOPIFY_STOREFRONT_TOKEN',
-    'NEXT_PUBLIC_SHOPIFY_STOREFRONT_TOKEN',
-    'SHOPIFY_STOREFRONT_TOKEN',
-  ]);
-  const version = readEnv([
-    'VITE_SHOPIFY_STOREFRONT_API_VERSION',
-    'NEXT_PUBLIC_SHOPIFY_STOREFRONT_API_VERSION',
-    'SHOPIFY_STOREFRONT_API_VERSION',
-    'VITE_SHOPIFY_API_VERSION',
-    'SHOPIFY_API_VERSION',
-  ]) || DEFAULT_STOREFRONT_API_VERSION;
+  const domainRaw = readEnv(['NEXT_PUBLIC_SHOPIFY_DOMAIN']);
+  const token = readEnv(['NEXT_PUBLIC_SHOPIFY_STOREFRONT_TOKEN']);
+  const versionRaw = readEnv(['NEXT_PUBLIC_SHOPIFY_API_VERSION']);
 
   if (!domainRaw) missing.push('NEXT_PUBLIC_SHOPIFY_DOMAIN');
   if (!token) missing.push('NEXT_PUBLIC_SHOPIFY_STOREFRONT_TOKEN');
-  if (!version) missing.push('NEXT_PUBLIC_SHOPIFY_STOREFRONT_API_VERSION');
+  if (!versionRaw) missing.push('NEXT_PUBLIC_SHOPIFY_API_VERSION');
 
   if (missing.length) {
     return { ok: false, missing };
@@ -756,7 +739,7 @@ function resolveStorefrontConfig(): { ok: true; config: StorefrontConfig } | { o
     config: {
       domain: normalizeStorefrontDomain(domainRaw),
       token,
-      version,
+      version: versionRaw || DEFAULT_STOREFRONT_API_VERSION,
     },
   };
 }
@@ -862,7 +845,7 @@ const CART_LINES_ADD_MUTATION = `mutation CartLinesAdd($cartId: ID!, $lines: [Ca
   }
 }`;
 
-const VARIANT_AVAILABILITY_QUERY = `query WaitVariant($id: ID!, $pub: ID!) @inContext(publicationId: $pub) {
+const VARIANT_AVAILABILITY_QUERY = `query WaitVariant($id: ID!) {
   node(id: $id) {
     __typename
     ... on ProductVariant {
@@ -870,8 +853,7 @@ const VARIANT_AVAILABILITY_QUERY = `query WaitVariant($id: ID!, $pub: ID!) @inCo
       availableForSale
       product {
         id
-        handle
-        onlineStoreUrl
+        availableForSale
       }
     }
   }
@@ -1135,7 +1117,6 @@ const DEFAULT_VARIANT_POLL_DELAYS_MS = [
 
 export interface WaitVariantOptions {
   signal?: AbortSignal;
-  publicationId?: string | null;
   verifyProductPublication?: (() => Promise<boolean>) | null;
   attemptDelaysMs?: number[];
 }
@@ -1145,7 +1126,7 @@ export async function waitForVariantAvailability(
   productId?: string | number,
   options: WaitVariantOptions = {},
 ) {
-  const { signal, publicationId, verifyProductPublication } = options;
+  const { signal, verifyProductPublication } = options;
   const numericVariant = normalizeVariantNumericId(variantId);
   if (!numericVariant) {
     throw new Error('invalid_variant_id');
@@ -1158,7 +1139,6 @@ export async function waitForVariantAvailability(
   if (!normalizedProductId) {
     throw new Error('invalid_product_id');
   }
-  const normalizedPublicationId = typeof publicationId === 'string' ? publicationId.trim() : '';
   const configResult = resolveStorefrontConfig();
   if (!configResult.ok) {
     try {
@@ -1180,13 +1160,6 @@ export async function waitForVariantAvailability(
   let lastResponse: VariantPollData | null = null;
   let adminVerificationAttempted = false;
 
-  if (!normalizedPublicationId) {
-    console.warn('[waitForVariantAvailability] missing_publication_id', { productId: normalizedProductId, variantId: variantGid });
-    const err: Error & { reason?: string } = new Error('missing_publication_id');
-    err.reason = 'missing_publication_id';
-    throw err;
-  }
-
   while (attempt < maxAttempts) {
     if (signal?.aborted) {
       const abortError = new Error('aborted');
@@ -1195,7 +1168,7 @@ export async function waitForVariantAvailability(
     }
     attempt += 1;
     try {
-      const variables = { id: variantGid, pub: normalizedPublicationId };
+      const variables = { id: variantGid };
       const { response, payload, requestId } = await performStorefrontGraphQL<VariantPollData>(
         config,
         VARIANT_AVAILABILITY_QUERY,
@@ -1207,6 +1180,8 @@ export async function waitForVariantAvailability(
       const variantPresent = Boolean(variantNode && typeof variantNode.id === 'string' && variantNode.id);
       const availableForSale = variantNode?.availableForSale === true;
       const nextDelayMs = attempt < maxAttempts ? pollSchedule[Math.min(attempt - 1, pollSchedule.length - 1)] : null;
+      const payloadErrors = Array.isArray(payload?.errors) ? payload.errors.filter(Boolean) : [];
+      const hasPayloadErrors = payloadErrors.length > 0;
       try {
         console.info('[cart-flow] poll variant', {
           attempt,
@@ -1214,11 +1189,22 @@ export async function waitForVariantAvailability(
           availableForSale,
           requestId,
           nextDelayMs,
+          hasErrors: hasPayloadErrors || !response.ok,
         });
       } catch (logErr) {
         console.warn?.('[waitForVariantAvailability] poll_log_failed', logErr);
       }
-      if (variantPresent && availableForSale) {
+      if (!response.ok || hasPayloadErrors) {
+        try {
+          console.warn('[waitForVariantAvailability] storefront response issue', {
+            status: response.status,
+            requestId,
+            errors: payloadErrors,
+          });
+        } catch (logErr) {
+          console.warn?.('[waitForVariantAvailability] response_issue_log_failed', logErr);
+        }
+      } else if (variantPresent && availableForSale) {
         try {
           console.info('[cart-flow] variant disponible en Storefront', {
             attempt,
@@ -1257,13 +1243,6 @@ export async function waitForVariantAvailability(
         } catch (adminErr) {
           console.error('[waitForVariantAvailability] admin_publication_check_failed', adminErr);
         }
-      }
-      if (!response.ok || payload?.errors?.length) {
-        console.warn('[waitForVariantAvailability] storefront response issue', {
-          status: response.status,
-          requestId,
-          errors: payload?.errors,
-        });
       }
     } catch (err) {
       if ((err as Error)?.name === 'AbortError') throw err;
