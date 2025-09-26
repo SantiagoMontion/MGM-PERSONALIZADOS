@@ -13,8 +13,7 @@ import {
   ensureProductPublication,
   verifyProductPublicationStatus,
   waitForVariantAvailability,
-  buildCartAddUrl,
-  buildCartPermalink,
+  addVariantToCartStorefront,
   normalizeVariantNumericId,
 } from '@/lib/shopify.ts';
 
@@ -26,7 +25,7 @@ const CART_STATUS_LABELS = {
 };
 
 const CART_DEFAULT_QUANTITY = 1;
-const CART_BASE_URL = 'https://mgmgamers.store';
+const CART_BASE_URL = 'https://kw0f4u-ji.myshopify.com';
 const IS_DEV = Boolean(import.meta?.env?.DEV);
 
 export default function Mockup() {
@@ -197,7 +196,13 @@ export default function Mockup() {
         : 'SHOPIFY_STOREFRONT_TOKEN, SHOPIFY_STOREFRONT_DOMAIN';
       friendly = `La API Storefront de Shopify no está configurada. Faltan las variables: ${missing}.`;
     } else if (reasonRaw === 'shopify_cart_user_error') {
-      friendly = 'Shopify rechazó el carrito generado. Intentá nuevamente en unos segundos.';
+      if (Array.isArray(error?.userErrors) && error.userErrors.length) {
+        friendly = `Shopify rechazó el carrito generado: ${error.userErrors.join(' | ')}`;
+      } else if (messageRaw && messageRaw !== 'Error') {
+        friendly = messageRaw;
+      } else {
+        friendly = 'Shopify rechazó el carrito generado. Intentá nuevamente en unos segundos.';
+      }
     }
     alert(friendly);
   }
@@ -205,7 +210,7 @@ export default function Mockup() {
   function openCartTab(url) {
     if (typeof window === 'undefined' || !url) return false;
     try {
-      const popup = window.open(url, '_blank', 'noopener');
+      const popup = window.open(url, '_blank', 'noopener,noreferrer');
       if (!popup) {
         return false;
       }
@@ -352,6 +357,7 @@ export default function Mockup() {
           productId: result.productId,
           variantId: result.variantId,
           quantity: CART_DEFAULT_QUANTITY,
+          ...(result?.productHandle ? { productHandle: result.productHandle } : {}),
         };
         setPendingCart(current);
       }
@@ -386,12 +392,35 @@ export default function Mockup() {
         }
         try {
           const verifyPublication = () => verifyProductPublicationStatus(current.productId);
+          const waitOptions = {
+            verifyProductPublication: verifyPublication,
+          };
+          if (!skipPublication && current.productId) {
+            waitOptions.retryProductPublication = () =>
+              ensureProductPublication(current.productId)
+                .then((ensureResult) => {
+                  if (ensureResult?.publicationId && ensureResult.publicationId !== current.publicationId) {
+                    current = {
+                      ...current,
+                      publicationId: ensureResult.publicationId,
+                    };
+                    setPendingCart(current);
+                  }
+                  return ensureResult;
+                })
+                .catch((retryErr) => {
+                  try {
+                    console.warn('[cart-flow] ensure publication retry failed', retryErr);
+                  } catch (logErr) {
+                    console.debug?.('[cart-flow] ensure_publication_retry_log_failed', logErr);
+                  }
+                  throw retryErr;
+                });
+          }
           const pollResult = await waitForVariantAvailability(
             current.variantId,
             current.productId,
-            {
-              verifyProductPublication: verifyPublication,
-            },
+            waitOptions,
           );
           if (IS_DEV) {
             try {
@@ -416,6 +445,32 @@ export default function Mockup() {
             setBusy(false);
             showCartFailureToast('', { fallbackUrl: current?.fallbackUrl });
             return;
+          }
+          const pollProductHandle =
+            typeof pollResult?.productHandle === 'string' && pollResult.productHandle
+              ? pollResult.productHandle
+              : typeof pollResult?.lastResponse?.node?.product?.handle === 'string'
+                ? pollResult.lastResponse.node.product.handle
+                : '';
+          if (pollProductHandle) {
+            let nextState = current;
+            const handleChanged = pollProductHandle !== current.productHandle;
+            if (handleChanged) {
+              nextState = { ...nextState, productHandle: pollProductHandle };
+            }
+            if (!nextState.fallbackUrl) {
+              const fallbackVariantId = normalizeVariantNumericId(current.variantId);
+              const variantSuffix = fallbackVariantId ? `?variant=${fallbackVariantId}` : '';
+              const baseOrigin = CART_BASE_URL.replace(/\/$/, '');
+              nextState = {
+                ...nextState,
+                fallbackUrl: `${baseOrigin}/products/${pollProductHandle}${variantSuffix}`,
+              };
+              setPendingCart(nextState);
+            } else if (handleChanged) {
+              setPendingCart(nextState);
+            }
+            current = nextState;
           }
         } catch (pollErr) {
           console.error('[cart-flow] wait_variant_failed', pollErr);
@@ -444,29 +499,42 @@ export default function Mockup() {
         showCartFailureToast('', { fallbackUrl: current?.fallbackUrl });
         return;
       }
-      const linkCartOptions = normalizedDiscountCode
-        ? { baseUrl: CART_BASE_URL, discountCode: normalizedDiscountCode }
-        : { baseUrl: CART_BASE_URL };
-      const cartUrl = buildCartAddUrl(current.variantId, desiredQuantity, linkCartOptions);
-      const fallbackCandidate = buildCartPermalink(current.variantId, desiredQuantity, {
-        ...linkCartOptions,
-        returnTo: null,
-      });
-      const fallbackUrl = fallbackCandidate && fallbackCandidate !== cartUrl ? fallbackCandidate : '';
-      if (!cartUrl) {
-        setCartStatus('idle');
-        setBusy(false);
-        showCartFailureToast('', { fallbackUrl });
-        return;
+      const cartResult = await addVariantToCartStorefront(
+        current.variantId,
+        desiredQuantity,
+        normalizedDiscountCode ? { discountCode: normalizedDiscountCode } : {},
+      );
+      const productHandle = typeof current.productHandle === 'string' ? current.productHandle : '';
+      let fallbackUrl = typeof current.fallbackUrl === 'string' ? current.fallbackUrl : '';
+      if (!fallbackUrl && productHandle) {
+        const variantSuffix = variantNumericId ? `?variant=${variantNumericId}` : '';
+        let origin = '';
+        if (cartResult.webUrl) {
+          try {
+            origin = new URL(cartResult.webUrl).origin;
+          } catch (urlErr) {
+            try {
+              console.warn('[cart-flow] cart_web_url_parse_failed', urlErr);
+            } catch (logErr) {
+              console.debug?.('[cart-flow] cart_web_url_parse_failed_log', logErr);
+            }
+          }
+        }
+        if (!origin) {
+          origin = CART_BASE_URL;
+        }
+        const normalizedOrigin = origin.replace(/\/$/, '');
+        fallbackUrl = `${normalizedOrigin}/products/${productHandle}${variantSuffix}`;
       }
       current = {
         ...current,
         variantNumericId,
-        webUrl: cartUrl,
+        webUrl: cartResult.webUrl,
+        cartId: cartResult.cartId,
         ...(fallbackUrl ? { fallbackUrl } : {}),
       };
       setPendingCart(current);
-      openCartAndFinalize(cartUrl, {
+      openCartAndFinalize(cartResult.webUrl, {
         variantNumericId,
         fallbackUrl: fallbackUrl || undefined,
       });

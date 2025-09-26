@@ -1,7 +1,7 @@
 import { apiFetch } from './api';
 import { FlowState } from '@/state/flow';
 
-const DEFAULT_STORE_BASE = 'https://mgmgamers.store';
+const DEFAULT_STORE_BASE = 'https://kw0f4u-ji.myshopify.com';
 const IS_DEV = Boolean(
   typeof import.meta !== 'undefined'
     && (import.meta as { env?: { DEV?: boolean } }).env
@@ -759,6 +759,17 @@ function setStoredCartId(cartId?: string | null) {
   }
 }
 
+function getStoredCartId() {
+  if (typeof window === 'undefined' || !window.localStorage) return '';
+  try {
+    const stored = window.localStorage.getItem(STOREFRONT_CART_STORAGE_KEY);
+    return typeof stored === 'string' && stored.trim() ? stored.trim() : '';
+  } catch (err) {
+    console.warn('[storefront-cart] read failed', err);
+    return '';
+  }
+}
+
 function buildVariantGid(variantId: string | number) {
   if (typeof variantId === 'string' && variantId.startsWith('gid://shopify/ProductVariant/')) {
     return variantId;
@@ -774,6 +785,7 @@ function buildVariantGid(variantId: string | number) {
 
 interface StorefrontGraphQLError {
   message?: string;
+  path?: (string | number | null)[] | null;
   extensions?: Record<string, unknown> | null;
 }
 
@@ -833,8 +845,8 @@ async function performStorefrontCartMutation(
   return performStorefrontGraphQL<StorefrontCartResponse>(config, query, variables);
 }
 
-const CART_CREATE_MUTATION = `mutation CartCreate($lines: [CartLineInput!]!) {
-  cartCreate(input: { lines: $lines }) {
+const CART_CREATE_MUTATION = `mutation CartCreate($lines: [CartLineInput!]!, $discountCodes: [String!]) {
+  cartCreate(input: { lines: $lines, discountCodes: $discountCodes }) {
     cart { id webUrl }
     userErrors { message code field }
   }
@@ -853,9 +865,10 @@ const VARIANT_AVAILABILITY_QUERY = `query WaitVariant($id: ID!) {
     ... on ProductVariant {
       id
       availableForSale
+      quantityAvailable
       product {
         id
-        publishedOnCurrentPublication
+        handle
       }
     }
   }
@@ -869,6 +882,7 @@ export interface StorefrontCartSuccess {
 export async function addVariantToCartStorefront(
   variantId: string | number,
   quantity = 1,
+  options: { discountCode?: string | null } = {},
 ): Promise<StorefrontCartSuccess> {
   const configResult = resolveStorefrontConfig();
   if (!configResult.ok) {
@@ -890,131 +904,172 @@ export async function addVariantToCartStorefront(
     }
   }
   const { config } = configResult;
+  if (config.domain !== 'kw0f4u-ji.myshopify.com') {
+    try {
+      console.warn('[cart-flow] storefront_domain_unexpected', { domain: config.domain });
+    } catch (logErr) {
+      console.debug?.('[cart-flow] storefront_domain_log_failed', logErr);
+    }
+  }
+  if (config.version !== '2024-07') {
+    try {
+      console.warn('[cart-flow] storefront_version_unexpected', { version: config.version });
+    } catch (logErr) {
+      console.debug?.('[cart-flow] storefront_version_log_failed', logErr);
+    }
+  }
   const merchandiseId = buildVariantGid(variantId);
   const lines = [{ merchandiseId, quantity: clampQuantity(quantity) }];
-  const { response: createResponse, payload: createPayload, requestId: createRequestId } =
-    await performStorefrontCartMutation(
-      config,
-      CART_CREATE_MUTATION,
-      { lines: [] },
-    );
-  const createData = createPayload?.data?.cartCreate;
-  const createUserErrors = extractUserErrors(createData);
-  if (!createResponse.ok || createPayload?.errors?.length || createUserErrors.length) {
-    try {
-      console.error('[cart-flow] cart_create_error', {
-        requestId: createRequestId,
-        status: createResponse.status,
-        userErrors: createUserErrors,
-        graphQLErrors: createPayload?.errors,
-      });
-    } catch (logErr) {
-      console.warn?.('[cart-flow] cart_create_log_failed', logErr);
-    }
-    const error = new Error('shopify_cart_user_error');
-    (error as Error & { reason?: string; requestId?: string; userErrors?: string[] }).reason = 'shopify_cart_user_error';
-    if (createRequestId) (error as Error & { requestId?: string }).requestId = createRequestId;
-    if (createUserErrors.length) (error as Error & { userErrors?: string[] }).userErrors = createUserErrors;
-    if (createPayload?.errors?.length) {
-      const messages = createPayload.errors
+  const normalizedDiscount = typeof options?.discountCode === 'string' ? options.discountCode.trim() : '';
+  const discountCodes = normalizedDiscount ? [normalizedDiscount] : undefined;
+  const RETRY_DELAY_MS = 1_500;
+
+  function buildCartError(
+    context: 'cart_create' | 'cart_lines_add',
+    requestId: string | undefined,
+    status: number,
+    userErrors: string[],
+    graphQLErrors: StorefrontGraphQLError[] = [],
+  ) {
+    const error = new Error('shopify_cart_user_error') as Error & {
+      reason?: string;
+      requestId?: string;
+      userErrors?: string[];
+      status?: number;
+      friendlyMessage?: string;
+      context?: string;
+    };
+    error.reason = 'shopify_cart_user_error';
+    if (requestId) error.requestId = requestId;
+    if (Number.isFinite(status)) error.status = status;
+    const combinedErrors = [
+      ...userErrors,
+      ...graphQLErrors
         .map((entry) => (entry?.message ? String(entry.message).trim() : ''))
-        .filter(Boolean);
-      if (messages.length) {
-        (error as Error & { userErrors?: string[] }).userErrors = [
-          ...((error as Error & { userErrors?: string[] }).userErrors || []),
-          messages.join(' | '),
-        ];
+        .filter((message) => Boolean(message)),
+    ];
+    if (combinedErrors.length) {
+      error.userErrors = combinedErrors;
+      const friendly = combinedErrors.join(' | ');
+      if (friendly) {
+        error.friendlyMessage = friendly;
       }
     }
-    (error as Error & { status?: number }).status = createResponse.status;
-    throw error;
-  }
-  const createdCartId = createData?.cart?.id ? String(createData.cart.id) : '';
-  const createdWebUrl = createData?.cart?.webUrl ? String(createData.cart.webUrl) : '';
-  if (!createdCartId || !createdWebUrl) {
-    try {
-      console.error('[cart-flow] cart_create_error', {
-        requestId: createRequestId,
-        status: createResponse.status,
-        message: 'Missing cart id/webUrl',
-      });
-    } catch (logErr) {
-      console.warn?.('[cart-flow] cart_create_log_failed', logErr);
-    }
-    const error = new Error('shopify_storefront_cart_missing');
-    (error as Error & { reason?: string; requestId?: string }).reason = 'shopify_storefront_cart_missing';
-    if (createRequestId) (error as Error & { requestId?: string }).requestId = createRequestId;
-    throw error;
-  }
-  setStoredCartId(createdCartId);
-  try {
-    console.info('[cart-flow] cart_create_success', { requestId: createRequestId, cartId: createdCartId });
-  } catch (logErr) {
-    console.warn?.('[cart-flow] cart_create_log_failed', logErr);
+    error.context = context;
+    return error;
   }
 
-  const { response: addResponse, payload: addPayload, requestId: addRequestId } =
-    await performStorefrontCartMutation(
+  const attemptCartLinesAdd = async (
+    cartId: string,
+    attempt = 1,
+  ): Promise<{ ok: true; value: StorefrontCartSuccess } | { ok: false; error: Error }> => {
+    const { response, payload, requestId } = await performStorefrontCartMutation(
       config,
       CART_LINES_ADD_MUTATION,
-      { cartId: createdCartId, lines },
+      { cartId, lines },
     );
-  const addData = addPayload?.data?.cartLinesAdd;
-  const addUserErrors = extractUserErrors(addData);
-  if (!addResponse.ok || addPayload?.errors?.length || addUserErrors.length) {
-    try {
-      console.error('[cart-flow] cart_lines_add_error', {
-        requestId: addRequestId,
-        status: addResponse.status,
-        userErrors: addUserErrors,
-        graphQLErrors: addPayload?.errors,
-      });
-    } catch (logErr) {
-      console.warn?.('[cart-flow] cart_lines_add_log_failed', logErr);
-    }
-    const error = new Error('shopify_cart_user_error');
-    (error as Error & { reason?: string; requestId?: string; userErrors?: string[] }).reason = 'shopify_cart_user_error';
-    if (addRequestId) (error as Error & { requestId?: string }).requestId = addRequestId;
-    if (addUserErrors.length) (error as Error & { userErrors?: string[] }).userErrors = addUserErrors;
-    if (addPayload?.errors?.length) {
-      const messages = addPayload.errors
-        .map((entry) => (entry?.message ? String(entry.message).trim() : ''))
-        .filter(Boolean);
-      if (messages.length) {
-        (error as Error & { userErrors?: string[] }).userErrors = [
-          ...((error as Error & { userErrors?: string[] }).userErrors || []),
-          messages.join(' | '),
-        ];
+    const data = payload?.data?.cartLinesAdd;
+    const userErrors = extractUserErrors(data);
+    const payloadErrors = Array.isArray(payload?.errors) ? payload.errors.filter(Boolean) : [];
+    const resolvedCartId = data?.cart?.id ? String(data.cart.id) : cartId;
+    const resolvedWebUrl = data?.cart?.webUrl ? String(data.cart.webUrl) : '';
+    if (response.ok && !payloadErrors.length && !userErrors.length && resolvedCartId && resolvedWebUrl) {
+      setStoredCartId(resolvedCartId);
+      try {
+        console.info('[cart-flow] cart_lines_add_ok', { cartId: resolvedCartId, webUrl: resolvedWebUrl });
+      } catch (logErr) {
+        console.warn?.('[cart-flow] cart_lines_add_log_failed', logErr);
       }
+      return { ok: true, value: { cartId: resolvedCartId, webUrl: resolvedWebUrl } };
     }
-    (error as Error & { status?: number }).status = addResponse.status;
-    throw error;
-  }
-  const finalCartId = addData?.cart?.id ? String(addData.cart.id) : createdCartId;
-  const finalWebUrl = addData?.cart?.webUrl ? String(addData.cart.webUrl) : createdWebUrl;
-  if (!finalCartId || !finalWebUrl) {
+
     try {
       console.error('[cart-flow] cart_lines_add_error', {
-        requestId: addRequestId,
-        status: addResponse.status,
-        message: 'Missing cart id/webUrl',
+        requestId,
+        status: response.status,
+        userErrors,
+        graphQLErrors: payloadErrors,
       });
     } catch (logErr) {
       console.warn?.('[cart-flow] cart_lines_add_log_failed', logErr);
     }
-    const error = new Error('shopify_storefront_cart_missing');
-    (error as Error & { reason?: string; requestId?: string }).reason = 'shopify_storefront_cart_missing';
-    if (addRequestId) (error as Error & { requestId?: string }).requestId = addRequestId;
-    throw error;
-  }
-  setStoredCartId(finalCartId);
-  try {
-    console.info('[cart-flow] cart_lines_add_success', { requestId: addRequestId, cartId: finalCartId });
-  } catch (logErr) {
-    console.warn?.('[cart-flow] cart_lines_add_log_failed', logErr);
+
+    if (userErrors.length && attempt < 2) {
+      await sleep(RETRY_DELAY_MS);
+      return attemptCartLinesAdd(cartId, attempt + 1);
+    }
+
+    const error = buildCartError('cart_lines_add', requestId, response.status, userErrors, payloadErrors);
+    return { ok: false, error };
+  };
+
+  const attemptCartCreate = async (
+    attempt = 1,
+  ): Promise<{ ok: true; value: StorefrontCartSuccess } | { ok: false; error: Error }> => {
+    const variables = discountCodes?.length ? { lines, discountCodes } : { lines };
+    const { response, payload, requestId } = await performStorefrontCartMutation(
+      config,
+      CART_CREATE_MUTATION,
+      variables,
+    );
+    const data = payload?.data?.cartCreate;
+    const userErrors = extractUserErrors(data);
+    const payloadErrors = Array.isArray(payload?.errors) ? payload.errors.filter(Boolean) : [];
+    const createdCartId = data?.cart?.id ? String(data.cart.id) : '';
+    const createdWebUrl = data?.cart?.webUrl ? String(data.cart.webUrl) : '';
+    if (response.ok && !payloadErrors.length && !userErrors.length && createdCartId && createdWebUrl) {
+      setStoredCartId(createdCartId);
+      try {
+        console.info('[cart-flow] cart_create_ok', { cartId: createdCartId, webUrl: createdWebUrl });
+      } catch (logErr) {
+        console.warn?.('[cart-flow] cart_create_log_failed', logErr);
+      }
+      return { ok: true, value: { cartId: createdCartId, webUrl: createdWebUrl } };
+    }
+
+    try {
+      console.error('[cart-flow] cart_create_error', {
+        requestId,
+        status: response.status,
+        userErrors,
+        graphQLErrors: payloadErrors,
+      });
+    } catch (logErr) {
+      console.warn?.('[cart-flow] cart_create_log_failed', logErr);
+    }
+
+    if (userErrors.length && attempt < 2) {
+      await sleep(RETRY_DELAY_MS);
+      return attemptCartCreate(attempt + 1);
+    }
+
+    const error = buildCartError('cart_create', requestId, response.status, userErrors, payloadErrors);
+    return { ok: false, error };
+  };
+
+  let lastError: Error | null = null;
+  const storedCartId = getStoredCartId();
+  if (storedCartId) {
+    const addResult = await attemptCartLinesAdd(storedCartId);
+    if (addResult.ok) {
+      return addResult.value;
+    }
+    lastError = addResult.error;
+    setStoredCartId(null);
   }
 
-  return { cartId: finalCartId, webUrl: finalWebUrl };
+  const createResult = await attemptCartCreate();
+  if (createResult.ok) {
+    return createResult.value;
+  }
+
+  lastError = createResult.error || lastError;
+  if (lastError) {
+    throw lastError;
+  }
+  const fallbackError = new Error('shopify_cart_user_error');
+  (fallbackError as Error & { reason?: string }).reason = 'shopify_cart_user_error';
+  throw fallbackError;
 }
 
 export interface EnsurePublicationResponse {
@@ -1098,6 +1153,7 @@ interface VariantPollData {
     __typename?: string | null;
     id?: string | null;
     availableForSale?: boolean | null;
+    quantityAvailable?: number | null;
     product?: {
       id?: string | null;
       handle?: string | null;
@@ -1107,38 +1163,37 @@ interface VariantPollData {
 }
 
 const DEFAULT_VARIANT_POLL_DELAYS_MS = [
-  1_000,
-  1_500,
-  1_500,
+  1_200,
   2_000,
   2_000,
-  2_000,
-  2_000,
+  3_000,
+  3_000,
+  4_000,
+  4_000,
+  5_000,
 ];
+
+const VARIANT_POLL_INITIAL_DELAY_MS = 700;
+const VARIANT_ADDITIONAL_ATTEMPTS = 2;
+const VARIANT_ADDITIONAL_DELAY_MS = 2_000;
 
 export interface WaitVariantOptions {
   signal?: AbortSignal;
   verifyProductPublication?: (() => Promise<boolean>) | null;
+  retryProductPublication?: (() => Promise<unknown>) | null;
   attemptDelaysMs?: number[];
+  initialDelayMs?: number;
 }
 
 export async function waitForVariantAvailability(
   variantId: string | number,
-  productId?: string | number,
+  _productId?: string | number,
   options: WaitVariantOptions = {},
 ) {
-  const { signal, verifyProductPublication } = options;
+  const { signal, verifyProductPublication, retryProductPublication } = options;
   const numericVariant = normalizeVariantNumericId(variantId);
   if (!numericVariant) {
     throw new Error('invalid_variant_id');
-  }
-  const normalizedProductId = typeof productId === 'string'
-    ? productId.trim()
-    : typeof productId === 'number'
-      ? String(productId)
-      : '';
-  if (!normalizedProductId) {
-    throw new Error('invalid_product_id');
   }
   const configResult = resolveStorefrontConfig();
   if (!configResult.ok) {
@@ -1147,7 +1202,17 @@ export async function waitForVariantAvailability(
     } catch (logErr) {
       console.warn?.('[waitForVariantAvailability] env_log_failed', logErr);
     }
-    return { ready: true, available: true, timedOut: false, attempts: 0, lastResponse: null };
+    return {
+      ready: true,
+      available: true,
+      timedOut: false,
+      attempts: 0,
+      lastResponse: null,
+      variantPresent: true,
+      availableForSale: true,
+      productHandle: null,
+      quantityAvailable: null,
+    };
   }
   const { config } = configResult;
   const variantGid = buildVariantGid(numericVariant);
@@ -1156,11 +1221,108 @@ export async function waitForVariantAvailability(
         .map((value) => (Number.isFinite(value) ? Math.max(0, Math.floor(value as number)) : 0))
         .filter((value) => value >= 0)
     : DEFAULT_VARIANT_POLL_DELAYS_MS;
-  const maxAttempts = pollSchedule.length + 1;
+  const normalizedSchedule = pollSchedule.length ? pollSchedule : DEFAULT_VARIANT_POLL_DELAYS_MS;
+  const preDelayMs = Number.isFinite(options.initialDelayMs)
+    ? Math.max(0, Math.floor((options.initialDelayMs as number) || 0))
+    : VARIANT_POLL_INITIAL_DELAY_MS;
+
+  if (signal?.aborted) {
+    const abortError = new Error('aborted');
+    abortError.name = 'AbortError';
+    throw abortError;
+  }
+  if (preDelayMs > 0) {
+    await sleep(preDelayMs);
+    if (signal?.aborted) {
+      const abortError = new Error('aborted');
+      abortError.name = 'AbortError';
+      throw abortError;
+    }
+  }
+
   let attempt = 0;
   let lastResponse: VariantPollData | null = null;
-  let adminVerificationAttempted = false;
+  let lastVariantPresent = false;
+  let lastAvailableForSale = false;
+  let lastProductHandle: string | null = null;
+  let lastQuantityAvailable: number | null = null;
 
+  const runStorefrontPoll = async (attemptNumber: number) => {
+    try {
+      const { response, payload, requestId } = await performStorefrontGraphQL<VariantPollData>(
+        config,
+        VARIANT_AVAILABILITY_QUERY,
+        { id: variantGid },
+      );
+      const data = payload?.data || null;
+      lastResponse = data;
+      const node = data?.node;
+      const variantNode =
+        node && (node.__typename === 'ProductVariant' || typeof node?.availableForSale !== 'undefined')
+          ? node
+          : null;
+      const variantPresent = Boolean(variantNode && typeof variantNode.id === 'string' && variantNode.id);
+      const availableForSale = Boolean(variantNode && variantNode.availableForSale === true);
+      const productHandleValue = variantNode?.product?.handle
+        ? String(variantNode.product.handle)
+        : '';
+      const quantityAvailableValue =
+        typeof variantNode?.quantityAvailable === 'number' && Number.isFinite(variantNode.quantityAvailable)
+          ? variantNode.quantityAvailable
+          : null;
+
+      lastVariantPresent = variantPresent;
+      lastAvailableForSale = availableForSale;
+      if (productHandleValue) {
+        lastProductHandle = productHandleValue;
+      }
+      if (quantityAvailableValue != null) {
+        lastQuantityAvailable = quantityAvailableValue;
+      }
+
+      const payloadErrors = Array.isArray(payload?.errors) ? payload.errors.filter(Boolean) : [];
+      if (payloadErrors.length) {
+        try {
+          const normalizedErrors = payloadErrors.map((error) => ({
+            message: error?.message ? String(error.message) : '',
+            path: Array.isArray(error?.path) ? error.path : undefined,
+          }));
+          console.warn('waitForVariantAvailability storefront errors:', normalizedErrors);
+        } catch (logErr) {
+          console.warn?.('[waitForVariantAvailability] error_log_failed', logErr);
+        }
+      }
+      if (!response.ok) {
+        try {
+          console.warn('[waitForVariantAvailability] storefront response issue', {
+            status: response.status,
+            requestId,
+          });
+        } catch (logErr) {
+          console.warn?.('[waitForVariantAvailability] response_issue_log_failed', logErr);
+        }
+      }
+
+      try {
+        const logPayload: Record<string, unknown> = { attempt: attemptNumber, availableForSale };
+        const handleForLog = productHandleValue || lastProductHandle;
+        if (handleForLog) {
+          logPayload.productHandle = handleForLog;
+        }
+        console.info('[cart-flow] variant_poll', logPayload);
+      } catch (logErr) {
+        console.warn?.('[waitForVariantAvailability] poll_log_failed', logErr);
+      }
+
+      return { availableForSale, variantPresent };
+    } catch (error) {
+      if ((error as Error)?.name === 'AbortError') throw error;
+      console.error('[waitForVariantAvailability] poll error', error);
+      return { availableForSale: false, variantPresent: false };
+    }
+  };
+
+  const maxAttempts = Math.max(1, normalizedSchedule.length);
   while (attempt < maxAttempts) {
     if (signal?.aborted) {
       const abortError = new Error('aborted');
@@ -1168,92 +1330,96 @@ export async function waitForVariantAvailability(
       throw abortError;
     }
     attempt += 1;
+    const pollOutcome = await runStorefrontPoll(attempt);
+    if (pollOutcome.availableForSale && lastVariantPresent) {
+      return {
+        ready: true,
+        available: true,
+        timedOut: false,
+        attempts: attempt,
+        lastResponse,
+        variantPresent: lastVariantPresent,
+        availableForSale: lastAvailableForSale,
+        productHandle: lastProductHandle,
+        quantityAvailable: lastQuantityAvailable,
+      };
+    }
+    if (attempt >= maxAttempts) {
+      break;
+    }
+    const delayMs = normalizedSchedule[Math.min(attempt - 1, normalizedSchedule.length - 1)] || 0;
+    if (delayMs > 0) {
+      await sleep(delayMs);
+    }
+  }
+
+  let republishAttempted = false;
+  if (!lastAvailableForSale && typeof verifyProductPublication === 'function') {
     try {
-      const variables = { id: variantGid };
-      const { response, payload, requestId } = await performStorefrontGraphQL<VariantPollData>(
-        config,
-        VARIANT_AVAILABILITY_QUERY,
-        variables,
-      );
-      const data = payload?.data || null;
-      lastResponse = data;
-      const variantNode = data?.node;
-      const variantPresent = Boolean(variantNode && typeof variantNode.id === 'string' && variantNode.id);
-      const availableForSale = variantNode?.availableForSale === true;
-      const nextDelayMs = attempt < maxAttempts ? pollSchedule[Math.min(attempt - 1, pollSchedule.length - 1)] : null;
-      const payloadErrors = Array.isArray(payload?.errors) ? payload.errors.filter(Boolean) : [];
-      const hasPayloadErrors = payloadErrors.length > 0;
-      if (IS_DEV) {
+      const adminPublished = await verifyProductPublication();
+      try {
+        console.info('[cart-flow] admin_publication_check', { adminPublished });
+      } catch (logErr) {
+        console.warn?.('[waitForVariantAvailability] admin_check_log_failed', logErr);
+      }
+      if (adminPublished === false && typeof retryProductPublication === 'function') {
         try {
-          console.info('[cart-flow] variant_poll', { attempt, availableForSale });
-        } catch (logErr) {
-          console.warn?.('[waitForVariantAvailability] poll_log_failed', logErr);
+          await retryProductPublication();
+          republishAttempted = true;
+          try {
+            console.info('[cart-flow] admin_publication_retry', { attempted: true });
+          } catch (logErr) {
+            console.warn?.('[waitForVariantAvailability] admin_retry_log_failed', logErr);
+          }
+        } catch (adminErr) {
+          console.error('[waitForVariantAvailability] admin_publication_retry_failed', adminErr);
         }
       }
-      if (!response.ok || hasPayloadErrors) {
-        try {
-          console.warn('[waitForVariantAvailability] storefront response issue', {
-            status: response.status,
-            requestId,
-            errors: payloadErrors,
-          });
-        } catch (logErr) {
-          console.warn?.('[waitForVariantAvailability] response_issue_log_failed', logErr);
-        }
-      } else if (variantPresent && availableForSale) {
-        if (IS_DEV) {
-          try {
-            console.info('[cart-flow] variant_available', { attempt, availableForSale: true });
-          } catch (logErr) {
-            console.warn?.('[waitForVariantAvailability] ready_log_failed', logErr);
-          }
-        }
+    } catch (adminErr) {
+      console.error('[waitForVariantAvailability] admin_publication_check_failed', adminErr);
+    }
+  }
+
+  if (republishAttempted) {
+    for (let extra = 0; extra < VARIANT_ADDITIONAL_ATTEMPTS; extra += 1) {
+      if (signal?.aborted) {
+        const abortError = new Error('aborted');
+        abortError.name = 'AbortError';
+        throw abortError;
+      }
+      await sleep(VARIANT_ADDITIONAL_DELAY_MS);
+      if (signal?.aborted) {
+        const abortError = new Error('aborted');
+        abortError.name = 'AbortError';
+        throw abortError;
+      }
+      attempt += 1;
+      const pollOutcome = await runStorefrontPoll(attempt);
+      if (pollOutcome.availableForSale && lastVariantPresent) {
         return {
           ready: true,
           available: true,
           timedOut: false,
           attempts: attempt,
-          lastResponse: data,
-          variantPresent: true,
-          availableForSale: true,
+          lastResponse,
+          variantPresent: lastVariantPresent,
+          availableForSale: lastAvailableForSale,
+          productHandle: lastProductHandle,
+          quantityAvailable: lastQuantityAvailable,
         };
       }
-      if (!variantPresent && !adminVerificationAttempted && typeof verifyProductPublication === 'function') {
-        adminVerificationAttempted = true;
-        try {
-          const adminPublished = await verifyProductPublication();
-          try {
-            console.info('[cart-flow] admin_publication_check', { adminPublished });
-          } catch (logErr) {
-            console.warn?.('[waitForVariantAvailability] admin_check_log_failed', logErr);
-          }
-          if (adminPublished) {
-            await sleep(1_500);
-            if (attempt < maxAttempts) {
-              continue;
-            }
-          }
-        } catch (adminErr) {
-          console.error('[waitForVariantAvailability] admin_publication_check_failed', adminErr);
-        }
-      }
-    } catch (err) {
-      if ((err as Error)?.name === 'AbortError') throw err;
-      console.error('[waitForVariantAvailability] poll error', err);
-    }
-    if (attempt >= maxAttempts) break;
-    const delayMs = pollSchedule[Math.min(attempt - 1, pollSchedule.length - 1)] || 0;
-    if (delayMs > 0) {
-      await sleep(delayMs);
     }
   }
+
   return {
     ready: false,
     available: false,
     timedOut: true,
     attempts: attempt,
     lastResponse,
-    variantPresent: Boolean(lastResponse?.node && typeof lastResponse.node?.id === 'string' && lastResponse.node.id),
-    availableForSale: Boolean(lastResponse?.node && lastResponse.node?.availableForSale === true),
+    variantPresent: lastVariantPresent,
+    availableForSale: lastAvailableForSale,
+    productHandle: lastProductHandle,
+    quantityAvailable: lastQuantityAvailable,
   };
 }
