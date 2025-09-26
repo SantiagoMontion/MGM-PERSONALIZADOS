@@ -13,8 +13,10 @@ import {
   ensureProductPublication,
   verifyProductPublicationStatus,
   waitForVariantAvailability,
+  buildCartAddUrl,
+  buildCartPermalink,
+  normalizeVariantNumericId,
 } from '@/lib/shopify.ts';
-import { apiFetch } from '@/lib/api.js';
 
 const CART_STATUS_LABELS = {
   idle: 'Agregar al carrito',
@@ -24,6 +26,8 @@ const CART_STATUS_LABELS = {
 };
 
 const CART_DEFAULT_QUANTITY = 1;
+const CART_BASE_URL = 'https://mgmgamers.store';
+const IS_DEV = Boolean(import.meta?.env?.DEV);
 
 export default function Mockup() {
   const flow = useFlow();
@@ -218,15 +222,20 @@ export default function Mockup() {
     }
   }
 
-  function showCartFailureToast(url) {
-    if (!url) {
+  function showCartFailureToast(url, options = {}) {
+    const fallbackUrl = typeof options.fallbackUrl === 'string' ? options.fallbackUrl : '';
+    const hasPrimary = typeof url === 'string' && url.trim().length > 0;
+    const hasFallback = typeof fallbackUrl === 'string' && fallbackUrl.trim().length > 0;
+    if (!hasPrimary && !hasFallback) {
       setToast({ message: 'No pudimos agregarlo al carrito. Probá de nuevo.' });
       return;
     }
+    const nextUrl = hasFallback && (!hasPrimary || fallbackUrl !== url) ? fallbackUrl : url;
+    const useFallback = hasFallback && nextUrl === fallbackUrl && fallbackUrl !== url;
     setToast({
       message: 'No pudimos agregarlo al carrito. Probá de nuevo.',
       actionLabel: 'Reintentar',
-      action: () => attemptOpenCart(url),
+      action: () => attemptOpenCart(nextUrl, { useFallback }),
     });
   }
 
@@ -243,24 +252,50 @@ export default function Mockup() {
     }
   }
 
-  function openCartAndFinalize(url) {
+  function openCartAndFinalize(url, context = {}) {
     if (!url) return;
     setBusy(true);
     setCartStatus('opening');
+    if (IS_DEV) {
+      try {
+        console.info('[cart-flow] open_cart_link', {
+          variantNumericId: context?.variantNumericId || null,
+          openUrl: url,
+        });
+      } catch (logErr) {
+        console.debug?.('[cart-flow] open_cart_link_log_failed', logErr);
+      }
+    }
     const opened = openCartTab(url);
     if (opened) {
       finalizeCartSuccess();
     } else {
       setCartStatus('idle');
       setBusy(false);
-      showCartFailureToast(url);
+      const fallbackUrl = typeof context?.fallbackUrl === 'string' ? context.fallbackUrl : '';
+      showCartFailureToast(url, { fallbackUrl });
     }
   }
 
-  function attemptOpenCart(url) {
-    const link = url || pendingCart?.webUrl;
+  function attemptOpenCart(url, options = {}) {
+    const cart = pendingCart;
+    if (!cart) return;
+    const useFallback = Boolean(options.useFallback);
+    let link = url;
+    if (!link) {
+      link = useFallback ? cart.fallbackUrl : cart.webUrl;
+    }
     if (!link) return;
-    openCartAndFinalize(link);
+    const fallbackUrl = useFallback
+      ? undefined
+      : cart.fallbackUrl && cart.fallbackUrl !== link
+        ? cart.fallbackUrl
+        : undefined;
+    if (!link) return;
+    openCartAndFinalize(link, {
+      variantNumericId: cart?.variantNumericId || null,
+      fallbackUrl,
+    });
   }
 
   function extractWarningMessages(warnings, warningMessages) {
@@ -292,7 +327,6 @@ export default function Mockup() {
     const baseCartOptions = normalizedDiscountCode ? { discountCode: normalizedDiscountCode } : {};
     try {
       setBusy(true);
-      let latestCartUrl = '';
       if (!skipCreation || !current) {
         setCartStatus('creating');
         const result = await createJobAndProduct(
@@ -305,21 +339,19 @@ export default function Mockup() {
         if (!result?.variantId) throw new Error('missing_variant');
         const warningMessages = extractWarningMessages(result?.warnings, result?.warningMessages);
         if (warningMessages.length) {
-          try {
-            console.warn('[cart-flow] warnings', warningMessages);
-          } catch (warnErr) {
-            console.debug?.('[cart-flow] warn_log_failed', warnErr);
+          if (IS_DEV) {
+            try {
+              console.warn('[cart-flow] warnings', warningMessages);
+            } catch (warnErr) {
+              console.debug?.('[cart-flow] warn_log_failed', warnErr);
+            }
           }
           setToast({ message: warningMessages.join(' ') });
         }
-        latestCartUrl = typeof result?.cartUrl === 'string' ? result.cartUrl : '';
         current = {
           productId: result.productId,
           variantId: result.variantId,
           quantity: CART_DEFAULT_QUANTITY,
-          ...(latestCartUrl ? { webUrl: latestCartUrl } : {}),
-          ...(result?.cartId ? { cartId: result.cartId } : {}),
-          ...(result?.cartToken ? { cartToken: result.cartToken } : {}),
         };
         setPendingCart(current);
       }
@@ -342,13 +374,15 @@ export default function Mockup() {
       }
 
       if (current.productId && current.variantId) {
-        try {
-          console.info('[cart-flow] wait_variant_start', {
-            productId: current.productId,
-            variantId: current.variantId,
-          });
-        } catch (logErr) {
-          console.debug?.('[cart-flow] wait_variant_start_log_failed', logErr);
+        if (IS_DEV) {
+          try {
+            console.info('[cart-flow] wait_variant_start', {
+              productId: current.productId,
+              variantId: current.variantId,
+            });
+          } catch (logErr) {
+            console.debug?.('[cart-flow] wait_variant_start_log_failed', logErr);
+          }
         }
         try {
           const verifyPublication = () => verifyProductPublicationStatus(current.productId);
@@ -359,33 +393,35 @@ export default function Mockup() {
               verifyProductPublication: verifyPublication,
             },
           );
-          try {
-            console.info('[cart-flow] wait_variant_result', {
-              productId: current.productId,
-              variantId: current.variantId,
-              ready: Boolean(pollResult?.ready),
-              available: pollResult?.available !== false,
-              timedOut: Boolean(pollResult?.timedOut),
-              attempts: Number.isFinite(pollResult?.attempts)
-                ? pollResult.attempts
-                : null,
-              variantPresent: typeof pollResult?.variantPresent === 'boolean' ? pollResult.variantPresent : null,
-              availableForSale: typeof pollResult?.availableForSale === 'boolean' ? pollResult.availableForSale : null,
-            });
-          } catch (logErr) {
-            console.debug?.('[cart-flow] wait_variant_result_log_failed', logErr);
+          if (IS_DEV) {
+            try {
+              console.info('[cart-flow] wait_variant_result', {
+                productId: current.productId,
+                variantId: current.variantId,
+                ready: Boolean(pollResult?.ready),
+                available: pollResult?.available !== false,
+                timedOut: Boolean(pollResult?.timedOut),
+                attempts: Number.isFinite(pollResult?.attempts)
+                  ? pollResult.attempts
+                  : null,
+                variantPresent: typeof pollResult?.variantPresent === 'boolean' ? pollResult.variantPresent : null,
+                availableForSale: typeof pollResult?.availableForSale === 'boolean' ? pollResult.availableForSale : null,
+              });
+            } catch (logErr) {
+              console.debug?.('[cart-flow] wait_variant_result_log_failed', logErr);
+            }
           }
           if (!pollResult?.ready || pollResult?.available === false) {
             setCartStatus('idle');
             setBusy(false);
-            showCartFailureToast('');
+            showCartFailureToast('', { fallbackUrl: current?.fallbackUrl });
             return;
           }
         } catch (pollErr) {
           console.error('[cart-flow] wait_variant_failed', pollErr);
           setCartStatus('idle');
           setBusy(false);
-          showCartFailureToast('');
+          showCartFailureToast('', { fallbackUrl: current?.fallbackUrl });
           return;
         }
       }
@@ -401,80 +437,39 @@ export default function Mockup() {
       }
 
       const desiredQuantity = current.quantity || CART_DEFAULT_QUANTITY;
-      const requestPayload = {
-        variantId: current.variantId,
-        quantity: desiredQuantity,
-        ...(normalizedDiscountCode ? { discount: normalizedDiscountCode } : {}),
+      const variantNumericId = normalizeVariantNumericId(current.variantId);
+      if (!variantNumericId) {
+        setCartStatus('idle');
+        setBusy(false);
+        showCartFailureToast('', { fallbackUrl: current?.fallbackUrl });
+        return;
+      }
+      const baseCartOptions = normalizedDiscountCode
+        ? { baseUrl: CART_BASE_URL, discountCode: normalizedDiscountCode }
+        : { baseUrl: CART_BASE_URL };
+      const cartUrl = buildCartAddUrl(current.variantId, desiredQuantity, baseCartOptions);
+      const fallbackCandidate = buildCartPermalink(current.variantId, desiredQuantity, {
+        ...baseCartOptions,
+        returnTo: null,
+      });
+      const fallbackUrl = fallbackCandidate && fallbackCandidate !== cartUrl ? fallbackCandidate : '';
+      if (!cartUrl) {
+        setCartStatus('idle');
+        setBusy(false);
+        showCartFailureToast('', { fallbackUrl });
+        return;
+      }
+      current = {
+        ...current,
+        variantNumericId,
+        webUrl: cartUrl,
+        ...(fallbackUrl ? { fallbackUrl } : {}),
       };
-
-      try {
-        console.info('[cart-flow] create_cart_request', {
-          productId: current.productId || null,
-          variantId: current.variantId || null,
-          quantity: desiredQuantity,
-        });
-      } catch (logErr) {
-        console.debug?.('[cart-flow] create_cart_request_log_failed', logErr);
-      }
-
-      let responseJson;
-      let lastCandidateUrl = '';
-      try {
-        const resp = await apiFetch('/api/cart/link', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(requestPayload),
-        });
-        responseJson = await resp.json().catch(() => null);
-        const candidateUrl = typeof responseJson?.webUrl === 'string'
-          ? responseJson.webUrl
-          : undefined;
-        lastCandidateUrl = typeof candidateUrl === 'string' ? candidateUrl : '';
-
-        if (resp.ok && candidateUrl) {
-          try {
-            console.info('[cart-flow] create_cart_success', {
-              productId: current.productId || null,
-              variantId: current.variantId || null,
-              strategy: responseJson?.strategy || 'unknown',
-            });
-          } catch (logErr) {
-            console.debug?.('[cart-flow] create_cart_success_log_failed', logErr);
-          }
-          if (!current?.webUrl || current.webUrl !== candidateUrl) {
-            current = {
-              ...current,
-              webUrl: candidateUrl,
-              checkoutUrl: typeof responseJson?.checkoutUrl === 'string' ? responseJson.checkoutUrl : undefined,
-            };
-            setPendingCart(current);
-          }
-          openCartAndFinalize(candidateUrl);
-          return;
-        }
-
-        if (resp.status === 409 && responseJson?.reason === 'cart_user_error') {
-          setCartStatus('idle');
-          setBusy(false);
-          showCartFailureToast(typeof candidateUrl === 'string' ? candidateUrl : '');
-          return;
-        }
-
-        try {
-          console.warn('[cart-flow] create_cart_unexpected', {
-            status: resp.status,
-            reason: responseJson?.reason || responseJson?.error || 'unknown',
-          });
-        } catch (logErr) {
-          console.debug?.('[cart-flow] create_cart_unexpected_log_failed', logErr);
-        }
-      } catch (err) {
-        console.error('[cart-flow] create_cart_request_failed', err);
-      }
-
-      setCartStatus('idle');
-      setBusy(false);
-      showCartFailureToast(lastCandidateUrl);
+      setPendingCart(current);
+      openCartAndFinalize(cartUrl, {
+        variantNumericId,
+        fallbackUrl: fallbackUrl || undefined,
+      });
       return;
     } catch (err) {
       setCartStatus('idle');
