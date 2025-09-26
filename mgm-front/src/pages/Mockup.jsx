@@ -485,16 +485,34 @@ export default function Mockup() {
     }
   }
 
+  const mockupUrl = flow.mockupUrl;
+  const hasMockupImage =
+    typeof mockupUrl === 'string' ? mockupUrl.trim().length > 0 : Boolean(mockupUrl);
+
   return (
     <div id="mockup-review" className={styles.review}>
       <main className={styles.main}>
-        <div className={styles.previewWrapper}>
-          <h1 className={styles.previewTitle}>¿Te gustó cómo quedó?</h1>
-          <img
-            src={flow.mockupUrl}
-            className={styles.mockupImage}
-            alt="Vista previa de tu mousepad personalizado"
-          />
+
+        <div
+          className={`${styles.previewWrapper} ${
+            hasMockupImage ? styles.previewWithImage : ''
+          }`}
+        >
+          <h1
+            className={`${styles.previewTitle} ${
+              hasMockupImage ? styles.previewTitleOverlay : ''
+            }`}
+          >
+            ¿Te gustó cómo quedó?
+          </h1>
+          {hasMockupImage ? (
+            <img
+              src={mockupUrl}
+              className={styles.mockupImage}
+              alt="Vista previa de tu mousepad personalizado"
+            />
+          ) : null}
+
         </div>
         <div className={styles.ctaRow}>
           <div className={styles.ctaCard}>
