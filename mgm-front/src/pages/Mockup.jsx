@@ -492,6 +492,7 @@ export default function Mockup() {
   return (
     <div id="mockup-review" className={styles.review}>
       <main className={styles.main}>
+
         <div
           className={`${styles.previewWrapper} ${
             hasMockupImage ? styles.previewWithImage : ''
@@ -511,6 +512,7 @@ export default function Mockup() {
               alt="Vista previa de tu mousepad personalizado"
             />
           ) : null}
+
         </div>
         <div className={styles.ctaRow}>
           <div className={styles.ctaCard}>

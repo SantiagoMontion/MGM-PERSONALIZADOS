@@ -36,6 +36,8 @@
 
 .previewWrapper {
   position: relative;
+
+
   max-width: min(640px, 90vw);
   margin: 0 auto clamp(20px, 4vh, 36px);
   text-align: center;
@@ -68,6 +70,21 @@
 
 .previewWithImage .previewTitle {
   margin: 0;
+}
+
+.previewTitle {
+  position: absolute;
+  top: clamp(18px, 4vw, 32px);
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  font-size: clamp(26px, 4vw, 44px);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: rgba(242, 243, 245, 0.98);
+  text-shadow: 0 4px 22px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+  z-index: 1;
 }
 
 .mockupImage {
