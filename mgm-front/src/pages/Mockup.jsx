@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PDFDocument } from 'pdf-lib';
 import Toast from '@/components/Toast.jsx';
 import { useFlow } from '@/state/flow.js';
 import { downloadBlob } from '@/lib/mockup.js';
+import styles from './Mockup.module.css';
 import { buildExportBaseName } from '@/lib/filename.ts';
 import {
   buildCartPermalink,
@@ -15,7 +16,7 @@ import {
 } from '@/lib/shopify.ts';
 
 const CART_STATUS_LABELS = {
-  idle: 'Agregar al carrito y seguir creando',
+  idle: 'Agregar al carrito',
   creating: 'Creando producto…',
   publishing: 'Publicando producto…',
   waiting: 'Preparando carrito…',
@@ -36,15 +37,6 @@ export default function Mockup() {
   const modalRef = useRef(null);
   const firstActionButtonRef = useRef(null);
   const wasModalOpenedRef = useRef(false);
-
-  if (!flow.mockupUrl) {
-    return (
-      <div style={{ padding: 32 }}>
-        <p>No hay imagen para mostrar.</p>
-        <button onClick={() => navigate('/')}>Volver</button>
-      </div>
-    );
-  }
 
   const cartButtonLabel = CART_STATUS_LABELS[cartStatus] || CART_STATUS_LABELS.idle;
   const buyPromptTitleId = 'buy-choice-title';

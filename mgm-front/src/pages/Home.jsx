@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useId,
 } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import SeoJsonLd from '../components/SeoJsonLd';
@@ -32,6 +33,7 @@ const TUTORIAL_ICON_SRC = resolveIconAsset('play.svg');
 
 
 const CANVAS_MAX_WIDTH = 1280;
+const ACK_LOW_ERROR_MESSAGE = 'Confirmá que aceptás continuar con la calidad baja.';
 
 
 export default function Home() {
@@ -85,6 +87,9 @@ export default function Home() {
   const [designName, setDesignName] = useState('');
   const [designNameError, setDesignNameError] = useState('');
   const [ackLow, setAckLow] = useState(false);
+  const [ackLowError, setAckLowError] = useState(false);
+  const ackCheckboxRef = useRef(null);
+  const ackLowErrorDescriptionId = useId();
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const navigate = useNavigate();
@@ -106,6 +111,7 @@ export default function Home() {
   const handleClearImage = useCallback(() => {
     setUploaded(null);
     setLayout(null);
+    setAckLowError(false);
     setDesignName('');
     setDesignNameError('');
     setAckLow(false);
@@ -193,8 +199,10 @@ export default function Home() {
       return;
     }
     setDesignNameError('');
-    if (ackLowMissing) {
-      setErr('Confirmá que aceptás continuar con la calidad baja.');
+    if (requiresLowAck && !ackLow) {
+      setAckLowError(true);
+      setErr(ACK_LOW_ERROR_MESSAGE);
+      ackCheckboxRef.current?.focus?.({ preventScroll: true });
       return;
     }
     try {
@@ -295,6 +303,12 @@ export default function Home() {
   const isCanvasReady = Boolean(hasImage && imageUrl);
   const requiresLowAck = hasImage && level === 'bad';
   const ackLowMissing = requiresLowAck && !ackLow;
+  const shouldShowAckError = ackLowError && ackLowMissing;
+  useEffect(() => {
+    if (!requiresLowAck) {
+      setAckLowError(false);
+    }
+  }, [requiresLowAck]);
   const configTriggerClasses = [
     styles.configTrigger,
     configOpen ? styles.configTriggerActive : '',
@@ -793,6 +807,7 @@ export default function Home() {
                       onUploaded={file => {
                         setUploaded(file);
                         setAckLow(false);
+                        setAckLowError(false);
                       }}
                       renderTrigger={({ openPicker, busy }) => (
                         <button
@@ -817,24 +832,30 @@ export default function Home() {
               </div>
               {requiresLowAck && (
                 <label
-                  className={`${styles.ackLabel} ${styles.canvasAck} ${ackLowMissing ? styles.ackLabelInvalid : ''}`.trim()}
+                  className={`${styles.ackLabel} ${styles.canvasAck}`.trim()}
                 >
                   <input
+                    ref={ackCheckboxRef}
                     className={styles.ackCheckbox}
                     type="checkbox"
                     checked={ackLow}
                     onChange={e => {
-                      setAckLow(e.target.checked);
-                      if (e.target.checked && err === 'Confirmá que aceptás continuar con la calidad baja.') {
-                        setErr('');
+                      const { checked } = e.target;
+                      setAckLow(checked);
+                      if (checked) {
+                        setAckLowError(false);
+                        if (err === ACK_LOW_ERROR_MESSAGE) {
+                          setErr('');
+                        }
                       }
                     }}
                     required={requiresLowAck}
                     aria-required={requiresLowAck}
-                    aria-invalid={ackLowMissing}
+                    aria-invalid={shouldShowAckError ? 'true' : undefined}
+                    aria-describedby={shouldShowAckError ? ackLowErrorDescriptionId : undefined}
                   />
                   <span className={styles.ackIndicator} aria-hidden="true" />
-                  <span className={styles.ackLabelText}>
+                  <span className={`${styles.ackLabelText} ${shouldShowAckError ? `${styles.ackLabelTextError} is-error` : ''}`.trim()}>
                     Acepto la calidad de imagen ({effDpi} DPI)
                   </span>
                 </label>
@@ -842,7 +863,7 @@ export default function Home() {
               {hasImage && (
                 <button
                   className={`${styles.continueButton} ${styles.canvasContinue}`}
-                  disabled={busy || ackLowMissing}
+                  disabled={busy}
                   onClick={handleContinue}
                 >
                   Continuar
@@ -857,7 +878,14 @@ export default function Home() {
         <div className={styles.sectionTwoInner} style={editorMaxWidthStyle}>
           <div className={styles.footerRow}>
             <div className={styles.feedbackGroup}>
-              {err && <p className={`errorText ${styles.errorMessage}`}>{err}</p>}
+              {err && (
+                <p
+                  id={err === ACK_LOW_ERROR_MESSAGE ? ackLowErrorDescriptionId : undefined}
+                  className={`errorText ${styles.errorMessage}`}
+                >
+                  {err}
+                </p>
+              )}
             </div>
           </div>
         </div>

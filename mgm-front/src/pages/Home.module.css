@@ -619,6 +619,10 @@
   text-align: inherit;
 }
 
+.ackLabelTextError {
+  color: var(--danger-400, #FF5C5C);
+}
+
 .ackCheckbox {
   position: absolute;
   inset: 0;
