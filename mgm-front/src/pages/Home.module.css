@@ -799,4 +799,33 @@
     width: min(360px, 100%);
     padding: 20px 24px;
   }
+
+  .canvasAck {
+    position: static;
+    right: auto;
+    bottom: auto;
+    width: 100%;
+    max-width: none;
+    margin-top: 16px;
+  }
+
+  .canvasFeedback {
+    position: static;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    justify-content: flex-start;
+    padding-right: 0;
+    width: 100%;
+    margin-top: 12px;
+  }
+
+  .canvasContinue {
+    position: static;
+    right: auto;
+    bottom: auto;
+    width: 100%;
+    max-width: none;
+    margin-top: 16px;
+  }
 }
