@@ -86,6 +86,8 @@ export async function pollJobAndCreateCart(
     "assets_not_ready",
     "invalid_price",
     "job_not_found",
+    "job_variant_missing",
+    "missing_variant",
   ]);
   for (let i = 1; i <= maxAttempts; i++) {
     if (!retriable.has(String(attempt.code))) break;
