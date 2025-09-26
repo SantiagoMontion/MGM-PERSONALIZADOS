@@ -66,7 +66,7 @@ function submitCartForm(url: URL, target: string, popup?: Window | null, focus =
   return popupRef !== null || targetName === '_self';
 }
 
-export function openCartUrl(rawUrl: string, options?: OpenCartOptions) {
+export function openCartUrl(rawUrl: string, options?: OpenCartOptions): boolean {
   const target = options?.target ?? '_blank';
   const popup = options?.popup && !options.popup.closed ? options.popup : null;
   const focus = options?.focus !== false;
@@ -74,12 +74,12 @@ export function openCartUrl(rawUrl: string, options?: OpenCartOptions) {
     const parsed = new URL(rawUrl);
     if (normalizePathname(parsed.pathname) === CART_ADD_PATH) {
       const submitted = submitCartForm(parsed, target, popup, focus);
-      if (submitted) return;
+      if (submitted) return true;
     } else if (popup) {
       try {
         popup.location.href = rawUrl;
         if (focus && typeof popup.focus === 'function') popup.focus();
-        return;
+        return true;
       } catch (err) {
         // fall through to window.open
       }
@@ -88,5 +88,6 @@ export function openCartUrl(rawUrl: string, options?: OpenCartOptions) {
     console.error('[openCartUrl] invalid url', err);
   }
   const features = target === '_blank' ? 'noopener' : undefined;
-  window.open(rawUrl, target, features);
+  const win = window.open(rawUrl, target, features);
+  return !!win;
 }

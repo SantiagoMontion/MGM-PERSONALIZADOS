@@ -17,6 +17,7 @@ export default function Result() {
   const [added, setAdded] = useState(
     () => localStorage.getItem(`MGM_jobAdded:${jobId}`) === "true",
   );
+  const [autoOpened, setAutoOpened] = useState(false);
 
   useEffect(() => {
     async function fetchJob() {
@@ -58,6 +59,21 @@ export default function Result() {
       ensureUrls();
     }
   }, [urls, jobId]);
+
+  useEffect(() => {
+    if (!autoOpened && !added && urls.cart_url_follow) {
+      const opened = openCartUrl(urls.cart_url_follow);
+      setAutoOpened(true);
+      if (opened) {
+        try {
+          localStorage.setItem(`MGM_jobAdded:${jobId}`, "true");
+        } catch (err) {
+          console.warn("[result] persist added flag failed", err);
+        }
+        setAdded(true);
+      }
+    }
+  }, [added, autoOpened, jobId, urls.cart_url_follow]);
 
   if (!urls.cart_url_follow || !urls.checkout_url_now) {
     return <p>Preparando tu carrito…</p>;
