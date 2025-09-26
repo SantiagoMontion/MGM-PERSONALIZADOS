@@ -487,66 +487,98 @@ export async function createJobAndProduct(
           console.debug?.('[createJobAndProduct] stage_callback_failed', stageErr);
         }
       }
-      const checkoutPayload: Record<string, unknown> = {
-        productId,
-        variantId,
-        quantity: 1,
-        ...(customerEmail ? { email: customerEmail } : {}),
-        ...(isPrivate ? { mode: 'private' as const } : { mode }),
-        ...(!isPrivate && normalizedDiscountCode ? { discount: normalizedDiscountCode } : {}),
-      };
-      if (isPrivate && privateDraftOrder?.note) {
-        checkoutPayload.note = privateDraftOrder.note;
-      }
-      if (isPrivate && privateDraftOrder?.attributes?.length) {
-        checkoutPayload.noteAttributes = privateDraftOrder.attributes;
-      }
-      const ckResp = await apiFetch('/api/create-checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(checkoutPayload),
-      });
-      const ck = await ckResp.json().catch(() => null);
-      if (!ckResp.ok || !ck?.url) {
-        const reason = typeof ck?.error === 'string' && ck.error
-          ? ck.error
-          : isPrivate
-            ? 'private_checkout_failed'
-            : 'checkout_link_failed';
-        const err: Error & {
-          reason?: string;
-          friendlyMessage?: string;
-          missing?: string[];
-          detail?: unknown;
-          status?: number;
-        } = new Error(reason);
-        err.reason = reason;
-        if (Array.isArray(ck?.missing) && ck.missing.length) {
-          err.missing = ck.missing;
+      if (isPrivate) {
+        const privatePayload: Record<string, unknown> = {
+          variantId,
+          quantity: 1,
+          ...(customerEmail ? { email: customerEmail } : {}),
+        };
+        if (privateDraftOrder?.note) {
+          privatePayload.note = privateDraftOrder.note;
         }
-        if (ck?.detail) {
-          err.detail = ck.detail;
+        if (privateDraftOrder?.attributes?.length) {
+          privatePayload.noteAttributes = privateDraftOrder.attributes;
         }
-        const message = typeof ck?.message === 'string' ? ck.message.trim() : '';
-        if (message) {
-          err.friendlyMessage = message;
-        } else if (isPrivate) {
-          err.friendlyMessage = 'No pudimos generar el checkout privado, probá de nuevo.';
+        const ckResp = await apiFetch('/api/private/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(privatePayload),
+        });
+        const ck = await ckResp.json().catch(() => null);
+        if (!ckResp.ok || typeof ck?.checkoutUrl !== 'string') {
+          const reason = typeof ck?.error === 'string' && ck.error ? ck.error : 'private_checkout_failed';
+          const err: Error & {
+            reason?: string;
+            friendlyMessage?: string;
+            missing?: string[];
+            detail?: unknown;
+            status?: number;
+          } = new Error(reason);
+          err.reason = reason;
+          if (Array.isArray(ck?.missing) && ck.missing.length) {
+            err.missing = ck.missing;
+          }
+          if (ck?.detail) {
+            err.detail = ck.detail;
+          }
+          const message = typeof ck?.message === 'string' ? ck.message.trim() : '';
+          err.friendlyMessage = message || 'No pudimos generar el checkout privado, probá de nuevo.';
+          if (typeof ckResp.status === 'number') {
+            err.status = ckResp.status;
+          }
+          throw err;
         }
-        if (typeof ckResp.status === 'number') {
-          err.status = ckResp.status;
+        result.checkoutUrl = ck.checkoutUrl;
+        if (ck.draft_order_id) {
+          result.draftOrderId = String(ck.draft_order_id);
         }
-        throw err;
-      }
-      result.checkoutUrl = ck.url;
-      if (ck.draft_order_id) {
-        result.draftOrderId = String(ck.draft_order_id);
-      }
-      if (ck.draft_order_name) {
-        result.draftOrderName = String(ck.draft_order_name);
+        if (ck.draft_order_name) {
+          result.draftOrderName = String(ck.draft_order_name);
+        }
+      } else {
+        const checkoutPayload: Record<string, unknown> = {
+          productId,
+          variantId,
+          quantity: 1,
+          ...(customerEmail ? { email: customerEmail } : {}),
+          mode,
+          ...(normalizedDiscountCode ? { discount: normalizedDiscountCode } : {}),
+        };
+        const ckResp = await apiFetch('/api/create-checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(checkoutPayload),
+        });
+        const ck = await ckResp.json().catch(() => null);
+        if (!ckResp.ok || !ck?.url) {
+          const reason = typeof ck?.error === 'string' && ck.error ? ck.error : 'checkout_link_failed';
+          const err: Error & {
+            reason?: string;
+            friendlyMessage?: string;
+            missing?: string[];
+            detail?: unknown;
+            status?: number;
+          } = new Error(reason);
+          err.reason = reason;
+          if (Array.isArray(ck?.missing) && ck.missing.length) {
+            err.missing = ck.missing;
+          }
+          if (ck?.detail) {
+            err.detail = ck.detail;
+          }
+          const message = typeof ck?.message === 'string' ? ck.message.trim() : '';
+          if (message) {
+            err.friendlyMessage = message;
+          }
+          if (typeof ckResp.status === 'number') {
+            err.status = ckResp.status;
+          }
+          throw err;
+        }
+        result.checkoutUrl = ck.url;
       }
     } else {
-      const clResp = await apiFetch('/api/create-cart-link', {
+      const clResp = await apiFetch('/api/cart/link', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -557,7 +589,7 @@ export async function createJobAndProduct(
         }),
       });
       const cl = await clResp.json().catch(() => null);
-      if (!clResp.ok || !cl?.url) {
+      if (!clResp.ok || typeof cl?.webUrl !== 'string') {
         const reason = typeof cl?.error === 'string' && cl.error ? cl.error : 'cart_link_failed';
         const err: Error & { reason?: string; friendlyMessage?: string; missing?: string[]; detail?: unknown } = new Error(reason);
         err.reason = reason;
@@ -572,12 +604,12 @@ export async function createJobAndProduct(
         }
         throw err;
       }
-      result.cartUrl = cl.url;
-      if (typeof cl.checkout_url_now === 'string' && cl.checkout_url_now) {
-        result.checkoutUrl = cl.checkout_url_now;
+      result.cartUrl = cl.webUrl;
+      if (typeof cl.checkoutUrl === 'string' && cl.checkoutUrl) {
+        result.checkoutUrl = cl.checkoutUrl;
       }
-      if (typeof cl.cart_plain === 'string' && cl.cart_plain) {
-        result.cartPlain = cl.cart_plain;
+      if (typeof cl.cartPlain === 'string' && cl.cartPlain) {
+        result.cartPlain = cl.cartPlain;
       }
       if (typeof cl.cart_id === 'string' && cl.cart_id) {
         result.cartId = cl.cart_id;

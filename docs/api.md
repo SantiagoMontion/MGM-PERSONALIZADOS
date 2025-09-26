@@ -12,8 +12,9 @@ Requests are throttled per client IP. Current limits:
 | POST | `/api/submit-job` | 60 s | 12 |
 | POST | `/api/finalize-assets` | 60 s | 6 |
 | POST | `/api/upload-url` | 60 s | 30 |
-| POST | `/api/create-cart-link` | 60 s | 45 |
+| POST | `/api/cart/link` | 60 s | 45 |
 | POST | `/api/create-checkout` | 60 s | 45 |
+| POST | `/api/private/checkout` | 60 s | 45 |
 | POST | `/api/ensure-product-publication` | 60 s | 30 |
 | POST | `/api/variant-status` | 60 s | 90 |
 | POST | `/api/shopify-webhook` | 60 s | 60 |
@@ -27,27 +28,26 @@ If the limit is exceeded the API returns HTTP `429` with `{ ok: false, error: 'r
 
 Returns `{ ok: true, ts }`. Useful for load balancers.
 
-### `POST /api/create-cart-link`
+### `POST /api/cart/link`
 
-Generates a Shopify cart URL. Request body must be JSON matching:
+Creates a Shopify cart that includes a single product variant and returns `{ webUrl, checkoutUrl?, strategy }`.
 
-```json
-{
-  "variantId": "gid://..." | "123456789",
-  "quantity": 1
-}
-```
+- Request body must include `variantId` (numeric or GraphQL). `quantity` defaults to `1` and is clamped between `1` and `99`.
+- The handler checks variant availability via the Storefront API and uses `cartCreate`. If Shopify rejects the mutation or the Storefront API is unavailable it falls back to `https://www.mgmgamers.store/cart/<variantId>:<quantity>?return_to=/cart`.
+- Invalid payloads return `400 { reason: 'bad_request' }`. Oversized bodies return `413`.
 
-- `variantId` or `variantGid` must contain a numeric variant ID.
-- `quantity` is coerced to an integer between `1` and `99`.
-- Responses:
-  - `200` with `{ ok: true, cart_url, checkout_url_now, ... }`.
-  - `400` when validation fails (`missing_variant`, `invalid_body`, `invalid_json`).
-  - `413` for bodies over ~512 KiB (`payload_too_large`).
+### `POST /api/private/checkout`
+
+Produces a checkout link for the private flow based on `PRIVATE_CHECKOUT_MODE`.
+
+- `storefront` (default): creates a Storefront cart and responds with `{ checkoutUrl, cartUrl?, strategy: 'storefront' }`, preserving Shopify's coupon UI.
+- `draft_order`: creates an Admin draft order and returns `{ checkoutUrl, strategy: 'draft_order' }` pointing to the invoice URL.
+
+The request accepts `variantId`, optional `quantity`, `email`, `note` and `noteAttributes`. Missing or invalid payloads yield `400 { reason: 'bad_request' }`. Shopify failures return `502` with a `reason` field and, when available, `userErrors`.
 
 ### `POST /api/create-checkout`
 
-Builds a Shopify checkout URL with the same body schema as `create-cart-link`. Returns `{ ok: true, url }`. Validation and error codes mirror the cart-link endpoint.
+Legacy endpoint for público (checkout directo). Accepts the same body schema as before (variant ID, optional email/discount) and returns `{ ok: true, url }`.
 
 ### `POST /api/ensure-product-publication`
 

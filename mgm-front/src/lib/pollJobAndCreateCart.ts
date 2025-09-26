@@ -61,20 +61,20 @@ export async function pollJobAndCreateCart(
     await sleep(intervalMs);
   }
 
-    // Si no está listo, intentar igual create-cart-link (puede preparar producto/variante)
+    // Si no está listo, intentar igual cart/link (puede preparar producto/variante)
     const createCart = async () => {
-      const res = await apiFetch(`/api/create-cart-link`, {
+      const res = await apiFetch(`/api/cart/link`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ job_id: jobId }),
       });
       const j = await res.json();
-      if (!res.ok) {
+      if (!res.ok || typeof j?.webUrl !== "string") {
         // Si falta algo, seguir esperando si hay intentos restantes
-        const code = j?.error || "unknown";
+        const code = j?.reason || j?.error || "unknown";
         return { ok: false, code, detail: j?.detail, raw: j };
       }
-      return { ok: true, cart_url: j.cart_url, raw: j };
+      return { ok: true, cart_url: j.webUrl, raw: j };
     };
 
   // primer intento crear carrito
