@@ -65,8 +65,8 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
-  align-items: stretch;
-  justify-items: stretch;
+  align-items: center;
+  justify-items: center;
   margin: 0 auto;
 }
 
@@ -75,6 +75,7 @@
   flex-direction: column;
   align-items: center;
   gap: 8px;
+  width: 100%;
 }
 
 .ctaButton {
@@ -94,6 +95,8 @@
   text-decoration: none;
   color: var(--text);
   background: var(--accent-500);
+  box-shadow: none;
+  outline: none;
 }
 
 .ctaButton:disabled {
@@ -136,6 +139,7 @@
 
 .ctaHint {
   margin: 0;
+  margin-top: 8px;
   font-size: 12px;
   line-height: 1.4;
   color: var(--muted);
@@ -297,6 +301,7 @@
   .ctaRow {
     grid-template-columns: 1fr;
     gap: 12px;
+    justify-items: stretch;
   }
 
   .ctaButton {
