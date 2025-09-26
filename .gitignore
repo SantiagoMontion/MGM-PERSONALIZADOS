@@ -13,3 +13,4 @@ assets-local/
 .vercel
 tests/fixtures/
 ".env" 
+.env
