@@ -1089,7 +1089,7 @@ export async function waitForVariantAvailability(
     } catch (logErr) {
       console.warn?.('[waitForVariantAvailability] env_log_failed', logErr);
     }
-    return { ready: true, timedOut: false, attempts: 0, lastResponse: null };
+    return { ready: true, available: true, timedOut: false, attempts: 0, lastResponse: null };
   }
   const { config } = configResult;
   const variantGid = buildVariantGid(numericVariant);
@@ -1128,13 +1128,13 @@ export async function waitForVariantAvailability(
       } catch (logErr) {
         console.warn?.('[waitForVariantAvailability] poll_log_failed', logErr);
       }
-      if (variantPresent) {
+      if (variantPresent && availableForSale) {
         try {
           console.info('[cart-flow] variant disponible en Storefront', { attempt, requestId });
         } catch (logErr) {
           console.warn?.('[waitForVariantAvailability] ready_log_failed', logErr);
         }
-        return { ready: true, timedOut: false, attempts: attempt, lastResponse: data };
+        return { ready: true, available: true, timedOut: false, attempts: attempt, lastResponse: data };
       }
       if (!response.ok || payload?.errors?.length) {
         console.warn('[waitForVariantAvailability] storefront response issue', {
@@ -1151,5 +1151,5 @@ export async function waitForVariantAvailability(
     await sleep(delay);
     delay = Math.min(delay * 2, maxDelayMs);
   }
-  return { ready: false, timedOut: true, attempts: attempt, lastResponse };
+  return { ready: false, available: false, timedOut: true, attempts: attempt, lastResponse };
 }

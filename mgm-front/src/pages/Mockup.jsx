@@ -12,6 +12,7 @@ import {
   ONLINE_STORE_DISABLED_MESSAGE,
   ONLINE_STORE_MISSING_MESSAGE,
   ensureProductPublication,
+  waitForVariantAvailability,
 } from '@/lib/shopify.ts';
 
 const CART_STATUS_LABELS = {
@@ -432,6 +433,60 @@ export default function Mockup() {
         }
       }
 
+      if (current.productId && current.variantId) {
+        try {
+          console.info('[cart-flow] wait_variant_start', {
+            productId: current.productId,
+            variantId: current.variantId,
+          });
+        } catch (logErr) {
+          console.debug?.('[cart-flow] wait_variant_start_log_failed', logErr);
+        }
+        try {
+          const pollResult = await waitForVariantAvailability(
+            current.variantId,
+            current.productId,
+            { timeoutMs: 15_000, initialDelayMs: 600, maxDelayMs: 2_000 },
+          );
+          try {
+            console.info('[cart-flow] wait_variant_result', {
+              productId: current.productId,
+              variantId: current.variantId,
+              ready: Boolean(pollResult?.ready),
+              available: pollResult?.available !== false,
+              timedOut: Boolean(pollResult?.timedOut),
+              attempts: Number.isFinite(pollResult?.attempts)
+                ? pollResult.attempts
+                : null,
+            });
+          } catch (logErr) {
+            console.debug?.('[cart-flow] wait_variant_result_log_failed', logErr);
+          }
+          if (!pollResult?.ready || pollResult?.available === false) {
+            setCartStatus('idle');
+            setBusy(false);
+            showCartFailureToast('');
+            return;
+          }
+        } catch (pollErr) {
+          console.error('[cart-flow] wait_variant_failed', pollErr);
+          setCartStatus('idle');
+          setBusy(false);
+          showCartFailureToast('');
+          return;
+        }
+      }
+      if (!current.productId || !current.variantId) {
+        try {
+          console.warn('[cart-flow] skip_variant_poll_missing_ids', {
+            productId: current.productId || null,
+            variantId: current.variantId || null,
+          });
+        } catch (logErr) {
+          console.debug?.('[cart-flow] skip_variant_poll_log_failed', logErr);
+        }
+      }
+
       let cartUrl = latestCartUrl || current?.webUrl || '';
       if (!cartUrl) {
         cartUrl = buildCartPermalink(
@@ -454,6 +509,16 @@ export default function Mockup() {
           webUrl: cartUrl,
         };
         setPendingCart(current);
+      }
+
+      try {
+        console.info('[cart-flow] open_cart_url', {
+          productId: current.productId || null,
+          variantId: current.variantId || null,
+          url: cartUrl,
+        });
+      } catch (logErr) {
+        console.debug?.('[cart-flow] open_cart_url_log_failed', logErr);
       }
 
       openCartAndFinalize(cartUrl);
