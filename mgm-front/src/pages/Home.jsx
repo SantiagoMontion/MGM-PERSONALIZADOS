@@ -869,22 +869,16 @@ export default function Home() {
                   Continuar
                 </button>
               )}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className={styles.sectionTwo}>
-        <div className={styles.sectionTwoInner} style={editorMaxWidthStyle}>
-          <div className={styles.footerRow}>
-            <div className={styles.feedbackGroup}>
               {err && (
-                <p
-                  id={err === ACK_LOW_ERROR_MESSAGE ? ackLowErrorDescriptionId : undefined}
-                  className={`errorText ${styles.errorMessage}`}
-                >
-                  {err}
-                </p>
+                <div className={styles.canvasFeedback}>
+                  <p
+                    id={err === ACK_LOW_ERROR_MESSAGE ? ackLowErrorDescriptionId : undefined}
+                    className={`errorText ${styles.errorMessage}`}
+                    role="alert"
+                  >
+                    {err}
+                  </p>
+                </div>
               )}
             </div>
           </div>
