@@ -1,7 +1,12 @@
 import { apiFetch } from './api';
 import { FlowState } from '@/state/flow';
 
-const DEFAULT_STORE_BASE = 'https://www.mgmgamers.store';
+const DEFAULT_STORE_BASE = 'https://mgmgamers.store';
+const IS_DEV = Boolean(
+  typeof import.meta !== 'undefined'
+    && (import.meta as { env?: { DEV?: boolean } }).env
+    && (import.meta as { env?: { DEV?: boolean } }).env?.DEV,
+);
 const DEFAULT_STOREFRONT_API_VERSION = '2024-07';
 
 const PRODUCT_LABELS = {
@@ -577,46 +582,6 @@ export async function createJobAndProduct(
         }
         result.checkoutUrl = ck.url;
       }
-    } else {
-      const clResp = await apiFetch('/api/cart/link', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          productId,
-          variantId,
-          quantity: 1,
-          ...(normalizedDiscountCode && mode !== 'private' ? { discount: normalizedDiscountCode } : {}),
-        }),
-      });
-      const cl = await clResp.json().catch(() => null);
-      if (!clResp.ok || typeof cl?.webUrl !== 'string') {
-        const reason = typeof cl?.error === 'string' && cl.error ? cl.error : 'cart_link_failed';
-        const err: Error & { reason?: string; friendlyMessage?: string; missing?: string[]; detail?: unknown } = new Error(reason);
-        err.reason = reason;
-        if (Array.isArray(cl?.missing) && cl.missing.length) {
-          err.missing = cl.missing;
-        }
-        if (typeof cl?.message === 'string' && cl.message.trim()) {
-          err.friendlyMessage = cl.message.trim();
-        }
-        if (cl?.detail) {
-          err.detail = cl.detail;
-        }
-        throw err;
-      }
-      result.cartUrl = cl.webUrl;
-      if (typeof cl.checkoutUrl === 'string' && cl.checkoutUrl) {
-        result.checkoutUrl = cl.checkoutUrl;
-      }
-      if (typeof cl.cartPlain === 'string' && cl.cartPlain) {
-        result.cartPlain = cl.cartPlain;
-      }
-      if (typeof cl.cart_id === 'string' && cl.cart_id) {
-        result.cartId = cl.cart_id;
-      }
-      if (typeof cl.cart_token === 'string' && cl.cart_token) {
-        result.cartToken = cl.cart_token;
-      }
     }
     return result;
   } finally {
@@ -646,7 +611,7 @@ function sleep(ms: number) {
   return new Promise((resolve) => { setTimeout(resolve, ms); });
 }
 
-function normalizeVariantNumericId(value?: string | number | null) {
+export function normalizeVariantNumericId(value?: string | number | null) {
   if (value == null) return '';
   const raw = String(value).trim();
   if (!raw) return '';
@@ -663,7 +628,7 @@ function clampQuantity(quantity?: number) {
 export function buildCartPermalink(
   variantId: string | number | undefined,
   quantity = 1,
-  options?: { returnTo?: string; baseUrl?: string; discountCode?: string },
+  options?: { returnTo?: string | null; baseUrl?: string; discountCode?: string },
 ) {
   const numericId = normalizeVariantNumericId(variantId);
   if (!numericId) return '';
@@ -678,9 +643,14 @@ export function buildCartPermalink(
     console.error('[buildCartPermalink] invalid base url', err);
     return '';
   }
-  const rawReturn = typeof options?.returnTo === 'string' ? options.returnTo.trim() : '';
-  const returnTo = rawReturn || '/cart';
-  cartUrl.searchParams.set('return_to', returnTo.startsWith('/') ? returnTo : `/${returnTo.replace(/^\/+/, '')}`);
+  const rawReturn = options?.returnTo;
+  if (rawReturn !== null) {
+    const normalizedReturn = typeof rawReturn === 'string' && rawReturn.trim() ? rawReturn.trim() : '/cart';
+    const returnTo = normalizedReturn.startsWith('/')
+      ? normalizedReturn
+      : `/${normalizedReturn.replace(/^\/+/, '')}`;
+    cartUrl.searchParams.set('return_to', returnTo);
+  }
   const discountCode = typeof options?.discountCode === 'string' ? options.discountCode.trim() : '';
   if (discountCode) {
     cartUrl.searchParams.set('discount', discountCode);
@@ -885,7 +855,7 @@ const VARIANT_AVAILABILITY_QUERY = `query WaitVariant($id: ID!) {
       availableForSale
       product {
         id
-        availableForSale
+        publishedOnCurrentPublication
       }
     }
   }
@@ -912,10 +882,12 @@ export async function addVariantToCartStorefront(
     (error as Error & { reason?: string; missing?: string[] }).missing = configResult.missing;
     throw error;
   }
-  try {
-    console.info('[cart-flow] storefront_env_ok');
-  } catch (logErr) {
-    console.warn?.('[cart-flow] storefront_env_log_failed', logErr);
+  if (IS_DEV) {
+    try {
+      console.info('[cart-flow] storefront_env_ok');
+    } catch (logErr) {
+      console.warn?.('[cart-flow] storefront_env_log_failed', logErr);
+    }
   }
   const { config } = configResult;
   const merchandiseId = buildVariantGid(variantId);
@@ -1135,16 +1107,13 @@ interface VariantPollData {
 }
 
 const DEFAULT_VARIANT_POLL_DELAYS_MS = [
-  600,
-  1_200,
+  1_000,
+  1_500,
+  1_500,
   2_000,
   2_000,
   2_000,
-  3_000,
-  3_000,
-  3_000,
-  4_000,
-  4_000,
+  2_000,
 ];
 
 export interface WaitVariantOptions {
@@ -1214,17 +1183,12 @@ export async function waitForVariantAvailability(
       const nextDelayMs = attempt < maxAttempts ? pollSchedule[Math.min(attempt - 1, pollSchedule.length - 1)] : null;
       const payloadErrors = Array.isArray(payload?.errors) ? payload.errors.filter(Boolean) : [];
       const hasPayloadErrors = payloadErrors.length > 0;
-      try {
-        console.info('[cart-flow] poll variant', {
-          attempt,
-          variantPresent,
-          availableForSale,
-          requestId,
-          nextDelayMs,
-          hasErrors: hasPayloadErrors || !response.ok,
-        });
-      } catch (logErr) {
-        console.warn?.('[waitForVariantAvailability] poll_log_failed', logErr);
+      if (IS_DEV) {
+        try {
+          console.info('[cart-flow] variant_poll', { attempt, availableForSale });
+        } catch (logErr) {
+          console.warn?.('[waitForVariantAvailability] poll_log_failed', logErr);
+        }
       }
       if (!response.ok || hasPayloadErrors) {
         try {
@@ -1237,15 +1201,12 @@ export async function waitForVariantAvailability(
           console.warn?.('[waitForVariantAvailability] response_issue_log_failed', logErr);
         }
       } else if (variantPresent && availableForSale) {
-        try {
-          console.info('[cart-flow] variant disponible en Storefront', {
-            attempt,
-            requestId,
-            variantPresent,
-            availableForSale,
-          });
-        } catch (logErr) {
-          console.warn?.('[waitForVariantAvailability] ready_log_failed', logErr);
+        if (IS_DEV) {
+          try {
+            console.info('[cart-flow] variant_available', { attempt, availableForSale: true });
+          } catch (logErr) {
+            console.warn?.('[waitForVariantAvailability] ready_log_failed', logErr);
+          }
         }
         return {
           ready: true,
