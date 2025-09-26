@@ -323,6 +323,7 @@ export default function Home() {
   ]
     .filter(Boolean)
     .join(' ');
+  const designNameFieldClass = `${styles.field} ${styles.designNameField}`;
 
   const updateConfigPanelPosition = useCallback(() => {
     if (!configOpen) return;
@@ -682,7 +683,7 @@ export default function Home() {
         disabled={!hasImage}
         ref={configTriggerButtonRef}
         aria-expanded={configOpen}
-        aria-controls="configuracion-editor"
+        aria-controls="config-panel"
         aria-haspopup="menu"
         aria-label="Configura tu mousepad"
       >
@@ -700,14 +701,14 @@ export default function Home() {
       </button>
       {configOpen && (
         <div
-          id="configuracion-editor"
+          id="config-panel"
           className={configPanelClasses}
           aria-disabled={!hasImage}
           ref={configPanelRef}
           style={configPanelStyle}
           role="menu"
         >
-          <div className={styles.field}>
+          <div className={designNameFieldClass}>
             <label className={styles.fieldLabel} htmlFor="design-name">
               Nombre de tu diseño
             </label>

@@ -175,69 +175,75 @@
 }
 
 .configTrigger {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 16px 20px;
-  border-radius: 16px;
-  background: #282828d0;
-  border: 1px solid #5c5c5ca2;
-  color: #f6f7fb;
-  font-weight: 400;
-  font-size: 1rem;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text, #f1f2f4);
+  font-family: "Poppins", system-ui, sans-serif;
   cursor: pointer;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  transition: color 0.15s ease, opacity 0.15s ease;
 }
 
-.configTrigger:hover:not(:disabled) {
-  border: 1px solid #34343b;
- 
-  transform: translateY(-1px);
+.configTrigger:focus-visible {
+  outline: none;
 }
 
 .configTrigger:disabled,
 .configTriggerDisabled {
-  opacity: 0.45;
+  opacity: 0.55;
   cursor: not-allowed;
-  transform: none;
 }
 
-.configHeader {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 20px 24px;
-  border: none;
-  background: #181818;
-  border: 1px solid #34343b;
-  color: inherit;
-  cursor: pointer;
-  font-size: 1rem;
-  font-weight: 600;
-}
-
-.configTrigger:focus-visible {
-  outline: 2px solid rgba(255, 255, 255, 0.35);
-  outline-offset: 4px;
-}
-
-.configTriggerIcon {
-  width: 24px;
-  height: 24px;
+.configTriggerIcon,
+.configTriggerArrow {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  border-radius: 10px;
+  color: var(--text, #f1f2f4);
+  opacity: 0.9;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.configTriggerIcon img,
+.configTriggerArrow img {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+
+.configTrigger:not(:disabled):hover .configTriggerIcon,
+.configTrigger:not(:disabled):hover .configTriggerArrow {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.configTrigger:focus-visible .configTriggerIcon,
+.configTrigger:focus-visible .configTriggerArrow {
+  box-shadow: 0 0 0 3px var(--control-focus, rgba(255, 255, 255, 0.14));
 }
 
 .configTriggerLabel {
-  white-space: nowrap;
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  margin: 6px 0 14px;
+  padding: 0 12px;
+  font-weight: 600;
+  font-size: clamp(18px, 2.2vw, 24px);
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+  color: inherit;
 }
 
 .configTriggerArrow img {
-  width: 18px;
-  height: 18px;
   transition: transform 0.2s ease;
 }
 
@@ -245,107 +251,147 @@
   transform: rotate(180deg);
 }
 
+:global(#config-panel) {
+  --panel-bg: #151719;
+  --panel-grad: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0) 100%);
+  --panel-stroke: #2a2c2f;
+  --panel-shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
+  --text: #f1f2f4;
+  --muted: #a7adb4;
+  --placeholder: #8d9399;
+  --control-bg: #0f1011;
+  --control-stroke: #2a2c2f;
+  --control-focus: rgba(255, 255, 255, 0.14);
+  --accent: #f1f2f4;
+  --radius-lg: 18px;
+  --radius-md: 14px;
+  --radius-sm: 12px;
+  font-family: "Poppins", system-ui, sans-serif;
+  color: var(--text);
+  background: var(--panel-bg);
+  background-image: var(--panel-grad);
+  border: 1px solid var(--panel-stroke);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--panel-shadow);
+  backdrop-filter: blur(4px);
+  padding-top: calc(clamp(16px, 2.2vw, 24px) + env(safe-area-inset-top));
+  padding-right: calc(clamp(16px, 2.2vw, 24px) + env(safe-area-inset-right));
+  padding-bottom: calc(clamp(16px, 2vw, 22px) + env(safe-area-inset-bottom));
+  padding-left: calc(clamp(16px, 2.2vw, 24px) + env(safe-area-inset-left));
+  width: min(640px, 92vw);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+:global(#config-panel) > * + * {
+  margin-top: clamp(12px, 1.8vw, 18px);
+}
+
 .configPanel {
   position: absolute;
   top: calc(100% + 12px);
   left: 0;
-  min-width: min(420px, calc(100vw - 96px));
-  max-width: min(520px, calc(100vw - 96px));
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-  padding: 28px;
-  padding-top: calc(28px + env(safe-area-inset-top));
-  padding-right: calc(28px + env(safe-area-inset-right));
-  padding-bottom: calc(28px + env(safe-area-inset-bottom));
-  padding-left: calc(28px + env(safe-area-inset-left));
-  border-radius: 24px;
-  border: 1px solid rgba(63, 63, 77, 0.6);
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(14, 14, 20, 0.96);
-  box-shadow: 0 32px 60px rgba(0, 0, 0, 0.5);
-  z-index: 30;
+  z-index: 40;
   max-height: 70vh;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  box-sizing: border-box;
 }
 
 .configPanelDisabled {
-  opacity: 0.6;
+  opacity: 0.55;
   pointer-events: none;
-}
-
-@media (max-width: 768px) {
-  .configTrigger {
-    width: auto;
-    min-width: 0;
-    padding: 12px 16px;
-    justify-content: center;
-  }
-
-  .configTriggerLabel,
-  .configTriggerArrow {
-    display: none;
-  }
-
-  .configPanel {
-    min-width: auto;
-    max-width: min(
-      520px,
-      calc(100vw - 24px - env(safe-area-inset-left) - env(safe-area-inset-right))
-    );
-  }
 }
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+}
+
+.designNameField {
+  margin-bottom: 8px;
 }
 
 .fieldLabel {
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: rgba(206, 212, 226, 0.85);
-  font-weight: 600;
+  margin: 14px 0 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--muted);
+  letter-spacing: 0.01em;
+}
+
+.field:first-child .fieldLabel {
+  margin-top: 0;
 }
 
 .textInput {
+  height: 56px;
   width: 100%;
-  padding: 14px 16px;
-  border-radius: 12px;
-  border: 1px solid rgba(63, 63, 77, 0.7);
-  background: rgba(22, 22, 28, 0.9);
-  color: #f3f4f6;
-  font-size: 1rem;
-  font-weight: 500;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  padding: 0 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--control-stroke);
+  background: var(--control-bg);
+  color: var(--text);
+  font-size: 16px;
+  line-height: 1.2;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.04);
 }
-
 
 .textInput::placeholder {
-  color: rgba(156, 163, 175, 0.7);
+  color: var(--placeholder);
 }
 
-.textInput:focus {
+.textInput:hover {
+  border-color: #33373c;
+}
+
+.textInput:focus-visible {
   outline: none;
-  border-color: rgba(170, 170, 190, 0.9);
-  box-shadow: 0 0 0 3px rgba(170, 170, 190, 0.2);
+  border-color: #3a3f45;
+  box-shadow: 0 0 0 3px var(--control-focus);
+}
+
+.textInput:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .textInputError,
-.textInputError:focus {
-  border-color: rgba(239, 68, 68, 0.7);
-  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.25);
+.textInputError:focus-visible {
+  border-color: #a33a3a;
+  box-shadow: 0 0 0 3px rgba(163, 58, 58, 0.25);
 }
 
 .fieldError {
-  margin: 0;
+  margin: 6px 0 0;
   color: #fca5a5;
   font-size: 0.85rem;
   font-weight: 500;
+}
+
+@media (min-width: 1024px) {
+  :global(#config-panel) {
+    width: min(640px, 46vw);
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  :global(#config-panel) {
+    width: min(640px, 70vw);
+  }
+}
+
+@media (max-width: 560px) {
+  :global(#config-panel) {
+    width: 92vw;
+  }
+
+  .textInput {
+    height: 54px;
+    font-size: 15px;
+  }
 }
 
 
