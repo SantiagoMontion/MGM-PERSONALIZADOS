@@ -30,6 +30,7 @@ import { scanNudityClient } from '@/lib/moderation/nsfw.client.js';
 import { useFlow } from '@/state/flow.js';
 import { apiFetch } from '@/lib/api.js';
 import { resolveIconAsset } from '@/lib/iconRegistry.js';
+import { sha256Hex } from '@/lib/hash.js';
 
 const CONFIG_ICON_SRC = resolveIconAsset('wheel.svg');
 const CONFIG_ARROW_ICON_SRC = resolveIconAsset('down.svg');
@@ -295,6 +296,81 @@ export default function Home() {
       });
       const mockupUrl = URL.createObjectURL(blob);
 
+      const designResponse = await fetch(master);
+      const designBlob = await designResponse.blob();
+      if (!designBlob || !designBlob.size) {
+        setErr('No se pudo preparar el archivo para subir.');
+        setBusy(false);
+        return;
+      }
+      const designMime = designBlob.type || 'image/png';
+      const designSha = await sha256Hex(designBlob);
+
+      let uploadData = null;
+      try {
+        const uploadPayload = {
+          design_name: trimmedDesignName,
+          material,
+          w_cm: activeWcm,
+          h_cm: activeHcm,
+          size_bytes: designBlob.size,
+          mime: designMime,
+          data_url: master,
+          sha256: designSha,
+          filename: uploaded?.file?.name || 'design.png',
+        };
+        const uploadResp = await apiFetch('/api/upload-original', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(uploadPayload),
+        });
+        const uploadJson = await uploadResp.json().catch(() => ({}));
+        if (!uploadResp.ok || !uploadJson?.file_original_url) {
+          console.error('[upload-original FAILED]', {
+            status: uploadResp.status,
+            diagId: uploadJson?.diag_id,
+            supabase: uploadJson?.supabase,
+          });
+          setErr('No se pudo subir el diseño. Probá de nuevo.');
+          setBusy(false);
+          return;
+        }
+        uploadData = uploadJson;
+        console.info('[upload-original OK]', {
+          diagId: uploadJson?.diag_id,
+          bucket: uploadJson?.bucket,
+          path: uploadJson?.path,
+        });
+      } catch (uploadErr) {
+        console.error('[upload-original EXCEPTION]', uploadErr);
+        setErr('Error subiendo el archivo. Intentá nuevamente.');
+        setBusy(false);
+        return;
+      }
+
+      const uploadCanonical = uploadData?.file_original_url || uploadData?.public_url || '';
+      const uploadObjectKey = uploadData?.object_key || uploadData?.path || '';
+
+      setUploaded(prev => ({
+        ...prev,
+        file: prev?.file,
+        localUrl: prev?.localUrl,
+        file_hash: designSha,
+        file_original_url: uploadCanonical,
+        canonical_url: uploadCanonical,
+        object_key: uploadObjectKey,
+        bucket: uploadData?.bucket || prev?.bucket,
+        upload_diag_id: uploadData?.diag_id || null,
+        upload: uploadData?.signed_url
+          ? {
+              signed_url: uploadData.signed_url,
+              expires_in: uploadData.signed_url_expires_in,
+            }
+          : prev?.upload || null,
+        upload_size_bytes: uploadData?.size_bytes ?? designBlob.size,
+        upload_content_type: uploadData?.content_type || designMime,
+      }));
+
       const transferPrice = Number(priceAmount) > 0 ? Number(priceAmount) : 0;
       const normalPrice = transferPrice;
 
@@ -304,6 +380,13 @@ export default function Home() {
         mockupBlob: blob,
         mockupUrl,
         printFullResDataUrl: master,
+        fileOriginalUrl: uploadCanonical,
+        uploadObjectKey,
+        uploadBucket: uploadData?.bucket || 'uploads',
+        uploadDiagId: uploadData?.diag_id || null,
+        uploadSizeBytes: uploadData?.size_bytes ?? designBlob.size,
+        uploadContentType: uploadData?.content_type || designMime,
+        uploadSha256: designSha,
         designName: trimmedDesignName,
         material,
         lowQualityAck: level === 'bad' ? Boolean(ackLow) : false,
@@ -842,8 +925,8 @@ export default function Home() {
                   <div className={styles.uploadOverlay}>
                     <UploadStep
                       className={styles.uploadControl}
-                      onUploaded={file => {
-                        setUploaded(file);
+                      onUploaded={info => {
+                        setUploaded(info);
                         setAckLow(false);
                         setAckLowError(false);
                       }}
