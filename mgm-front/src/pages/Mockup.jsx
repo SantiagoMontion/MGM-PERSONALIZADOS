@@ -7,8 +7,8 @@ import { downloadBlob } from '@/lib/mockup.js';
 import styles from './Mockup.module.css';
 import { buildExportBaseName } from '@/lib/filename.ts';
 import {
-  addVariantToCartAjax,
   addVariantToCartStorefront,
+  buildCartPermalink,
   createJobAndProduct,
   ONLINE_STORE_DISABLED_MESSAGE,
   ONLINE_STORE_MISSING_MESSAGE,
@@ -326,31 +326,23 @@ export default function Mockup() {
         } catch (logErr) {
           console.warn('[cart-flow] storefront cart log failed', logErr);
         }
-        try {
-          const ajaxResult = await addVariantToCartAjax(
-            current.variantId,
-            current.quantity || CART_DEFAULT_QUANTITY,
-          );
-          cartUrl = ajaxResult.webUrl;
+        const fallbackUrl = buildCartPermalink(
+          current.variantId,
+          current.quantity || CART_DEFAULT_QUANTITY,
+        );
+        if (fallbackUrl) {
+          cartUrl = fallbackUrl;
           current = {
             ...current,
-            webUrl: ajaxResult.webUrl,
+            webUrl: fallbackUrl,
           };
           setPendingCart(current);
-        } catch (ajaxError) {
-          const ajaxErr = ajaxError && typeof ajaxError === 'object'
-            ? ajaxError
-            : {};
           try {
-            console.error('[cart-flow] ajax cart fallback failed', {
-              error: ajaxError,
-              reason: typeof ajaxErr.reason === 'string' ? ajaxErr.reason : undefined,
-              requestId: typeof ajaxErr.requestId === 'string' ? ajaxErr.requestId : undefined,
-              detail: ajaxErr.detail,
-            });
+            console.info('[cart-flow] cart_permalink_redirect', { url: fallbackUrl });
           } catch (logErr) {
-            console.warn('[cart-flow] ajax cart log failed', logErr);
+            console.warn('[cart-flow] cart_permalink_log_failed', logErr);
           }
+        } else {
           setCartStatus('idle');
           setBusy(false);
           showCartFailureToast('');
