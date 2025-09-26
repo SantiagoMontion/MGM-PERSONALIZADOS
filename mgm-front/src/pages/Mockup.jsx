@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { PDFDocument } from 'pdf-lib';
 import Toast from '@/components/Toast.jsx';
@@ -24,6 +24,8 @@ const CART_STATUS_LABELS = {
 };
 
 const CART_DEFAULT_QUANTITY = 1;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PRIVATE_EMAIL_ERROR_MESSAGE = 'Ingresá un correo electrónico válido para comprar en privado.';
 
 export default function Mockup() {
   const flow = useFlow();
@@ -34,47 +36,63 @@ export default function Mockup() {
   const [pendingCart, setPendingCart] = useState(null);
   const [toast, setToast] = useState(null);
   const [isBuyPromptOpen, setBuyPromptOpen] = useState(false);
+  const [isPrivateEmailModalOpen, setPrivateEmailModalOpen] = useState(false);
+  const [privateEmailValue, setPrivateEmailValue] = useState('');
+  const [privateEmailError, setPrivateEmailError] = useState('');
+  const [discountCode, setDiscountCode] = useState('');
   const buyNowButtonRef = useRef(null);
   const modalRef = useRef(null);
+  const privateModalRef = useRef(null);
+  const privateEmailInputRef = useRef(null);
+  const privateModalPrimaryButtonRef = useRef(null);
   const firstActionButtonRef = useRef(null);
   const wasModalOpenedRef = useRef(false);
+  const pendingPrivateOptionsRef = useRef(null);
+  const lastPrivateTriggerRef = useRef(null);
 
   const cartButtonLabel = CART_STATUS_LABELS[cartStatus] || CART_STATUS_LABELS.idle;
   const buyPromptTitleId = 'buy-choice-title';
   const buyPromptDescriptionId = 'buy-choice-description';
-  const discountCode = useMemo(() => {
-    if (typeof window === 'undefined') return '';
+  const privateEmailTitleId = 'private-email-title';
+  const privateEmailDescriptionId = 'private-email-description';
+  const normalizedDiscountCode = typeof discountCode === 'string' ? discountCode.trim() : '';
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
     try {
       const params = new URLSearchParams(location.search);
       const code = params.get('discount');
       if (typeof code === 'string' && code.trim()) {
-        return code.trim();
+        const trimmed = code.trim();
+        setDiscountCode((prev) => (prev === trimmed ? prev : trimmed));
+        return;
       }
+      let storedCode = '';
       try {
         const stored = window.sessionStorage.getItem('MGM_discountCode');
-        return typeof stored === 'string' ? stored.trim() : '';
+        storedCode = typeof stored === 'string' ? stored.trim() : '';
       } catch (storageErr) {
         console.warn('[mockup-discount-storage-read]', storageErr);
-        return '';
       }
+      setDiscountCode((prev) => (prev === storedCode ? prev : storedCode));
     } catch (err) {
       console.warn('[mockup-discount-parse]', err);
-      return '';
+      setDiscountCode((prev) => (prev ? '' : prev));
     }
   }, [location.search]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
-      if (discountCode) {
-        window.sessionStorage.setItem('MGM_discountCode', discountCode);
+      if (normalizedDiscountCode) {
+        window.sessionStorage.setItem('MGM_discountCode', normalizedDiscountCode);
       } else {
         window.sessionStorage.removeItem('MGM_discountCode');
       }
     } catch (err) {
       console.warn('[mockup-discount-storage-write]', err);
     }
-  }, [discountCode]);
+  }, [normalizedDiscountCode]);
 
   useEffect(() => {
     setToast(null);
@@ -82,7 +100,11 @@ export default function Mockup() {
     setCartStatus('idle');
     setBusy(false);
     setBuyPromptOpen(false);
+    setPrivateEmailModalOpen(false);
+    setPrivateEmailError('');
+    setPrivateEmailValue('');
     wasModalOpenedRef.current = false;
+    pendingPrivateOptionsRef.current = null;
   }, [flow.mockupUrl]);
 
   useEffect(() => {
@@ -109,6 +131,77 @@ export default function Mockup() {
       console.warn('[buy-prompt-return-focus]', focusErr);
     }
   }, [isBuyPromptOpen]);
+
+  useEffect(() => {
+    if (!isPrivateEmailModalOpen) return;
+    const timer = setTimeout(() => {
+      try {
+        (privateEmailInputRef.current || privateModalPrimaryButtonRef.current)?.focus?.();
+      } catch (focusErr) {
+        console.warn('[private-email-focus]', focusErr);
+      }
+    }, 0);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [isPrivateEmailModalOpen]);
+
+  useEffect(() => {
+    if (!isPrivateEmailModalOpen) return;
+    function handleKeyDown(event) {
+      if (event.key === 'Escape' || event.key === 'Esc') {
+        if (busy) return;
+        event.preventDefault();
+        setPrivateEmailError('');
+        pendingPrivateOptionsRef.current = null;
+        setPrivateEmailModalOpen(false);
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const container = privateModalRef.current;
+      if (!container) return;
+      const focusable = Array.from(
+        container.querySelectorAll('input:not([disabled]), button:not([disabled])'),
+      );
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+      if (event.shiftKey) {
+        if (active === first || !container.contains(active)) {
+          event.preventDefault();
+          try {
+            last.focus();
+          } catch (focusErr) {
+            console.warn('[private-email-trap-focus]', focusErr);
+          }
+        }
+      } else if (active === last) {
+        event.preventDefault();
+        try {
+          first.focus();
+        } catch (focusErr) {
+          console.warn('[private-email-trap-focus]', focusErr);
+        }
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isPrivateEmailModalOpen, busy]);
+
+  useEffect(() => {
+    if (isPrivateEmailModalOpen) return;
+    if (!lastPrivateTriggerRef.current) return;
+    const element = lastPrivateTriggerRef.current;
+    lastPrivateTriggerRef.current = null;
+    try {
+      element.focus?.();
+    } catch (focusErr) {
+      console.warn('[private-email-return-focus]', focusErr);
+    }
+  }, [isPrivateEmailModalOpen]);
 
   useEffect(() => {
     if (!isBuyPromptOpen) return;
@@ -201,13 +294,21 @@ export default function Mockup() {
   function openCartTab(url) {
     if (typeof window === 'undefined' || !url) return false;
     try {
-      const popup = window.open(url, '_blank');
+      const popup = window.open(url, '_blank', 'noopener');
       if (!popup) {
         return false;
       }
       try {
         popup.opener = null;
         popup.focus?.();
+        window.focus?.();
+        setTimeout(() => {
+          try {
+            window.focus?.();
+          } catch (focusErr) {
+            console.warn('[cart-popup-refocus]', focusErr);
+          }
+        }, 200);
       } catch (focusErr) {
         console.warn('[cart-popup-focus]', focusErr);
       }
@@ -288,7 +389,6 @@ export default function Mockup() {
     if (busy && cartStatus !== 'idle' && !skipCreation) return;
     setToast(null);
     let current = pendingCart;
-    const normalizedDiscountCode = discountCode || '';
     const baseCartOptions = normalizedDiscountCode ? { discountCode: normalizedDiscountCode } : {};
     try {
       setBusy(true);
@@ -442,27 +542,26 @@ export default function Mockup() {
     let submissionFlow = flow;
 
     if (mode === 'private') {
-      const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      let emailRaw = typeof flow.customerEmail === 'string' ? flow.customerEmail.trim() : '';
-      if (!emailPattern.test(emailRaw)) {
+      const emailRaw = typeof flow.customerEmail === 'string' ? flow.customerEmail.trim() : '';
+      if (!EMAIL_PATTERN.test(emailRaw)) {
         if (typeof window === 'undefined') {
-          alert('Ingresá un correo electrónico válido para comprar en privado.');
+          alert(PRIVATE_EMAIL_ERROR_MESSAGE);
           return;
         }
-        const promptDefault = typeof flow.customerEmail === 'string' ? flow.customerEmail : '';
-        const provided = window.prompt(
-          'Ingresá tu correo electrónico para continuar con la compra privada:',
-          promptDefault,
-        );
-        if (provided == null) {
-          return;
+        try {
+          const active = document?.activeElement;
+          if (active && typeof active.focus === 'function') {
+            lastPrivateTriggerRef.current = active;
+          }
+        } catch (focusErr) {
+          console.warn('[private-email-store-focus]', focusErr);
+          lastPrivateTriggerRef.current = null;
         }
-        const normalized = provided.trim();
-        if (!emailPattern.test(normalized)) {
-          alert('Ingresá un correo electrónico válido para comprar en privado.');
-          return;
-        }
-        emailRaw = normalized;
+        pendingPrivateOptionsRef.current = { options };
+        setPrivateEmailValue(emailRaw);
+        setPrivateEmailError('');
+        setPrivateEmailModalOpen(true);
+        return;
       }
       if (emailRaw !== flow.customerEmail) {
         flow.set({ customerEmail: emailRaw });
@@ -484,7 +583,6 @@ export default function Mockup() {
         setToast({ message: 'Creando producto privado…' });
         jobOptions = { ...options, onPrivateStageChange: stageCallback };
       }
-      const normalizedDiscountCode = discountCode || '';
       const jobOptionsWithDiscount =
         mode === 'private' || !normalizedDiscountCode
           ? jobOptions
@@ -504,15 +602,43 @@ export default function Mockup() {
         return;
       }
       if (mode === 'private' && result.checkoutUrl) {
-        const opened = openCartTab(result.checkoutUrl);
-        if (!opened) {
+        let didOpen = openCartTab(result.checkoutUrl);
+        if (!didOpen) {
           try {
-            window.open(result.checkoutUrl, '_blank', 'noopener');
+            const manualPopup = window.open(result.checkoutUrl, '_blank', 'noopener');
+            if (manualPopup) {
+              try {
+                manualPopup.opener = null;
+              } catch (popupErr) {
+                console.warn('[private-checkout-popup-opener]', popupErr);
+              }
+              didOpen = true;
+            }
           } catch (tabErr) {
             console.warn('[private-checkout-open]', tabErr);
           }
         }
-        setToast({ message: 'Listo. Abrimos tu checkout privado en otra pestaña.' });
+        if (didOpen) {
+          setCartStatus('idle');
+          setPendingCart(null);
+          setToast(null);
+          try {
+            flow.reset();
+          } catch (resetErr) {
+            console.warn('[private-checkout-reset]', resetErr);
+          }
+          try {
+            navigate('/', { replace: true });
+          } catch (navErr) {
+            console.warn('[private-checkout-navigate]', navErr);
+          }
+        } else {
+          setToast({
+            message: 'No pudimos abrir el checkout privado automáticamente. Revisá los permisos de ventanas emergentes e intentá nuevamente.',
+            actionLabel: 'Reintentar',
+            action: () => handle('private', options),
+          });
+        }
         return;
       }
       if (result.productUrl) {
@@ -550,6 +676,57 @@ export default function Mockup() {
     } finally {
       setBusy(false);
     }
+  }
+
+  function handlePrivateEmailChange(event) {
+    const value = typeof event?.target?.value === 'string' ? event.target.value : '';
+    setPrivateEmailValue(value);
+    if (privateEmailError) {
+      setPrivateEmailError('');
+    }
+  }
+
+  function handlePrivateEmailCancel(event) {
+    if (event) {
+      event.preventDefault?.();
+      event.stopPropagation?.();
+    }
+    if (busy) return;
+    setPrivateEmailModalOpen(false);
+    setPrivateEmailError('');
+    pendingPrivateOptionsRef.current = null;
+  }
+
+  function submitPrivateEmail(event) {
+    if (event) {
+      event.preventDefault?.();
+      event.stopPropagation?.();
+    }
+    if (busy) return;
+    const normalized = typeof privateEmailValue === 'string' ? privateEmailValue.trim() : '';
+    if (!EMAIL_PATTERN.test(normalized)) {
+      setPrivateEmailError(PRIVATE_EMAIL_ERROR_MESSAGE);
+      try {
+        privateEmailInputRef.current?.focus?.();
+      } catch (focusErr) {
+        console.warn('[private-email-invalid-focus]', focusErr);
+      }
+      return;
+    }
+    if (normalized !== privateEmailValue) {
+      setPrivateEmailValue(normalized);
+    }
+    if (normalized !== flow.customerEmail) {
+      flow.set({ customerEmail: normalized });
+    }
+    setPrivateEmailModalOpen(false);
+    setPrivateEmailError('');
+    const pending = pendingPrivateOptionsRef.current;
+    pendingPrivateOptionsRef.current = null;
+    const pendingOptions = pending && typeof pending === 'object' ? pending.options || {} : {};
+    setTimeout(() => {
+      handle('private', pendingOptions);
+    }, 0);
   }
 
   async function handleDownloadPdf() {
@@ -676,6 +853,39 @@ export default function Mockup() {
             </p>
           </div>
         </div>
+        <div className={styles.discountContainer}>
+          <label htmlFor="discount-code" className={styles.discountLabel}>
+            Cupón de descuento (Shopify)
+          </label>
+          <div className={styles.discountInputRow}>
+            <input
+              id="discount-code"
+              type="text"
+              autoComplete="off"
+              placeholder="Escribí tu cupón si tenés uno"
+              className={styles.discountInput}
+              value={discountCode}
+              onChange={(event) => setDiscountCode(event.target.value)}
+              onBlur={() =>
+                setDiscountCode((prev) => (typeof prev === 'string' ? prev.trim() : ''))
+              }
+              disabled={busy}
+            />
+            {normalizedDiscountCode ? (
+              <button
+                type="button"
+                className={styles.discountClear}
+                onClick={() => setDiscountCode('')}
+                disabled={busy}
+              >
+                Limpiar
+              </button>
+            ) : null}
+          </div>
+          <p className={styles.discountHint}>
+            Si tenés un cupón ingresalo acá y lo aplicamos automáticamente en Shopify.
+          </p>
+        </div>
         <button
           type="button"
           disabled={busy}
@@ -762,6 +972,77 @@ export default function Mockup() {
               </button>
             </div>
           </div>
+        </div>
+      ) : null}
+      {isPrivateEmailModalOpen ? (
+        <div
+          role="presentation"
+          className={styles.modalBackdrop}
+          onClick={handlePrivateEmailCancel}
+        >
+          <form
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={privateEmailTitleId}
+            aria-describedby={privateEmailDescriptionId}
+            ref={privateModalRef}
+            className={`${styles.modalCard} ${styles.modalForm}`}
+            onClick={(event) => event.stopPropagation()}
+            onSubmit={submitPrivateEmail}
+          >
+            <button
+              type="button"
+              onClick={handlePrivateEmailCancel}
+              disabled={busy}
+              aria-label="Cerrar"
+              className={styles.modalClose}
+            >
+              ×
+            </button>
+            <h2 id={privateEmailTitleId} className={styles.modalTitle}>
+              Comprar en privado
+            </h2>
+            <p id={privateEmailDescriptionId} className={styles.modalDescription}>
+              Ingresá tu correo electrónico para continuar con la compra privada:
+            </p>
+            <div className={styles.modalField}>
+              <label htmlFor="private-email" className={styles.modalLabel}>
+                Correo electrónico
+              </label>
+              <input
+                id="private-email"
+                ref={privateEmailInputRef}
+                type="email"
+                className={`${styles.modalInput} ${privateEmailError ? styles.modalInputError : ''}`}
+                value={privateEmailValue}
+                onChange={handlePrivateEmailChange}
+                autoComplete="email"
+                disabled={busy}
+                placeholder="nombre@ejemplo.com"
+              />
+              {privateEmailError ? (
+                <p className={styles.modalError}>{privateEmailError}</p>
+              ) : null}
+            </div>
+            <div className={styles.modalButtonRow}>
+              <button
+                type="submit"
+                ref={privateModalPrimaryButtonRef}
+                className={styles.modalPrimary}
+                disabled={busy}
+              >
+                Aceptar
+              </button>
+              <button
+                type="button"
+                className={styles.modalSecondary}
+                onClick={handlePrivateEmailCancel}
+                disabled={busy}
+              >
+                Cancelar
+              </button>
+            </div>
+          </form>
         </div>
       ) : null}
       {toast ? (

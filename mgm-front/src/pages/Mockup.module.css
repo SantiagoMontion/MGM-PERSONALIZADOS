@@ -106,6 +106,74 @@
   width: 100%;
 }
 
+.discountContainer {
+  width: min(520px, 100%);
+  margin: clamp(20px, 4vh, 32px) auto 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
+}
+
+.discountLabel {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.discountInputRow {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.discountInput {
+  flex: 1;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--stroke);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+  font-size: 14px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.discountInput::placeholder {
+  color: rgba(154, 160, 166, 0.75);
+}
+
+.discountInput:focus-visible {
+  outline: none;
+  border-color: var(--accent-400);
+  box-shadow: 0 0 0 3px rgba(51, 95, 58, 0.35);
+}
+
+.discountClear {
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--stroke);
+  background: transparent;
+  color: var(--text);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.discountClear:not(:disabled):hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.discountClear:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.12);
+}
+
+.discountHint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
 .ctaButton {
   width: 100%;
   height: 52px;
@@ -257,6 +325,61 @@
 .modalActions {
   display: flex;
   flex-direction: column;
+  gap: 12px;
+}
+
+.modalForm {
+  display: flex;
+  flex-direction: column;
+}
+
+.modalField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.modalLabel {
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.modalInput {
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--stroke);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  font-size: 15px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.modalInput::placeholder {
+  color: rgba(154, 160, 166, 0.75);
+}
+
+.modalInput:focus-visible {
+  outline: none;
+  border-color: var(--accent-400);
+  box-shadow: 0 0 0 3px rgba(51, 95, 58, 0.35);
+}
+
+.modalInputError {
+  border-color: #f87171;
+  box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.3);
+}
+
+.modalError {
+  margin: 0;
+  font-size: 12px;
+  color: #fca5a5;
+}
+
+.modalButtonRow {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
   gap: 12px;
 }
 
