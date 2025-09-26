@@ -14,6 +14,7 @@ import {
   verifyProductPublicationStatus,
   waitForVariantAvailability,
 } from '@/lib/shopify.ts';
+import { apiFetch } from '@/lib/api.js';
 
 const CART_STATUS_LABELS = {
   idle: 'Agregar al carrito',
