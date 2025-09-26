@@ -190,15 +190,17 @@ export default function Mockup() {
   }
 
   function attemptCartRedirect(permalink) {
-    const link = permalink
-      || pendingCart?.permalink
-      || (pendingCart?.variantId
-        ? buildCartPermalink(
-          pendingCart.variantId,
-          pendingCart.quantity || CART_DEFAULT_QUANTITY,
-          { returnTo: '/cart' },
-        )
-        : '');
+    let link = permalink;
+    if (!link && pendingCart?.permalink) {
+      link = pendingCart.permalink;
+    }
+    if (!link && pendingCart?.variantId) {
+      link = buildCartPermalink(
+        pendingCart.variantId,
+        pendingCart.quantity || CART_DEFAULT_QUANTITY,
+        { returnTo: '/cart' },
+      );
+    }
     if (!link) return;
     const opened = openCartWindow(link);
     if (opened) {
