@@ -24,6 +24,11 @@ import ColorPopover from "./ColorPopover";
 import { buildSubmitJobBody, prevalidateSubmitBody } from "../lib/jobPayload";
 import { submitJob } from "../lib/submitJob";
 import { renderGlasspadPNG } from "../lib/renderGlasspadPNG";
+import {
+  dpiLevel,
+  DPI_WARN_THRESHOLD,
+  DPI_LOW_THRESHOLD,
+} from "../lib/dpi";
 import { resolveIconAsset } from "@/lib/iconRegistry.js";
 
 const CM_PER_INCH = 2.54;
@@ -1073,14 +1078,32 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   }, [imgEl, imgBaseCm, imgTx.scaleX, imgTx.scaleY]);
 
   const quality = useMemo(() => {
-    if (dpiEffective == null) return { label: "—", color: "#9ca3af" };
-    if (dpiEffective < 80)
-      return { label: `Baja (${dpiEffective | 0} DPI)`, color: "#ef4444" };
-    if (dpiEffective < 200)
-      return { label: `Buena (${dpiEffective | 0} DPI)`, color: "#f59e0b" };
+    if (dpiEffective == null) {
+      return { label: "—", color: "#9ca3af", level: null };
+    }
+    const level = dpiLevel(
+      dpiEffective,
+      DPI_WARN_THRESHOLD,
+      DPI_LOW_THRESHOLD,
+    );
+    if (level === "bad") {
+      return {
+        label: `Baja (${dpiEffective | 0} DPI)`,
+        color: "#ef4444",
+        level,
+      };
+    }
+    if (level === "warn") {
+      return {
+        label: `Buena (${dpiEffective | 0} DPI)`,
+        color: "#f59e0b",
+        level,
+      };
+    }
     return {
       label: `Excelente (${Math.min(300, dpiEffective | 0)} DPI)`,
       color: "#10b981",
+      level,
     };
   }, [dpiEffective]);
 
@@ -2150,11 +2173,11 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
         <span
           className={`${styles.qualityBadge} ${
-            quality.color === "#ef4444"
+            quality.level === "bad"
               ? styles.qualityBad
-              : quality.color === "#f59e0b"
+              : quality.level === "warn"
                 ? styles.qualityWarn
-                : quality.color === "#10b981"
+                : quality.level === "ok"
                   ? styles.qualityOk
                   : styles.qualityUnknown
           }`}
