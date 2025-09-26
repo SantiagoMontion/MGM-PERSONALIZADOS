@@ -193,7 +193,7 @@ export default function Busqueda() {
                           target="_blank"
                           rel="noreferrer"
                         >
-                          Descargar
+                          Descargar PDF
                         </a>
                       ) : (
                         '—'
