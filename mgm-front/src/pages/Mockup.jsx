@@ -420,7 +420,7 @@ export default function Mockup() {
       let responseJson;
       let lastCandidateUrl = '';
       try {
-        const resp = await apiFetch('/api/create-cart-link', {
+        const resp = await apiFetch('/api/cart/link', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(requestPayload),
@@ -428,9 +428,7 @@ export default function Mockup() {
         responseJson = await resp.json().catch(() => null);
         const candidateUrl = typeof responseJson?.webUrl === 'string'
           ? responseJson.webUrl
-          : typeof responseJson?.url === 'string'
-            ? responseJson.url
-            : undefined;
+          : undefined;
         lastCandidateUrl = typeof candidateUrl === 'string' ? candidateUrl : '';
 
         if (resp.ok && candidateUrl) {
@@ -438,7 +436,7 @@ export default function Mockup() {
             console.info('[cart-flow] create_cart_success', {
               productId: current.productId || null,
               variantId: current.variantId || null,
-              method: responseJson?.cart_method || 'unknown',
+              strategy: responseJson?.strategy || 'unknown',
             });
           } catch (logErr) {
             console.debug?.('[cart-flow] create_cart_success_log_failed', logErr);
@@ -447,6 +445,7 @@ export default function Mockup() {
             current = {
               ...current,
               webUrl: candidateUrl,
+              checkoutUrl: typeof responseJson?.checkoutUrl === 'string' ? responseJson.checkoutUrl : undefined,
             };
             setPendingCart(current);
           }

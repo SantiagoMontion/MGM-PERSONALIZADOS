@@ -55,8 +55,10 @@ export default function Creating() {
       if (res.ok) {
         navigate(`/result/${jobId}`, {
           state: {
-            cart_url_follow: res?.raw?.cart_url_follow || res?.raw?.cart_url,
-            checkout_url_now: res?.raw?.checkout_url_now,
+            cartUrl: res?.raw?.webUrl,
+            checkoutUrl: res?.raw?.checkoutUrl,
+            cartPlain: res?.raw?.cartPlain,
+            checkoutPlain: res?.raw?.checkoutPlain,
           },
         });
       } else {
