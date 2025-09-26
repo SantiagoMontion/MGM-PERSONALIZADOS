@@ -38,6 +38,24 @@ const TUTORIAL_ICON_SRC = resolveIconAsset('play.svg');
 
 const CANVAS_MAX_WIDTH = 1280;
 const ACK_LOW_ERROR_MESSAGE = 'Confirmá que aceptás imprimir en baja calidad.';
+const MODERATION_REASON_MESSAGES = {
+  real_nudity: 'Bloqueado por moderación: contenido adulto explícito detectado.',
+  extremism_nazi: 'Bloqueado por moderación: contenido extremista nazi detectado.',
+  extremism_nazi_text: 'Bloqueado por moderación: texto extremista nazi detectado.',
+  invalid_body: 'No se pudo analizar la imagen enviada. Probá de nuevo.',
+  server_error: 'Error del servidor de moderación. Intentá nuevamente más tarde.',
+  blocked: 'Bloqueado por moderación.',
+};
+
+function moderationReasonMessage(reason) {
+  if (typeof reason === 'string' && MODERATION_REASON_MESSAGES[reason]) {
+    return MODERATION_REASON_MESSAGES[reason];
+  }
+  if (typeof reason === 'string' && reason) {
+    return `Bloqueado por moderación (código: ${reason}).`;
+  }
+  return 'Bloqueado por moderación.';
+}
 
 
 export default function Home() {
@@ -260,7 +278,8 @@ export default function Home() {
       });
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}));
-        setErr(`Bloqueado por moderación: ${err.reason || 'desconocido'}`);
+        const message = moderationReasonMessage(err?.reason);
+        setErr(message);
         setBusy(false);
         return;
       }
