@@ -452,6 +452,7 @@ export default function Home() {
 
   const designNameInputClasses = [
     styles.textInput,
+    styles.inputText,
     designNameError ? styles.textInputError : '',
   ]
     .filter(Boolean)
@@ -739,38 +740,42 @@ export default function Home() {
           style={configPanelStyle}
           role="menu"
         >
-          <div className={styles.field}>
-            <label className={styles.fieldLabel} htmlFor="design-name">
-              Nombre de tu diseño
-            </label>
-            <input
-              type="text"
-              id="design-name"
-              ref={designNameInputRef}
-              className={designNameInputClasses}
-              placeholder="Ej: Nubes y cielo rosa"
-              value={designName}
-              onChange={handleDesignNameChange}
-              disabled={!hasImage}
-              aria-invalid={designNameError ? 'true' : 'false'}
-              aria-describedby={
-                designNameError ? 'design-name-error' : undefined
-              }
-            />
-            {designNameError && (
-              <p className={styles.fieldError} id="design-name-error">
-                {designNameError}
-              </p>
-            )}
+          <div className={styles.configForm}>
+            <div className={`${styles.field} ${styles.formRow}`}>
+              <label className={styles.fieldLabel} htmlFor="design-name">
+                Nombre de tu diseño
+              </label>
+              <input
+                type="text"
+                id="design-name"
+                ref={designNameInputRef}
+                className={designNameInputClasses}
+                placeholder="Ej: Nubes y cielo rosa"
+                value={designName}
+                onChange={handleDesignNameChange}
+                disabled={!hasImage}
+                aria-invalid={designNameError ? 'true' : 'false'}
+                aria-describedby={
+                  designNameError ? 'design-name-error' : undefined
+                }
+              />
+              {designNameError && (
+                <p className={styles.fieldError} id="design-name-error">
+                  {designNameError}
+                </p>
+              )}
+            </div>
+            <div className={styles.fieldBlock}>
+              <SizeControls
+                material={material}
+                size={size}
+                mode={mode}
+                onChange={handleSizeChange}
+                locked={material === 'Glasspad'}
+                disabled={!hasImage}
+              />
+            </div>
           </div>
-          <SizeControls
-            material={material}
-            size={size}
-            mode={mode}
-            onChange={handleSizeChange}
-            locked={material === 'Glasspad'}
-            disabled={!hasImage}
-          />
         </div>
       )}
     </div>
