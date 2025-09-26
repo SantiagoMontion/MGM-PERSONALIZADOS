@@ -85,8 +85,28 @@ async function uploadToSupabase(
   contentType: string,
 ) {
   const storage = supa.storage.from(OUTPUT_BUCKET);
-  const { error } = await storage.upload(key, buffer, { contentType, upsert: true });
+  const size = buffer?.length ?? 0;
+  console.info('shopify-create-product upload:start', {
+    key,
+    bucketName: OUTPUT_BUCKET,
+    size,
+    type: contentType,
+  });
+  const { error } = await storage.upload(key, buffer, {
+    contentType,
+    upsert: true,
+    cacheControl: '3600',
+  });
   if (error) {
+    console.error('shopify-create-product upload:error', {
+      key,
+      bucketName: OUTPUT_BUCKET,
+      size,
+      type: contentType,
+      status: (error as any)?.status || (error as any)?.statusCode || null,
+      message: error?.message,
+      name: error?.name,
+    });
     throw error;
   }
   return buildPublicUrl(key);

@@ -84,6 +84,10 @@ export default withCors(async function handler(req, res) {
         const m = await import('../lib/handlers/uploadUrl.js');
         return m.default(req, res);
       }
+      case 'POST upload-original': {
+        const m = await import('../lib/handlers/uploadOriginal.js');
+        return m.default(req, res);
+      }
       case 'POST submit-job': {
         const m = await import('../lib/handlers/submitJob.js');
         return m.default(req, res);

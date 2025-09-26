@@ -31,12 +31,20 @@ ALLOWED_ORIGINS=http://localhost:5173,https://www.mgmgamers.store,https://mgm-ap
 
 ## Upload de archivos
 
-El endpoint /api/upload-url genera una URL firmada de Supabase Storage para subir el archivo original.
+El endpoint `/api/upload-original` realiza la carga del diseño final usando el Service Role de Supabase. El backend genera el `object_key` (por ejemplo `original/<anio>/<mes>/<slug>-<size>-<material>-<hash>.png`) dentro del bucket `uploads`, registra logs con `{ bucketName, path, size, type }` antes de llamar a Storage y responde con la URL canónica (`file_original_url`) y un `signed_url` temporal (TTL 3600 s).
+
+Para reproducir un upload exitoso en local:
+
+1. Levantar API y front (`npm run dev:api` y `npm run dev` dentro de `mgm-front`).
+2. Completar el flujo del editor y presionar **Continuar**. Esto envía el diseño como DataURL al backend, que lo sube al bucket `uploads` usando el Service Role.
+3. Verificar en la consola del API el log `upload-original start` y confirmar que el objeto aparece en Supabase Storage bajo el bucket `uploads`.
+
+El endpoint histórico `/api/upload-url` continúa disponible para compatibilidad con clientes que necesiten firmar subidas desde el front.
 
 ## Buckets
 
 * uploads: privado
-* outputs: p�blico
+* outputs: pblico
 
 ## Moderation
 
