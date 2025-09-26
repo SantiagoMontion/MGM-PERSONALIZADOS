@@ -21,42 +21,6 @@
   min-height: 100%;
 }
 
-.sectionTwo {
-  width: 100%;
-  display: flex;
-}
-
-.sectionTwoInner {
-  width: 100%;
-  max-width: 1920px !important;
-  margin: 0 auto;
-}
-
-/* STACK centrado */
-.footerRow {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  width: min(100%, 534px);   /* ← ancho pedido */
-  margin: 0 auto;            /* ← centrado en la pantalla */
-}
-
-/* fila del checkbox: texto izq, check der */
-
-
-/* STACK centrado */
-.footerRow {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  width: min(100%, 534px);   /* ← ancho pedido */
-  margin: 0 auto;            /* ← centrado en la pantalla */
-}
-
-/* fila del checkbox: texto izq, check der */
-
-
-/* botón ocupa todo el ancho del stack */
 .continueButton {
   width: 100%;
 }
@@ -557,15 +521,6 @@
 
 
 
-.feedbackGroup {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  flex: 1 1 20px;
-  min-width: 0;
-  width: 100%;
-}
-
 .ackLabel {
   position: relative;
   display: flex;
@@ -695,6 +650,17 @@
   color: rgba(239, 68, 68, 0.85);
 }
 
+.canvasFeedback {
+  position: absolute;
+  left: var(--canvas-floating-right);
+  right: var(--canvas-floating-right);
+  bottom: calc(var(--canvas-floating-bottom) + var(--canvas-continue-height) + 6px);
+  z-index: 60;
+  display: flex;
+  justify-content: flex-start;
+  padding-right: calc(clamp(220px, 26vw, 320px) + var(--canvas-floating-gap));
+}
+
 .canvasContinue {
   position: absolute;
   right: var(--canvas-floating-right);
@@ -812,9 +778,4 @@
     width: min(360px, 100%);
     padding: 20px 24px;
   }
-
-  .footerRow {
-    gap: 16px;
-  }
-
 }
