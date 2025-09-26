@@ -487,11 +487,9 @@ export default function Mockup() {
 
   return (
     <div id="mockup-review" className={styles.review}>
-      <div className={styles.hero}>
-        <h1 className={styles.heroTitle}>¿Te gustó cómo quedó?</h1>
-      </div>
       <main className={styles.main}>
         <div className={styles.previewWrapper}>
+          <h1 className={styles.previewTitle}>¿Te gustó cómo quedó?</h1>
           <img
             src={flow.mockupUrl}
             className={styles.mockupImage}
