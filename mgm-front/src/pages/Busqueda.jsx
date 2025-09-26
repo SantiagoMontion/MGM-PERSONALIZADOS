@@ -71,12 +71,14 @@ export default function Busqueda() {
       });
       const response = await apiFetch(`/api/prints/search?${params.toString()}`);
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok || payload?.ok === false) {
+      if (!response.ok) {
         const message = typeof payload?.message === 'string'
           ? payload.message
-          : typeof payload?.error === 'string'
-            ? payload.error
-            : `Error ${response.status}`;
+          : typeof payload?.detail === 'string'
+            ? payload.detail
+            : typeof payload?.error === 'string'
+              ? payload.error
+              : `Error ${response.status}`;
         setError(message === 'missing_query' || message === 'query_too_short'
           ? 'Ingresá al menos 2 caracteres para buscar.'
           : `No se pudo realizar la búsqueda (${message}).`);
@@ -88,16 +90,17 @@ export default function Busqueda() {
       }
 
       const items = Array.isArray(payload?.items) ? payload.items : [];
-      const pagination = payload?.pagination || {};
-      const totalItems = Number(pagination?.total) || items.length;
-      const usedOffset = Number(pagination?.offset) || nextOffset;
+      const totalItemsRaw = payload?.total ?? payload?.pagination?.total;
+      const usedOffsetRaw = payload?.offset ?? payload?.pagination?.offset;
+      const totalItems = Number.isFinite(Number(totalItemsRaw)) ? Number(totalItemsRaw) : items.length;
+      const usedOffset = Number.isFinite(Number(usedOffsetRaw)) ? Number(usedOffsetRaw) : nextOffset;
 
       setResults(items);
       setTotal(totalItems);
-      setOffset(usedOffset);
+      setOffset(Math.max(0, usedOffset));
       setLastQuery(trimmed);
     } catch (requestError) {
-      console.error('[outputs-search]', requestError);
+      console.error('[prints-search]', requestError);
       setError('Ocurrió un error al buscar en Supabase.');
       setResults([]);
       setTotal(0);
