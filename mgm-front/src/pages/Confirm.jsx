@@ -8,6 +8,7 @@ export default function Confirm() {
   const [sp] = useSearchParams();
   const jobId = sp.get('job_id');
   const [data, setData] = useState(null);
+  const [autoOpened, setAutoOpened] = useState(false);
   const [err, setErr] = useState('');
 
   useEffect(() => {
@@ -28,6 +29,16 @@ export default function Confirm() {
     if (jobId) tick();
     return () => clearTimeout(t);
   }, [jobId]);
+
+  useEffect(() => {
+    if (!autoOpened && data?.cart_url) {
+      try {
+        openCartUrl(data.cart_url);
+      } finally {
+        setAutoOpened(true);
+      }
+    }
+  }, [autoOpened, data?.cart_url]);
 
   if (!jobId) return <p>Falta job_id.</p>;
   if (!data) return <p>Cargando…</p>;
