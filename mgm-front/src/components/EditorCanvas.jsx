@@ -1038,8 +1038,37 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     });
   }, [material, wCm, hCm, workCm.w, workCm.h, imgBaseCm]);
 
+  const autoCenterStateRef = useRef({
+    wrapW: wrapSize.w,
+    wrapH: wrapSize.h,
+    workW: workCm.w,
+    workH: workCm.h,
+    base: baseScale,
+    material,
+  });
+
   useEffect(() => {
-    if (hasAdjustedViewRef.current) return;
+    const prev = autoCenterStateRef.current;
+    const wrapChanged = prev.wrapW !== wrapSize.w || prev.wrapH !== wrapSize.h;
+    const workChanged = prev.workW !== workCm.w || prev.workH !== workCm.h;
+    const baseChanged = prev.base !== baseScale;
+    const materialChanged = prev.material !== material;
+
+    autoCenterStateRef.current = {
+      wrapW: wrapSize.w,
+      wrapH: wrapSize.h,
+      workW: workCm.w,
+      workH: workCm.h,
+      base: baseScale,
+      material,
+    };
+
+    if (!wrapChanged && (workChanged || baseChanged || materialChanged)) {
+      return;
+    }
+
+    if (hasAdjustedViewRef.current && !wrapChanged) return;
+
     const stageW = workCm.w * baseScale;
     const stageH = workCm.h * baseScale;
     const targetX = (wrapSize.w - stageW) / 2;
@@ -1061,6 +1090,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     workCm.h,
     imageUrl,
     imageFile,
+    material,
   ]);
 
   // calidad
