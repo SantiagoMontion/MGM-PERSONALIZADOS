@@ -656,6 +656,34 @@ export function buildCartPermalink(
   return cartUrl.toString();
 }
 
+export function buildCartAddUrl(
+  variantId: string | number | undefined,
+  quantity = 1,
+  options?: { baseUrl?: string; discountCode?: string },
+) {
+  const numericId = normalizeVariantNumericId(variantId);
+  if (!numericId) return '';
+  const qty = clampQuantity(quantity);
+  const baseRaw = typeof options?.baseUrl === 'string' && options.baseUrl.trim()
+    ? options.baseUrl.trim()
+    : DEFAULT_STORE_BASE;
+  let cartUrl: URL;
+  try {
+    cartUrl = new URL('/cart/add', baseRaw);
+  } catch (err) {
+    console.error('[buildCartAddUrl] invalid base url', err);
+    return '';
+  }
+  cartUrl.searchParams.set('id', numericId);
+  cartUrl.searchParams.set('quantity', String(qty));
+  cartUrl.searchParams.set('return_to', '/cart');
+  const discountCode = typeof options?.discountCode === 'string' ? options.discountCode.trim() : '';
+  if (discountCode) {
+    cartUrl.searchParams.set('discount', discountCode);
+  }
+  return cartUrl.toString();
+}
+
 const STOREFRONT_CART_STORAGE_KEY = 'MGM_storefrontCartId';
 
 type EnvRecord = Record<string, string | undefined>;
@@ -834,7 +862,7 @@ const CART_LINES_ADD_MUTATION = `mutation CartLinesAdd($cartId: ID!, $lines: [Ca
   }
 }`;
 
-const VARIANT_AVAILABILITY_QUERY = `query VariantAvailability($id: ID!) {
+const VARIANT_AVAILABILITY_QUERY = `query WaitVariant($id: ID!, $pub: ID!) @inContext(publicationId: $pub) {
   node(id: $id) {
     __typename
     ... on ProductVariant {
@@ -1044,6 +1072,41 @@ export async function ensureProductPublication(productId?: string | null): Promi
   return json;
 }
 
+export interface ProductPublicationStatusResponse {
+  ok: boolean;
+  published?: boolean;
+  productId?: string | null;
+  [key: string]: unknown;
+}
+
+export async function verifyProductPublicationStatus(productId?: string | number | null) {
+  if (productId == null) {
+    return false;
+  }
+  const normalized = typeof productId === 'string' ? productId.trim() : String(productId);
+  if (!normalized) {
+    return false;
+  }
+  const resp = await apiFetch('/api/product-publication-status', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ productId: normalized }),
+  });
+  const json: ProductPublicationStatusResponse | null = await resp.json().catch(() => null);
+  if (!resp.ok || !json?.ok) {
+    try {
+      console.warn('[verifyProductPublicationStatus] request_failed', {
+        status: resp.status,
+        body: json,
+      });
+    } catch (logErr) {
+      console.debug?.('[verifyProductPublicationStatus] log_failed', logErr);
+    }
+    return false;
+  }
+  return json.published === true;
+}
+
 interface VariantPollData {
   node?: {
     __typename?: string | null;
@@ -1057,11 +1120,24 @@ interface VariantPollData {
   } | null;
 }
 
+const DEFAULT_VARIANT_POLL_DELAYS_MS = [
+  600,
+  1_200,
+  2_000,
+  2_000,
+  2_000,
+  3_000,
+  3_000,
+  3_000,
+  4_000,
+  4_000,
+];
+
 export interface WaitVariantOptions {
-  timeoutMs?: number;
-  initialDelayMs?: number;
-  maxDelayMs?: number;
   signal?: AbortSignal;
+  publicationId?: string | null;
+  verifyProductPublication?: (() => Promise<boolean>) | null;
+  attemptDelaysMs?: number[];
 }
 
 export async function waitForVariantAvailability(
@@ -1069,7 +1145,7 @@ export async function waitForVariantAvailability(
   productId?: string | number,
   options: WaitVariantOptions = {},
 ) {
-  const { timeoutMs = 45_000, initialDelayMs = 600, maxDelayMs = 2_400, signal } = options;
+  const { signal, publicationId, verifyProductPublication } = options;
   const numericVariant = normalizeVariantNumericId(variantId);
   if (!numericVariant) {
     throw new Error('invalid_variant_id');
@@ -1082,6 +1158,7 @@ export async function waitForVariantAvailability(
   if (!normalizedProductId) {
     throw new Error('invalid_product_id');
   }
+  const normalizedPublicationId = typeof publicationId === 'string' ? publicationId.trim() : '';
   const configResult = resolveStorefrontConfig();
   if (!configResult.ok) {
     try {
@@ -1093,13 +1170,24 @@ export async function waitForVariantAvailability(
   }
   const { config } = configResult;
   const variantGid = buildVariantGid(numericVariant);
-  const start = Date.now();
+  const pollSchedule = Array.isArray(options.attemptDelaysMs) && options.attemptDelaysMs.length
+    ? options.attemptDelaysMs
+        .map((value) => (Number.isFinite(value) ? Math.max(0, Math.floor(value as number)) : 0))
+        .filter((value) => value >= 0)
+    : DEFAULT_VARIANT_POLL_DELAYS_MS;
+  const maxAttempts = pollSchedule.length + 1;
   let attempt = 0;
-  let delay = Math.max(200, initialDelayMs);
   let lastResponse: VariantPollData | null = null;
-  const maxAttempts = Math.max(1, Math.min(5, Math.floor(timeoutMs / Math.max(delay, 1))));
+  let adminVerificationAttempted = false;
 
-  while (Date.now() - start < timeoutMs && attempt < maxAttempts) {
+  if (!normalizedPublicationId) {
+    console.warn('[waitForVariantAvailability] missing_publication_id', { productId: normalizedProductId, variantId: variantGid });
+    const err: Error & { reason?: string } = new Error('missing_publication_id');
+    err.reason = 'missing_publication_id';
+    throw err;
+  }
+
+  while (attempt < maxAttempts) {
     if (signal?.aborted) {
       const abortError = new Error('aborted');
       abortError.name = 'AbortError';
@@ -1107,34 +1195,68 @@ export async function waitForVariantAvailability(
     }
     attempt += 1;
     try {
+      const variables = { id: variantGid, pub: normalizedPublicationId };
       const { response, payload, requestId } = await performStorefrontGraphQL<VariantPollData>(
         config,
         VARIANT_AVAILABILITY_QUERY,
-        { id: variantGid },
+        variables,
       );
       const data = payload?.data || null;
       lastResponse = data;
       const variantNode = data?.node;
       const variantPresent = Boolean(variantNode && typeof variantNode.id === 'string' && variantNode.id);
-      const availableForSale = Boolean(variantNode && (variantNode as { availableForSale?: boolean | null }).availableForSale);
+      const availableForSale = variantNode?.availableForSale === true;
+      const nextDelayMs = attempt < maxAttempts ? pollSchedule[Math.min(attempt - 1, pollSchedule.length - 1)] : null;
       try {
         console.info('[cart-flow] poll variant', {
           attempt,
           variantPresent,
           availableForSale,
           requestId,
-          nextDelayMs: attempt < maxAttempts ? Math.min(delay * 2, maxDelayMs) : null,
+          nextDelayMs,
         });
       } catch (logErr) {
         console.warn?.('[waitForVariantAvailability] poll_log_failed', logErr);
       }
       if (variantPresent && availableForSale) {
         try {
-          console.info('[cart-flow] variant disponible en Storefront', { attempt, requestId });
+          console.info('[cart-flow] variant disponible en Storefront', {
+            attempt,
+            requestId,
+            variantPresent,
+            availableForSale,
+          });
         } catch (logErr) {
           console.warn?.('[waitForVariantAvailability] ready_log_failed', logErr);
         }
-        return { ready: true, available: true, timedOut: false, attempts: attempt, lastResponse: data };
+        return {
+          ready: true,
+          available: true,
+          timedOut: false,
+          attempts: attempt,
+          lastResponse: data,
+          variantPresent: true,
+          availableForSale: true,
+        };
+      }
+      if (!variantPresent && !adminVerificationAttempted && typeof verifyProductPublication === 'function') {
+        adminVerificationAttempted = true;
+        try {
+          const adminPublished = await verifyProductPublication();
+          try {
+            console.info('[cart-flow] admin_publication_check', { adminPublished });
+          } catch (logErr) {
+            console.warn?.('[waitForVariantAvailability] admin_check_log_failed', logErr);
+          }
+          if (adminPublished) {
+            await sleep(1_500);
+            if (attempt < maxAttempts) {
+              continue;
+            }
+          }
+        } catch (adminErr) {
+          console.error('[waitForVariantAvailability] admin_publication_check_failed', adminErr);
+        }
       }
       if (!response.ok || payload?.errors?.length) {
         console.warn('[waitForVariantAvailability] storefront response issue', {
@@ -1148,8 +1270,18 @@ export async function waitForVariantAvailability(
       console.error('[waitForVariantAvailability] poll error', err);
     }
     if (attempt >= maxAttempts) break;
-    await sleep(delay);
-    delay = Math.min(delay * 2, maxDelayMs);
+    const delayMs = pollSchedule[Math.min(attempt - 1, pollSchedule.length - 1)] || 0;
+    if (delayMs > 0) {
+      await sleep(delayMs);
+    }
   }
-  return { ready: false, available: false, timedOut: true, attempts: attempt, lastResponse };
+  return {
+    ready: false,
+    available: false,
+    timedOut: true,
+    attempts: attempt,
+    lastResponse,
+    variantPresent: Boolean(lastResponse?.node && typeof lastResponse.node?.id === 'string' && lastResponse.node.id),
+    availableForSale: Boolean(lastResponse?.node && lastResponse.node?.availableForSale === true),
+  };
 }

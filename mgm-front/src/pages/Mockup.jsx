@@ -7,11 +7,13 @@ import { downloadBlob } from '@/lib/mockup.js';
 import styles from './Mockup.module.css';
 import { buildExportBaseName } from '@/lib/filename.ts';
 import {
+  buildCartAddUrl,
   buildCartPermalink,
   createJobAndProduct,
   ONLINE_STORE_DISABLED_MESSAGE,
   ONLINE_STORE_MISSING_MESSAGE,
   ensureProductPublication,
+  verifyProductPublicationStatus,
   waitForVariantAvailability,
 } from '@/lib/shopify.ts';
 
@@ -200,7 +202,7 @@ export default function Mockup() {
   function openCartTab(url) {
     if (typeof window === 'undefined' || !url) return false;
     try {
-      const popup = window.open(url, '_blank');
+      const popup = window.open(url, '_blank', 'noopener');
       if (!popup) {
         return false;
       }
@@ -325,9 +327,23 @@ export default function Mockup() {
       if (!current?.variantId) throw new Error('missing_variant');
 
       setCartStatus('adding');
+      let publicationId = typeof current?.publicationId === 'string' ? current.publicationId.trim() : '';
       if (!skipPublication && current.productId) {
         try {
-          await ensureProductPublication(current.productId);
+          const ensureResult = await ensureProductPublication(current.productId);
+          const ensuredPublicationId = typeof ensureResult?.publicationId === 'string'
+            ? ensureResult.publicationId.trim()
+            : '';
+          if (ensuredPublicationId) {
+            publicationId = ensuredPublicationId;
+          }
+          if (publicationId && current.publicationId !== publicationId) {
+            current = {
+              ...current,
+              publicationId,
+            };
+            setPendingCart(current);
+          }
         } catch (err) {
           console.warn('[cart-flow] ensure publication failed', err);
         }
@@ -343,10 +359,21 @@ export default function Mockup() {
           console.debug?.('[cart-flow] wait_variant_start_log_failed', logErr);
         }
         try {
+          const publicationIdForStorefront = typeof publicationId === 'string' && publicationId.trim()
+            ? publicationId.trim()
+            : typeof current.publicationId === 'string'
+              ? current.publicationId.trim()
+              : '';
+          const verifyPublication = publicationIdForStorefront
+            ? () => verifyProductPublicationStatus(current.productId)
+            : undefined;
           const pollResult = await waitForVariantAvailability(
             current.variantId,
             current.productId,
-            { timeoutMs: 15_000, initialDelayMs: 600, maxDelayMs: 2_000 },
+            {
+              publicationId: publicationIdForStorefront,
+              verifyProductPublication: verifyPublication,
+            },
           );
           try {
             console.info('[cart-flow] wait_variant_result', {
@@ -358,6 +385,8 @@ export default function Mockup() {
               attempts: Number.isFinite(pollResult?.attempts)
                 ? pollResult.attempts
                 : null,
+              variantPresent: typeof pollResult?.variantPresent === 'boolean' ? pollResult.variantPresent : null,
+              availableForSale: typeof pollResult?.availableForSale === 'boolean' ? pollResult.availableForSale : null,
             });
           } catch (logErr) {
             console.debug?.('[cart-flow] wait_variant_result_log_failed', logErr);
@@ -387,14 +416,20 @@ export default function Mockup() {
         }
       }
 
-      let cartUrl = latestCartUrl || current?.webUrl || '';
-      if (!cartUrl) {
-        cartUrl = buildCartPermalink(
+      const desiredQuantity = current.quantity || CART_DEFAULT_QUANTITY;
+      const addToCartUrl = buildCartAddUrl(
+        current.variantId,
+        desiredQuantity,
+        normalizedDiscountCode ? { discountCode: normalizedDiscountCode } : undefined,
+      );
+      let cartUrl = addToCartUrl
+        || latestCartUrl
+        || current?.webUrl
+        || buildCartPermalink(
           current.variantId,
-          current.quantity || CART_DEFAULT_QUANTITY,
+          desiredQuantity,
           normalizedDiscountCode ? { discountCode: normalizedDiscountCode } : undefined,
         );
-      }
 
       if (!cartUrl) {
         setCartStatus('idle');
