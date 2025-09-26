@@ -40,7 +40,7 @@ Creates a Shopify cart that includes a single product variant and returns `{ web
 
 Produces a checkout link for the private flow based on `PRIVATE_CHECKOUT_MODE`.
 
-- `storefront` (default): creates a Storefront cart and responds with `{ checkoutUrl, cartUrl?, strategy: 'storefront' }`, preserving Shopify's coupon UI.
+- `storefront` (default): creates a Storefront cart and responds with `{ checkoutUrl, cartUrl?, strategy: 'storefront' }`, preserving Shopify's coupon UI. When the storefront path fails (variant unavailable, Storefront credentials missing, etc.) the handler transparently falls back to the draft-order flow.
 - `draft_order`: creates an Admin draft order and returns `{ checkoutUrl, strategy: 'draft_order' }` pointing to the invoice URL.
 
 The request accepts `variantId`, optional `quantity`, `email`, `note` and `noteAttributes`. Missing or invalid payloads yield `400 { reason: 'bad_request' }`. Shopify failures return `502` with a `reason` field and, when available, `userErrors`.
