@@ -657,7 +657,7 @@
   bottom: calc(var(--canvas-floating-bottom) + var(--canvas-continue-height) + 6px);
   z-index: 60;
   display: flex;
-  justify-content: flex-start;
+  justify-content: center;
   padding-right: calc(clamp(220px, 26vw, 320px) + var(--canvas-floating-gap));
 }
 
