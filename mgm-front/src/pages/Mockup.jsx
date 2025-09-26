@@ -7,8 +7,6 @@ import { downloadBlob } from '@/lib/mockup.js';
 import styles from './Mockup.module.css';
 import { buildExportBaseName } from '@/lib/filename.ts';
 import {
-  buildCartAddUrl,
-  buildCartPermalink,
   createJobAndProduct,
   ONLINE_STORE_DISABLED_MESSAGE,
   ONLINE_STORE_MISSING_MESSAGE,
@@ -402,46 +400,82 @@ export default function Mockup() {
       }
 
       const desiredQuantity = current.quantity || CART_DEFAULT_QUANTITY;
-      const addToCartUrl = buildCartAddUrl(
-        current.variantId,
-        desiredQuantity,
-        normalizedDiscountCode ? { discountCode: normalizedDiscountCode } : undefined,
-      );
-      let cartUrl = addToCartUrl
-        || latestCartUrl
-        || current?.webUrl
-        || buildCartPermalink(
-          current.variantId,
-          desiredQuantity,
-          normalizedDiscountCode ? { discountCode: normalizedDiscountCode } : undefined,
-        );
-
-      if (!cartUrl) {
-        setCartStatus('idle');
-        setBusy(false);
-        showCartFailureToast('');
-        return;
-      }
-
-      if (!current?.webUrl || current.webUrl !== cartUrl) {
-        current = {
-          ...current,
-          webUrl: cartUrl,
-        };
-        setPendingCart(current);
-      }
+      const requestPayload = {
+        variantId: current.variantId,
+        quantity: desiredQuantity,
+        ...(normalizedDiscountCode ? { discount: normalizedDiscountCode } : {}),
+      };
 
       try {
-        console.info('[cart-flow] open_cart_url', {
+        console.info('[cart-flow] create_cart_request', {
           productId: current.productId || null,
           variantId: current.variantId || null,
-          url: cartUrl,
+          quantity: desiredQuantity,
         });
       } catch (logErr) {
-        console.debug?.('[cart-flow] open_cart_url_log_failed', logErr);
+        console.debug?.('[cart-flow] create_cart_request_log_failed', logErr);
       }
 
-      openCartAndFinalize(cartUrl);
+      let responseJson;
+      let lastCandidateUrl = '';
+      try {
+        const resp = await apiFetch('/api/create-cart-link', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestPayload),
+        });
+        responseJson = await resp.json().catch(() => null);
+        const candidateUrl = typeof responseJson?.webUrl === 'string'
+          ? responseJson.webUrl
+          : typeof responseJson?.url === 'string'
+            ? responseJson.url
+            : undefined;
+        lastCandidateUrl = typeof candidateUrl === 'string' ? candidateUrl : '';
+
+        if (resp.ok && candidateUrl) {
+          try {
+            console.info('[cart-flow] create_cart_success', {
+              productId: current.productId || null,
+              variantId: current.variantId || null,
+              method: responseJson?.cart_method || 'unknown',
+            });
+          } catch (logErr) {
+            console.debug?.('[cart-flow] create_cart_success_log_failed', logErr);
+          }
+          if (!current?.webUrl || current.webUrl !== candidateUrl) {
+            current = {
+              ...current,
+              webUrl: candidateUrl,
+            };
+            setPendingCart(current);
+          }
+          openCartAndFinalize(candidateUrl);
+          return;
+        }
+
+        if (resp.status === 409 && responseJson?.reason === 'cart_user_error') {
+          setCartStatus('idle');
+          setBusy(false);
+          showCartFailureToast(typeof candidateUrl === 'string' ? candidateUrl : '');
+          return;
+        }
+
+        try {
+          console.warn('[cart-flow] create_cart_unexpected', {
+            status: resp.status,
+            reason: responseJson?.reason || responseJson?.error || 'unknown',
+          });
+        } catch (logErr) {
+          console.debug?.('[cart-flow] create_cart_unexpected_log_failed', logErr);
+        }
+      } catch (err) {
+        console.error('[cart-flow] create_cart_request_failed', err);
+      }
+
+      setCartStatus('idle');
+      setBusy(false);
+      showCartFailureToast(lastCandidateUrl);
+      return;
     } catch (err) {
       setCartStatus('idle');
       setBusy(false);
