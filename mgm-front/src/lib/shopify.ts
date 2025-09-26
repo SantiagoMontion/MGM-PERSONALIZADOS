@@ -2,6 +2,7 @@ import { apiFetch } from './api';
 import { FlowState } from '@/state/flow';
 
 const DEFAULT_STORE_BASE = 'https://www.mgmgamers.store';
+const DEFAULT_STOREFRONT_API_VERSION = '2024-07';
 
 const PRODUCT_LABELS = {
   mousepad: 'Mousepad',
@@ -497,6 +498,351 @@ export function buildCartPermalink(
   const returnTo = rawReturn || '/cart';
   cartUrl.searchParams.set('return_to', returnTo.startsWith('/') ? returnTo : `/${returnTo.replace(/^\/+/, '')}`);
   return cartUrl.toString();
+}
+
+const STOREFRONT_CART_STORAGE_KEY = 'MGM_storefrontCartId';
+
+type EnvRecord = Record<string, string | undefined>;
+
+function readEnv(keys: string[]): string {
+  const meta = (import.meta as { env?: EnvRecord }).env || {};
+  for (const key of keys) {
+    const value = meta[key];
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+  if (typeof process !== 'undefined' && typeof (process as { env?: EnvRecord }).env === 'object') {
+    const procEnv = (process as { env?: EnvRecord }).env;
+    if (procEnv) {
+      for (const key of keys) {
+        const value = procEnv[key];
+        if (typeof value === 'string' && value.trim()) {
+          return value.trim();
+        }
+      }
+    }
+  }
+  return '';
+}
+
+function normalizeStorefrontDomain(domain: string) {
+  return domain.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+}
+
+interface StorefrontConfig {
+  domain: string;
+  token: string;
+  version: string;
+}
+
+function resolveStorefrontConfig(): { ok: true; config: StorefrontConfig } | { ok: false; missing: string[] } {
+  const missing: string[] = [];
+  const domainRaw = readEnv([
+    'VITE_SHOPIFY_STOREFRONT_DOMAIN',
+    'VITE_SHOPIFY_DOMAIN',
+    'NEXT_PUBLIC_SHOPIFY_STOREFRONT_DOMAIN',
+    'NEXT_PUBLIC_SHOPIFY_DOMAIN',
+    'SHOPIFY_STOREFRONT_DOMAIN',
+    'SHOPIFY_DOMAIN',
+  ]);
+  const token = readEnv([
+    'VITE_SHOPIFY_STOREFRONT_TOKEN',
+    'NEXT_PUBLIC_SHOPIFY_STOREFRONT_TOKEN',
+    'SHOPIFY_STOREFRONT_TOKEN',
+  ]);
+  const version = readEnv([
+    'VITE_SHOPIFY_STOREFRONT_API_VERSION',
+    'NEXT_PUBLIC_SHOPIFY_STOREFRONT_API_VERSION',
+    'SHOPIFY_STOREFRONT_API_VERSION',
+    'VITE_SHOPIFY_API_VERSION',
+    'SHOPIFY_API_VERSION',
+  ]) || DEFAULT_STOREFRONT_API_VERSION;
+
+  if (!domainRaw) missing.push('NEXT_PUBLIC_SHOPIFY_DOMAIN');
+  if (!token) missing.push('NEXT_PUBLIC_SHOPIFY_STOREFRONT_TOKEN');
+  if (!version) missing.push('NEXT_PUBLIC_SHOPIFY_STOREFRONT_API_VERSION');
+
+  if (missing.length) {
+    return { ok: false, missing };
+  }
+
+  return {
+    ok: true,
+    config: {
+      domain: normalizeStorefrontDomain(domainRaw),
+      token,
+      version,
+    },
+  };
+}
+
+function getStoredCartId(): string {
+  if (typeof window === 'undefined' || !window.localStorage) return '';
+  try {
+    const value = window.localStorage.getItem(STOREFRONT_CART_STORAGE_KEY);
+    return value ? value.trim() : '';
+  } catch (err) {
+    console.warn('[storefront-cart] read failed', err);
+    return '';
+  }
+}
+
+function setStoredCartId(cartId?: string | null) {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    if (cartId && cartId.trim()) {
+      window.localStorage.setItem(STOREFRONT_CART_STORAGE_KEY, cartId.trim());
+    } else {
+      window.localStorage.removeItem(STOREFRONT_CART_STORAGE_KEY);
+    }
+  } catch (err) {
+    console.warn('[storefront-cart] write failed', err);
+  }
+}
+
+function buildVariantGid(variantId: string | number) {
+  if (typeof variantId === 'string' && variantId.startsWith('gid://shopify/ProductVariant/')) {
+    return variantId;
+  }
+  const numeric = normalizeVariantNumericId(variantId);
+  if (!numeric) {
+    const err = new Error('invalid_variant_id');
+    (err as Error & { reason?: string }).reason = 'invalid_variant_id';
+    throw err;
+  }
+  return `gid://shopify/ProductVariant/${numeric}`;
+}
+
+interface StorefrontGraphQLError {
+  message?: string;
+  extensions?: Record<string, unknown> | null;
+}
+
+interface StorefrontCartUserError {
+  message?: string | null;
+  code?: string | null;
+  field?: (string | null)[] | null;
+}
+
+interface StorefrontCartPayload {
+  cart?: { id?: string | null; webUrl?: string | null } | null;
+  userErrors?: StorefrontCartUserError[] | null;
+}
+
+interface StorefrontCartResponse {
+  cartCreate?: StorefrontCartPayload | null;
+  cartLinesAdd?: StorefrontCartPayload | null;
+}
+
+interface StorefrontGraphQLResponse<T> {
+  data?: T;
+  errors?: StorefrontGraphQLError[];
+}
+
+function extractUserErrors(payload?: StorefrontCartPayload | null) {
+  if (!payload?.userErrors?.length) return [];
+  return payload.userErrors
+    .map((entry) => (entry && typeof entry.message === 'string' ? entry.message.trim() : ''))
+    .filter((message): message is string => Boolean(message));
+}
+
+async function performStorefrontCartMutation(
+  config: StorefrontConfig,
+  query: string,
+  variables: Record<string, unknown>,
+) {
+  const endpoint = `https://${config.domain}/api/${config.version}/graphql.json`;
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Shopify-Storefront-Access-Token': config.token,
+      Accept: 'application/json',
+    },
+    body: JSON.stringify({ query, variables }),
+  });
+  const requestId = response.headers.get('x-request-id') || response.headers.get('X-Request-Id');
+  const payload = (await response.json().catch(() => null)) as StorefrontGraphQLResponse<StorefrontCartResponse> | null;
+  return { response, payload, requestId: requestId || undefined };
+}
+
+const CART_CREATE_MUTATION = `mutation CartCreate($lines: [CartLineInput!]!) {
+  cartCreate(input: { lines: $lines }) {
+    cart { id webUrl }
+    userErrors { message code field }
+  }
+}`;
+
+const CART_LINES_ADD_MUTATION = `mutation CartLinesAdd($cartId: ID!, $lines: [CartLineInput!]!) {
+  cartLinesAdd(cartId: $cartId, lines: $lines) {
+    cart { id webUrl }
+    userErrors { message code field }
+  }
+}`;
+
+export interface StorefrontCartSuccess {
+  cartId: string;
+  webUrl: string;
+}
+
+export async function addVariantToCartStorefront(
+  variantId: string | number,
+  quantity = 1,
+): Promise<StorefrontCartSuccess> {
+  const configResult = resolveStorefrontConfig();
+  if (!configResult.ok) {
+    const error = new Error('shopify_storefront_env_missing');
+    (error as Error & { reason?: string; missing?: string[] }).reason = 'shopify_storefront_env_missing';
+    (error as Error & { reason?: string; missing?: string[] }).missing = configResult.missing;
+    throw error;
+  }
+  const { config } = configResult;
+  const merchandiseId = buildVariantGid(variantId);
+  const lines = [{ merchandiseId, quantity: clampQuantity(quantity) }];
+
+  const attemptAdd = async (cartId: string) => {
+    const { response, payload, requestId } = await performStorefrontCartMutation(
+      config,
+      CART_LINES_ADD_MUTATION,
+      { cartId, lines },
+    );
+    const data = payload?.data?.cartLinesAdd;
+    const userErrors = extractUserErrors(data);
+    if (!response.ok || payload?.errors?.length || userErrors.length) {
+      const error = new Error('shopify_storefront_user_error');
+      (error as Error & { reason?: string; requestId?: string; userErrors?: string[] }).reason = 'shopify_storefront_user_error';
+      if (requestId) (error as Error & { requestId?: string }).requestId = requestId;
+      if (userErrors.length) {
+        (error as Error & { userErrors?: string[] }).userErrors = userErrors;
+      }
+      if (payload?.errors?.length) {
+        const messages = payload.errors
+          .map((entry) => (entry?.message ? String(entry.message).trim() : ''))
+          .filter(Boolean);
+        if (messages.length) {
+          const combined = messages.join(' | ');
+          (error as Error & { userErrors?: string[] }).userErrors = [
+            ...((error as Error & { userErrors?: string[] }).userErrors || []),
+            combined,
+          ];
+        }
+      }
+      (error as Error & { status?: number }).status = response.status;
+      throw error;
+    }
+    const cartIdResult = data?.cart?.id ? String(data.cart.id) : '';
+    const webUrl = data?.cart?.webUrl ? String(data.cart.webUrl) : '';
+    if (!cartIdResult || !webUrl) {
+      const error = new Error('shopify_storefront_cart_missing');
+      (error as Error & { reason?: string; requestId?: string }).reason = 'shopify_storefront_cart_missing';
+      if (requestId) (error as Error & { requestId?: string }).requestId = requestId;
+      throw error;
+    }
+    setStoredCartId(cartIdResult);
+    return { cartId: cartIdResult, webUrl };
+  };
+
+  const storedCartId = getStoredCartId();
+  if (storedCartId) {
+    try {
+      return await attemptAdd(storedCartId);
+    } catch (error) {
+      setStoredCartId(null);
+      const reason = typeof (error as { reason?: unknown })?.reason === 'string'
+        ? String((error as { reason?: unknown }).reason)
+        : '';
+      if (reason === 'shopify_storefront_env_missing') {
+        throw error;
+      }
+      if (reason === 'shopify_storefront_user_error') {
+        throw error;
+      }
+    }
+  }
+
+  const { response, payload, requestId } = await performStorefrontCartMutation(
+    config,
+    CART_CREATE_MUTATION,
+    { lines },
+  );
+  const data = payload?.data?.cartCreate;
+  const userErrors = extractUserErrors(data);
+  if (!response.ok || payload?.errors?.length || userErrors.length) {
+    const error = new Error('shopify_storefront_user_error');
+    (error as Error & { reason?: string; requestId?: string; userErrors?: string[] }).reason = 'shopify_storefront_user_error';
+    if (requestId) (error as Error & { requestId?: string }).requestId = requestId;
+    if (userErrors.length) (error as Error & { userErrors?: string[] }).userErrors = userErrors;
+    if (payload?.errors?.length) {
+      const messages = payload.errors
+        .map((entry) => (entry?.message ? String(entry.message).trim() : ''))
+        .filter(Boolean);
+      if (messages.length) {
+        (error as Error & { userErrors?: string[] }).userErrors = [
+          ...((error as Error & { userErrors?: string[] }).userErrors || []),
+          messages.join(' | '),
+        ];
+      }
+    }
+    (error as Error & { status?: number }).status = response.status;
+    throw error;
+  }
+  const cartIdResult = data?.cart?.id ? String(data.cart.id) : '';
+  const webUrl = data?.cart?.webUrl ? String(data.cart.webUrl) : '';
+  if (!cartIdResult || !webUrl) {
+    const error = new Error('shopify_storefront_cart_missing');
+    (error as Error & { reason?: string; requestId?: string }).reason = 'shopify_storefront_cart_missing';
+    if (requestId) (error as Error & { requestId?: string }).requestId = requestId;
+    throw error;
+  }
+  setStoredCartId(cartIdResult);
+  return { cartId: cartIdResult, webUrl };
+}
+
+export interface AjaxCartSuccess {
+  webUrl: string;
+}
+
+export async function addVariantToCartAjax(
+  variantId: string | number,
+  quantity = 1,
+): Promise<AjaxCartSuccess> {
+  const numericId = normalizeVariantNumericId(variantId);
+  if (!numericId) {
+    const error = new Error('invalid_variant_id');
+    (error as Error & { reason?: string }).reason = 'invalid_variant_id';
+    throw error;
+  }
+  const endpoint = `${DEFAULT_STORE_BASE.replace(/\/+$/, '')}/cart/add.js`;
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify({ id: Number(numericId), quantity: clampQuantity(quantity) }),
+  });
+  if (!response.ok) {
+    let detail: unknown;
+    try {
+      detail = await response.json();
+    } catch {
+      try {
+        detail = await response.text();
+      } catch {
+        detail = null;
+      }
+    }
+    const error = new Error('shopify_ajax_cart_failed');
+    (error as Error & { reason?: string; detail?: unknown; status?: number }).reason = 'shopify_ajax_cart_failed';
+    (error as Error & { detail?: unknown }).detail = detail;
+    (error as Error & { status?: number }).status = response.status;
+    const requestId = response.headers.get('x-request-id') || response.headers.get('X-Request-Id');
+    if (requestId) (error as Error & { requestId?: string }).requestId = requestId;
+    throw error;
+  }
+  return { webUrl: `${DEFAULT_STORE_BASE.replace(/\/+$/, '')}/cart` };
 }
 
 export interface EnsurePublicationResponse {

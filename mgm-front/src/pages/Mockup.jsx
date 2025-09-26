@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PDFDocument } from 'pdf-lib';
 import Toast from '@/components/Toast.jsx';
@@ -7,7 +7,8 @@ import { downloadBlob } from '@/lib/mockup.js';
 import styles from './Mockup.module.css';
 import { buildExportBaseName } from '@/lib/filename.ts';
 import {
-  buildCartPermalink,
+  addVariantToCartAjax,
+  addVariantToCartStorefront,
   createJobAndProduct,
   ONLINE_STORE_DISABLED_MESSAGE,
   ONLINE_STORE_MISSING_MESSAGE,
@@ -18,9 +19,8 @@ import {
 const CART_STATUS_LABELS = {
   idle: 'Agregar al carrito',
   creating: 'Creando producto…',
-  publishing: 'Publicando producto…',
-  waiting: 'Preparando carrito…',
-  adding: 'Abriendo carrito…',
+  adding: 'Agregando al carrito…',
+  opening: 'Abriendo carrito…',
 };
 
 const CART_DEFAULT_QUANTITY = 1;
@@ -160,20 +160,36 @@ export default function Mockup() {
     alert(friendly);
   }
 
-  function openCartWindow(permalink) {
-    if (typeof window === 'undefined' || !permalink) return false;
+  function openCartTab(url) {
+    if (typeof window === 'undefined' || !url) return false;
     try {
-      const popup = window.open(permalink, '_blank', 'noopener');
+      const popup = window.open(url, '_blank', 'noopener');
       if (popup) {
-        try { popup.focus?.(); } catch (focusErr) { console.warn('[cart-popup-focus]', focusErr); }
+        try {
+          popup.focus?.();
+        } catch (focusErr) {
+          console.warn('[cart-popup-focus]', focusErr);
+        }
         return true;
       }
-      window.location.assign(permalink);
+      window.open(url, '_blank', 'noopener');
       return true;
     } catch (err) {
-      console.error('[openCartWindow]', err);
+      console.error('[openCartTab]', err);
       return false;
     }
+  }
+
+  function showCartFailureToast(url) {
+    if (!url) {
+      setToast({ message: 'No pudimos agregarlo al carrito. Probá de nuevo.' });
+      return;
+    }
+    setToast({
+      message: 'No pudimos agregarlo al carrito. Probá de nuevo.',
+      actionLabel: 'Reintentar',
+      action: () => attemptOpenCart(url),
+    });
   }
 
   function finalizeCartSuccess() {
@@ -189,29 +205,24 @@ export default function Mockup() {
     }
   }
 
-  function attemptCartRedirect(permalink) {
-    let link = permalink;
-    if (!link && pendingCart?.permalink) {
-      link = pendingCart.permalink;
-    }
-    if (!link && pendingCart?.variantId) {
-      link = buildCartPermalink(
-        pendingCart.variantId,
-        pendingCart.quantity || CART_DEFAULT_QUANTITY,
-        { returnTo: '/cart' },
-      );
-    }
-    if (!link) return;
-    const opened = openCartWindow(link);
+  function openCartAndFinalize(url) {
+    if (!url) return;
+    setBusy(true);
+    setCartStatus('opening');
+    const opened = openCartTab(url);
     if (opened) {
       finalizeCartSuccess();
     } else {
-      setToast({
-        message: 'No pudimos agregar tu producto al carrito',
-        actionLabel: 'Reintentar',
-        action: () => attemptCartRedirect(link),
-      });
+      setCartStatus('idle');
+      setBusy(false);
+      showCartFailureToast(url);
     }
+  }
+
+  function attemptOpenCart(url) {
+    const link = url || pendingCart?.webUrl;
+    if (!link) return;
+    openCartAndFinalize(link);
   }
 
   function extractWarningMessages(warnings, warningMessages) {
@@ -263,7 +274,7 @@ export default function Mockup() {
       }
       if (!current?.variantId) throw new Error('missing_variant');
 
-      setCartStatus('publishing');
+      setCartStatus('adding');
       if (!skipPublication && current.productId) {
         try {
           await ensureProductPublication(current.productId);
@@ -272,7 +283,6 @@ export default function Mockup() {
         }
       }
 
-      setCartStatus('waiting');
       const waitResult = await waitForVariantAvailability(current.variantId, current.productId);
       if (!waitResult.ready) {
         setCartStatus('idle');
@@ -285,29 +295,73 @@ export default function Mockup() {
         return;
       }
 
-      const permalink = buildCartPermalink(current.variantId, current.quantity, { returnTo: '/cart' });
-      if (!permalink) {
-        throw new Error('invalid_cart_permalink');
-      }
-      setPendingCart({ ...current, permalink });
-      if (typeof console !== 'undefined' && typeof console.info === 'function') {
-        console.info('[cart-flow] permalink listo', permalink);
+      let cartUrl = '';
+      try {
+        const storefrontResult = await addVariantToCartStorefront(
+          current.variantId,
+          current.quantity || CART_DEFAULT_QUANTITY,
+        );
+        cartUrl = storefrontResult.webUrl;
+        current = {
+          ...current,
+          cartId: storefrontResult.cartId,
+          webUrl: storefrontResult.webUrl,
+        };
+        setPendingCart(current);
+      } catch (storefrontError) {
+        const storeErr = storefrontError && typeof storefrontError === 'object'
+          ? storefrontError
+          : {};
+        try {
+          console.error('[cart-flow] storefront cart failed', {
+            error: storefrontError,
+            reason: typeof storeErr.reason === 'string' ? storeErr.reason : undefined,
+            requestId: typeof storeErr.requestId === 'string' ? storeErr.requestId : undefined,
+            userErrors: Array.isArray(storeErr.userErrors) ? storeErr.userErrors : undefined,
+          });
+        } catch (logErr) {
+          console.warn('[cart-flow] storefront cart log failed', logErr);
+        }
+        try {
+          const ajaxResult = await addVariantToCartAjax(
+            current.variantId,
+            current.quantity || CART_DEFAULT_QUANTITY,
+          );
+          cartUrl = ajaxResult.webUrl;
+          current = {
+            ...current,
+            webUrl: ajaxResult.webUrl,
+          };
+          setPendingCart(current);
+        } catch (ajaxError) {
+          const ajaxErr = ajaxError && typeof ajaxError === 'object'
+            ? ajaxError
+            : {};
+          try {
+            console.error('[cart-flow] ajax cart fallback failed', {
+              error: ajaxError,
+              reason: typeof ajaxErr.reason === 'string' ? ajaxErr.reason : undefined,
+              requestId: typeof ajaxErr.requestId === 'string' ? ajaxErr.requestId : undefined,
+              detail: ajaxErr.detail,
+            });
+          } catch (logErr) {
+            console.warn('[cart-flow] ajax cart log failed', logErr);
+          }
+          setCartStatus('idle');
+          setBusy(false);
+          showCartFailureToast('');
+          return;
+        }
       }
 
-      setCartStatus('adding');
-      const opened = openCartWindow(permalink);
-      if (!opened) {
+      if (!cartUrl) {
         setCartStatus('idle');
         setBusy(false);
-        setToast({
-          message: 'No pudimos agregar tu producto al carrito',
-          actionLabel: 'Reintentar',
-          action: () => attemptCartRedirect(permalink),
-        });
+        showCartFailureToast('');
         return;
       }
 
-      finalizeCartSuccess();
+      openCartAndFinalize(cartUrl);
     } catch (err) {
       setCartStatus('idle');
       setBusy(false);
@@ -331,14 +385,6 @@ export default function Mockup() {
             setToast(null);
             startCartFlow({ skipCreation: true, skipPublication: true });
           },
-        });
-        return;
-      }
-      if (err?.message === 'invalid_cart_permalink') {
-        setToast({
-          message: 'No pudimos agregar tu producto al carrito',
-          actionLabel: 'Reintentar',
-          action: () => startCartFlow({ skipCreation: true }),
         });
         return;
       }
