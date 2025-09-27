@@ -6,7 +6,7 @@ import { useFlow } from '@/state/flow.js';
 import { downloadBlob } from '@/lib/mockup.js';
 import styles from './Mockup.module.css';
 import { buildExportBaseName } from '@/lib/filename.ts';
-import { apiFetch } from '@/lib/api.ts';
+import { apiFetch, getResolvedApiUrl } from '@/lib/api.ts';
 import {
   createJobAndProduct,
   ONLINE_STORE_DISABLED_MESSAGE,
@@ -478,6 +478,16 @@ export default function Mockup() {
         ? { cartId: current.cartId, variantGid: variantGidForCart, quantity: desiredQuantity }
         : { variantGid: variantGidForCart, quantity: desiredQuantity };
       const endpoint = current.cartId ? '/api/cart/add' : '/api/cart/start';
+      let resolvedEndpointUrl = '';
+      try {
+        resolvedEndpointUrl = getResolvedApiUrl(endpoint);
+      } catch (resolveErr) {
+        try {
+          console.warn('[cart-flow] cart_endpoint_resolve_failed', resolveErr, { endpoint });
+        } catch (logErr) {
+          console.debug?.('[cart-flow] cart_endpoint_resolve_failed_log_failed', logErr);
+        }
+      }
 
       let resp;
       try {
@@ -487,7 +497,14 @@ export default function Mockup() {
           body: JSON.stringify(payload),
         });
       } catch (networkErr) {
-        console.error('[cart-flow] cart_request_failed', networkErr);
+        try {
+          console.error('[cart-flow] cart_request_failed', networkErr, {
+            endpoint,
+            url: resolvedEndpointUrl || null,
+          });
+        } catch (logErr) {
+          console.debug?.('[cart-flow] cart_request_failed_log_failed', logErr);
+        }
         setCartStatus('idle');
         setBusy(false);
         showCartFailureToast('', { fallbackUrl: fallbackProductUrl, reason: 'network_error' });
@@ -507,6 +524,7 @@ export default function Mockup() {
               status: resp.status,
               contentType,
               bodyPreview: rawPreview,
+              url: resp.url || resolvedEndpointUrl || null,
             });
           } catch (logErr) {
             console.debug?.('[cart-flow] cart_response_parse_failed_log_failed', logErr);
@@ -518,6 +536,7 @@ export default function Mockup() {
             status: resp.status,
             contentType,
             bodyPreview: rawPreview,
+            url: resp.url || resolvedEndpointUrl || null,
           });
         } catch (logErr) {
           console.debug?.('[cart-flow] cart_non_json_response_log_failed', logErr);
