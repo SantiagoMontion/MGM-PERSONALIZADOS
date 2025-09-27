@@ -69,12 +69,18 @@ export async function pollJobAndCreateCart(
         body: JSON.stringify({ job_id: jobId }),
       });
       const j = await res.json();
-      if (!res.ok || typeof j?.webUrl !== "string") {
+      const cartUrl =
+        typeof j?.webUrl === "string"
+          ? j.webUrl
+          : typeof j?.url === "string"
+            ? j.url
+            : null;
+      if (!res.ok || !cartUrl) {
         // Si falta algo, seguir esperando si hay intentos restantes
         const code = j?.reason || j?.error || "unknown";
         return { ok: false, code, detail: j?.detail, raw: j };
       }
-      return { ok: true, cart_url: j.webUrl, raw: j };
+      return { ok: true, cart_url: cartUrl, raw: j };
     };
 
   // primer intento crear carrito

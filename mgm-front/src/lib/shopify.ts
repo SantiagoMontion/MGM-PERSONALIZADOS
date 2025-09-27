@@ -870,7 +870,7 @@ const CART_LINES_ADD_MUTATION = `mutation CartLinesAdd($cartId: ID!, $lines: [Ca
   }
 }`;
 
-const VARIANT_AVAILABILITY_QUERY = `query WaitVariant($id: ID!) @inContext(country: AR, language: ES) {
+const VARIANT_AVAILABILITY_QUERY = `query WaitVariant($id: ID!) {
   node(id: $id) {
     ... on ProductVariant {
       id

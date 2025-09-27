@@ -30,10 +30,10 @@ Returns `{ ok: true, ts }`. Useful for load balancers.
 
 ### `POST /api/cart/link`
 
-Creates a Shopify cart that includes a single product variant and returns `{ webUrl, checkoutUrl?, strategy }`.
+Creates a Shopify cart that includes a single product variant and returns `{ url, webUrl, checkoutUrl?, strategy, requestId? }` where `url === webUrl` on the Storefront path. When Shopify cannot create the cart the handler falls back to the public permalink (`https://www.mgmgamers.store/cart/<variantId>:<quantity>`).
 
 - Request body must include `variantId` (numeric or GraphQL). `quantity` defaults to `1` and is clamped between `1` and `99`.
-- The handler checks variant availability via the Storefront API and uses `cartCreate`. If Shopify rejects the mutation or the Storefront API is unavailable it falls back to `https://www.mgmgamers.store/cart/<variantId>:<quantity>?return_to=/cart`.
+- The handler short-polls variant availability through Storefront (`WaitVariant`) for up to ~5 s before attempting `cartCreate`. Failures (user errors, Storefront outages, 5xx responses) return a permalink so the browser can open `/cart` directly. All error payloads include `ok: false` and, when available, Shopify `requestId`/`userErrors`.
 - Invalid payloads return `400 { reason: 'bad_request' }`. Oversized bodies return `413`.
 
 ### `POST /api/private/checkout`
@@ -41,9 +41,9 @@ Creates a Shopify cart that includes a single product variant and returns `{ web
 Produces a checkout link for the private flow based on `PRIVATE_CHECKOUT_MODE`.
 
 - `storefront` (default): creates a Storefront cart and responds with `{ checkoutUrl, cartUrl?, strategy: 'storefront' }`, preserving Shopify's coupon UI. When the storefront path fails (variant unavailable, Storefront credentials missing, etc.) the handler transparently falls back to the draft-order flow.
-- `draft_order`: creates an Admin draft order and returns `{ checkoutUrl, strategy: 'draft_order' }` pointing to the invoice URL.
+- `draft_order`: creates an Admin draft order and returns `{ checkoutUrl, strategy: 'draft_order' }` pointing to the invoice URL. Draft orders now accept optional `discount` payloads (percentage or fixed-amount) which are applied with `draftOrderUpdate`, keeping Shopify's discount input available on the invoice checkout. Responses include `requestIds` for traceability when Shopify returns a `requestId` header.
 
-The request accepts `variantId`, optional `quantity`, `email`, `note` and `noteAttributes`. Missing or invalid payloads yield `400 { reason: 'bad_request' }`. Shopify failures return `502` with a `reason` field and, when available, `userErrors`.
+The request accepts `variantId`, optional `quantity`, `email`, `note`, `noteAttributes` and `discount`. Missing or invalid payloads yield `400 { reason: 'bad_request' }`. Shopify failures return `502` with a `reason` field and, when available, `userErrors` plus `requestId(s)`.
 
 ### `POST /api/create-checkout`
 

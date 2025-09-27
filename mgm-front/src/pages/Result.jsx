@@ -45,9 +45,15 @@ export default function Result() {
             body: JSON.stringify({ job_id: jobId }),
           });
           const j = await res.json();
-          if (res.ok && typeof j?.webUrl === "string") {
+          const cartUrl =
+            typeof j?.webUrl === "string"
+              ? j.webUrl
+              : typeof j?.url === "string"
+                ? j.url
+                : null;
+          if (res.ok && cartUrl) {
             setUrls({
-              cartUrl: j.webUrl,
+              cartUrl,
               checkoutUrl: j.checkoutUrl,
               cartPlain: j.cartPlain,
               checkoutPlain: j.checkoutPlain,

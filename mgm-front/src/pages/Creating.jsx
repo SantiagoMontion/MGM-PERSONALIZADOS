@@ -53,12 +53,19 @@ export default function Creating() {
       });
 
       if (res.ok) {
+        const cartUrl =
+          typeof res?.raw?.webUrl === "string"
+            ? res.raw.webUrl
+            : typeof res?.raw?.url === "string"
+              ? res.raw.url
+              : null;
         navigate(`/result/${jobId}`, {
           state: {
-            cartUrl: res?.raw?.webUrl,
+            cartUrl: cartUrl || undefined,
             checkoutUrl: res?.raw?.checkoutUrl,
             cartPlain: res?.raw?.cartPlain,
             checkoutPlain: res?.raw?.checkoutPlain,
+            strategy: res?.raw?.strategy,
           },
         });
       } else {
