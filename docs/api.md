@@ -38,12 +38,12 @@ Creates a Shopify cart that includes a single product variant and returns `{ url
 
 ### `POST /api/private/checkout`
 
-Produces a checkout link for the private flow based on `PRIVATE_CHECKOUT_MODE`.
+Creates a Shopify draft order for the private flow and always responds with JSON:
 
-- `storefront` (default): creates a Storefront cart and responds with `{ checkoutUrl, cartUrl?, strategy: 'storefront' }`, preserving Shopify's coupon UI. When the storefront path fails (variant unavailable, Storefront credentials missing, etc.) the handler transparently falls back to the draft-order flow.
-- `draft_order`: creates an Admin draft order and returns `{ checkoutUrl, strategy: 'draft_order' }` pointing to the invoice URL. Draft orders now accept optional `discount` payloads (percentage or fixed-amount) which are applied with `draftOrderUpdate`, keeping Shopify's discount input available on the invoice checkout. Responses include `requestIds` for traceability when Shopify returns a `requestId` header.
+- Success → `{ ok: true, invoiceUrl, draftOrderId?, draftOrderName?, requestIds?, strategy: 'draft_order' }`. The frontend opens `invoiceUrl` in a new tab.
+- Handled failure → `{ ok: false, reason, userErrors?, status?, detail?, requestId?, requestIds?, missing? }` using HTTP 4xx/5xx codes depending on the failure (validation errors → `400`, Shopify errors → `502`, missing env → `500`).
 
-The request accepts `variantId`, optional `quantity`, `email`, `note`, `noteAttributes` and `discount`. Missing or invalid payloads yield `400 { reason: 'bad_request' }`. Shopify failures return `502` with a `reason` field and, when available, `userErrors` plus `requestId(s)`.
+The request accepts `variantId`, optional `quantity`, `email`, `note`, `noteAttributes` and `discount`. Missing or invalid payloads yield `400 { ok: false, reason: 'bad_request' }`. Shopify failures include diagnostic fields (user errors, `requestId(s)`) to aid debugging.
 
 ### `POST /api/create-checkout`
 
