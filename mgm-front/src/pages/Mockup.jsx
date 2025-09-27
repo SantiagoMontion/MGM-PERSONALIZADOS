@@ -464,15 +464,10 @@ export default function Mockup() {
           const verifyPublication = () => verifyProductPublicationStatus(current.productId);
           const waitOptions = {
             verifyProductPublication: verifyPublication,
+            expectedHandle: current.productHandle,
           };
-          if (!current.productHandle) {
-            const missingHandleError = new Error('missing_product_handle');
-            missingHandleError.reason = 'missing_product_handle';
-            throw missingHandleError;
-          }
           const pollResult = await waitForVariantAvailability(
             current.variantIdGid || current.variantId,
-            current.productHandle,
             waitOptions,
           );
           if (IS_DEV) {
@@ -502,8 +497,8 @@ export default function Mockup() {
           const pollProductHandle =
             typeof pollResult?.productHandle === 'string' && pollResult.productHandle
               ? pollResult.productHandle
-              : typeof pollResult?.lastResponse?.product?.handle === 'string'
-                ? pollResult.lastResponse.product.handle
+              : typeof pollResult?.lastResponse?.node?.product?.handle === 'string'
+                ? pollResult.lastResponse.node.product.handle
                 : '';
           if (pollProductHandle) {
             let nextState = current;

@@ -870,15 +870,12 @@ const CART_LINES_ADD_MUTATION = `mutation CartLinesAdd($cartId: ID!, $lines: [Ca
   }
 }`;
 
-const VARIANT_AVAILABILITY_QUERY = `query WaitVariant($handle: String!) @inContext(country: AR, language: ES) {
-  product(handle: $handle) {
-    id
-    handle
-    variants(first: 10) {
-      nodes {
-        id
-        availableForSale
-      }
+const VARIANT_AVAILABILITY_QUERY = `query WaitVariant($id: ID!) @inContext(country: AR, language: ES) {
+  node(id: $id) {
+    ... on ProductVariant {
+      id
+      availableForSale
+      product { handle }
     }
   }
 }`;
@@ -1165,16 +1162,13 @@ export async function verifyProductPublicationStatus(productId?: string | number
 interface VariantPollVariantNode {
   id?: string | null;
   availableForSale?: boolean | null;
+  product?: {
+    handle?: string | null;
+  } | null;
 }
 
 interface VariantPollData {
-  product?: {
-    id?: string | null;
-    handle?: string | null;
-    variants?: {
-      nodes?: VariantPollVariantNode[] | null;
-    } | null;
-  } | null;
+  node?: VariantPollVariantNode | null;
 }
 
 const DEFAULT_VARIANT_POLL_DELAYS_MS = [
@@ -1198,24 +1192,19 @@ export interface WaitVariantOptions {
   verifyProductPublication?: (() => Promise<boolean | { published?: boolean; statusActive?: boolean }>) | null;
   attemptDelaysMs?: number[];
   initialDelayMs?: number;
+  expectedHandle?: string | null;
 }
 
 export async function waitForVariantAvailability(
   variantId: string | number,
-  productHandle: string,
   options: WaitVariantOptions = {},
 ) {
-  const { signal, verifyProductPublication } = options;
+  const { signal, verifyProductPublication, expectedHandle } = options;
   const numericVariant = normalizeVariantNumericId(variantId);
   if (!numericVariant) {
     throw new Error('invalid_variant_id');
   }
-  const normalizedHandle = typeof productHandle === 'string' ? productHandle.trim() : '';
-  if (!normalizedHandle) {
-    const err = new Error('invalid_product_handle') as Error & { reason?: string };
-    err.reason = 'invalid_product_handle';
-    throw err;
-  }
+  const initialHandle = typeof expectedHandle === 'string' ? expectedHandle.trim() : '';
   const configResult = resolveStorefrontConfig();
   if (!configResult.ok) {
     try {
@@ -1231,7 +1220,7 @@ export async function waitForVariantAvailability(
       lastResponse: null,
       variantPresent: true,
       availableForSale: true,
-      productHandle: normalizedHandle,
+      productHandle: initialHandle || null,
       quantityAvailable: null,
     };
   }
@@ -1265,7 +1254,7 @@ export async function waitForVariantAvailability(
   let lastResponse: VariantPollData | null = null;
   let lastVariantPresent = false;
   let lastAvailableForSale = false;
-  let lastProductHandle: string | null = normalizedHandle;
+  let lastProductHandle: string | null = initialHandle || null;
   let adminCheckPerformed = false;
 
   const runStorefrontPoll = async (attemptNumber: number) => {
@@ -1273,23 +1262,18 @@ export async function waitForVariantAvailability(
       const { response, payload, requestId } = await performStorefrontGraphQL<VariantPollData>(
         config,
         VARIANT_AVAILABILITY_QUERY,
-        { handle: normalizedHandle },
+        { id: variantGid },
       );
       const data = payload?.data || null;
       lastResponse = data;
-      const productNode = data?.product;
-      if (productNode?.handle) {
-        lastProductHandle = String(productNode.handle);
-      }
-      const nodes = Array.isArray(productNode?.variants?.nodes) ? productNode.variants.nodes : [];
-      const variantNode = nodes.find((node) => {
-        const nodeId = typeof node?.id === 'string' ? node.id : '';
-        if (!nodeId) return false;
-        if (nodeId === variantGid) return true;
-        return normalizeVariantNumericId(nodeId) === numericVariant;
-      }) || null;
-      const variantPresent = Boolean(variantNode);
+      const variantNode = data?.node || null;
+      const variantPresent = Boolean(variantNode?.id);
       const availableForSale = variantNode?.availableForSale === true;
+      const responseHandle =
+        typeof variantNode?.product?.handle === 'string' ? variantNode.product.handle : '';
+      if (responseHandle) {
+        lastProductHandle = responseHandle;
+      }
 
       lastVariantPresent = variantPresent;
       lastAvailableForSale = availableForSale;
