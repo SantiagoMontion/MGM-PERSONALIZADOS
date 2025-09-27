@@ -543,6 +543,7 @@ export default function Mockup() {
         }
       }
 
+      const responseUrl = typeof json?.url === 'string' ? json.url.trim() : '';
       const cartWebUrl = json?.cartWebUrl && typeof json.cartWebUrl === 'string'
         ? json.cartWebUrl
         : '';
@@ -552,19 +553,27 @@ export default function Mockup() {
       const serverReason = typeof json?.reason === 'string' ? json.reason : '';
       const serverUserErrors = Array.isArray(json?.userErrors) ? json.userErrors : [];
 
-      if (json?.ok && (cartWebUrl || fallbackUrlFromServer)) {
+      const normalizedCartWebUrl = cartWebUrl ? cartWebUrl.trim() : '';
+      const normalizedFallbackUrlFromServer = fallbackUrlFromServer ? fallbackUrlFromServer.trim() : '';
+
+      const primaryCartUrl = responseUrl
+        || normalizedCartWebUrl
+        || normalizedFallbackUrlFromServer
+        || '';
+
+      if (json?.ok && primaryCartUrl) {
         const nextState = {
           ...current,
           variantNumericId,
           variantIdNumeric: variantNumericId,
           variantIdGid: variantGidForCart,
-          ...(cartWebUrl ? { webUrl: cartWebUrl } : {}),
+          ...(responseUrl ? { url: responseUrl } : {}),
+          ...(normalizedCartWebUrl ? { webUrl: normalizedCartWebUrl } : {}),
           ...(json?.cartId ? { cartId: json.cartId } : {}),
           ...(fallbackProductUrl ? { fallbackUrl: fallbackProductUrl } : {}),
         };
         setPendingCart(nextState);
         const successMessage = 'Producto agregado. Abrimos tu carrito.';
-        const primaryCartUrl = cartWebUrl || fallbackUrlFromServer || 'https://www.mgmgamers.store/cart';
         const opened = openCartAndFinalize(primaryCartUrl, {
           variantNumericId,
           fallbackUrl: fallbackProductUrl || undefined,
@@ -573,8 +582,14 @@ export default function Mockup() {
         if (opened) {
           return;
         }
-        if (fallbackUrlFromServer && fallbackUrlFromServer !== primaryCartUrl) {
-          const fallbackOpened = openCartAndFinalize(fallbackUrlFromServer, {
+        const fallbackCandidates = [normalizedCartWebUrl, normalizedFallbackUrlFromServer]
+          .map((candidate) => (typeof candidate === 'string' ? candidate : ''))
+          .filter((candidate) => Boolean(candidate));
+        for (const candidate of fallbackCandidates) {
+          if (!candidate || candidate === primaryCartUrl) {
+            continue;
+          }
+          const fallbackOpened = openCartAndFinalize(candidate, {
             variantNumericId,
             fallbackUrl: fallbackProductUrl || undefined,
             successMessage,
@@ -709,7 +724,11 @@ export default function Mockup() {
         } catch (tabErr) {
           try {
             console.warn('[private-checkout-open]', tabErr);
-          } catch {}
+          } catch (logErr) {
+            if (logErr) {
+              // noop
+            }
+          }
         }
         setToast({ message: 'Listo. Abrimos tu checkout privado en otra pestaña.' });
         return;
@@ -775,7 +794,11 @@ export default function Mockup() {
             status: typeof error?.status === 'number' ? error.status : null,
             userErrors,
           });
-        } catch {}
+        } catch (logErr) {
+          if (logErr) {
+            // noop
+          }
+        }
         setToast({
           message,
           actionLabel: 'Reintentar',
