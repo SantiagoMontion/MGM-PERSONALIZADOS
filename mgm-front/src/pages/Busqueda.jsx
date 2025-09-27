@@ -183,16 +183,18 @@ export default function Busqueda() {
             </thead>
             <tbody>
               {hasResults ? (
-                results.map((item) => (
-                  <tr key={item.path}>
-                    <td className={styles.fileCell}>{item.name || '—'}</td>
-                    <td className={styles.sizeCell}>{formatBytes(item.size)}</td>
-                    <td className={styles.dateCell}>{formatDate(item.createdAt)}</td>
-                    <td>
-                      {item.downloadUrl ? (
-                        <a
-                          className={styles.downloadLink}
-                          href={item.downloadUrl}
+                results.map((item) => {
+                  const key = item.id || item.path || item.fileName;
+                  return (
+                    <tr key={key}>
+                      <td className={styles.fileCell}>{item.fileName || item.name || '—'}</td>
+                      <td className={styles.sizeCell}>{formatBytes(item.sizeBytes ?? item.size)}</td>
+                      <td className={styles.dateCell}>{formatDate(item.createdAt)}</td>
+                      <td>
+                        {item.downloadUrl ? (
+                          <a
+                            className={styles.downloadLink}
+                            href={item.downloadUrl}
                           target="_blank"
                           rel="noreferrer"
                         >
@@ -203,7 +205,8 @@ export default function Busqueda() {
                       )}
                     </td>
                   </tr>
-                ))
+                  );
+                })
               ) : (
                 <tr>
                   <td className={styles.noResults} colSpan={4}>
