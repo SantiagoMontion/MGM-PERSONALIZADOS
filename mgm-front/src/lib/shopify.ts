@@ -1,4 +1,4 @@
-import { apiFetch } from './api';
+import { apiFetch, getResolvedApiUrl } from './api';
 import { FlowState } from '@/state/flow';
 
 const DEFAULT_STORE_BASE = 'https://kw0f4u-ji.myshopify.com';
@@ -8,16 +8,7 @@ const IS_DEV = Boolean(
     && (import.meta as { env?: { DEV?: boolean } }).env?.DEV,
 );
 const DEFAULT_STOREFRONT_API_VERSION = '2024-07';
-
-const PRIVATE_API_BASE =
-  typeof import.meta !== 'undefined'
-    && typeof (import.meta as { env?: Record<string, unknown> }).env?.VITE_API_URL === 'string'
-    ? String((import.meta as { env?: Record<string, unknown> }).env?.VITE_API_URL)
-        .trim()
-        .replace(/\/+$/, '')
-    : '';
-
-const PRIVATE_CHECKOUT_ENDPOINT = PRIVATE_API_BASE ? `${PRIVATE_API_BASE}/api/private/checkout` : '';
+const PRIVATE_CHECKOUT_PATH = '/api/private/checkout';
 
 const PRODUCT_LABELS = {
   mousepad: 'Mousepad',
@@ -515,6 +506,7 @@ export async function createJobAndProduct(
         const privatePayload: Record<string, unknown> = {
           variantId,
           quantity: 1,
+          ...(productId ? { productId } : {}),
           ...(customerEmail ? { email: customerEmail } : {}),
         };
         if (privateDraftOrder?.note) {
@@ -523,17 +515,27 @@ export async function createJobAndProduct(
         if (privateDraftOrder?.attributes?.length) {
           privatePayload.noteAttributes = privateDraftOrder.attributes;
         }
-        if (!PRIVATE_CHECKOUT_ENDPOINT) {
+        const resolvedPrivateCheckoutUrl = getResolvedApiUrl(PRIVATE_CHECKOUT_PATH);
+        if (!resolvedPrivateCheckoutUrl) {
           const err: Error & { reason?: string } = new Error('private_checkout_missing_api_url');
           err.reason = 'private_checkout_missing_api_url';
           throw err;
         }
-        const privateCheckoutUrl = PRIVATE_CHECKOUT_ENDPOINT;
-        const ckResp = await fetch(privateCheckoutUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(privatePayload),
-        });
+        let ckResp: Response;
+        try {
+          ckResp = await apiFetch(PRIVATE_CHECKOUT_PATH, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(privatePayload),
+          });
+        } catch (requestErr) {
+          if ((requestErr as Error & { code?: string })?.code === 'missing_api_url') {
+            const err: Error & { reason?: string } = new Error('private_checkout_missing_api_url');
+            err.reason = 'private_checkout_missing_api_url';
+            throw err;
+          }
+          throw requestErr;
+        }
         const contentTypeRaw = ckResp.headers?.get?.('content-type') || '';
         const contentType = typeof contentTypeRaw === 'string' ? contentTypeRaw : '';
         const rawBody = await ckResp.text();
@@ -554,7 +556,8 @@ export async function createJobAndProduct(
               status: ckResp.status,
               contentType,
               bodyPreview: typeof rawBody === 'string' ? rawBody.slice(0, 200) : '',
-              url: privateCheckoutUrl,
+              url: ckResp.url || resolvedPrivateCheckoutUrl,
+              path: PRIVATE_CHECKOUT_PATH,
             });
           } catch {}
         };
@@ -567,6 +570,7 @@ export async function createJobAndProduct(
             status?: number;
             userErrors?: unknown;
             requestId?: string;
+            requestIds?: unknown;
           } = new Error(reason);
           err.reason = reason;
           if (typeof ckResp.status === 'number') {
@@ -584,6 +588,9 @@ export async function createJobAndProduct(
             }
             if (typeof ck?.requestId === 'string') {
               err.requestId = ck.requestId;
+            }
+            if (Array.isArray(ck?.requestIds) && ck.requestIds.length) {
+              err.requestIds = ck.requestIds;
             }
             const message = typeof ck?.message === 'string' ? ck.message.trim() : '';
             err.friendlyMessage = message || 'No pudimos generar el checkout privado, probá de nuevo.';
@@ -610,8 +617,16 @@ export async function createJobAndProduct(
           logError('non_json_response');
           throw buildError('private_checkout_non_json');
         }
-        if (ck.ok === true && typeof ck.invoiceUrl === 'string' && ck.invoiceUrl.trim()) {
-          result.checkoutUrl = ck.invoiceUrl.trim();
+        const checkoutUrlFromResponse =
+          typeof ck.url === 'string' && ck.url.trim()
+            ? ck.url.trim()
+            : typeof ck.invoiceUrl === 'string' && ck.invoiceUrl.trim()
+              ? ck.invoiceUrl.trim()
+              : typeof ck.checkoutUrl === 'string' && ck.checkoutUrl.trim()
+                ? ck.checkoutUrl.trim()
+                : '';
+        if (ck.ok === true && checkoutUrlFromResponse) {
+          result.checkoutUrl = checkoutUrlFromResponse;
           if (ck.draftOrderId) {
             result.draftOrderId = String(ck.draftOrderId);
           }
@@ -623,6 +638,11 @@ export async function createJobAndProduct(
           }
           if (!result.draftOrderName && ck.draft_order_name) {
             result.draftOrderName = String(ck.draft_order_name);
+          }
+          if (Array.isArray(ck.requestIds) && ck.requestIds.length) {
+            try {
+              console.info('[private-checkout] request_ids', ck.requestIds);
+            } catch {}
           }
         } else {
           logError('invalid_payload');
