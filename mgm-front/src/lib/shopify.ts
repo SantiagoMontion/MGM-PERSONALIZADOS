@@ -9,6 +9,16 @@ const IS_DEV = Boolean(
 );
 const DEFAULT_STOREFRONT_API_VERSION = '2024-07';
 
+const PRIVATE_API_BASE =
+  typeof import.meta !== 'undefined'
+    && typeof (import.meta as { env?: Record<string, unknown> }).env?.VITE_API_URL === 'string'
+    ? String((import.meta as { env?: Record<string, unknown> }).env?.VITE_API_URL)
+        .trim()
+        .replace(/\/+$/, '')
+    : '';
+
+const PRIVATE_CHECKOUT_ENDPOINT = PRIVATE_API_BASE ? `${PRIVATE_API_BASE}/api/private/checkout` : '';
+
 const PRODUCT_LABELS = {
   mousepad: 'Mousepad',
   glasspad: 'Glasspad',
@@ -513,41 +523,117 @@ export async function createJobAndProduct(
         if (privateDraftOrder?.attributes?.length) {
           privatePayload.noteAttributes = privateDraftOrder.attributes;
         }
-        const ckResp = await apiFetch('/api/private/checkout', {
+        if (!PRIVATE_CHECKOUT_ENDPOINT) {
+          const err: Error & { reason?: string } = new Error('private_checkout_missing_api_url');
+          err.reason = 'private_checkout_missing_api_url';
+          throw err;
+        }
+        const privateCheckoutUrl = PRIVATE_CHECKOUT_ENDPOINT;
+        const ckResp = await fetch(privateCheckoutUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(privatePayload),
         });
-        const ck = await ckResp.json().catch(() => null);
-        if (!ckResp.ok || typeof ck?.checkoutUrl !== 'string') {
-          const reason = typeof ck?.error === 'string' && ck.error ? ck.error : 'private_checkout_failed';
+        const contentTypeRaw = ckResp.headers?.get?.('content-type') || '';
+        const contentType = typeof contentTypeRaw === 'string' ? contentTypeRaw : '';
+        const rawBody = await ckResp.text();
+        let ck: any = null;
+        if (contentType.toLowerCase().includes('application/json')) {
+          try {
+            ck = rawBody ? JSON.parse(rawBody) : null;
+          } catch (parseErr) {
+            ck = null;
+            try {
+              console.warn('[private-checkout] json_parse_failed', parseErr);
+            } catch {}
+          }
+        }
+        const logError = (label: string) => {
+          try {
+            console.error(`[private-checkout] ${label}`, {
+              status: ckResp.status,
+              contentType,
+              bodyPreview: typeof rawBody === 'string' ? rawBody.slice(0, 200) : '',
+              url: privateCheckoutUrl,
+            });
+          } catch {}
+        };
+        const buildError = (reason: string) => {
           const err: Error & {
             reason?: string;
             friendlyMessage?: string;
             missing?: string[];
             detail?: unknown;
             status?: number;
+            userErrors?: unknown;
+            requestId?: string;
           } = new Error(reason);
           err.reason = reason;
-          if (Array.isArray(ck?.missing) && ck.missing.length) {
-            err.missing = ck.missing;
-          }
-          if (ck?.detail) {
-            err.detail = ck.detail;
-          }
-          const message = typeof ck?.message === 'string' ? ck.message.trim() : '';
-          err.friendlyMessage = message || 'No pudimos generar el checkout privado, probá de nuevo.';
           if (typeof ckResp.status === 'number') {
             err.status = ckResp.status;
           }
+          if (ck && typeof ck === 'object') {
+            if (Array.isArray(ck?.missing) && ck.missing.length) {
+              err.missing = ck.missing;
+            }
+            if (Array.isArray(ck?.userErrors) && ck.userErrors.length) {
+              err.userErrors = ck.userErrors;
+            }
+            if (ck?.detail) {
+              err.detail = ck.detail;
+            }
+            if (typeof ck?.requestId === 'string') {
+              err.requestId = ck.requestId;
+            }
+            const message = typeof ck?.message === 'string' ? ck.message.trim() : '';
+            err.friendlyMessage = message || 'No pudimos generar el checkout privado, probá de nuevo.';
+          } else {
+            err.friendlyMessage = 'No pudimos generar el checkout privado, probá de nuevo.';
+          }
+          if (reason === 'private_checkout_missing_api_url') {
+            err.friendlyMessage = 'Configurá VITE_API_URL para conectar con la API.';
+          }
+          if (!err.detail && typeof rawBody === 'string' && rawBody) {
+            err.detail = rawBody.slice(0, 200);
+          }
+          return err;
+        };
+        if (!ckResp.ok) {
+          logError('http_error');
+          const reason =
+            (ck && typeof ck?.reason === 'string' && ck.reason.trim())
+              ? ck.reason.trim()
+              : 'private_checkout_failed';
+          throw buildError(reason);
+        }
+        if (!ck || typeof ck !== 'object') {
+          logError('non_json_response');
+          throw buildError('private_checkout_non_json');
+        }
+        if (ck.ok === true && typeof ck.invoiceUrl === 'string' && ck.invoiceUrl.trim()) {
+          result.checkoutUrl = ck.invoiceUrl.trim();
+          if (ck.draftOrderId) {
+            result.draftOrderId = String(ck.draftOrderId);
+          }
+          if (!result.draftOrderId && ck.draft_order_id) {
+            result.draftOrderId = String(ck.draft_order_id);
+          }
+          if (ck.draftOrderName) {
+            result.draftOrderName = String(ck.draftOrderName);
+          }
+          if (!result.draftOrderName && ck.draft_order_name) {
+            result.draftOrderName = String(ck.draft_order_name);
+          }
+        } else {
+          logError('invalid_payload');
+          const reason =
+            typeof ck.reason === 'string' && ck.reason
+              ? ck.reason
+              : ck.ok === false
+                ? 'private_checkout_failed'
+                : 'private_checkout_invalid_payload';
+          const err = buildError(reason);
           throw err;
-        }
-        result.checkoutUrl = ck.checkoutUrl;
-        if (ck.draft_order_id) {
-          result.draftOrderId = String(ck.draft_order_id);
-        }
-        if (ck.draft_order_name) {
-          result.draftOrderName = String(ck.draft_order_name);
         }
       } else {
         const checkoutPayload: Record<string, unknown> = {

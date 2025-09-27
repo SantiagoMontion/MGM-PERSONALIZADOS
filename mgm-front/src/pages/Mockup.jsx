@@ -685,13 +685,12 @@ export default function Mockup() {
         return;
       }
       if (mode === 'private' && result.checkoutUrl) {
-        const opened = openCartTab(result.checkoutUrl);
-        if (!opened) {
+        try {
+          window.open(result.checkoutUrl, '_blank', 'noopener');
+        } catch (tabErr) {
           try {
-            window.open(result.checkoutUrl, '_blank', 'noopener');
-          } catch (tabErr) {
             console.warn('[private-checkout-open]', tabErr);
-          }
+          } catch {}
         }
         setToast({ message: 'Listo. Abrimos tu checkout privado en otra pestaña.' });
         return;
@@ -725,7 +724,48 @@ export default function Mockup() {
         return;
       }
       if (mode === 'private') {
-        setToast(null);
+        const userErrors = Array.isArray(error?.userErrors)
+          ? error.userErrors
+            .map((entry) => {
+              if (!entry) return null;
+              if (typeof entry === 'string') return entry;
+              if (typeof entry?.message === 'string' && entry.message.trim()) return entry.message.trim();
+              return null;
+            })
+            .filter(Boolean)
+          : [];
+        const baseMessage =
+          typeof error?.friendlyMessage === 'string' && error.friendlyMessage
+            ? error.friendlyMessage
+            : 'No pudimos generar el checkout privado. Probá de nuevo en unos segundos.';
+        const extraParts = [];
+        if (userErrors.length) {
+          extraParts.push(userErrors.join(' | '));
+        }
+        if (reason) {
+          extraParts.push(`Motivo: ${reason}`);
+        }
+        const detail = typeof error?.detail === 'string' ? error.detail : '';
+        if (detail && !extraParts.length) {
+          extraParts.push(detail);
+        }
+        const message = extraParts.length ? `${baseMessage} ${extraParts.join(' | ')}` : baseMessage;
+        try {
+          console.error('[private-checkout] toast_error', {
+            reason: reason || null,
+            status: typeof error?.status === 'number' ? error.status : null,
+            userErrors,
+          });
+        } catch {}
+        setToast({
+          message,
+          actionLabel: 'Reintentar',
+          action: () => {
+            setToast(null);
+            handle('private', { reuseLastProduct: true });
+          },
+        });
+        return;
       }
       showFriendlyError(error);
     } finally {
