@@ -238,16 +238,38 @@ export default function Mockup() {
 
   function showCartFailureToast(url, options = {}) {
     const fallbackUrl = typeof options.fallbackUrl === 'string' ? options.fallbackUrl : '';
+    const reason = typeof options.reason === 'string' ? options.reason : '';
+    const normalizedUserErrors = Array.isArray(options.userErrors)
+      ? options.userErrors
+        .map((err) => {
+          if (!err) return null;
+          if (typeof err === 'string') return err;
+          if (typeof err.message === 'string' && err.message.trim()) return err.message.trim();
+          return null;
+        })
+        .filter(Boolean)
+      : [];
     const hasPrimary = typeof url === 'string' && url.trim().length > 0;
     const hasFallback = typeof fallbackUrl === 'string' && fallbackUrl.trim().length > 0;
+    const baseMessage = 'No pudimos agregarlo al carrito.';
+    const details = [];
+    if (normalizedUserErrors.length) {
+      details.push(normalizedUserErrors.join(' | '));
+    }
+    if (reason && !normalizedUserErrors.length) {
+      details.push(`Motivo: ${reason}`);
+    }
+    const message = details.length
+      ? `${baseMessage} ${details.join(' | ')}. Probá de nuevo.`
+      : `${baseMessage} Probá de nuevo.`;
     if (!hasPrimary && !hasFallback) {
-      setToast({ message: 'No pudimos agregarlo al carrito. Probá de nuevo.' });
+      setToast({ message });
       return;
     }
     const nextUrl = hasFallback && (!hasPrimary || fallbackUrl !== url) ? fallbackUrl : url;
     const useFallback = hasFallback && nextUrl === fallbackUrl && fallbackUrl !== url;
     setToast({
-      message: 'No pudimos agregarlo al carrito. Probá de nuevo.',
+      message,
       actionLabel: 'Reintentar',
       action: () => attemptOpenCart(nextUrl, { useFallback }),
     });
@@ -468,15 +490,38 @@ export default function Mockup() {
         console.error('[cart-flow] cart_request_failed', networkErr);
         setCartStatus('idle');
         setBusy(false);
-        showCartFailureToast('', { fallbackUrl: fallbackProductUrl });
+        showCartFailureToast('', { fallbackUrl: fallbackProductUrl, reason: 'network_error' });
         return;
       }
 
+      const contentType = (resp.headers.get('content-type') || '').toLowerCase();
+      const rawBody = await resp.text();
+      const rawPreview = rawBody ? rawBody.slice(0, 200) : '';
       let json = null;
-      try {
-        json = await resp.json();
-      } catch (parseErr) {
-        console.warn('[cart-flow] cart_response_parse_failed', parseErr);
+      if (contentType.includes('application/json')) {
+        try {
+          json = rawBody ? JSON.parse(rawBody) : null;
+        } catch (parseErr) {
+          try {
+            console.error('[cart-flow] cart_response_parse_failed', parseErr, {
+              status: resp.status,
+              contentType,
+              bodyPreview: rawPreview,
+            });
+          } catch (logErr) {
+            console.debug?.('[cart-flow] cart_response_parse_failed_log_failed', logErr);
+          }
+        }
+      } else {
+        try {
+          console.error('[cart-flow] cart_non_json_response', {
+            status: resp.status,
+            contentType,
+            bodyPreview: rawPreview,
+          });
+        } catch (logErr) {
+          console.debug?.('[cart-flow] cart_non_json_response_log_failed', logErr);
+        }
       }
 
       const cartWebUrl = json?.cartWebUrl && typeof json.cartWebUrl === 'string'
@@ -485,8 +530,10 @@ export default function Mockup() {
       const fallbackUrlFromServer = json?.fallbackUrl && typeof json.fallbackUrl === 'string'
         ? json.fallbackUrl
         : '';
+      const serverReason = typeof json?.reason === 'string' ? json.reason : '';
+      const serverUserErrors = Array.isArray(json?.userErrors) ? json.userErrors : [];
 
-      if (resp.ok && json?.ok) {
+      if (json?.ok && (cartWebUrl || fallbackUrlFromServer)) {
         const nextState = {
           ...current,
           variantNumericId,
@@ -498,7 +545,8 @@ export default function Mockup() {
         };
         setPendingCart(nextState);
         const successMessage = 'Producto agregado. Abrimos tu carrito.';
-        const opened = openCartAndFinalize(cartWebUrl || 'https://www.mgmgamers.store/cart', {
+        const primaryCartUrl = cartWebUrl || fallbackUrlFromServer || 'https://www.mgmgamers.store/cart';
+        const opened = openCartAndFinalize(primaryCartUrl, {
           variantNumericId,
           fallbackUrl: fallbackProductUrl || undefined,
           successMessage,
@@ -506,7 +554,7 @@ export default function Mockup() {
         if (opened) {
           return;
         }
-        if (fallbackUrlFromServer) {
+        if (fallbackUrlFromServer && fallbackUrlFromServer !== primaryCartUrl) {
           const fallbackOpened = openCartAndFinalize(fallbackUrlFromServer, {
             variantNumericId,
             fallbackUrl: fallbackProductUrl || undefined,
@@ -518,7 +566,11 @@ export default function Mockup() {
         }
         setCartStatus('idle');
         setBusy(false);
-        showCartFailureToast('', { fallbackUrl: fallbackProductUrl });
+        showCartFailureToast('', {
+          fallbackUrl: fallbackProductUrl || fallbackUrlFromServer,
+          reason: serverReason,
+          userErrors: serverUserErrors,
+        });
         return;
       }
 
@@ -532,9 +584,25 @@ export default function Mockup() {
         }
       }
 
+      try {
+        console.warn('[cart-flow] cart_flow_failed', {
+          status: resp.status,
+          reason: serverReason || (json?.ok ? 'missing_cart_url' : json?.ok === false ? 'server_error' : 'non_json_response'),
+          userErrors: serverUserErrors,
+          contentType,
+          bodyPreview: rawPreview,
+        });
+      } catch (logErr) {
+        console.debug?.('[cart-flow] cart_flow_failed_log_failed', logErr);
+      }
+
       setCartStatus('idle');
       setBusy(false);
-      showCartFailureToast('', { fallbackUrl: fallbackProductUrl });
+      showCartFailureToast('', {
+        fallbackUrl: fallbackProductUrl || fallbackUrlFromServer,
+        reason: serverReason || (!json ? 'non_json_response' : ''),
+        userErrors: serverUserErrors,
+      });
       return;
     } catch (err) {
       setCartStatus('idle');
