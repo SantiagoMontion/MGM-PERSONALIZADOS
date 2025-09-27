@@ -735,13 +735,13 @@ interface StorefrontConfig {
 
 function resolveStorefrontConfig(): { ok: true; config: StorefrontConfig } | { ok: false; missing: string[] } {
   const missing: string[] = [];
-  const domainRaw = readEnv(['VITE_SHOPIFY_DOMAIN', 'NEXT_PUBLIC_SHOPIFY_DOMAIN']);
-  const token = readEnv(['VITE_SHOPIFY_STOREFRONT_TOKEN', 'NEXT_PUBLIC_SHOPIFY_STOREFRONT_TOKEN']);
-  const versionRaw = readEnv(['VITE_SHOPIFY_API_VERSION', 'NEXT_PUBLIC_SHOPIFY_API_VERSION']);
+  const domainRaw = readEnv(['VITE_SHOPIFY_DOMAIN']);
+  const token = readEnv(['VITE_SHOPIFY_STOREFRONT_TOKEN']);
+  const versionRaw = readEnv(['VITE_SHOPIFY_API_VERSION']);
 
-  if (!domainRaw) missing.push('VITE_SHOPIFY_DOMAIN (or NEXT_PUBLIC_SHOPIFY_DOMAIN)');
-  if (!token) missing.push('VITE_SHOPIFY_STOREFRONT_TOKEN (or NEXT_PUBLIC_SHOPIFY_STOREFRONT_TOKEN)');
-  if (!versionRaw) missing.push('VITE_SHOPIFY_API_VERSION (or NEXT_PUBLIC_SHOPIFY_API_VERSION)');
+  if (!domainRaw) missing.push('VITE_SHOPIFY_DOMAIN');
+  if (!token) missing.push('VITE_SHOPIFY_STOREFRONT_TOKEN');
+  if (!versionRaw) missing.push('VITE_SHOPIFY_API_VERSION');
 
   if (missing.length) {
     return { ok: false, missing };
