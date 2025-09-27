@@ -553,28 +553,24 @@ export default function Mockup() {
       const serverReason = typeof json?.reason === 'string' ? json.reason : '';
       const serverUserErrors = Array.isArray(json?.userErrors) ? json.userErrors : [];
 
+      const normalizedResponseUrl = responseUrl ? responseUrl.trim() : '';
       const normalizedCartWebUrl = cartWebUrl ? cartWebUrl.trim() : '';
       const normalizedFallbackUrlFromServer = fallbackUrlFromServer ? fallbackUrlFromServer.trim() : '';
 
-      const primaryCartUrl = responseUrl
-        || normalizedCartWebUrl
-        || normalizedFallbackUrlFromServer
-        || '';
-
-      if (json?.ok && primaryCartUrl) {
+      if (json?.ok && normalizedResponseUrl) {
         const nextState = {
           ...current,
           variantNumericId,
           variantIdNumeric: variantNumericId,
           variantIdGid: variantGidForCart,
-          ...(responseUrl ? { url: responseUrl } : {}),
+          ...(normalizedResponseUrl ? { url: normalizedResponseUrl } : {}),
           ...(normalizedCartWebUrl ? { webUrl: normalizedCartWebUrl } : {}),
           ...(json?.cartId ? { cartId: json.cartId } : {}),
           ...(fallbackProductUrl ? { fallbackUrl: fallbackProductUrl } : {}),
         };
         setPendingCart(nextState);
         const successMessage = 'Producto agregado. Abrimos tu carrito.';
-        const opened = openCartAndFinalize(primaryCartUrl, {
+        const opened = openCartAndFinalize(normalizedResponseUrl, {
           variantNumericId,
           fallbackUrl: fallbackProductUrl || undefined,
           successMessage,
@@ -586,7 +582,7 @@ export default function Mockup() {
           .map((candidate) => (typeof candidate === 'string' ? candidate : ''))
           .filter((candidate) => Boolean(candidate));
         for (const candidate of fallbackCandidates) {
-          if (!candidate || candidate === primaryCartUrl) {
+          if (!candidate || candidate === normalizedResponseUrl) {
             continue;
           }
           const fallbackOpened = openCartAndFinalize(candidate, {
@@ -606,6 +602,16 @@ export default function Mockup() {
           userErrors: serverUserErrors,
         });
         return;
+      }
+
+      if (normalizedCartWebUrl) {
+        const fallbackOpened = openCartAndFinalize(normalizedCartWebUrl, {
+          variantNumericId,
+          fallbackUrl: fallbackProductUrl || undefined,
+        });
+        if (fallbackOpened) {
+          return;
+        }
       }
 
       if (fallbackUrlFromServer) {
@@ -648,6 +654,8 @@ export default function Mockup() {
 
   async function handle(mode, options = {}) {
     if (mode !== 'checkout' && mode !== 'cart' && mode !== 'private') return;
+
+    let privateStageCallback = null;
 
     if (mode === 'cart') {
       await startCartFlow();
@@ -696,8 +704,9 @@ export default function Mockup() {
             setToast({ message: 'Generando checkout privado…' });
           }
         };
+        privateStageCallback = stageCallback;
         setToast({ message: 'Creando producto privado…' });
-        jobOptions = { ...options, onPrivateStageChange: stageCallback };
+        jobOptions = { ...options, onPrivateStageChange: stageCallback, skipPrivateCheckout: true };
       }
       const normalizedDiscountCode = discountCode || '';
       const jobOptionsWithDiscount =
@@ -718,20 +727,203 @@ export default function Mockup() {
         window.location.assign(result.checkoutUrl);
         return;
       }
-      if (mode === 'private' && result.checkoutUrl) {
+      if (mode === 'private') {
+        const variantIdForCheckout = typeof result?.variantId === 'string' ? result.variantId : '';
+        if (!variantIdForCheckout) {
+          throw new Error('missing_variant');
+        }
         try {
-          window.open(result.checkoutUrl, '_blank', 'noopener');
-        } catch (tabErr) {
+          privateStageCallback?.('creating_checkout');
+        } catch (stageErr) {
+          console.debug?.('[private-checkout] stage_callback_failed', stageErr);
+        }
+        const payloadFromResult = result?.privateCheckoutPayload && typeof result.privateCheckoutPayload === 'object'
+          ? result.privateCheckoutPayload
+          : {};
+        const privatePayload = {
+          quantity: 1,
+          ...(result?.productId ? { productId: result.productId } : {}),
+          ...payloadFromResult,
+          variantId: payloadFromResult?.variantId || variantIdForCheckout,
+        };
+        if (!privatePayload.variantId) {
+          privatePayload.variantId = variantIdForCheckout;
+        }
+        if (!privatePayload.quantity || Number(privatePayload.quantity) <= 0) {
+          privatePayload.quantity = 1;
+        }
+        const emailCandidate = typeof submissionFlow.customerEmail === 'string'
+          ? submissionFlow.customerEmail.trim()
+          : '';
+        if (emailCandidate && !privatePayload.email) {
+          privatePayload.email = emailCandidate;
+        }
+        const privateEndpoint = '/api/private/checkout';
+        let resolvedPrivateCheckoutUrl = '';
+        try {
+          resolvedPrivateCheckoutUrl = getResolvedApiUrl(privateEndpoint);
+        } catch (resolveErr) {
+          console.warn('[private-checkout] resolve_failed', resolveErr);
+        }
+        let privateResp;
+        try {
+          privateResp = await apiFetch(privateEndpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(privatePayload),
+          });
+        } catch (requestErr) {
+          const missingApiUrl = (requestErr?.code || requestErr?.cause?.code) === 'missing_api_url';
+          if (missingApiUrl) {
+            const err = new Error('private_checkout_missing_api_url');
+            err.reason = 'private_checkout_missing_api_url';
+            err.friendlyMessage = 'Configurá VITE_API_URL para conectar con la API.';
+            throw err;
+          }
+          const err = new Error('private_checkout_network_error');
+          err.reason = 'private_checkout_network_error';
+          err.friendlyMessage = 'No pudimos generar el checkout privado. Probá de nuevo en unos segundos.';
+          err.detail = requestErr?.message || null;
+          throw err;
+        }
+        const contentType = (privateResp.headers?.get?.('content-type') || '').toLowerCase();
+        const rawBody = await privateResp.text();
+        let privateJson = null;
+        if (contentType.includes('application/json')) {
           try {
-            console.warn('[private-checkout-open]', tabErr);
+            privateJson = rawBody ? JSON.parse(rawBody) : null;
+          } catch (parseErr) {
+            privateJson = null;
+            console.warn('[private-checkout] json_parse_failed', parseErr);
+          }
+        } else {
+          console.error('[private-checkout] non_json_response', {
+            status: privateResp.status,
+            contentType,
+            bodyPreview: typeof rawBody === 'string' ? rawBody.slice(0, 200) : '',
+            url: privateResp.url || resolvedPrivateCheckoutUrl || null,
+          });
+        }
+        const logError = (label) => {
+          try {
+            console.error(`[private-checkout] ${label}`, {
+              status: privateResp.status,
+              contentType,
+              bodyPreview: typeof rawBody === 'string' ? rawBody.slice(0, 200) : '',
+              url: privateResp.url || resolvedPrivateCheckoutUrl || null,
+            });
           } catch (logErr) {
-            if (logErr) {
-              // noop
+            console.debug?.('[private-checkout] log_failed', logErr);
+          }
+        };
+        const buildError = (reason) => {
+          const err = new Error(reason);
+          err.reason = reason;
+          if (typeof privateResp.status === 'number') {
+            err.status = privateResp.status;
+          }
+          if (privateJson && typeof privateJson === 'object') {
+            if (Array.isArray(privateJson?.missing) && privateJson.missing.length) {
+              err.missing = privateJson.missing;
+            }
+            if (Array.isArray(privateJson?.userErrors) && privateJson.userErrors.length) {
+              err.userErrors = privateJson.userErrors;
+            }
+            if (privateJson?.detail) {
+              err.detail = privateJson.detail;
+            }
+            if (typeof privateJson?.requestId === 'string') {
+              err.requestId = privateJson.requestId;
+            }
+            if (Array.isArray(privateJson?.requestIds) && privateJson.requestIds.length) {
+              err.requestIds = privateJson.requestIds;
+            }
+            const message = typeof privateJson?.message === 'string' ? privateJson.message.trim() : '';
+            err.friendlyMessage = message || 'No pudimos generar el checkout privado, probá de nuevo.';
+          } else {
+            err.friendlyMessage = 'No pudimos generar el checkout privado, probá de nuevo.';
+          }
+          if (!err.detail && typeof rawBody === 'string' && rawBody) {
+            err.detail = rawBody.slice(0, 200);
+          }
+          return err;
+        };
+        if (!privateResp.ok) {
+          logError('http_error');
+          const reason =
+            privateJson?.reason && typeof privateJson.reason === 'string' && privateJson.reason.trim()
+              ? privateJson.reason.trim()
+              : 'private_checkout_failed';
+          throw buildError(reason);
+        }
+        if (!privateJson || typeof privateJson !== 'object') {
+          logError('non_json_payload');
+          throw buildError('private_checkout_non_json');
+        }
+        const checkoutUrlFromResponse = typeof privateJson.url === 'string' && privateJson.url.trim()
+          ? privateJson.url.trim()
+          : typeof privateJson.invoiceUrl === 'string' && privateJson.invoiceUrl.trim()
+            ? privateJson.invoiceUrl.trim()
+            : typeof privateJson.checkoutUrl === 'string' && privateJson.checkoutUrl.trim()
+              ? privateJson.checkoutUrl.trim()
+              : '';
+        if (privateJson.ok === true && checkoutUrlFromResponse) {
+          result.checkoutUrl = checkoutUrlFromResponse;
+          if (privateJson.draftOrderId) {
+            result.draftOrderId = String(privateJson.draftOrderId);
+          } else if (privateJson.draft_order_id) {
+            result.draftOrderId = String(privateJson.draft_order_id);
+          }
+          if (privateJson.draftOrderName) {
+            result.draftOrderName = String(privateJson.draftOrderName);
+          } else if (privateJson.draft_order_name) {
+            result.draftOrderName = String(privateJson.draft_order_name);
+          }
+          if (Array.isArray(privateJson.requestIds) && privateJson.requestIds.length) {
+            try {
+              console.info('[private-checkout] request_ids', privateJson.requestIds);
+            } catch (infoErr) {
+              console.debug?.('[private-checkout] request_ids_log_failed', infoErr);
             }
           }
+          try {
+            const opened = window.open(checkoutUrlFromResponse, '_blank', 'noopener');
+            if (!opened) {
+              console.warn('[private-checkout-open] popup_blocked', { url: checkoutUrlFromResponse });
+            }
+          } catch (tabErr) {
+            console.warn('[private-checkout-open]', tabErr);
+          }
+          flow.set({
+            lastProduct: {
+              ...(flow.lastProduct || {}),
+              productId: result.productId,
+              variantId: result.variantId,
+              variantIdNumeric: result.variantIdNumeric,
+              variantIdGid: result.variantIdGid,
+              productUrl: result.productUrl,
+              productHandle: result.productHandle,
+              visibility: result.visibility,
+              checkoutUrl: checkoutUrlFromResponse,
+              ...(result.draftOrderId ? { draftOrderId: result.draftOrderId } : {}),
+              ...(result.draftOrderName ? { draftOrderName: result.draftOrderName } : {}),
+              ...(Array.isArray(result.warnings) && result.warnings.length ? { warnings: result.warnings } : {}),
+              ...(Array.isArray(result.warningMessages) && result.warningMessages.length
+                ? { warningMessages: result.warningMessages }
+                : {}),
+            },
+          });
+          setToast({ message: 'Listo. Abrimos tu checkout privado en otra pestaña.' });
+          return;
         }
-        setToast({ message: 'Listo. Abrimos tu checkout privado en otra pestaña.' });
-        return;
+        logError('invalid_payload');
+        const reason =
+          typeof privateJson.reason === 'string' && privateJson.reason
+            ? privateJson.reason
+            : privateJson.ok === false
+              ? 'private_checkout_failed'
+              : 'private_checkout_invalid_payload';
+        throw buildError(reason);
       }
       if (result.productUrl) {
         window.open(result.productUrl, '_blank', 'noopener');

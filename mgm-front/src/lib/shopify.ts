@@ -208,6 +208,7 @@ export interface CreateJobOptions {
   skipPublication?: boolean;
   onPrivateStageChange?: (stage: 'creating_product' | 'creating_checkout') => void;
   discountCode?: string;
+  skipPrivateCheckout?: boolean;
 }
 
 export async function createJobAndProduct(
@@ -220,9 +221,11 @@ export async function createJobAndProduct(
     skipPublication = false,
     onPrivateStageChange,
     discountCode,
+    skipPrivateCheckout = false,
   } = options;
   const lastProduct = flow.lastProduct;
   const isPrivate = mode === 'private';
+  const shouldRequestPrivateCheckout = isPrivate && !skipPrivateCheckout;
   const requestedVisibility: 'public' | 'private' = isPrivate ? 'private' : 'public';
   const normalizedDiscountCode = typeof discountCode === 'string' ? discountCode.trim() : '';
   const canReuse = reuseLastProduct
@@ -479,6 +482,7 @@ export async function createJobAndProduct(
     draftOrderName?: string;
     warnings?: any[];
     warningMessages?: string[];
+    privateCheckoutPayload?: Record<string, unknown>;
   } = {
     productId,
     variantId,
@@ -493,16 +497,32 @@ export async function createJobAndProduct(
       : {}),
   };
 
+  if (isPrivate) {
+    const basePrivatePayload: Record<string, unknown> = {
+      variantId,
+      quantity: 1,
+      ...(productId ? { productId } : {}),
+      ...(customerEmail ? { email: customerEmail } : {}),
+    };
+    if (privateDraftOrder?.note) {
+      basePrivatePayload.note = privateDraftOrder.note;
+    }
+    if (privateDraftOrder?.attributes?.length) {
+      basePrivatePayload.noteAttributes = privateDraftOrder.attributes;
+    }
+    result.privateCheckoutPayload = basePrivatePayload;
+  }
+
   try {
-    if (mode === 'checkout' || isPrivate) {
-      if (isPrivate) {
+    if (mode === 'checkout' || shouldRequestPrivateCheckout) {
+      if (shouldRequestPrivateCheckout) {
         try {
           onPrivateStageChange?.('creating_checkout');
         } catch (stageErr) {
           console.debug?.('[createJobAndProduct] stage_callback_failed', stageErr);
         }
       }
-      if (isPrivate) {
+      if (shouldRequestPrivateCheckout) {
         const privatePayload: Record<string, unknown> = {
           variantId,
           quantity: 1,
