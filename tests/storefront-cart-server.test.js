@@ -12,8 +12,14 @@ import {
 function createResponse(body, { status = 200, ok = true, headers = {} } = {}) {
   const text = JSON.stringify(body);
   const headerMap = new Map();
+  let setCookieValues = [];
   for (const [key, value] of Object.entries(headers)) {
-    headerMap.set(String(key).toLowerCase(), value);
+    const normalizedKey = String(key).toLowerCase();
+    if (normalizedKey === 'set-cookie') {
+      setCookieValues = Array.isArray(value) ? value : [value];
+      continue;
+    }
+    headerMap.set(normalizedKey, value);
   }
   return {
     ok,
@@ -21,6 +27,9 @@ function createResponse(body, { status = 200, ok = true, headers = {} } = {}) {
     headers: {
       get(name) {
         return headerMap.get(String(name || '').toLowerCase()) ?? null;
+      },
+      getSetCookie() {
+        return setCookieValues.length ? [...setCookieValues] : undefined;
       },
     },
     async text() {
@@ -130,6 +139,43 @@ test('fallbackCartAdd posts JSON items payload and returns cart url on success',
     assert.equal(parsed.items[0].id, 987654321);
     assert.equal(parsed.items[0].quantity, 2);
     assert.deepEqual(parsed.items[0].properties, {});
+  } finally {
+    fetchStub.mock.restore();
+  }
+});
+
+test('fallbackCartAdd uses cart cookie when Shopify omits token', async () => {
+  const fetchStub = mock.method(global, 'fetch', async () =>
+    createResponse(
+      {
+        token: '',
+        items: [
+          {
+            id: 987654321,
+            variant_id: 987654321,
+            quantity: 1,
+          },
+        ],
+      },
+      {
+        headers: {
+          'content-type': 'application/json',
+          'set-cookie': [
+            'cart=abcdef123456; Path=/; SameSite=None',
+            'cart_sig=some-signature; Path=/; SameSite=None',
+          ],
+        },
+      },
+    ),
+  );
+
+  try {
+    const jar = new SimpleCookieJar();
+    const result = await fallbackCartAdd({ variantNumericId: '987654321', quantity: 1, jar });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.cartUrl, 'https://www.mgmgamers.store/cart/c/abcdef123456');
+    assert.equal(jar.get('cart'), 'abcdef123456');
   } finally {
     fetchStub.mock.restore();
   }
