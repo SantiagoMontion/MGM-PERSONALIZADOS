@@ -286,26 +286,33 @@ export default function Mockup() {
 
       setCartStatus('opening');
       const productUrl = `https://www.mgmgamers.store/products/${encodeURIComponent(handleFromResult)}`;
-      let opened = false;
       if (typeof window !== 'undefined') {
+        let opened = false;
         try {
           const popup = window.open(productUrl, '_blank', 'noopener');
+          opened = true;
           if (popup) {
             try {
               popup.opener = null;
             } catch (openerErr) {
               console.debug?.('[mockup] product_tab_opener_clear_failed', openerErr);
             }
-            opened = true;
           }
         } catch (openErr) {
           console.warn('[mockup] product_page_open_failed', openErr);
-        }
-        if (!opened) {
           try {
             window.open(productUrl, '_blank');
+            opened = true;
           } catch (fallbackErr) {
             console.warn('[mockup] product_page_fallback_open_failed', fallbackErr);
+          }
+        }
+
+        if (!opened) {
+          try {
+            window.location.assign(productUrl);
+          } catch (navErr) {
+            console.warn('[mockup] product_page_navigation_failed', navErr);
           }
         }
       }
