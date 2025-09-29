@@ -5,7 +5,8 @@ import { enforceRateLimit } from '../lib/_lib/rateLimit.js';
 function pathOf(req) {
   try {
     const url = new URL(req.url, `http://${req.headers.host}`);
-    return url.pathname.replace(/^\/api\/?/, '').replace(/\/$/, '');
+    const pathname = url.pathname || '';
+    return pathname.replace(/^\/api\/?/, '').replace(/^\/+/, '').replace(/\/$/, '');
   } catch {
     return '';
   }
