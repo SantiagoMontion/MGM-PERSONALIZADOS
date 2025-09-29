@@ -47,12 +47,13 @@ export default function Result() {
     fetchJob();
   }, [jobId]);
 
+  const normalizedCartUrl =
+    typeof urls.cartUrl === 'string' ? urls.cartUrl.trim() : '';
+  const normalizedCartPlain =
+    typeof urls.cartPlain === 'string' ? urls.cartPlain.trim() : '';
+
   useEffect(() => {
     if (!jobId) return undefined;
-    const normalizedCartUrl =
-      typeof urls.cartUrl === 'string' ? urls.cartUrl.trim() : '';
-    const normalizedCartPlain =
-      typeof urls.cartPlain === 'string' ? urls.cartPlain.trim() : '';
     if (normalizedCartUrl || normalizedCartPlain) {
       return undefined;
     }
@@ -93,9 +94,9 @@ export default function Result() {
     return () => {
       cancelled = true;
     };
-  }, [jobId, urls.cartUrl, urls.cartPlain]);
+  }, [jobId, normalizedCartUrl, normalizedCartPlain]);
 
-  const cartEntryUrl = (typeof urls.cartPlain === "string" && urls.cartPlain.trim()) || (typeof urls.cartUrl === "string" && urls.cartUrl.trim()) || null;
+  const cartEntryUrl = normalizedCartUrl || normalizedCartPlain || null;
   useEffect(() => {
     if (!autoOpened && !added && cartEntryUrl) {
       const opened = openCartUrl(cartEntryUrl);
@@ -112,8 +113,8 @@ export default function Result() {
   }, [added, autoOpened, cartEntryUrl, jobId]);
 
   if (!cartEntryUrl) {
-    return <p>Preparando tu carrito…</p>;
-  }
+    added
+      ? normalizedCartUrl || normalizedCartPlain || cartEntryUrl
 
 
   const hrefCart =
