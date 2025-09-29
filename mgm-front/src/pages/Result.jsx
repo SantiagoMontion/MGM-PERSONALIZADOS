@@ -113,9 +113,27 @@ export default function Result() {
   }, [added, autoOpened, cartEntryUrl, jobId]);
 
   if (!cartEntryUrl) {
-    added
-      ? normalizedCartUrl || normalizedCartPlain || cartEntryUrl
+    const fallbackCartUrl =
+      normalizedCartUrl || normalizedCartPlain || null;
 
+    return (
+      <div>
+        <p>Estamos preparando tu carrito…</p>
+        {fallbackCartUrl && (
+          <button
+            onClick={() => {
+              openCartUrl(fallbackCartUrl);
+              localStorage.setItem(`MGM_jobAdded:${jobId}`, "true");
+              setAdded(true);
+            }}
+          >
+            Intentar abrir el carrito
+          </button>
+        )}
+        <button onClick={() => navigate("/")}>Volver al inicio</button>
+      </div>
+    );
+  }
 
   const hrefCart =
     added && typeof urls.cartPlain === 'string' && urls.cartPlain.trim()
