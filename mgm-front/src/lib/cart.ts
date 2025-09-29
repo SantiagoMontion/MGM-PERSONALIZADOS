@@ -33,7 +33,11 @@ export function openCartUrl(rawUrl: string, options?: OpenCartOptions): boolean 
       console.warn?.('[openCartUrl] popup_navigation_failed', err);
     }
   }
-  const win = window.open(url, target);
+  const features = target === '_blank' ? 'noopener' : undefined;
+  const win =
+    features !== undefined
+      ? window.open(url, target, features)
+      : window.open(url, target);
   if (win && target === '_blank') {
     try {
       win.opener = null;

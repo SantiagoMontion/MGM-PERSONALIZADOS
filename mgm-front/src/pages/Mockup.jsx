@@ -13,6 +13,7 @@ import {
   ONLINE_STORE_DISABLED_MESSAGE,
   ONLINE_STORE_MISSING_MESSAGE,
 } from '@/lib/shopify.ts';
+import { openCartUrl } from '@/lib/cart';
 
 const CART_STATUS_LABELS = {
   idle: 'Agregar al carrito',
@@ -306,7 +307,6 @@ export default function Mockup() {
 
       setCartStatus('adding');
       let cartEntryUrl = '';
-      let cartStrategy = '';
       try {
         console.info('[mockup] cart_start_request', {
           variantIdGid,
@@ -324,7 +324,6 @@ export default function Mockup() {
         const startJson = await startResp.json().catch(() => null);
         if (startResp.ok && startJson?.ok && typeof startJson.url === 'string' && startJson.url.trim()) {
           cartEntryUrl = startJson.url.trim();
-          cartStrategy = typeof startJson.strategy === 'string' ? startJson.strategy : '';
           if (normalizedDiscountCode) {
             try {
               const parsed = new URL(cartEntryUrl);
@@ -338,23 +337,15 @@ export default function Mockup() {
           }
           try {
             console.info('[mockup] cart_start_success', {
-              strategy: cartStrategy || 'unknown',
               url: cartEntryUrl,
-              requestId: startJson?.requestId || null,
-              storefrontReason: startJson?.storefrontReason || null,
             });
           } catch (logErr) {
             console.debug?.('[mockup] cart_start_success_log_failed', logErr);
           }
         } else {
-          const userErrors = Array.isArray(startJson?.userErrors) ? startJson.userErrors : [];
           try {
             console.warn('[mockup] cart_start_failed', {
               status: startResp.status,
-              cartStrategy: startJson?.strategy || '',
-              requestId: startJson?.requestId || null,
-              storefrontReason: startJson?.storefrontReason || null,
-              userErrors,
             });
           } catch (warnErr) {
             console.debug?.('[mockup] cart_start_failed_log_failed', warnErr);
@@ -370,7 +361,6 @@ export default function Mockup() {
 
       if (!cartEntryUrl && fallbackCartUrl) {
         cartEntryUrl = fallbackCartUrl;
-        if (!cartStrategy) cartStrategy = 'permalink';
         try {
           console.info('[mockup] cart_start_fallback_permalink', { url: fallbackCartUrl });
         } catch (logErr) {
@@ -387,7 +377,7 @@ export default function Mockup() {
       setCartStatus('opening');
       let opened = false;
       try {
-        opened = openCartUrl(cartEntryUrl);
+        opened = openCartUrl(cartEntryUrl, { target: '_blank', focus: true });
       } catch (openErr) {
         console.warn('[mockup] cart_open_failed', openErr);
       }
