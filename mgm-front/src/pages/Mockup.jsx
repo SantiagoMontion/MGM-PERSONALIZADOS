@@ -19,6 +19,26 @@ const CART_STATUS_LABELS = {
   opening: 'Abriendo producto…',
 };
 
+const TESTIMONIAL_IMAGES = ['testimonio1', 'testimonio2', 'testimonio3'];
+
+const BENEFITS = [
+  {
+    icon: '🎁',
+    title: 'Regalos sorpresa en cada pedido',
+    description: 'Detalles pensados para vos y tu comunidad en cada envío.',
+  },
+  {
+    icon: '💪',
+    title: 'Durabilidad y calidad garantizada',
+    description: 'Hechos a mano, con materiales premium y testeados por creadores.',
+  },
+  {
+    icon: '🎨',
+    title: 'Un mousepad que se adapta a tu setup',
+    description: 'Elegí tamaño, material y diseño para que combine con tu espacio.',
+  },
+];
+
 
 export default function Mockup() {
   const flow = useFlow();
@@ -759,6 +779,9 @@ export default function Mockup() {
           ) : null}
 
         </div>
+        <p className={styles.discountBadge}>
+          Aprovechá un 20% off pagando en transferencia bancaria
+        </p>
         <div className={styles.ctaRow}>
           <div className={styles.ctaCard}>
             <button
@@ -808,6 +831,36 @@ export default function Mockup() {
             </p>
           </div>
         </div>
+        <section className={styles.communitySection}>
+          <h2 className={styles.communityTitle}>
+            Nos encantaría que formes parte de nuestra comunidad
+          </h2>
+          <p className={styles.communitySubtitle}>por eso vamos a convencerte</p>
+          <div className={styles.testimonialsGrid}>
+            {TESTIMONIAL_IMAGES.map((image) => (
+              <figure key={image} className={styles.testimonialCard}>
+                <div className={styles.testimonialImageWrapper}>
+                  <img
+                    src={`/mockup/${image}.jpg`}
+                    alt={`Testimonio de cliente ${image.replace('testimonio', '')}`}
+                    loading="lazy"
+                  />
+                </div>
+              </figure>
+            ))}
+          </div>
+          <div className={styles.benefitsGrid}>
+            {BENEFITS.map((benefit) => (
+              <article key={benefit.title} className={styles.benefitCard}>
+                <span aria-hidden="true" className={styles.benefitIcon}>
+                  {benefit.icon}
+                </span>
+                <h3 className={styles.benefitTitle}>{benefit.title}</h3>
+                <p className={styles.benefitDescription}>{benefit.description}</p>
+              </article>
+            ))}
+          </div>
+        </section>
         <button
           type="button"
           disabled={busy}
@@ -827,10 +880,9 @@ export default function Mockup() {
           Descargar PDF
         </button>
       </main>
-      <section className={styles.footerSection}>
-        <p className={styles.footerMessage}>
-          Nos encantaría que seas parte nuestra comunidad y por eso quiero convencerte 😎
-        </p>
+      <section className={styles.marketingSection}>
+        <h2 className={styles.marketingTitle}>Nuestro mejor marketing</h2>
+        <p className={styles.marketingSubtitle}>nuestros clientes</p>
       </section>
       {isBuyPromptOpen ? (
         <div
