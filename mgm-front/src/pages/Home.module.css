@@ -446,6 +446,53 @@
   min-height: 320px;
 }
 
+.canvasPriceWrapper {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding: 20px 24px 0;
+}
+
+.canvasPriceTag {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 12px 20px;
+  border-radius: 18px;
+  border: 1px solid rgba(148, 163, 255, 0.45);
+  background: rgba(32, 33, 42, 0.85);
+  color: #f6f7fb;
+  font-family: 'Poppins', sans-serif;
+  letter-spacing: 0.02em;
+  box-shadow: 0 18px 36px rgba(8, 8, 16, 0.45);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.canvasPriceTag:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 20px 40px rgba(8, 8, 16, 0.55);
+}
+
+.canvasPriceLabel {
+  font-size: 0.95rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  color: rgba(246, 247, 251, 0.75);
+  letter-spacing: 0.08em;
+}
+
+.canvasPriceAmount {
+  font-size: clamp(1.65rem, 2.6vw, 2rem);
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.canvasPriceTagDisabled {
+  opacity: 0.65;
+  box-shadow: none;
+  transform: none;
+}
+
 .canvasStageEmpty {
   border-color: transparent;
   background: #181818;
@@ -786,6 +833,15 @@
     max-width: 100%;
   }
 
+  .canvasPriceWrapper {
+    padding: 18px 20px 0;
+  }
+
+  .canvasPriceTag {
+    width: 100%;
+    justify-content: space-between;
+  }
+
   .canvasStage {
     padding: 28px;
     height: auto;
@@ -813,6 +869,24 @@
     width: 100%;
     min-width: 0;
     max-width: none;
+  }
+
+  .canvasPriceWrapper {
+    padding: 16px 16px 0;
+  }
+
+  .canvasPriceTag {
+    gap: 10px;
+    padding: 12px 16px;
+  }
+
+  .canvasPriceLabel {
+    font-size: 0.85rem;
+    letter-spacing: 0.06em;
+  }
+
+  .canvasPriceAmount {
+    font-size: clamp(1.45rem, 6vw, 1.75rem);
   }
 
   .canvasStage {

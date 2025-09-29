@@ -12,6 +12,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import SeoJsonLd from '../components/SeoJsonLd';
 
 import UploadStep from '../components/UploadStep';
+import Calculadora from '../components/Calculadora.jsx';
 import EditorCanvas from '../components/EditorCanvas';
 import SizeControls from '../components/SizeControls';
 import LoadingOverlay from '../components/LoadingOverlay';
@@ -906,6 +907,28 @@ export default function Home() {
 
           <div className={editorContainerClasses}>
             <div className={canvasStageClasses} ref={lienzoCardRef}>
+              <div className={styles.canvasPriceWrapper}>
+                <Calculadora
+                  width={activeSizeCm.w}
+                  height={activeSizeCm.h}
+                  material={material}
+                  setPrice={setPriceAmount}
+                  render={({ transfer, valid, format }) => {
+                    const amount = typeof transfer === 'number' ? Math.max(0, transfer) : 0;
+                    const formattedAmount = `$${format(amount)}`;
+                    const priceClasses = [styles.canvasPriceTag];
+                    if (!valid) {
+                      priceClasses.push(styles.canvasPriceTagDisabled);
+                    }
+                    return (
+                      <div className={priceClasses.join(' ')}>
+                        <span className={styles.canvasPriceLabel}>Con transferencia</span>
+                        <span className={styles.canvasPriceAmount}>{formattedAmount}</span>
+                      </div>
+                    );
+                  }}
+                />
+              </div>
               <div className={styles.canvasViewport}>
 
                 <EditorCanvas
