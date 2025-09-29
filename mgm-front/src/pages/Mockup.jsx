@@ -290,16 +290,17 @@ export default function Mockup() {
       if (typeof window !== 'undefined') {
         try {
           const popup = window.open(productUrl, '_blank', 'noopener');
+          opened = true;
           if (popup) {
             try {
               popup.opener = null;
             } catch (openerErr) {
               console.debug?.('[mockup] product_tab_opener_clear_failed', openerErr);
             }
-            opened = true;
           }
         } catch (openErr) {
           console.warn('[mockup] product_page_open_failed', openErr);
+          opened = false;
         }
         if (!opened) {
           try {
