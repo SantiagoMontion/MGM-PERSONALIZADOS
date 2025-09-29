@@ -8,6 +8,7 @@ import styles from './Mockup.module.css';
 import { buildExportBaseName } from '@/lib/filename.ts';
 import { apiFetch, getResolvedApiUrl } from '@/lib/api.ts';
 import {
+  buildCartPermalink,
   createJobAndProduct,
   ONLINE_STORE_DISABLED_MESSAGE,
   ONLINE_STORE_MISSING_MESSAGE,
@@ -285,36 +286,120 @@ export default function Mockup() {
         throw missingHandleError;
       }
 
-      const productUrl = `https://www.mgmgamers.store/products/${handleFromResult}`;
-      try {
-        console.info('[mockup] cart_flow_open_product', {
-          handle: handleFromResult,
-          url: productUrl,
-        });
-      } catch (logErr) {
-        console.debug?.('[mockup] cart_flow_open_product_log_failed', logErr);
+      const variantIdGid =
+        typeof result?.variantIdGid === 'string' && result.variantIdGid.trim()
+          ? result.variantIdGid.trim()
+          : '';
+      if (!variantIdGid) {
+        const variantError = new Error('missing_variant_gid');
+        variantError.reason = 'missing_variant_gid';
+        throw variantError;
       }
 
-      setCartStatus('opening');
-      if (typeof window !== 'undefined') {
-        const openedWindow = window.open(productUrl, '_blank');
-        if (!openedWindow) {
-          try {
-            console.warn('[mockup] cart_flow_popup_blocked', { url: productUrl });
-          } catch (warnErr) {
-            console.debug?.('[mockup] cart_flow_popup_blocked_log_failed', warnErr);
+      const fallbackCartUrl = buildCartPermalink(
+        result?.variantIdNumeric || result?.variantId,
+        1,
+        normalizedDiscountCode
+          ? { discountCode: normalizedDiscountCode }
+          : undefined,
+      );
+
+      setCartStatus('adding');
+      let cartEntryUrl = '';
+      let cartStrategy = '';
+      try {
+        console.info('[mockup] cart_start_request', {
+          variantIdGid,
+          fallbackCartUrl,
+        });
+      } catch (logErr) {
+        console.debug?.('[mockup] cart_start_request_log_failed', logErr);
+      }
+      try {
+        const startResp = await apiFetch('/api/cart/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ variantGid: variantIdGid, quantity: 1 }),
+        });
+        const startJson = await startResp.json().catch(() => null);
+        if (startResp.ok && startJson?.ok && typeof startJson.url === 'string' && startJson.url.trim()) {
+          cartEntryUrl = startJson.url.trim();
+          cartStrategy = typeof startJson.strategy === 'string' ? startJson.strategy : '';
+          if (normalizedDiscountCode) {
+            try {
+              const parsed = new URL(cartEntryUrl);
+              if (!parsed.searchParams.has('discount')) {
+                parsed.searchParams.set('discount', normalizedDiscountCode);
+                cartEntryUrl = parsed.toString();
+              }
+            } catch (urlErr) {
+              console.debug?.('[mockup] cart_discount_append_failed', urlErr);
+            }
           }
-          window.location.assign(productUrl);
+          try {
+            console.info('[mockup] cart_start_success', {
+              strategy: cartStrategy || 'unknown',
+              url: cartEntryUrl,
+              requestId: startJson?.requestId || null,
+              storefrontReason: startJson?.storefrontReason || null,
+            });
+          } catch (logErr) {
+            console.debug?.('[mockup] cart_start_success_log_failed', logErr);
+          }
         } else {
+          const userErrors = Array.isArray(startJson?.userErrors) ? startJson.userErrors : [];
           try {
-            openedWindow.focus?.();
-          } catch (focusErr) {
-            console.debug?.('[mockup] cart_flow_focus_failed', focusErr);
+            console.warn('[mockup] cart_start_failed', {
+              status: startResp.status,
+              cartStrategy: startJson?.strategy || '',
+              requestId: startJson?.requestId || null,
+              storefrontReason: startJson?.storefrontReason || null,
+              userErrors,
+            });
+          } catch (warnErr) {
+            console.debug?.('[mockup] cart_start_failed_log_failed', warnErr);
           }
+        }
+      } catch (startErr) {
+        try {
+          console.error('[mockup] cart_start_exception', startErr);
+        } catch (logErr) {
+          console.debug?.('[mockup] cart_start_exception_log_failed', logErr);
         }
       }
 
-      finalizeCartSuccess('Abrimos la página del producto en la tienda.');
+      if (!cartEntryUrl && fallbackCartUrl) {
+        cartEntryUrl = fallbackCartUrl;
+        if (!cartStrategy) cartStrategy = 'permalink';
+        try {
+          console.info('[mockup] cart_start_fallback_permalink', { url: fallbackCartUrl });
+        } catch (logErr) {
+          console.debug?.('[mockup] cart_start_fallback_log_failed', logErr);
+        }
+      }
+
+      if (!cartEntryUrl) {
+        const cartError = new Error('cart_start_failed');
+        cartError.reason = 'cart_start_failed';
+        throw cartError;
+      }
+
+      setCartStatus('opening');
+      let opened = false;
+      try {
+        opened = openCartUrl(cartEntryUrl);
+      } catch (openErr) {
+        console.warn('[mockup] cart_open_failed', openErr);
+      }
+      if (!opened && typeof window !== 'undefined') {
+        try {
+          window.location.assign(cartEntryUrl);
+        } catch (navErr) {
+          console.warn('[mockup] cart_redirect_failed', navErr);
+        }
+      }
+
+      finalizeCartSuccess('Abrimos tu carrito en la tienda.');
       return;
     } catch (err) {
       setCartStatus('idle');
