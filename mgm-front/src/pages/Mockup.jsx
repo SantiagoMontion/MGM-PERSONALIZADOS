@@ -7,16 +7,11 @@ import { downloadBlob } from '@/lib/mockup.js';
 import styles from './Mockup.module.css';
 import { buildExportBaseName } from '@/lib/filename.ts';
 import { apiFetch, getResolvedApiUrl } from '@/lib/api.ts';
-import { openCartUrl } from '@/lib/cart';
 import {
   createJobAndProduct,
   ONLINE_STORE_DISABLED_MESSAGE,
   ONLINE_STORE_MISSING_MESSAGE,
-  normalizeVariantNumericId,
-  buildCartPermalink,
-  buildCartAddUrl,
 } from '@/lib/shopify.ts';
-import { ensureLegacyCartAdd } from '@/lib/shopifyCartFallback.js';
 
 const CART_STATUS_LABELS = {
   idle: 'Agregar al carrito',
@@ -25,8 +20,6 @@ const CART_STATUS_LABELS = {
   opening: 'Abriendo carrito…',
 };
 
-const CART_DEFAULT_QUANTITY = 1;
-const IS_DEV = Boolean(import.meta?.env?.DEV);
 
 export default function Mockup() {
   const flow = useFlow();
@@ -34,7 +27,6 @@ export default function Mockup() {
   const location = useLocation();
   const [busy, setBusy] = useState(false);
   const [cartStatus, setCartStatus] = useState('idle');
-  const [pendingCart, setPendingCart] = useState(null);
   const [toast, setToast] = useState(null);
   const [isBuyPromptOpen, setBuyPromptOpen] = useState(false);
   const buyNowButtonRef = useRef(null);
@@ -84,7 +76,6 @@ export default function Mockup() {
     if (!toast?.persist) {
       setToast(null);
     }
-    setPendingCart(null);
     setCartStatus('idle');
     setBusy(false);
     setBuyPromptOpen(false);
@@ -220,64 +211,11 @@ export default function Mockup() {
     alert(friendly);
   }
 
-  function openCartTab(url, options = {}) {
-    if (typeof window === 'undefined' || !url) return false;
-    try {
-      return openCartUrl(url, {
-        target: '_blank',
-        popup: options?.popup || null,
-      });
-    } catch (err) {
-      console.error('[openCartTab]', err);
-      return false;
-    }
-  }
-
-  function showCartFailureToast(url, options = {}) {
-    const fallbackUrl = typeof options.fallbackUrl === 'string' ? options.fallbackUrl : '';
-    const reason = typeof options.reason === 'string' ? options.reason : '';
-    const normalizedUserErrors = Array.isArray(options.userErrors)
-      ? options.userErrors
-        .map((err) => {
-          if (!err) return null;
-          if (typeof err === 'string') return err;
-          if (typeof err.message === 'string' && err.message.trim()) return err.message.trim();
-          return null;
-        })
-        .filter(Boolean)
-      : [];
-    const hasPrimary = typeof url === 'string' && url.trim().length > 0;
-    const hasFallback = typeof fallbackUrl === 'string' && fallbackUrl.trim().length > 0;
-    const baseMessage = 'No pudimos agregarlo al carrito.';
-    const details = [];
-    if (normalizedUserErrors.length) {
-      details.push(normalizedUserErrors.join(' | '));
-    }
-    if (reason && !normalizedUserErrors.length) {
-      details.push(`Motivo: ${reason}`);
-    }
-    const message = details.length
-      ? `${baseMessage} ${details.join(' | ')}. Probá de nuevo.`
-      : `${baseMessage} Probá de nuevo.`;
-    if (!hasPrimary && !hasFallback) {
-      setToast({ message });
-      return;
-    }
-    const nextUrl = hasFallback && (!hasPrimary || fallbackUrl !== url) ? fallbackUrl : url;
-    const useFallback = hasFallback && nextUrl === fallbackUrl && fallbackUrl !== url;
-    setToast({
-      message,
-      actionLabel: 'Reintentar',
-      action: () => attemptOpenCart(nextUrl, { useFallback }),
-    });
-  }
-
   function finalizeCartSuccess(message) {
     if (successToastTimeoutRef.current) {
       clearTimeout(successToastTimeoutRef.current);
       successToastTimeoutRef.current = null;
     }
-    setPendingCart(null);
     if (message) {
       setToast({ message, persist: true, tone: 'success' });
       successToastTimeoutRef.current = setTimeout(() => {
@@ -293,75 +231,8 @@ export default function Mockup() {
     try {
       navigate('/', { replace: true });
     } catch (navErr) {
-      console.warn('[cart-success-navigate]', navErr);
+      console.warn('[mockup] cart_success_navigate_failed', navErr);
     }
-  }
-
-  function openCartAndFinalize(url, context = {}) {
-    if (!url) return false;
-    setBusy(true);
-    setCartStatus('opening');
-    if (IS_DEV) {
-      try {
-        console.info('[cart-flow] open_cart_link', {
-          variantNumericId: context?.variantNumericId || null,
-          openUrl: url,
-        });
-      } catch (logErr) {
-        console.debug?.('[cart-flow] open_cart_link_log_failed', logErr);
-      }
-    }
-    const opened = openCartTab(url, { popup: context?.popup || null });
-    if (opened) {
-      try {
-        console.info('[cart-flow] cart_opened', { url });
-      } catch (logErr) {
-        console.debug?.('[cart-flow] cart_opened_log_failed', logErr);
-      }
-      try {
-        context?.onPopupOpened?.();
-      } catch (popupErr) {
-        console.debug?.('[cart-flow] popup_opened_callback_failed', popupErr);
-      }
-      finalizeCartSuccess(context?.successMessage || 'Producto agregado. Abrimos tu carrito.');
-      return true;
-    }
-    try {
-      context?.onPopupBlocked?.();
-    } catch (popupErr) {
-      console.debug?.('[cart-flow] popup_blocked_callback_failed', popupErr);
-    }
-    try {
-      console.warn('[cart-flow] cart_error', { reason: 'popup_blocked', url });
-    } catch (logErr) {
-      console.debug?.('[cart-flow] cart_error_log_failed', logErr);
-    }
-    setCartStatus('idle');
-    setBusy(false);
-    const fallbackUrl = typeof context?.fallbackUrl === 'string' ? context.fallbackUrl : '';
-    showCartFailureToast(url, { fallbackUrl });
-    return false;
-  }
-
-  function attemptOpenCart(url, options = {}) {
-    const cart = pendingCart;
-    if (!cart) return;
-    const useFallback = Boolean(options.useFallback);
-    let link = url;
-    if (!link) {
-      link = useFallback ? cart.fallbackUrl : cart.cartUrl;
-    }
-    if (!link) return;
-    const fallbackUrl = useFallback
-      ? undefined
-      : cart.fallbackUrl && cart.fallbackUrl !== link
-        ? cart.fallbackUrl
-        : undefined;
-    if (!link) return;
-    openCartAndFinalize(link, {
-      variantNumericId: cart?.variantNumericId || null,
-      fallbackUrl,
-    });
   }
 
   function extractWarningMessages(warnings, warningMessages) {
@@ -383,332 +254,67 @@ export default function Mockup() {
     return [];
   }
 
-  async function startCartFlow(options = {}) {
-    const skipCreation = Boolean(options.skipCreation);
-    if (busy && cartStatus !== 'idle' && !skipCreation) return;
+  async function startCartFlow() {
+    if (busy && cartStatus !== 'idle') return;
     setToast(null);
-    let current = pendingCart;
-    if (current?.variantId && (!current.variantIdNumeric || !current.variantIdGid)) {
-      const ensuredNumeric = normalizeVariantNumericId(current.variantIdNumeric || current.variantId);
-      const ensuredGid = ensuredNumeric ? `gid://shopify/ProductVariant/${ensuredNumeric}` : '';
-      current = {
-        ...current,
-        ...(ensuredNumeric ? { variantIdNumeric: ensuredNumeric } : {}),
-        ...(ensuredGid ? { variantIdGid: ensuredGid } : {}),
-      };
-      setPendingCart(current);
-    }
-    const normalizedDiscountCode = discountCode || '';
-    const creationCartOptions = normalizedDiscountCode ? { discountCode: normalizedDiscountCode } : {};
+    setCartStatus('creating');
+    setBusy(true);
     try {
-      setBusy(true);
-      if (!skipCreation || !current) {
-        setCartStatus('creating');
-        const result = await createJobAndProduct(
-          'cart',
-          flow,
-          skipCreation
-            ? { reuseLastProduct: true, ...(normalizedDiscountCode ? { discountCode: normalizedDiscountCode } : {}) }
-            : creationCartOptions,
-        );
-        if (!result?.variantId) throw new Error('missing_variant');
-        const warningMessages = extractWarningMessages(result?.warnings, result?.warningMessages);
-        if (warningMessages.length) {
-          if (IS_DEV) {
-            try {
-              console.warn('[cart-flow] warnings', warningMessages);
-            } catch (warnErr) {
-              console.debug?.('[cart-flow] warn_log_failed', warnErr);
-            }
-          }
-          setToast({ message: warningMessages.join(' ') });
+      const normalizedDiscountCode = discountCode || '';
+      const creationCartOptions = normalizedDiscountCode ? { discountCode: normalizedDiscountCode } : {};
+      const result = await createJobAndProduct('cart', flow, creationCartOptions);
+      const warningMessages = extractWarningMessages(result?.warnings, result?.warningMessages);
+      if (warningMessages.length) {
+        try {
+          console.warn('[mockup] cart_flow_warnings', warningMessages);
+        } catch (warnErr) {
+          console.debug?.('[mockup] cart_flow_warn_log_failed', warnErr);
         }
-        current = {
-          productId: result.productId,
-          variantId: result.variantId,
-          variantIdNumeric: result.variantIdNumeric
-            || normalizeVariantNumericId(result.variantId),
-          variantIdGid:
-            result.variantIdGid
-            || (result.variantIdNumeric
-              ? `gid://shopify/ProductVariant/${result.variantIdNumeric}`
-              : ''),
-          quantity: CART_DEFAULT_QUANTITY,
-          ...(result?.productHandle ? { productHandle: result.productHandle } : {}),
-        };
-        setPendingCart(current);
+        setToast({ message: warningMessages.join(' ') });
       }
-      if (!current?.variantId) throw new Error('missing_variant');
 
-      const startLogVariantNumeric = current.variantIdNumeric
-        || normalizeVariantNumericId(current.variantId);
-      const startLogVariantGid = current.variantIdGid
-        || (startLogVariantNumeric ? `gid://shopify/ProductVariant/${startLogVariantNumeric}` : '');
+      const handleFromResult =
+        typeof result?.productHandle === 'string' && result.productHandle.trim()
+          ? result.productHandle.trim()
+          : typeof result?.product?.handle === 'string' && result.product.handle.trim()
+            ? result.product.handle.trim()
+            : '';
+      if (!handleFromResult) {
+        const missingHandleError = new Error('missing_product_handle');
+        missingHandleError.reason = 'missing_product_handle';
+        throw missingHandleError;
+      }
+
+      const productUrl = `https://www.mgmgamers.store/products/${handleFromResult}`;
       try {
-        console.info('[cart-flow] cart_flow_start', {
-          productId: current.productId || null,
-          variantIdNumeric: startLogVariantNumeric || null,
-          variantIdGid: startLogVariantGid || null,
-          handle: current.productHandle || null,
+        console.info('[mockup] cart_flow_open_product', {
+          handle: handleFromResult,
+          url: productUrl,
         });
       } catch (logErr) {
-        console.debug?.('[cart-flow] cart_flow_start_log_failed', logErr);
+        console.debug?.('[mockup] cart_flow_open_product_log_failed', logErr);
       }
 
-      setCartStatus('adding');
-
-      const desiredQuantity = current.quantity || CART_DEFAULT_QUANTITY;
-      const variantNumericId = current.variantIdNumeric || normalizeVariantNumericId(current.variantId);
-      if (!variantNumericId) {
-        setCartStatus('idle');
-        setBusy(false);
-        showCartFailureToast('', { fallbackUrl: current?.fallbackUrl });
-        return;
-      }
-      const variantGidForCart = current.variantIdGid
-        || (variantNumericId ? `gid://shopify/ProductVariant/${variantNumericId}` : '');
-      if (!variantGidForCart) {
-        setCartStatus('idle');
-        setBusy(false);
-        showCartFailureToast('', { fallbackUrl: current?.fallbackUrl });
-        return;
-      }
-
-      const productHandle = typeof current.productHandle === 'string' ? current.productHandle : '';
-      let fallbackProductUrl = typeof current.fallbackUrl === 'string' ? current.fallbackUrl : '';
-      if (!fallbackProductUrl && productHandle) {
-        const variantSuffix = variantNumericId ? `?variant=${variantNumericId}` : '';
-        fallbackProductUrl = `https://www.mgmgamers.store/products/${productHandle}${variantSuffix}`;
-      }
-
-      const payload = current.cartId
-        ? { cartId: current.cartId, variantGid: variantGidForCart, quantity: desiredQuantity }
-        : { variantGid: variantGidForCart, quantity: desiredQuantity };
-      const endpoint = current.cartId ? '/api/cart/add' : '/api/cart/start';
-      let resolvedEndpointUrl = '';
-      try {
-        resolvedEndpointUrl = getResolvedApiUrl(endpoint);
-      } catch (resolveErr) {
-        try {
-          console.warn('[cart-flow] cart_endpoint_resolve_failed', resolveErr, { endpoint });
-        } catch (logErr) {
-          console.debug?.('[cart-flow] cart_endpoint_resolve_failed_log_failed', logErr);
-        }
-      }
-
-      let resp;
-      try {
-        resp = await apiFetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-      } catch (networkErr) {
-        try {
-          console.error('[cart-flow] cart_request_failed', networkErr, {
-            endpoint,
-            url: resolvedEndpointUrl || null,
-          });
-        } catch (logErr) {
-          console.debug?.('[cart-flow] cart_request_failed_log_failed', logErr);
-        }
-        setCartStatus('idle');
-        setBusy(false);
-        showCartFailureToast('', { fallbackUrl: fallbackProductUrl, reason: 'network_error' });
-        return;
-      }
-
-      const contentType = (resp.headers.get('content-type') || '').toLowerCase();
-      const rawBody = await resp.text();
-      const rawPreview = rawBody ? rawBody.slice(0, 200) : '';
-      let json = null;
-      if (contentType.includes('application/json')) {
-        try {
-          json = rawBody ? JSON.parse(rawBody) : null;
-        } catch (parseErr) {
+      setCartStatus('opening');
+      if (typeof window !== 'undefined') {
+        const openedWindow = window.open(productUrl, '_blank');
+        if (!openedWindow) {
           try {
-            console.error('[cart-flow] cart_response_parse_failed', parseErr, {
-              status: resp.status,
-              contentType,
-              bodyPreview: rawPreview,
-              url: resp.url || resolvedEndpointUrl || null,
-            });
-          } catch (logErr) {
-            console.debug?.('[cart-flow] cart_response_parse_failed_log_failed', logErr);
+            console.warn('[mockup] cart_flow_popup_blocked', { url: productUrl });
+          } catch (warnErr) {
+            console.debug?.('[mockup] cart_flow_popup_blocked_log_failed', warnErr);
           }
-        }
-      } else {
-        try {
-          console.error('[cart-flow] cart_non_json_response', {
-            status: resp.status,
-            contentType,
-            bodyPreview: rawPreview,
-            url: resp.url || resolvedEndpointUrl || null,
-          });
-        } catch (logErr) {
-          console.debug?.('[cart-flow] cart_non_json_response_log_failed', logErr);
-        }
-      }
-
-      const responseUrl = typeof json?.url === 'string' ? json.url.trim() : '';
-      const cartUrlFromServer = json?.cartUrl && typeof json.cartUrl === 'string'
-        ? json.cartUrl
-        : '';
-      const fallbackUrlFromServer = json?.fallbackUrl && typeof json.fallbackUrl === 'string'
-        ? json.fallbackUrl
-        : '';
-      const serverReason = typeof json?.reason === 'string' ? json.reason : '';
-      const serverUserErrors = Array.isArray(json?.userErrors) ? json.userErrors : [];
-
-      const normalizedResponseUrl = responseUrl ? responseUrl.trim() : '';
-      const normalizedCartUrlFromServer = cartUrlFromServer ? cartUrlFromServer.trim() : '';
-      const normalizedFallbackUrlFromServer = fallbackUrlFromServer ? fallbackUrlFromServer.trim() : '';
-
-      const usedFallback = json?.usedFallback === true;
-      if (json?.ok) {
-        const nextState = {
-          ...current,
-          variantNumericId,
-          variantIdNumeric: variantNumericId,
-          variantIdGid: variantGidForCart,
-          ...(normalizedResponseUrl ? { url: normalizedResponseUrl } : {}),
-          ...(normalizedCartUrlFromServer ? { cartUrl: normalizedCartUrlFromServer } : {}),
-          ...(typeof json?.checkoutUrl === 'string' && json.checkoutUrl.trim()
-            ? { checkoutUrl: json.checkoutUrl.trim() }
-            : {}),
-          ...(json?.cartPlain ? { cartPlain: json.cartPlain } : {}),
-          ...(json?.cartId ? { cartId: json.cartId } : {}),
-          ...(fallbackProductUrl ? { fallbackUrl: fallbackProductUrl } : {}),
-        };
-        setPendingCart(nextState);
-        const successMessage = 'Producto agregado. Abrimos tu carrito.';
-        const candidateUrls = [];
-        const seenCandidates = new Set();
-        const addCandidate = (candidate) => {
-          if (!candidate) return;
-          const trimmed = candidate.trim();
-          if (!trimmed || trimmed.includes('/checkout') || seenCandidates.has(trimmed)) return;
-          seenCandidates.add(trimmed);
-          candidateUrls.push(trimmed);
-        };
-        const cartOrigins = [];
-        const addOriginCandidate = (candidate) => {
-          if (!candidate) return;
+          window.location.assign(productUrl);
+        } else {
           try {
-            const origin = new URL(candidate).origin;
-            if (origin && !cartOrigins.includes(origin)) {
-              cartOrigins.push(origin);
-            }
-          } catch (_) {
-            // ignore invalid URLs
-          }
-        };
-        addOriginCandidate(fallbackProductUrl);
-        addOriginCandidate(normalizedCartUrlFromServer);
-        addOriginCandidate(normalizedResponseUrl);
-        addOriginCandidate(typeof json?.cartPlain === 'string' ? json.cartPlain : '');
-        const preferredCartBase = cartOrigins.length
-          ? cartOrigins[0]
-          : 'https://www.mgmgamers.store';
-
-        const directAddUrl = buildCartAddUrl(
-          current?.variantIdNumeric || current?.variantId || variantNumericId,
-          desiredQuantity,
-          {
-            baseUrl: preferredCartBase,
-            discountCode: normalizedDiscountCode || undefined,
-            returnTo: '/',
-          },
-        );
-        const directCartUrl = buildCartPermalink(
-          current?.variantIdNumeric || current?.variantId || variantNumericId,
-          desiredQuantity,
-          {
-            baseUrl: preferredCartBase,
-            discountCode: normalizedDiscountCode || undefined,
-            returnTo: '/',
-          },
-        );
-        addCandidate(directAddUrl);
-        addCandidate(typeof json?.cartPlain === 'string' ? json.cartPlain : '');
-        addCandidate(normalizedCartUrlFromServer);
-        addCandidate(directCartUrl);
-        if (usedFallback) {
-          addCandidate(normalizedFallbackUrlFromServer);
-        }
-        addCandidate(normalizedResponseUrl);
-        if (usedFallback) {
-          try {
-            await ensureLegacyCartAdd({
-              variantId: variantNumericId,
-              quantity: desiredQuantity,
-              baseUrl: preferredCartBase,
-              cartPlainUrl: typeof json?.cartPlain === 'string' ? json.cartPlain : normalizedFallbackUrlFromServer,
-              attempts: 3,
-              verifyDelayMs: 250,
-            });
-            try {
-              console.info('[cart-flow] legacy_cart_add_confirmed', {
-                variantNumericId,
-                origin: preferredCartBase,
-              });
-            } catch (logErr) {
-              console.debug?.('[cart-flow] legacy_cart_add_confirmed_log_failed', logErr);
-            }
-          } catch (legacyErr) {
-            try {
-              console.error('[cart-flow] legacy_cart_add_failed', legacyErr);
-            } catch (logErr) {
-              console.debug?.('[cart-flow] legacy_cart_add_failed_log_failed', logErr);
-            }
-            setCartStatus('idle');
-            setBusy(false);
-            showCartFailureToast('', {
-              fallbackUrl: fallbackProductUrl || normalizedFallbackUrlFromServer,
-              reason: legacyErr?.message || 'legacy_cart_add_failed',
-            });
-            return;
+            openedWindow.focus?.();
+          } catch (focusErr) {
+            console.debug?.('[mockup] cart_flow_focus_failed', focusErr);
           }
         }
-        for (const candidate of candidateUrls) {
-          const opened = openCartAndFinalize(candidate, {
-            variantNumericId,
-            fallbackUrl: fallbackProductUrl || undefined,
-            successMessage,
-          });
-          if (opened) {
-            return;
-          }
-        }
-        setCartStatus('idle');
-        setBusy(false);
-        showCartFailureToast('', {
-          fallbackUrl: fallbackProductUrl || fallbackUrlFromServer,
-          reason: serverReason,
-          userErrors: serverUserErrors,
-        });
-        return;
       }
 
-      try {
-        console.warn('[cart-flow] cart_flow_failed', {
-          status: resp.status,
-          reason: serverReason || (json?.ok ? 'missing_cart_url' : json?.ok === false ? 'server_error' : 'non_json_response'),
-          userErrors: serverUserErrors,
-          contentType,
-          bodyPreview: rawPreview,
-        });
-      } catch (logErr) {
-        console.debug?.('[cart-flow] cart_flow_failed_log_failed', logErr);
-      }
-
-      setCartStatus('idle');
-      setBusy(false);
-      showCartFailureToast('', {
-        fallbackUrl: fallbackProductUrl || fallbackUrlFromServer,
-        reason: serverReason || (!json ? 'non_json_response' : ''),
-        userErrors: serverUserErrors,
-      });
+      finalizeCartSuccess('Abrimos la página del producto en la tienda.');
       return;
     } catch (err) {
       setCartStatus('idle');
