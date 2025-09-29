@@ -60,7 +60,6 @@ export default function Confirm() {
           <button
             type="button"
             onClick={() => openCartUrl(cartEntryUrl)}
-            onClick={() => openCartUrl(data.cart_url)}
           >
             Agregar al carrito
           </button>
