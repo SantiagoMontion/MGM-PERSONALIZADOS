@@ -1,6 +1,7 @@
 import { Link, Outlet } from 'react-router-dom';
 import styles from './App.module.css';
 import SeoJsonLd from './components/SeoJsonLd';
+import Footer from './components/Footer';
 
 export default function App() {
   return (
@@ -15,6 +16,7 @@ export default function App() {
       <main className={styles.main}>
         <Outlet />
       </main>
+      <Footer />
     </div>
   );
 }
