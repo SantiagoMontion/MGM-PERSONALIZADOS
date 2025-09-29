@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
-import LoadingOverlay from "../components/LoadingOverlay";
-import { pollJobAndCreateCart } from "../lib/pollJobAndCreateCart";
-import { apiFetch } from "@/lib/api";
+import { useCallback, useEffect, useState } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import LoadingOverlay from '../components/LoadingOverlay';
+import { apiFetch } from '@/lib/api';
 
 export default function Creating() {
   const { jobId } = useParams();
@@ -12,12 +11,14 @@ export default function Creating() {
   const render_v2 = location.state?.render_v2;
   const skipFinalize = location.state?.skipFinalize;
   const [needsRetry, setNeedsRetry] = useState(false);
+  const [productUrl, setProductUrl] = useState('');
+  const [autoOpened, setAutoOpened] = useState(false);
 
   const run = useCallback(async () => {
     setNeedsRetry(false);
     try {
-      const mode = render_v2?.material || render?.material || "Classic";
-      const isGlasspad = mode === "Glasspad";
+      const mode = render_v2?.material || render?.material || 'Classic';
+      const isGlasspad = mode === 'Glasspad';
       const payload = {
         job_id: jobId,
         mode,
@@ -29,69 +30,69 @@ export default function Creating() {
         ...(isGlasspad ? { glasspad: { effect: true } } : {}),
       };
       await apiFetch(`/api/finalize-assets`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
-      let retried = false;
-      const res = await pollJobAndCreateCart(jobId, {
-        onTick: async (attempt, job) => {
-          if (!retried && attempt >= 10 && job?.status === "CREATED") {
-            retried = true;
-            try {
-              await apiFetch(`/api/finalize-assets`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload),
-              });
-            } catch (e) {
-              console.error("retry finalize failed", e);
-            }
+      try {
+        const summaryRes = await apiFetch(`/api/job-summary?id=${encodeURIComponent(jobId)}`);
+        if (summaryRes.ok) {
+          const summaryJson = await summaryRes.json().catch(() => null);
+          const url = typeof summaryJson?.shopify_product_url === 'string'
+            ? summaryJson.shopify_product_url.trim()
+            : '';
+          if (url) {
+            setProductUrl(url);
           }
-        },
-      });
-
-      if (res.ok) {
-        const cartUrlCandidate =
-          (typeof res?.raw?.cartUrl === "string" && res.raw.cartUrl.trim())
-            || (typeof res?.raw?.cartPlain === "string" && res.raw.cartPlain.trim())
-            || (typeof res?.raw?.url === "string" && res.raw.url.trim())
-            || (typeof res?.raw?.checkoutUrl === "string" && res.raw.checkoutUrl.trim())
-            || null;
-        const cartPlainCandidate =
-          (typeof res?.raw?.cartPlain === "string" && res.raw.cartPlain.trim())
-            || cartUrlCandidate
-            || null;
-        navigate(`/result/${jobId}`, {
-          state: {
-            cartUrl: cartUrlCandidate || undefined,
-            checkoutUrl: res?.raw?.checkoutUrl || null,
-            cartPlain: cartPlainCandidate || undefined,
-            checkoutPlain: res?.raw?.checkoutPlain || null,
-            strategy: res?.raw?.strategy,
-          },
-        });
-      } else {
-        setNeedsRetry(true);
+        }
+      } catch (summaryErr) {
+        console.warn('[creating] job_summary_failed', summaryErr);
       }
     } catch {
       setNeedsRetry(true);
     }
-  }, [jobId, render, render_v2, navigate]);
+  }, [jobId, render, render_v2]);
 
   useEffect(() => {
     if (jobId && !skipFinalize) run();
   }, [jobId, run, skipFinalize]);
 
+  useEffect(() => {
+    if (!productUrl || autoOpened) return;
+    try {
+      const popup = window.open(productUrl, '_blank', 'noopener');
+      if (popup && !popup.closed) {
+        try {
+          popup.opener = null;
+        } catch (openerErr) {
+          console.debug?.('[creating] opener_clear_failed', openerErr);
+        }
+      }
+    } catch (openErr) {
+      console.warn('[creating] product_open_failed', openErr);
+    } finally {
+      setAutoOpened(true);
+    }
+  }, [autoOpened, productUrl]);
+
   return (
     <div>
       <LoadingOverlay
-        show={!needsRetry && !skipFinalize}
-        messages={["Creando tu pedido…"]}
+        show={!needsRetry && !skipFinalize && !productUrl}
+        messages={['Creando tu pedido…']}
       />
       {skipFinalize && (
         <p>Modo sólo previsualización: finalize-assets no fue llamado.</p>
+      )}
+      {productUrl && (
+        <p>
+          Abrimos la página pública del producto. También podés{' '}
+          <a href={productUrl} target="_blank" rel="noopener noreferrer">
+            abrirla manualmente
+          </a>
+          .
+        </p>
       )}
       {needsRetry && (
         <button
@@ -102,7 +103,7 @@ export default function Creating() {
           Reintentar
         </button>
       )}
-      <button onClick={() => navigate("/")}>Cancelar</button>
+      <button onClick={() => navigate('/')}>Cancelar</button>
     </div>
   );
 }

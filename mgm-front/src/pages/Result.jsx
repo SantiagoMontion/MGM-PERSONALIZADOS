@@ -1,193 +1,104 @@
-import { useEffect, useState } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { apiFetch } from "@/lib/api";
-import { openCartUrl } from "@/lib/cart";
+import { useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { apiFetch } from '@/lib/api';
 
 export default function Result() {
   const { jobId } = useParams();
   const navigate = useNavigate();
-  const location = useLocation();
-  const [urls, setUrls] = useState(() => ({
-    cartUrl:
-      typeof location.state?.cartUrl === 'string'
-        ? location.state.cartUrl.trim() || null
-        : null,
-    checkoutUrl:
-      typeof location.state?.checkoutUrl === 'string'
-        ? location.state.checkoutUrl.trim() || null
-        : null,
-    cartPlain:
-      typeof location.state?.cartPlain === 'string'
-        ? location.state.cartPlain.trim() || null
-        : null,
-    checkoutPlain:
-      typeof location.state?.checkoutPlain === 'string'
-        ? location.state.checkoutPlain.trim() || null
-        : null,
-    strategy: location.state?.strategy || null,
-  }));
-  const [job, setJob] = useState(null);
-  const [added, setAdded] = useState(
-    () => localStorage.getItem(`MGM_jobAdded:${jobId}`) === "true",
-  );
+  const [productUrl, setProductUrl] = useState('');
   const [autoOpened, setAutoOpened] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    async function fetchJob() {
-      try {
-        const res = await apiFetch(
-          `/api/job-status?job_id=${encodeURIComponent(jobId)}`,
-        );
-        const j = await res.json();
-        if (res.ok && j.ok) setJob(j.job);
-      } catch (error) {
-        console.error("[result] job status failed", error);
-      }
-    }
-    fetchJob();
-  }, [jobId]);
-
-  const normalizedCartUrl =
-    typeof urls.cartUrl === 'string' ? urls.cartUrl.trim() : '';
-  const normalizedCartPlain =
-    typeof urls.cartPlain === 'string' ? urls.cartPlain.trim() : '';
-
-  useEffect(() => {
-    if (!jobId) return undefined;
-    if (normalizedCartUrl || normalizedCartPlain) {
-      return undefined;
-    }
-
+    if (!jobId) return;
     let cancelled = false;
-    const normalize = (value) =>
-      typeof value === 'string' && value.trim() ? value.trim() : null;
 
-    async function ensureUrls() {
+    async function fetchSummary() {
       try {
-        const res = await apiFetch(`/api/cart/link`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ job_id: jobId }),
-        });
-        const j = await res.json();
-        const cartUrl =
-          normalize(j?.cartUrl)
-            || normalize(j?.cartPlain)
-            || normalize(j?.url)
-            || normalize(j?.checkoutUrl);
-
-        if (res.ok && cartUrl && !cancelled) {
-          setUrls({
-            cartUrl,
-            cartPlain: normalize(j?.cartPlain) || cartUrl,
-            checkoutUrl: normalize(j?.checkoutUrl),
-            checkoutPlain: normalize(j?.checkoutPlain),
-            strategy: j?.strategy || null,
-          });
+        const res = await apiFetch(`/api/job-summary?id=${encodeURIComponent(jobId)}`);
+        if (!res.ok) {
+          const message = `job-summary ${res.status}`;
+          setError(message);
+          return;
         }
-      } catch (error) {
-        console.error('[result] ensure urls failed', error);
+        const json = await res.json().catch(() => null);
+        if (!json || typeof json !== 'object') {
+          setError('No pudimos obtener los datos del producto.');
+          return;
+        }
+        const url = typeof json.shopify_product_url === 'string' ? json.shopify_product_url.trim() : '';
+        if (!cancelled) {
+          if (url) {
+            setProductUrl(url);
+          } else {
+            setError('El producto todavía no está listo en la tienda.');
+          }
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(String(err?.message || err));
+        }
       }
     }
 
-    ensureUrls();
+    fetchSummary();
     return () => {
       cancelled = true;
     };
-  }, [jobId, normalizedCartUrl, normalizedCartPlain]);
+  }, [jobId]);
 
-  const cartEntryUrl = normalizedCartUrl || normalizedCartPlain || null;
   useEffect(() => {
-    if (!autoOpened && !added && cartEntryUrl) {
-      const opened = openCartUrl(cartEntryUrl);
-      setAutoOpened(true);
-      if (opened) {
+    if (!productUrl || autoOpened) return;
+    try {
+      const popup = window.open(productUrl, '_blank', 'noopener');
+      if (popup && !popup.closed) {
         try {
-          localStorage.setItem(`MGM_jobAdded:${jobId}`, "true");
-        } catch (err) {
-          console.warn("[result] persist added flag failed", err);
+          popup.opener = null;
+        } catch (openerErr) {
+          console.debug?.('[result] opener_clear_failed', openerErr);
         }
-        setAdded(true);
       }
+    } catch (openErr) {
+      console.warn('[result] product_open_failed', openErr);
+    } finally {
+      setAutoOpened(true);
     }
-  }, [added, autoOpened, cartEntryUrl, jobId]);
+  }, [autoOpened, productUrl]);
 
-  if (!cartEntryUrl) {
-    const fallbackCartUrl =
-      normalizedCartUrl || normalizedCartPlain || null;
-
+  if (!jobId) {
     return (
       <div>
-        <p>Estamos preparando tu carrito…</p>
-        {fallbackCartUrl && (
-          <button
-            onClick={() => {
-              openCartUrl(fallbackCartUrl);
-              localStorage.setItem(`MGM_jobAdded:${jobId}`, "true");
-              setAdded(true);
-            }}
-          >
-            Intentar abrir el carrito
-          </button>
-        )}
-        <button onClick={() => navigate("/")}>Volver al inicio</button>
+        <p>Falta el identificador del trabajo.</p>
+        <button type="button" onClick={() => navigate('/')}>Volver al inicio</button>
       </div>
     );
   }
 
-  const hrefCart =
-    added && typeof urls.cartPlain === 'string' && urls.cartPlain.trim()
-      ? urls.cartPlain.trim()
-      : cartEntryUrl;
-  const checkoutCandidate =
-    (added && typeof urls.checkoutPlain === 'string' && urls.checkoutPlain.trim()
-      ? urls.checkoutPlain.trim()
-      : null)
-      || (typeof urls.checkoutUrl === 'string' && urls.checkoutUrl.trim()
-        ? urls.checkoutUrl.trim()
-        : null);
-  const hrefCheckout = checkoutCandidate || hrefCart;
-  const openNew = (u) => window.open(u, "_blank", "noopener");
-
   return (
     <div>
-      {job?.preview_url && (
-        <img
-          src={job.preview_url}
-          alt="preview"
-          style={{ maxWidth: "300px" }}
-        />
+      <h1>Producto creado</h1>
+      {productUrl ? (
+        <p>
+          Abrimos la página del producto en otra pestaña. También podés
+          {' '}
+          <a href={productUrl} target="_blank" rel="noopener noreferrer">
+            abrirla manualmente
+          </a>
+          .
+        </p>
+      ) : (
+        <p>Estamos preparando la página pública del producto…</p>
       )}
-      <div>
+      {error && <p className="errorText">{error}</p>}
+      {productUrl && (
         <button
-          onClick={() => {
-            openCartUrl(hrefCart);
-            localStorage.setItem(`MGM_jobAdded:${jobId}`, "true");
-            setAdded(true);
-          }}
+          type="button"
+          onClick={() => window.open(productUrl, '_blank', 'noopener')}
         >
-          Agregar al carrito y seguir comprando
+          Abrir página del producto
         </button>
-        <button
-          onClick={() => {
-            openNew(hrefCheckout);
-            localStorage.setItem(`MGM_jobAdded:${jobId}`, "true");
-            setAdded(true);
-          }}
-        >
-          Pagar ahora
-        </button>
-        <button
-          onClick={() => {
-            openCartUrl(hrefCart);
-            localStorage.setItem(`MGM_jobAdded:${jobId}`, "true");
-            setAdded(true);
-            navigate("/");
-          }}
-        >
-          Crear otro
-        </button>
-      </div>
+      )}
+      <button type="button" onClick={() => navigate('/')}>Crear otro diseño</button>
     </div>
   );
 }
