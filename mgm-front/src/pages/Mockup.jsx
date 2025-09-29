@@ -300,6 +300,8 @@ export default function Mockup() {
           }
         } catch (openErr) {
           console.warn('[mockup] product_page_open_failed', openErr);
+
+
           try {
             window.open(productUrl, '_blank');
             opened = true;
