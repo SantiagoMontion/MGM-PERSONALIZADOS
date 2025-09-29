@@ -922,8 +922,8 @@ export default function Home() {
                     }
                     return (
                       <div className={priceClasses.join(' ')}>
-                        <span className={styles.canvasPriceLabel}>Con transferencia</span>
                         <span className={styles.canvasPriceAmount}>{formattedAmount}</span>
+                        <span className={styles.canvasPriceLabel}>Con transferencia</span>
                       </div>
                     );
                   }}
