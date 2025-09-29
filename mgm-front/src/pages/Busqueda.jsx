@@ -1,6 +1,14 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { apiFetch } from '@/lib/api.js';
+import {
+  PRINTS_GATE_PASSWORD,
+  createGateRecord,
+  readStoredGate,
+  storeGate,
+  clearGate,
+  isGateValid,
+} from '@/lib/printsGate.js';
 import styles from './Busqueda.module.css';
 
 const PAGE_LIMIT = 25;
@@ -45,6 +53,11 @@ function formatMeasurement(width, height) {
 }
 
 export default function Busqueda() {
+  const [gateReady, setGateReady] = useState(typeof window === 'undefined');
+  const [hasAccess, setHasAccess] = useState(false);
+  const [gateToken, setGateToken] = useState('');
+  const [passwordValue, setPasswordValue] = useState('');
+  const [authError, setAuthError] = useState('');
   const [query, setQuery] = useState('');
   const [lastQuery, setLastQuery] = useState('');
   const [results, setResults] = useState([]);
@@ -54,6 +67,27 @@ export default function Busqueda() {
   const [error, setError] = useState('');
   const [searched, setSearched] = useState(false);
   const abortRef = useRef(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const record = readStoredGate();
+    if (isGateValid(record)) {
+      setHasAccess(true);
+      setGateToken(record?.token || '');
+      setAuthError('');
+    } else {
+      if (record) clearGate();
+      setHasAccess(false);
+      setGateToken('');
+    }
+    setGateReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (hasAccess) {
+      setAuthError('');
+    }
+  }, [hasAccess]);
 
   const showingRange = useMemo(() => {
     if (!searched || total === 0 || results.length === 0) return '';
@@ -72,6 +106,11 @@ export default function Busqueda() {
       return;
     }
 
+    if (!hasAccess) {
+      setAuthError('Ingresá la contraseña temporal para buscar.');
+      return;
+    }
+
     const controller = new AbortController();
     abortRef.current?.abort?.();
     abortRef.current = controller;
@@ -87,13 +126,29 @@ export default function Busqueda() {
         offset: String(Math.max(0, nextOffset)),
       });
       const endpoint = `/api/prints/search?${params.toString()}`;
+      const headers = { Accept: 'application/json' };
+      if (gateToken) {
+        headers['X-Prints-Gate'] = gateToken;
+      }
       const response = await apiFetch('GET', endpoint, undefined, {
         signal: controller.signal,
-        headers: {
-          Accept: 'application/json',
-        },
+        headers,
       });
       const payload = await response.json().catch(() => ({}));
+
+      if (response.status === 401 || payload?.reason === 'unauthorized') {
+        clearGate();
+        setGateToken('');
+        setHasAccess(false);
+        setAuthError('La contraseña expiró. Ingresala de nuevo.');
+        setError('Necesitás ingresar la contraseña temporal para buscar.');
+        setPasswordValue('');
+        setResults([]);
+        setTotal(0);
+        setSearched(false);
+        return;
+      }
+
       if (!response.ok) {
         const message = typeof payload?.message === 'string'
           ? payload.message
@@ -155,6 +210,32 @@ export default function Busqueda() {
     performSearch(lastQuery || query, nextOffset);
   }
 
+  function handlePasswordSubmit(event) {
+    event.preventDefault();
+    if (loading) return;
+    const trimmed = passwordValue.trim();
+    if (!trimmed) {
+      setAuthError('Ingresá la contraseña.');
+      return;
+    }
+    if (trimmed !== PRINTS_GATE_PASSWORD) {
+      setAuthError('Contraseña incorrecta.');
+      return;
+    }
+    const record = createGateRecord();
+    storeGate(record);
+    setGateToken(record.token);
+    setHasAccess(true);
+    setAuthError('');
+    setPasswordValue('');
+    setError('');
+    if (query.trim()) {
+      setTimeout(() => {
+        performSearch(query, 0);
+      }, 0);
+    }
+  }
+
   const canShowPagination = searched && total > PAGE_LIMIT;
   const hasResults = results.length > 0;
   const noResultsMessage = searched && !loading && !hasResults && !error;
@@ -185,10 +266,10 @@ export default function Busqueda() {
               autoComplete="off"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              disabled={loading}
+              disabled={loading || !hasAccess}
             />
           </div>
-          <button type="submit" className={styles.searchButton} disabled={loading}>
+          <button type="submit" className={styles.searchButton} disabled={loading || !hasAccess}>
             {loading ? 'Buscando…' : 'Buscar'}
           </button>
         </form>
@@ -280,6 +361,44 @@ export default function Busqueda() {
           </div>
         ) : null}
       </section>
+
+      {gateReady && !hasAccess ? (
+        <div className={styles.authOverlay}>
+          <div
+            className={styles.authModal}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="prints-auth-title"
+          >
+            <h2 id="prints-auth-title" className={styles.authTitle}>Acceso restringido</h2>
+            <p className={styles.authDescription}>
+              Ingresá la contraseña temporal para buscar y descargar los PDFs de imprenta.
+            </p>
+            <form className={styles.authForm} onSubmit={handlePasswordSubmit}>
+              <label className={styles.authLabel} htmlFor="prints-auth-password">
+                Contraseña
+              </label>
+              <input
+                id="prints-auth-password"
+                type="password"
+                className={styles.authInput}
+                autoComplete="current-password"
+                autoFocus
+                value={passwordValue}
+                onChange={(event) => {
+                  setPasswordValue(event.target.value);
+                  if (authError) setAuthError('');
+                }}
+                disabled={loading}
+              />
+              {authError ? <p className={styles.authError}>{authError}</p> : null}
+              <button type="submit" className={styles.authButton} disabled={loading}>
+                Ingresar
+              </button>
+            </form>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
