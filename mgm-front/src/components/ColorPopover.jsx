@@ -7,7 +7,7 @@ const EYEDROPPER_ICON_SRC = resolveIconAsset("tintero.svg", {
   fallbackToPublic: false,
 });
 
-const PICKER_SCALE = 0.5;
+const PICKER_SCALE = 1;
 const PICKER_BASE_WIDTH = 320;
 const PICKER_BASE_HEIGHT = 416;
 const DEFAULT_COLOR = "#ffffff";
