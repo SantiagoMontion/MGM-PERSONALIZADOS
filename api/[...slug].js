@@ -126,7 +126,7 @@ export default withCors(async function handler(req, res) {
       }
       case 'GET prints/search': {
         const { searchPrintsHandler } = await import('../lib/api/handlers/printsSearch.js');
-        const { status, body } = await searchPrintsHandler({ query: req.query });
+        const { status, body } = await searchPrintsHandler({ query: req.query, headers: req.headers });
         res.statusCode = status;
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         return res.end(JSON.stringify(body));

@@ -1,4 +1,4 @@
-﻿.page {
+.page {
   max-width: 960px;
   margin: 0 auto;
   padding: 48px 16px 80px;
@@ -274,4 +274,96 @@
   .pagination button {
     width: 100%;
   }
+}
+
+.authOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 12, 24, 0.85);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+  padding: 24px;
+}
+
+.authModal {
+  width: 100%;
+  max-width: 420px;
+  background: rgba(15, 23, 42, 0.95);
+  border-radius: 18px;
+  border: 1px solid rgba(96, 165, 250, 0.25);
+  padding: 28px 26px;
+  box-shadow: 0 24px 52px rgba(15, 23, 42, 0.65);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.authTitle {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0;
+  color: #f8fafc;
+}
+
+.authDescription {
+  margin: 0;
+  color: #cbd5f5;
+  font-size: 0.95rem;
+}
+
+.authForm {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.authLabel {
+  font-weight: 600;
+  color: #e0e7ff;
+}
+
+.authInput {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: rgba(15, 23, 42, 0.85);
+  color: #f9fafb;
+  font-size: 1rem;
+}
+
+.authInput:focus {
+  outline: none;
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.25);
+}
+
+.authButton {
+  margin-top: 4px;
+  background: linear-gradient(135deg, #2563eb, #7c3aed);
+  color: #f8fafc;
+  border: none;
+  border-radius: 10px;
+  padding: 12px 18px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.authButton:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px rgba(59, 130, 246, 0.35);
+}
+
+.authButton:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.authError {
+  margin: 0;
+  color: #f87171;
+  font-size: 0.9rem;
 }
