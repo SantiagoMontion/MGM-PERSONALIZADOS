@@ -72,7 +72,6 @@ export default function Creating() {
             strategy: res?.raw?.strategy,
           },
         });
-        });
       } else {
         setNeedsRetry(true);
       }
