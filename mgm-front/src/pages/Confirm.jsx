@@ -10,7 +10,10 @@ export default function Confirm() {
   const [data, setData] = useState(null);
   const [autoOpened, setAutoOpened] = useState(false);
   const [err, setErr] = useState('');
-  const cartEntryUrl = (data?.cart_plain && data.cart_plain.trim()) || (data?.cart_url && data.cart_url.trim()) || null;
+  const cartEntryUrl =
+    (data?.cart_url && data.cart_url.trim()) ||
+    (data?.cart_plain && data.cart_plain.trim()) ||
+    null;
 
   useEffect(() => {
     let t;
@@ -42,15 +45,14 @@ export default function Confirm() {
   }, [autoOpened, cartEntryUrl]);
 
   if (!jobId) return <p>Falta job_id.</p>;
-  if (!data) return <p>Cargando…</p>;
 
   return (
     <div>
-      <h1>Tu diseño</h1>
+      <h1>Tu diseĂ±o</h1>
       {data.preview_url && (
         <img src={data.preview_url} alt="preview" className={styles.previewImage} />
       )}
-      <p>Material: <b>{data.material}</b> — Tamaño: <b>{data.w_cm}×{data.h_cm} cm</b></p>
+      <p>Material: <b>{data.material}</b> â€” TamaĂ±o: <b>{data.w_cm}Ă—{data.h_cm} cm</b></p>
       {data.price_amount ? <p>Precio: <b>${data.price_amount}</b></p> : null}
 
       <div className={styles.actions}>
@@ -69,11 +71,11 @@ export default function Confirm() {
         {data.checkout_url && (
           <a className="btn" href={data.checkout_url} target="_blank" rel="noreferrer">Pagar ahora</a>
         )}
-        <a className="btn" href="/">Cargar otro diseño</a>
+        <a className="btn" href="/">Cargar otro diseĂ±o</a>
       </div>
 
       {err && <p className="errorText">{err}</p>}
-      {!cartEntryUrl && <p>Preparando tu carrito�</p>}
+      {!cartEntryUrl && <p>Preparando tu carrito…</p>}
     </div>
   );
 }
