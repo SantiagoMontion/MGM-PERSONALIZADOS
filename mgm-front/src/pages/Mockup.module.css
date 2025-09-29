@@ -88,6 +88,22 @@
   box-shadow: var(--shadow);
 }
 
+.discountBadge {
+  margin: clamp(12px, 3vh, 24px) auto clamp(24px, 5vh, 36px);
+  padding: 10px 22px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(242, 243, 245, 0.92);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
 .ctaRow {
   width: min(980px, 100%);
   display: grid;
@@ -175,18 +191,123 @@
   max-width: 320px;
 }
 
-.footerSection {
-  max-width: 1100px;
-  margin: clamp(28px, 6vh, 64px) auto 0;
+.communitySection {
+  width: min(1100px, 100%);
+  margin: clamp(48px, 10vh, 96px) auto 0;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(24px, 6vh, 48px);
+  align-items: center;
   text-align: center;
 }
 
-.footerMessage {
+.communityTitle {
   margin: 0;
-  font-size: clamp(22px, 3.2vw, 36px);
-  font-weight: 500;
+  font-size: clamp(26px, 4vw, 40px);
+  font-weight: 600;
   letter-spacing: 0.01em;
-  color: rgba(242, 243, 245, 0.92);
+  color: rgba(242, 243, 245, 0.96);
+}
+
+.communitySubtitle {
+  margin: 0;
+  font-size: 16px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(154, 160, 166, 0.9);
+}
+
+.testimonialsGrid {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(16px, 3vw, 28px);
+}
+
+.testimonialCard {
+  margin: 0;
+  padding: clamp(12px, 3vw, 20px);
+  border-radius: calc(var(--radius) + 4px);
+  background: var(--surface);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: var(--shadow);
+}
+
+.testimonialImageWrapper {
+  position: relative;
+  width: 100%;
+  padding-top: 75%;
+  overflow: hidden;
+  border-radius: calc(var(--radius) - 2px);
+  background: rgba(15, 16, 17, 0.6);
+}
+
+.testimonialImageWrapper img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.benefitsGrid {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(16px, 3vw, 28px);
+}
+
+.benefitCard {
+  background: rgba(18, 20, 22, 0.85);
+  border-radius: calc(var(--radius) + 2px);
+  padding: clamp(20px, 4vw, 28px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: var(--shadow);
+}
+
+.benefitIcon {
+  font-size: 24px;
+}
+
+.benefitTitle {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: rgba(242, 243, 245, 0.98);
+}
+
+.benefitDescription {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: rgba(154, 160, 166, 0.92);
+}
+
+.marketingSection {
+  max-width: 1100px;
+  margin: clamp(48px, 10vh, 96px) auto 0;
+  text-align: center;
+}
+
+.marketingTitle {
+  margin: 0;
+  font-size: clamp(24px, 3.2vw, 36px);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: rgba(242, 243, 245, 0.96);
+}
+
+.marketingSubtitle {
+  margin: 8px 0 0;
+  font-size: clamp(26px, 4vw, 44px);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: lowercase;
+  color: rgba(242, 243, 245, 0.82);
 }
 
 .hiddenButton {
@@ -335,6 +456,11 @@
   .ctaButton {
     width: 100%;
   }
+
+  .testimonialsGrid,
+  .benefitsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 480px) {
@@ -358,6 +484,22 @@
 
   .ctaHint {
     font-size: 11.5px;
+  }
+
+  .discountBadge {
+    font-size: 13px;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .testimonialsGrid,
+  .benefitsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .benefitCard {
+    text-align: center;
+    align-items: center;
   }
 
   .modalTitle {
