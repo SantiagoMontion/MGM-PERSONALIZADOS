@@ -227,32 +227,105 @@ test('fallbackCartAdd fails when Shopify returns 200 without matching item', asy
   }
 });
 
+test('fallbackCartAdd succeeds when Shopify returns text/javascript with matched item but no token', async () => {
+  const fetchStub = mock.method(global, 'fetch', async () =>
+    createResponse(
+      {
+        token: '',
+        items: [
+          {
+            id: 123456789,
+            variant_id: 123456789,
+            quantity: 1,
+          },
+        ],
+      },
+      { headers: { 'content-type': 'text/javascript' } },
+    ),
+  );
+
+  try {
+    const result = await fallbackCartAdd({ variantNumericId: '123456789', quantity: 1 });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.matchedItem, true);
+    assert.equal(result.cartUrl, 'https://www.mgmgamers.store/cart');
+    assert.equal(result.cartToken, '');
+  } finally {
+    fetchStub.mock.restore();
+  }
+});
+
 test('waitForVariantAvailability resolves once the variant is available', async () => {
   const prevEnv = {
     SHOPIFY_STOREFRONT_TOKEN: process.env.SHOPIFY_STOREFRONT_TOKEN,
     SHOPIFY_STOREFRONT_DOMAIN: process.env.SHOPIFY_STOREFRONT_DOMAIN,
     SHOPIFY_STORE_DOMAIN: process.env.SHOPIFY_STORE_DOMAIN,
+    SHOPIFY_ADMIN_TOKEN: process.env.SHOPIFY_ADMIN_TOKEN,
   };
   process.env.SHOPIFY_STOREFRONT_TOKEN = 'test-token';
   process.env.SHOPIFY_STOREFRONT_DOMAIN = 'https://store.example';
   process.env.SHOPIFY_STORE_DOMAIN = 'store.example';
+  process.env.SHOPIFY_ADMIN_TOKEN = 'admin-token';
 
   const responses = [
-    { data: { productVariant: { id: 'gid://shopify/ProductVariant/1', availableForSale: false } } },
-    { data: { productVariant: { id: 'gid://shopify/ProductVariant/1', availableForSale: true } } },
+    {
+      data: {
+        product: {
+          handle: 'test-handle',
+          onlineStoreUrl: 'https://store.example/products/test-handle',
+          variants: {
+            nodes: [
+              { id: 'gid://shopify/ProductVariant/1', availableForSale: false },
+            ],
+          },
+        },
+      },
+    },
+    {
+      data: {
+        product: {
+          handle: 'test-handle',
+          onlineStoreUrl: 'https://store.example/products/test-handle',
+          variants: {
+            nodes: [
+              { id: 'gid://shopify/ProductVariant/1', availableForSale: true },
+            ],
+          },
+        },
+      },
+    },
   ];
 
-  const fetchStub = mock.method(global, 'fetch', async () =>
-    createResponse(responses.shift() ?? responses[responses.length - 1], {
+  const fetchStub = mock.method(global, 'fetch', async (url) => {
+    const urlStr = String(url);
+    if (urlStr.includes('/admin/api/')) {
+      return createResponse(
+        {
+          data: {
+            productVariant: {
+              id: 'gid://shopify/ProductVariant/1',
+              product: {
+                id: 'gid://shopify/Product/1',
+                handle: 'test-handle',
+                onlineStoreUrl: 'https://store.example/products/test-handle',
+              },
+            },
+          },
+        },
+        { headers: { 'content-type': 'application/json' } },
+      );
+    }
+    return createResponse(responses.shift() ?? responses[responses.length - 1], {
       headers: { 'content-type': 'application/json' },
-    }),
-  );
+    });
+  });
 
   try {
     const result = await waitForVariantAvailability({
       variantGid: 'gid://shopify/ProductVariant/1',
       attempts: 3,
-      delayMs: 1,
+      backoffMs: [1, 1],
     });
 
     assert.equal(result.ok, true);
@@ -274,6 +347,11 @@ test('waitForVariantAvailability resolves once the variant is available', async 
     } else {
       process.env.SHOPIFY_STORE_DOMAIN = prevEnv.SHOPIFY_STORE_DOMAIN;
     }
+    if (prevEnv.SHOPIFY_ADMIN_TOKEN === undefined) {
+      delete process.env.SHOPIFY_ADMIN_TOKEN;
+    } else {
+      process.env.SHOPIFY_ADMIN_TOKEN = prevEnv.SHOPIFY_ADMIN_TOKEN;
+    }
   }
 });
 
@@ -282,23 +360,51 @@ test('waitForVariantAvailability times out when variant never appears', async ()
     SHOPIFY_STOREFRONT_TOKEN: process.env.SHOPIFY_STOREFRONT_TOKEN,
     SHOPIFY_STOREFRONT_DOMAIN: process.env.SHOPIFY_STOREFRONT_DOMAIN,
     SHOPIFY_STORE_DOMAIN: process.env.SHOPIFY_STORE_DOMAIN,
+    SHOPIFY_ADMIN_TOKEN: process.env.SHOPIFY_ADMIN_TOKEN,
   };
   process.env.SHOPIFY_STOREFRONT_TOKEN = 'test-token';
   process.env.SHOPIFY_STOREFRONT_DOMAIN = 'https://store.example';
   process.env.SHOPIFY_STORE_DOMAIN = 'store.example';
+  process.env.SHOPIFY_ADMIN_TOKEN = 'admin-token';
 
-  const fetchStub = mock.method(global, 'fetch', async () =>
-    createResponse(
-      { data: { productVariant: null } },
+  const fetchStub = mock.method(global, 'fetch', async (url) => {
+    const urlStr = String(url);
+    if (urlStr.includes('/admin/api/')) {
+      return createResponse(
+        {
+          data: {
+            productVariant: {
+              id: 'gid://shopify/ProductVariant/2',
+              product: {
+                id: 'gid://shopify/Product/2',
+                handle: 'other-handle',
+                onlineStoreUrl: 'https://store.example/products/other-handle',
+              },
+            },
+          },
+        },
+        { headers: { 'content-type': 'application/json' } },
+      );
+    }
+    return createResponse(
+      {
+        data: {
+          product: {
+            handle: 'other-handle',
+            onlineStoreUrl: 'https://store.example/products/other-handle',
+            variants: { nodes: [] },
+          },
+        },
+      },
       { headers: { 'content-type': 'application/json' } },
-    ),
-  );
+    );
+  });
 
   try {
     const result = await waitForVariantAvailability({
       variantGid: 'gid://shopify/ProductVariant/2',
       attempts: 2,
-      delayMs: 1,
+      backoffMs: [1, 1],
     });
 
     assert.equal(result.ok, false);
@@ -320,6 +426,11 @@ test('waitForVariantAvailability times out when variant never appears', async ()
       delete process.env.SHOPIFY_STORE_DOMAIN;
     } else {
       process.env.SHOPIFY_STORE_DOMAIN = prevEnv.SHOPIFY_STORE_DOMAIN;
+    }
+    if (prevEnv.SHOPIFY_ADMIN_TOKEN === undefined) {
+      delete process.env.SHOPIFY_ADMIN_TOKEN;
+    } else {
+      process.env.SHOPIFY_ADMIN_TOKEN = prevEnv.SHOPIFY_ADMIN_TOKEN;
     }
   }
 });
