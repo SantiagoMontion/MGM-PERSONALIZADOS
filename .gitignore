@@ -14,3 +14,15 @@ assets-local/
 tests/fixtures/
 ".env" 
 .env
+.env
+.env.*
+*.env
+*.env.*
+*.local
+*.development.local
+*.production.local
+*.test.local
+.envrc
+*.pem
+*.key
+*.p12
