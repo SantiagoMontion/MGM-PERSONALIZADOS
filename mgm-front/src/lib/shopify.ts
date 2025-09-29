@@ -942,7 +942,7 @@ interface StorefrontCartUserError {
 }
 
 interface StorefrontCartPayload {
-  cart?: { id?: string | null; webUrl?: string | null } | null;
+  cart?: { id?: string | null; checkoutUrl?: string | null } | null;
   userErrors?: StorefrontCartUserError[] | null;
 }
 
@@ -993,14 +993,14 @@ async function performStorefrontCartMutation(
 
 const CART_CREATE_MUTATION = `mutation CartCreate($lines: [CartLineInput!]!, $discountCodes: [String!]) {
   cartCreate(input: { lines: $lines, discountCodes: $discountCodes }) {
-    cart { id webUrl }
+    cart { id checkoutUrl }
     userErrors { message code field }
   }
 }`;
 
 const CART_LINES_ADD_MUTATION = `mutation CartLinesAdd($cartId: ID!, $lines: [CartLineInput!]!) {
   cartLinesAdd(cartId: $cartId, lines: $lines) {
-    cart { id webUrl }
+    cart { id checkoutUrl }
     userErrors { message code field }
   }
 }`;
@@ -1017,7 +1017,7 @@ const VARIANT_AVAILABILITY_QUERY = `query WaitVariant($id: ID!) {
 
 export interface StorefrontCartSuccess {
   cartId: string;
-  webUrl: string;
+  checkoutUrl: string;
 }
 
 export async function addVariantToCartStorefront(
@@ -1113,15 +1113,15 @@ export async function addVariantToCartStorefront(
     const userErrors = extractUserErrors(data);
     const payloadErrors = Array.isArray(payload?.errors) ? payload.errors.filter(Boolean) : [];
     const resolvedCartId = data?.cart?.id ? String(data.cart.id) : cartId;
-    const resolvedWebUrl = data?.cart?.webUrl ? String(data.cart.webUrl) : '';
-    if (response.ok && !payloadErrors.length && !userErrors.length && resolvedCartId && resolvedWebUrl) {
+    const resolvedCheckoutUrl = data?.cart?.checkoutUrl ? String(data.cart.checkoutUrl) : '';
+    if (response.ok && !payloadErrors.length && !userErrors.length && resolvedCartId && resolvedCheckoutUrl) {
       setStoredCartId(resolvedCartId);
       try {
-        console.info('[cart-flow] cart_lines_add_ok', { cartId: resolvedCartId, webUrl: resolvedWebUrl });
+        console.info('[cart-flow] cart_lines_add_ok', { cartId: resolvedCartId, checkoutUrl: resolvedCheckoutUrl });
       } catch (logErr) {
         console.warn?.('[cart-flow] cart_lines_add_log_failed', logErr);
       }
-      return { ok: true, value: { cartId: resolvedCartId, webUrl: resolvedWebUrl } };
+      return { ok: true, value: { cartId: resolvedCartId, checkoutUrl: resolvedCheckoutUrl } };
     }
 
     try {
@@ -1157,15 +1157,15 @@ export async function addVariantToCartStorefront(
     const userErrors = extractUserErrors(data);
     const payloadErrors = Array.isArray(payload?.errors) ? payload.errors.filter(Boolean) : [];
     const createdCartId = data?.cart?.id ? String(data.cart.id) : '';
-    const createdWebUrl = data?.cart?.webUrl ? String(data.cart.webUrl) : '';
-    if (response.ok && !payloadErrors.length && !userErrors.length && createdCartId && createdWebUrl) {
+    const createdCheckoutUrl = data?.cart?.checkoutUrl ? String(data.cart.checkoutUrl) : '';
+    if (response.ok && !payloadErrors.length && !userErrors.length && createdCartId && createdCheckoutUrl) {
       setStoredCartId(createdCartId);
       try {
-        console.info('[cart-flow] cart_create_ok', { cartId: createdCartId, webUrl: createdWebUrl });
+        console.info('[cart-flow] cart_create_ok', { cartId: createdCartId, checkoutUrl: createdCheckoutUrl });
       } catch (logErr) {
         console.warn?.('[cart-flow] cart_create_log_failed', logErr);
       }
-      return { ok: true, value: { cartId: createdCartId, webUrl: createdWebUrl } };
+      return { ok: true, value: { cartId: createdCartId, checkoutUrl: createdCheckoutUrl } };
     }
 
     try {

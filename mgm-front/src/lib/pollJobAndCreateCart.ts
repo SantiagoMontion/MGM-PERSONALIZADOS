@@ -76,8 +76,8 @@ export async function pollJobAndCreateCart(
             ? j.cartPlain.trim()
             : typeof j?.url === "string" && j.url.trim()
               ? j.url.trim()
-              : typeof j?.webUrl === "string" && j.webUrl.trim()
-                ? j.webUrl.trim()
+              : typeof j?.checkoutUrl === "string" && j.checkoutUrl.trim()
+                ? j.checkoutUrl.trim()
                 : null;
       if (!res.ok || !cartUrl) {
         // Si falta algo, seguir esperando si hay intentos restantes
