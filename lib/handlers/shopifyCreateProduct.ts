@@ -190,31 +190,45 @@ export default async function handler(req: any, res: any) {
         heightCm: height,
         material: mode,
       });
-      const pdfMetadata: Record<string, string | boolean> = {
+      const pdfMetadata: Record<string, string | boolean | number> = {
         private: true,
         createdBy: 'editor',
+        slug: slugifyName(designNameForPath) || 'design',
       };
+      if (Number.isFinite(width)) pdfMetadata.widthCm = Number(width);
+      if (Number.isFinite(height)) pdfMetadata.heightCm = Number(height);
+      if (mode) pdfMetadata.material = mode;
       if (product?.id) pdfMetadata.productId = String(product.id);
       if (variantId) pdfMetadata.variantId = variantId;
 
-      const { path: pdfPath, signedUrl: pdfSignedUrl, expiresIn } = await savePrintPdfToSupabase(
+      const {
+        path: pdfPath,
+        signedUrl: pdfSignedUrl,
+        publicUrl: pdfPublicUrl,
+        expiresIn,
+      } = await savePrintPdfToSupabase(
         pdfBuffer,
         pdfFilename,
         pdfMetadata,
       );
+
+      const effectivePdfUrl = pdfPublicUrl || pdfSignedUrl || null;
+      const previewPath = pdfPath.startsWith('outputs/') ? pdfPath : `outputs/${pdfPath}`;
+      const previewUrl = `/api/prints/preview?path=${encodeURIComponent(previewPath)}`;
 
       return res.status(200).json({
         ok: true,
         productUrl,
         checkoutUrl,
         assets: {
-          pdf_url: pdfSignedUrl,
+          pdf_url: effectivePdfUrl,
           pdf_path: pdfPath,
           pdf_expires_in: expiresIn,
+          preview_url: previewUrl,
         },
         pdf: {
           path: pdfPath,
-          download_url: pdfSignedUrl,
+          download_url: effectivePdfUrl,
           expires_in: expiresIn,
         },
       });
