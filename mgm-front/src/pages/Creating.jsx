@@ -53,20 +53,25 @@ export default function Creating() {
       });
 
       if (res.ok) {
-        const cartUrl =
-          typeof res?.raw?.webUrl === "string"
-            ? res.raw.webUrl
-            : typeof res?.raw?.url === "string"
-              ? res.raw.url
-              : null;
+        const cartUrlCandidate =
+          (typeof res?.raw?.cartUrl === "string" && res.raw.cartUrl.trim())
+            || (typeof res?.raw?.cartPlain === "string" && res.raw.cartPlain.trim())
+            || (typeof res?.raw?.url === "string" && res.raw.url.trim())
+            || (typeof res?.raw?.webUrl === "string" && res.raw.webUrl.trim())
+            || null;
+        const cartPlainCandidate =
+          (typeof res?.raw?.cartPlain === "string" && res.raw.cartPlain.trim())
+            || cartUrlCandidate
+            || null;
         navigate(`/result/${jobId}`, {
           state: {
-            cartUrl: cartUrl || undefined,
-            checkoutUrl: res?.raw?.checkoutUrl,
-            cartPlain: res?.raw?.cartPlain,
-            checkoutPlain: res?.raw?.checkoutPlain,
+            cartUrl: cartUrlCandidate || undefined,
+            checkoutUrl: res?.raw?.checkoutUrl || null,
+            cartPlain: cartPlainCandidate || undefined,
+            checkoutPlain: res?.raw?.checkoutPlain || null,
             strategy: res?.raw?.strategy,
           },
+        });
         });
       } else {
         setNeedsRetry(true);

@@ -2,13 +2,12 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { fileURLToPath, URL } from 'node:url'
 
-// https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
-      'buffer/': 'buffer',
+      '@/': fileURLToPath(new URL('./src/', import.meta.url))
     }
   },
   server: {
@@ -17,9 +16,8 @@ export default defineConfig({
         target: 'http://localhost:3001',
         changeOrigin: true,
         secure: false,
-        ws: false,
-        proxyTimeout: 60000,
+        // sin "rewrite": que /api/cart/start llegue al backend tal cual
       }
     }
   }
-})
+});

@@ -53,6 +53,24 @@ const CORNER_ANCHORS = new Set([
 ]);
 
 
+
+const isTypingTarget = (el) => {
+  if (!el) return false;
+  if (el.getAttribute?.('data-allow-arrows') === 'true') return false;
+  const tag = el.tagName?.toLowerCase();
+  if (el.isContentEditable) return true;
+  const role = el.getAttribute?.('role');
+  if (role === 'textbox') return true;
+  if (tag === 'textarea') return true;
+  if (tag === 'input') {
+    const type = (el.getAttribute('type') || '').toLowerCase();
+    if (!type || ['text', 'search', 'email', 'url', 'password', 'number', 'tel'].includes(type)) {
+      return true;
+    }
+  }
+  return false;
+};
+
 const ACTION_ICON_MAP = {
   izquierda: resolveIconAsset("izquierda.svg"),
   centrado_V: resolveIconAsset("centrado_V.svg"),
@@ -420,10 +438,11 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
   useEffect(() => {
     const handler = (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === "z") {
-        e.preventDefault();
-        undo();
-      }
+      const key = typeof e.key === 'string' ? e.key.toLowerCase() : '';
+      if (!((e.ctrlKey || e.metaKey) && key === 'z')) return;
+      if (isTypingTarget(document.activeElement) || isTypingTarget(e.target)) return;
+      e.preventDefault();
+      undo();
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
@@ -462,17 +481,17 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
   useEffect(() => {
     const handler = (e) => {
-      if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key))
-        return;
+      if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+      if (isTypingTarget(document.activeElement) || isTypingTarget(e.target)) return;
       e.preventDefault();
       const step = e.shiftKey ? 1 : 0.5;
-      if (e.key === "ArrowUp") moveBy(0, -step);
-      if (e.key === "ArrowDown") moveBy(0, step);
-      if (e.key === "ArrowLeft") moveBy(-step, 0);
-      if (e.key === "ArrowRight") moveBy(step, 0);
+      if (e.key === 'ArrowUp') moveBy(0, -step);
+      if (e.key === 'ArrowDown') moveBy(0, step);
+      if (e.key === 'ArrowLeft') moveBy(-step, 0);
+      if (e.key === 'ArrowRight') moveBy(step, 0);
     };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
   }, [moveBy]);
 
   const didInitRef = useRef(false);

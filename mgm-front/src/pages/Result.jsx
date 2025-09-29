@@ -7,13 +7,25 @@ export default function Result() {
   const { jobId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const [urls, setUrls] = useState({
-    cartUrl: location.state?.cartUrl,
-    checkoutUrl: location.state?.checkoutUrl,
-    cartPlain: location.state?.cartPlain,
-    checkoutPlain: location.state?.checkoutPlain,
-    strategy: location.state?.strategy,
-  });
+  const [urls, setUrls] = useState(() => ({
+    cartUrl:
+      typeof location.state?.cartUrl === 'string'
+        ? location.state.cartUrl.trim() || null
+        : null,
+    checkoutUrl:
+      typeof location.state?.checkoutUrl === 'string'
+        ? location.state.checkoutUrl.trim() || null
+        : null,
+    cartPlain:
+      typeof location.state?.cartPlain === 'string'
+        ? location.state.cartPlain.trim() || null
+        : null,
+    checkoutPlain:
+      typeof location.state?.checkoutPlain === 'string'
+        ? location.state.checkoutPlain.trim() || null
+        : null,
+    strategy: location.state?.strategy || null,
+  }));
   const [job, setJob] = useState(null);
   const [added, setAdded] = useState(
     () => localStorage.getItem(`MGM_jobAdded:${jobId}`) === "true",
@@ -36,41 +48,57 @@ export default function Result() {
   }, [jobId]);
 
   useEffect(() => {
-    if (!urls.cartUrl || !urls.checkoutUrl) {
-      async function ensureUrls() {
-        try {
-          const res = await apiFetch(`/api/cart/link`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ job_id: jobId }),
-          });
-          const j = await res.json();
-          const cartUrl =
-            typeof j?.webUrl === "string"
-              ? j.webUrl
-              : typeof j?.url === "string"
-                ? j.url
-                : null;
-          if (res.ok && cartUrl) {
-            setUrls({
-              cartUrl,
-              checkoutUrl: j.checkoutUrl,
-              cartPlain: j.cartPlain,
-              checkoutPlain: j.checkoutPlain,
-              strategy: j.strategy,
-            });
-          }
-        } catch (error) {
-          console.error("[result] ensure urls failed", error);
-        }
-      }
-      ensureUrls();
+    if (!jobId) return undefined;
+    const normalizedCartUrl =
+      typeof urls.cartUrl === 'string' ? urls.cartUrl.trim() : '';
+    const normalizedCartPlain =
+      typeof urls.cartPlain === 'string' ? urls.cartPlain.trim() : '';
+    if (normalizedCartUrl || normalizedCartPlain) {
+      return undefined;
     }
-  }, [urls, jobId]);
 
+    let cancelled = false;
+    const normalize = (value) =>
+      typeof value === 'string' && value.trim() ? value.trim() : null;
+
+    async function ensureUrls() {
+      try {
+        const res = await apiFetch(`/api/cart/link`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ job_id: jobId }),
+        });
+        const j = await res.json();
+        const cartUrl =
+          normalize(j?.cartUrl)
+            || normalize(j?.cartPlain)
+            || normalize(j?.url)
+            || normalize(j?.webUrl);
+
+        if (res.ok && cartUrl && !cancelled) {
+          setUrls({
+            cartUrl,
+            cartPlain: normalize(j?.cartPlain) || cartUrl,
+            checkoutUrl: normalize(j?.checkoutUrl),
+            checkoutPlain: normalize(j?.checkoutPlain),
+            strategy: j?.strategy || null,
+          });
+        }
+      } catch (error) {
+        console.error('[result] ensure urls failed', error);
+      }
+    }
+
+    ensureUrls();
+    return () => {
+      cancelled = true;
+    };
+  }, [jobId, urls.cartUrl, urls.cartPlain]);
+
+  const cartEntryUrl = (typeof urls.cartPlain === "string" && urls.cartPlain.trim()) || (typeof urls.cartUrl === "string" && urls.cartUrl.trim()) || null;
   useEffect(() => {
-    if (!autoOpened && !added && urls.cartUrl) {
-      const opened = openCartUrl(urls.cartUrl);
+    if (!autoOpened && !added && cartEntryUrl) {
+      const opened = openCartUrl(cartEntryUrl);
       setAutoOpened(true);
       if (opened) {
         try {
@@ -81,14 +109,24 @@ export default function Result() {
         setAdded(true);
       }
     }
-  }, [added, autoOpened, jobId, urls.cartUrl]);
+  }, [added, autoOpened, cartEntryUrl, jobId]);
 
-  if (!urls.cartUrl) {
-    return <p>Preparando tu carritoâ€¦</p>;
+  if (!cartEntryUrl) {
+    return <p>Preparando tu carrito…</p>;
   }
 
-  const hrefCart = added && urls.cartPlain ? urls.cartPlain : urls.cartUrl;
-  const checkoutCandidate = added && urls.checkoutPlain ? urls.checkoutPlain : urls.checkoutUrl;
+
+  const hrefCart =
+    added && typeof urls.cartPlain === 'string' && urls.cartPlain.trim()
+      ? urls.cartPlain.trim()
+      : cartEntryUrl;
+  const checkoutCandidate =
+    (added && typeof urls.checkoutPlain === 'string' && urls.checkoutPlain.trim()
+      ? urls.checkoutPlain.trim()
+      : null)
+      || (typeof urls.checkoutUrl === 'string' && urls.checkoutUrl.trim()
+        ? urls.checkoutUrl.trim()
+        : null);
   const hrefCheckout = checkoutCandidate || hrefCart;
   const openNew = (u) => window.open(u, "_blank", "noopener");
 

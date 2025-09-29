@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+﻿import { useMemo, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { apiFetch } from '@/lib/api.js';
 import styles from './Busqueda.module.css';
@@ -7,7 +7,7 @@ const PAGE_LIMIT = 25;
 
 function formatBytes(size) {
   const value = Number(size);
-  if (!Number.isFinite(value) || value <= 0) return '—';
+  if (!Number.isFinite(value) || value <= 0) return '-';
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
   let index = 0;
   let current = value;
@@ -15,11 +15,12 @@ function formatBytes(size) {
     current /= 1024;
     index += 1;
   }
-  return `${current < 10 && index > 0 ? current.toFixed(1) : Math.round(current)} ${units[index]}`;
+  const formatted = current < 10 && index > 0 ? current.toFixed(1) : Math.round(current);
+  return `${formatted} ${units[index]}`;
 }
 
 function formatDate(value) {
-  if (!value) return '—';
+  if (!value) return '-';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   try {
@@ -30,6 +31,17 @@ function formatDate(value) {
   } catch {
     return date.toLocaleString();
   }
+}
+
+function formatMeasurement(width, height) {
+  const w = Number(width);
+  const h = Number(height);
+  if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return '-';
+  const normalize = (value) => {
+    if (Math.abs(value - Math.round(value)) < 1e-6) return String(Math.round(value));
+    return value.toFixed(1).replace(/\.0+$/, '');
+  };
+  return `${normalize(w)}x${normalize(h)} cm`;
 }
 
 export default function Busqueda() {
@@ -138,7 +150,7 @@ export default function Busqueda() {
       <header className={styles.header}>
         <h1 className={styles.title}>Buscador de PDFs</h1>
         <p className={styles.description}>
-          Ingresá el nombre del archivo (sin la extensión) para encontrar y descargar el PDF imprimible.
+          Ingresá el nombre, slug o medida para encontrar y descargar el PDF de producción.
         </p>
       </header>
 
@@ -152,7 +164,7 @@ export default function Busqueda() {
               id="busqueda-query"
               className={styles.input}
               type="text"
-              placeholder="Buscar por nombre de archivo, sin extensión…"
+              placeholder="Ej: darth 90x40 classic"
               autoComplete="off"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
@@ -175,7 +187,10 @@ export default function Busqueda() {
           <table className={styles.resultsTable}>
             <thead>
               <tr>
+                <th scope="col">Vista previa</th>
                 <th scope="col">Archivo</th>
+                <th scope="col">Medida</th>
+                <th scope="col">Material</th>
                 <th scope="col">Tamaño</th>
                 <th scope="col">Fecha</th>
                 <th scope="col">Descargar</th>
@@ -185,9 +200,24 @@ export default function Busqueda() {
               {hasResults ? (
                 results.map((item) => {
                   const key = item.id || item.path || item.fileName;
+                  const measurement = formatMeasurement(item.widthCm, item.heightCm);
                   return (
                     <tr key={key}>
-                      <td className={styles.fileCell}>{item.fileName || item.name || '—'}</td>
+                      <td className={styles.previewCell}>
+                        {item.previewUrl ? (
+                          <img
+                            src={item.previewUrl}
+                            alt={item.fileName || 'preview'}
+                            className={styles.previewImage}
+                            loading="lazy"
+                          />
+                        ) : (
+                          <span className={styles.previewPlaceholder}>PDF</span>
+                        )}
+                      </td>
+                      <td className={styles.fileCell}>{item.fileName || item.name || '-'}</td>
+                      <td className={styles.measureCell}>{measurement}</td>
+                      <td className={styles.materialCell}>{item.material || '-'}</td>
                       <td className={styles.sizeCell}>{formatBytes(item.sizeBytes ?? item.size)}</td>
                       <td className={styles.dateCell}>{formatDate(item.createdAt)}</td>
                       <td>
@@ -195,21 +225,21 @@ export default function Busqueda() {
                           <a
                             className={styles.downloadLink}
                             href={item.downloadUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          Descargar PDF
-                        </a>
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                  </tr>
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Descargar PDF
+                          </a>
+                        ) : (
+                          '-'
+                        )}
+                      </td>
+                    </tr>
                   );
                 })
               ) : (
                 <tr>
-                  <td className={styles.noResults} colSpan={4}>
+                  <td className={styles.noResults} colSpan={7}>
                     {noResultsMessage ? 'No encontramos PDFs que coincidan.' : 'Sin resultados aún.'}
                   </td>
                 </tr>

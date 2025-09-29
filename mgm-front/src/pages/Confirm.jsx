@@ -10,6 +10,7 @@ export default function Confirm() {
   const [data, setData] = useState(null);
   const [autoOpened, setAutoOpened] = useState(false);
   const [err, setErr] = useState('');
+  const cartEntryUrl = (data?.cart_plain && data.cart_plain.trim()) || (data?.cart_url && data.cart_url.trim()) || null;
 
   useEffect(() => {
     let t;
@@ -31,14 +32,14 @@ export default function Confirm() {
   }, [jobId]);
 
   useEffect(() => {
-    if (!autoOpened && data?.cart_url) {
+    if (!autoOpened && cartEntryUrl) {
       try {
-        openCartUrl(data.cart_url);
+        openCartUrl(cartEntryUrl);
       } finally {
         setAutoOpened(true);
       }
     }
-  }, [autoOpened, data?.cart_url]);
+  }, [autoOpened, cartEntryUrl]);
 
   if (!jobId) return <p>Falta job_id.</p>;
   if (!data) return <p>Cargando…</p>;
@@ -53,10 +54,10 @@ export default function Confirm() {
       {data.price_amount ? <p>Precio: <b>${data.price_amount}</b></p> : null}
 
       <div className={styles.actions}>
-        {data.cart_url && (
+        {cartEntryUrl && (
           <button
             type="button"
-            className="btn"
+            onClick={() => openCartUrl(cartEntryUrl)}
             onClick={() => openCartUrl(data.cart_url)}
           >
             Agregar al carrito
@@ -72,7 +73,7 @@ export default function Confirm() {
       </div>
 
       {err && <p className="errorText">{err}</p>}
-      {!data.cart_url && <p>Preparando tu carrito…</p>}
+      {!cartEntryUrl && <p>Preparando tu carrito�</p>}
     </div>
   );
 }

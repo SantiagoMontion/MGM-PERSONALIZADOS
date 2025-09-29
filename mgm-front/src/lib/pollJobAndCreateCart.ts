@@ -70,17 +70,21 @@ export async function pollJobAndCreateCart(
       });
       const j = await res.json();
       const cartUrl =
-        typeof j?.webUrl === "string"
-          ? j.webUrl
-          : typeof j?.url === "string"
-            ? j.url
-            : null;
+        typeof j?.cartUrl === "string" && j.cartUrl.trim()
+          ? j.cartUrl.trim()
+          : typeof j?.cartPlain === "string" && j.cartPlain.trim()
+            ? j.cartPlain.trim()
+            : typeof j?.url === "string" && j.url.trim()
+              ? j.url.trim()
+              : typeof j?.webUrl === "string" && j.webUrl.trim()
+                ? j.webUrl.trim()
+                : null;
       if (!res.ok || !cartUrl) {
         // Si falta algo, seguir esperando si hay intentos restantes
         const code = j?.reason || j?.error || "unknown";
         return { ok: false, code, detail: j?.detail, raw: j };
       }
-      return { ok: true, cart_url: cartUrl, raw: j };
+      return { ok: true, cart_url: cartUrl, cart_plain: j.cartPlain || null, raw: j };
     };
 
   // primer intento crear carrito

@@ -41,9 +41,39 @@ function resolveRequestUrl(path) {
   return `${API_ORIGIN}${normalizedPath}`;
 }
 
-export function apiFetch(path, init) {
-  const url = resolveRequestUrl(path);
-  return fetch(url, init);
+export function apiFetch(methodOrPath, maybePathOrInit, maybeBody, maybeInitOverrides) {
+  if (typeof maybePathOrInit === 'string') {
+    const method = typeof methodOrPath === 'string' ? methodOrPath.toUpperCase() : '';
+    if (!method) {
+      throw new Error('apiFetch(method, path, body) requires an HTTP method');
+    }
+    const path = maybePathOrInit;
+    const overrides = maybeInitOverrides && typeof maybeInitOverrides === 'object'
+      ? { ...maybeInitOverrides }
+      : {};
+    const headers = {
+      Accept: 'application/json',
+      ...(overrides.headers || {}),
+    };
+    let bodyToSend = maybeBody;
+    const isFormData = typeof FormData !== 'undefined' && bodyToSend instanceof FormData;
+    const isBlob = typeof Blob !== 'undefined' && bodyToSend instanceof Blob;
+    const isUrlSearchParams = typeof URLSearchParams !== 'undefined' && bodyToSend instanceof URLSearchParams;
+    if (!isFormData && !isBlob && !isUrlSearchParams && bodyToSend != null && typeof bodyToSend !== 'string') {
+      headers['Content-Type'] = headers['Content-Type'] || 'application/json; charset=utf-8';
+      bodyToSend = JSON.stringify(bodyToSend);
+    }
+    if (bodyToSend == null) {
+      delete overrides.body;
+    } else {
+      overrides.body = bodyToSend;
+    }
+    overrides.method = method;
+    overrides.headers = headers;
+    return fetch(resolveRequestUrl(path), overrides);
+  }
+  const url = resolveRequestUrl(methodOrPath);
+  return fetch(url, maybePathOrInit);
 }
 
 export function getApiBaseUrl() {

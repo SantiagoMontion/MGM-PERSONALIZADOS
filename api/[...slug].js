@@ -27,6 +27,7 @@ const RATE_LIMITS = {
   'GET outputs/search': { limit: 30, windowMs: 60_000 },
   'POST prints/upload': { limit: 12, windowMs: 60_000 },
   'GET prints/search': { limit: 30, windowMs: 60_000 },
+  'GET prints/preview': { limit: 60, windowMs: 60_000 },
   'POST shopify-webhook': { limit: 60, windowMs: 60_000 },
 };
 
@@ -129,6 +130,10 @@ export default withCors(async function handler(req, res) {
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         return res.end(JSON.stringify(body));
       }
+      case 'GET prints/preview': {
+        const { default: previewHandler } = await import('../lib/api/handlers/printsPreview.js');
+        return previewHandler(req, res);
+      }
       case 'GET job-summary': {
         const m = await import('../lib/handlers/jobSummary.js');
         return m.default(req, res);
@@ -182,3 +187,5 @@ export default withCors(async function handler(req, res) {
     return res.end(JSON.stringify({ ok: false, code: 'handler_error' }));
   }
 });
+
+

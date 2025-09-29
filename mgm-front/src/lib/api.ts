@@ -41,9 +41,54 @@ function resolveRequestUrl(path: string): string {
   return `${API_ORIGIN}${normalizedPath}`;
 }
 
-export function apiFetch(path: string, init?: RequestInit) {
-  const url = resolveRequestUrl(path);
-  return fetch(url, init);
+export function apiFetch(path: string, init?: RequestInit): Promise<Response>;
+export function apiFetch(method: string, path: string, body?: unknown, initOverrides?: RequestInit): Promise<Response>;
+export function apiFetch(
+  methodOrPath: string,
+  maybePathOrInit?: string | RequestInit,
+  maybeBody?: unknown,
+  maybeInitOverrides?: RequestInit,
+): Promise<Response> {
+  if (typeof maybePathOrInit === 'string') {
+    const method = typeof methodOrPath === 'string' ? methodOrPath.toUpperCase() : '';
+    if (!method) {
+      throw new Error('apiFetch(method, path, body) requires an HTTP method');
+    }
+    const path = maybePathOrInit;
+    const overrides: RequestInit = maybeInitOverrides && typeof maybeInitOverrides === 'object'
+      ? { ...maybeInitOverrides }
+      : {};
+    const headers: Record<string, string> = { Accept: 'application/json' };
+    if (overrides.headers) {
+      if (typeof Headers !== 'undefined' && overrides.headers instanceof Headers) {
+        overrides.headers.forEach((value, key) => { headers[key] = value; });
+      } else if (Array.isArray(overrides.headers)) {
+        for (const [key, value] of overrides.headers) {
+          headers[key] = value as string;
+        }
+      } else {
+        Object.assign(headers, overrides.headers as Record<string, string>);
+      }
+    }
+    let bodyToSend = maybeBody as BodyInit | undefined;
+    const isFormData = typeof FormData !== 'undefined' && maybeBody instanceof FormData;
+    const isBlob = typeof Blob !== 'undefined' && maybeBody instanceof Blob;
+    const isUrlSearchParams = typeof URLSearchParams !== 'undefined' && maybeBody instanceof URLSearchParams;
+    if (!isFormData && !isBlob && !isUrlSearchParams && bodyToSend != null && typeof bodyToSend !== 'string') {
+      headers['Content-Type'] = headers['Content-Type'] || 'application/json; charset=utf-8';
+      bodyToSend = JSON.stringify(maybeBody ?? null);
+    }
+    if (bodyToSend == null) {
+      delete (overrides as Record<string, unknown>).body;
+    } else {
+      (overrides as Record<string, unknown>).body = bodyToSend;
+    }
+    overrides.method = method;
+    overrides.headers = headers;
+    return fetch(resolveRequestUrl(path), overrides);
+  }
+  const url = resolveRequestUrl(methodOrPath);
+  return fetch(url, maybePathOrInit);
 }
 
 export function getApiBaseUrl(): string {

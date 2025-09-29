@@ -1,4 +1,4 @@
-.page {
+﻿.page {
   max-width: 960px;
   margin: 0 auto;
   padding: 48px 16px 80px;
@@ -118,7 +118,7 @@
 .resultsTable {
   width: 100%;
   border-collapse: collapse;
-  min-width: 560px;
+  min-width: 720px;
 }
 
 .resultsTable thead th {
@@ -134,10 +134,38 @@
   border-bottom: 1px solid rgba(30, 41, 59, 0.6);
   font-size: 0.95rem;
   color: #e2e8f0;
+  vertical-align: middle;
 }
 
 .resultsTable tbody tr:last-child td {
   border-bottom: none;
+}
+
+.previewCell {
+  width: 120px;
+}
+
+.previewImage {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  background: rgba(15, 23, 42, 0.6);
+}
+
+.previewPlaceholder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 96px;
+  height: 96px;
+  border-radius: 8px;
+  border: 1px dashed rgba(148, 163, 184, 0.4);
+  color: #94a3b8;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  background: rgba(15, 23, 42, 0.4);
 }
 
 .fileCell {
@@ -145,6 +173,18 @@
   font-size: 0.9rem;
   color: #bfdbfe;
   word-break: break-all;
+}
+
+.measureCell {
+  white-space: nowrap;
+  color: #cbd5f5;
+}
+
+.materialCell {
+  white-space: nowrap;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: #fde68a;
 }
 
 .sizeCell {
@@ -214,6 +254,16 @@
 
   .searchButton {
     width: 100%;
+  }
+
+  .resultsTable {
+    min-width: 100%;
+  }
+
+  .previewImage,
+  .previewPlaceholder {
+    width: 72px;
+    height: 72px;
   }
 
   .pagination {
