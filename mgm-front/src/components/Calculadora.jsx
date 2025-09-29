@@ -21,7 +21,7 @@ function mapMode(material) {
   return material; // fallback
 }
 
-const Calculadora = ({ width, height, material, setPrice }) => {
+const Calculadora = ({ width, height, material, setPrice, className, render }) => {
   const mode = mapMode(material);
 
   // Normalize sizes
@@ -103,8 +103,20 @@ const Calculadora = ({ width, height, material, setPrice }) => {
     return <p>Modo no válido</p>;
   }
 
+  const payload = {
+    valid: computed.valid,
+    transfer: computed.transfer,
+    normal: computed.normal,
+    format: formatARS,
+    className,
+  };
+
+  if (typeof render === "function") {
+    return render(payload);
+  }
+
   return (
-    <div>
+    <div className={className}>
       <p className="p-calcu">${formatARS(computed.normal)}</p>
       <p className="minitext">20% OFF con transferencia: {formatARS(computed.transfer)}</p>
     </div>
