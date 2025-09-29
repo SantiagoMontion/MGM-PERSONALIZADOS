@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { apiFetch } from '@/lib/api.js';
 import styles from './Busqueda.module.css';
@@ -53,6 +53,7 @@ export default function Busqueda() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [searched, setSearched] = useState(false);
+  const abortRef = useRef(null);
 
   const showingRange = useMemo(() => {
     if (!searched || total === 0 || results.length === 0) return '';
@@ -71,6 +72,10 @@ export default function Busqueda() {
       return;
     }
 
+    const controller = new AbortController();
+    abortRef.current?.abort?.();
+    abortRef.current = controller;
+
     setLoading(true);
     setError('');
     setSearched(true);
@@ -81,7 +86,13 @@ export default function Busqueda() {
         limit: String(PAGE_LIMIT),
         offset: String(Math.max(0, nextOffset)),
       });
-      const response = await apiFetch(`/api/prints/search?${params.toString()}`);
+      const endpoint = `/api/prints/search?${params.toString()}`;
+      const response = await apiFetch('GET', endpoint, undefined, {
+        signal: controller.signal,
+        headers: {
+          Accept: 'application/json',
+        },
+      });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
         const message = typeof payload?.message === 'string'
@@ -112,11 +123,17 @@ export default function Busqueda() {
       setOffset(Math.max(0, usedOffset));
       setLastQuery(trimmed);
     } catch (requestError) {
+      if (requestError?.name === 'AbortError') {
+        return;
+      }
       console.error('[prints-search]', requestError);
       setError('Ocurrió un error al buscar en Supabase.');
       setResults([]);
       setTotal(0);
     } finally {
+      if (abortRef.current === controller) {
+        abortRef.current = null;
+      }
       setLoading(false);
     }
   }
