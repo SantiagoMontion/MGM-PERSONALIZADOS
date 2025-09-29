@@ -57,7 +57,7 @@ export default function Creating() {
           (typeof res?.raw?.cartUrl === "string" && res.raw.cartUrl.trim())
             || (typeof res?.raw?.cartPlain === "string" && res.raw.cartPlain.trim())
             || (typeof res?.raw?.url === "string" && res.raw.url.trim())
-            || (typeof res?.raw?.webUrl === "string" && res.raw.webUrl.trim())
+            || (typeof res?.raw?.checkoutUrl === "string" && res.raw.checkoutUrl.trim())
             || null;
         const cartPlainCandidate =
           (typeof res?.raw?.cartPlain === "string" && res.raw.cartPlain.trim())

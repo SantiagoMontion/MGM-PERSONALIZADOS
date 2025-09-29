@@ -349,7 +349,7 @@ export default function Mockup() {
     const useFallback = Boolean(options.useFallback);
     let link = url;
     if (!link) {
-      link = useFallback ? cart.fallbackUrl : cart.webUrl;
+      link = useFallback ? cart.fallbackUrl : cart.cartUrl;
     }
     if (!link) return;
     const fallbackUrl = useFallback
@@ -572,7 +572,10 @@ export default function Mockup() {
           variantIdNumeric: variantNumericId,
           variantIdGid: variantGidForCart,
           ...(normalizedResponseUrl ? { url: normalizedResponseUrl } : {}),
-          ...(normalizedCartUrlFromServer ? { webUrl: normalizedCartUrlFromServer } : {}),
+          ...(normalizedCartUrlFromServer ? { cartUrl: normalizedCartUrlFromServer } : {}),
+          ...(typeof json?.checkoutUrl === 'string' && json.checkoutUrl.trim()
+            ? { checkoutUrl: json.checkoutUrl.trim() }
+            : {}),
           ...(json?.cartPlain ? { cartPlain: json.cartPlain } : {}),
           ...(json?.cartId ? { cartId: json.cartId } : {}),
           ...(fallbackProductUrl ? { fallbackUrl: fallbackProductUrl } : {}),

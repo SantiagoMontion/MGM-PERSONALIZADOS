@@ -74,7 +74,7 @@ export default function Result() {
           normalize(j?.cartUrl)
             || normalize(j?.cartPlain)
             || normalize(j?.url)
-            || normalize(j?.webUrl);
+            || normalize(j?.checkoutUrl);
 
         if (res.ok && cartUrl && !cancelled) {
           setUrls({
