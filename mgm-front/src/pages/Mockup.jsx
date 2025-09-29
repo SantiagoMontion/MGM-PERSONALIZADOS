@@ -16,6 +16,7 @@ import {
   buildCartPermalink,
   buildCartAddUrl,
 } from '@/lib/shopify.ts';
+import { ensureLegacyCartAdd } from '@/lib/shopifyCartFallback.js';
 
 const CART_STATUS_LABELS = {
   idle: 'Agregar al carrito',
@@ -633,6 +634,39 @@ export default function Mockup() {
           addCandidate(normalizedFallbackUrlFromServer);
         }
         addCandidate(normalizedResponseUrl);
+        if (usedFallback) {
+          try {
+            await ensureLegacyCartAdd({
+              variantId: variantNumericId,
+              quantity: desiredQuantity,
+              baseUrl: preferredCartBase,
+              cartPlainUrl: typeof json?.cartPlain === 'string' ? json.cartPlain : normalizedFallbackUrlFromServer,
+              attempts: 3,
+              verifyDelayMs: 250,
+            });
+            try {
+              console.info('[cart-flow] legacy_cart_add_confirmed', {
+                variantNumericId,
+                origin: preferredCartBase,
+              });
+            } catch (logErr) {
+              console.debug?.('[cart-flow] legacy_cart_add_confirmed_log_failed', logErr);
+            }
+          } catch (legacyErr) {
+            try {
+              console.error('[cart-flow] legacy_cart_add_failed', legacyErr);
+            } catch (logErr) {
+              console.debug?.('[cart-flow] legacy_cart_add_failed_log_failed', logErr);
+            }
+            setCartStatus('idle');
+            setBusy(false);
+            showCartFailureToast('', {
+              fallbackUrl: fallbackProductUrl || normalizedFallbackUrlFromServer,
+              reason: legacyErr?.message || 'legacy_cart_add_failed',
+            });
+            return;
+          }
+        }
         for (const candidate of candidateUrls) {
           const opened = openCartAndFinalize(candidate, {
             variantNumericId,
