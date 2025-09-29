@@ -14,6 +14,7 @@ import {
   ONLINE_STORE_MISSING_MESSAGE,
   normalizeVariantNumericId,
   buildCartPermalink,
+  buildCartAddUrl,
 } from '@/lib/shopify.ts';
 
 const CART_STATUS_LABELS = {
@@ -586,11 +587,45 @@ export default function Mockup() {
           seenCandidates.add(trimmed);
           candidateUrls.push(trimmed);
         };
+        const cartOrigins = [];
+        const addOriginCandidate = (candidate) => {
+          if (!candidate) return;
+          try {
+            const origin = new URL(candidate).origin;
+            if (origin && !cartOrigins.includes(origin)) {
+              cartOrigins.push(origin);
+            }
+          } catch (_) {
+            // ignore invalid URLs
+          }
+        };
+        addOriginCandidate(fallbackProductUrl);
+        addOriginCandidate(normalizedCartUrlFromServer);
+        addOriginCandidate(normalizedResponseUrl);
+        addOriginCandidate(typeof json?.cartPlain === 'string' ? json.cartPlain : '');
+        const preferredCartBase = cartOrigins.length
+          ? cartOrigins[0]
+          : 'https://www.mgmgamers.store';
+
+        const directAddUrl = buildCartAddUrl(
+          current?.variantIdNumeric || current?.variantId || variantNumericId,
+          desiredQuantity,
+          {
+            baseUrl: preferredCartBase,
+            discountCode: normalizedDiscountCode || undefined,
+            returnTo: '/',
+          },
+        );
         const directCartUrl = buildCartPermalink(
           current?.variantIdNumeric || current?.variantId || variantNumericId,
           desiredQuantity,
-          normalizedDiscountCode ? { discountCode: normalizedDiscountCode } : undefined,
+          {
+            baseUrl: preferredCartBase,
+            discountCode: normalizedDiscountCode || undefined,
+            returnTo: '/',
+          },
         );
+        addCandidate(directAddUrl);
         addCandidate(typeof json?.cartPlain === 'string' ? json.cartPlain : '');
         addCandidate(normalizedCartUrlFromServer);
         addCandidate(directCartUrl);

@@ -798,7 +798,7 @@ export function buildCartPermalink(
 export function buildCartAddUrl(
   variantId: string | number | undefined,
   quantity = 1,
-  options?: { baseUrl?: string; discountCode?: string },
+  options?: { baseUrl?: string; discountCode?: string; returnTo?: string | null },
 ) {
   const numericId = normalizeVariantNumericId(variantId);
   if (!numericId) return '';
@@ -815,7 +815,16 @@ export function buildCartAddUrl(
   }
   cartUrl.searchParams.set('id', numericId);
   cartUrl.searchParams.set('quantity', String(qty));
-  cartUrl.searchParams.set('return_to', '/cart');
+  const rawReturn = options?.returnTo;
+  if (rawReturn !== null) {
+    const normalizedReturn = typeof rawReturn === 'string' && rawReturn.trim()
+      ? rawReturn.trim()
+      : '/cart';
+    const returnTo = normalizedReturn.startsWith('/')
+      ? normalizedReturn
+      : `/${normalizedReturn.replace(/^\/+/, '')}`;
+    cartUrl.searchParams.set('return_to', returnTo);
+  }
   const discountCode = typeof options?.discountCode === 'string' ? options.discountCode.trim() : '';
   if (discountCode) {
     cartUrl.searchParams.set('discount', discountCode);
