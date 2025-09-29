@@ -4,7 +4,9 @@ import {
   createStorefrontCartServer,
   fallbackCartAdd,
   SimpleCookieJar,
+
   waitForVariantAvailability,
+
 } from '../lib/shopify/storefrontCartServer.js';
 
 function createResponse(body, { status = 200, ok = true, headers = {} } = {}) {
@@ -99,6 +101,7 @@ test('fallbackCartAdd posts JSON items payload and returns cart url on success',
     return createResponse(
       {
         token: 'abcdef',
+
         items: [
           {
             id: 987654321,
@@ -106,6 +109,7 @@ test('fallbackCartAdd posts JSON items payload and returns cart url on success',
             quantity: 2,
           },
         ],
+
       },
       { headers: { 'content-type': 'application/json' } },
     );
@@ -153,6 +157,7 @@ test('fallbackCartAdd surfaces detail when Shopify AJAX cart fails', async () =>
     fetchStub.mock.restore();
   }
 });
+
 
 test('fallbackCartAdd fails when Shopify returns 200 without matching item', async () => {
   const fetchStub = mock.method(global, 'fetch', async () =>
@@ -272,3 +277,4 @@ test('waitForVariantAvailability times out when variant never appears', async ()
     }
   }
 });
+
