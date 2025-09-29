@@ -907,28 +907,30 @@ export default function Home() {
 
           <div className={editorContainerClasses}>
             <div className={canvasStageClasses} ref={lienzoCardRef}>
-              <div className={styles.canvasPriceWrapper}>
-                <Calculadora
-                  width={activeSizeCm.w}
-                  height={activeSizeCm.h}
-                  material={material}
-                  setPrice={setPriceAmount}
-                  render={({ transfer, valid, format }) => {
-                    const amount = typeof transfer === 'number' ? Math.max(0, transfer) : 0;
-                    const formattedAmount = `$${format(amount)}`;
-                    const priceClasses = [styles.canvasPriceTag];
-                    if (!valid) {
-                      priceClasses.push(styles.canvasPriceTagDisabled);
-                    }
-                    return (
-                      <div className={priceClasses.join(' ')}>
-                        <span className={styles.canvasPriceAmount}>{formattedAmount}</span>
-                        <span className={styles.canvasPriceLabel}>Con transferencia</span>
-                      </div>
-                    );
-                  }}
-                />
-              </div>
+              {hasImage && (
+                <div className={styles.canvasPriceWrapper}>
+                  <Calculadora
+                    width={activeSizeCm.w}
+                    height={activeSizeCm.h}
+                    material={material}
+                    setPrice={setPriceAmount}
+                    render={({ transfer, valid, format }) => {
+                      const amount = typeof transfer === 'number' ? Math.max(0, transfer) : 0;
+                      const formattedAmount = `$${format(amount)}`;
+                      const priceClasses = [styles.canvasPriceTag];
+                      if (!valid) {
+                        priceClasses.push(styles.canvasPriceTagDisabled);
+                      }
+                      return (
+                        <div className={priceClasses.join(' ')}>
+                          <span className={styles.canvasPriceAmount}>{formattedAmount}</span>
+                          <span className={styles.canvasPriceLabel}>Con transferencia</span>
+                        </div>
+                      );
+                    }}
+                  />
+                </div>
+              )}
               <div className={styles.canvasViewport}>
 
                 <EditorCanvas
