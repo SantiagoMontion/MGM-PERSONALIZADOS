@@ -4,6 +4,9 @@ import {
   createStorefrontCartServer,
   fallbackCartAdd,
   SimpleCookieJar,
+
+  waitForVariantAvailability,
+
 } from '../lib/shopify/storefrontCartServer.js';
 
 function createResponse(body, { status = 200, ok = true, headers = {} } = {}) {
@@ -98,6 +101,15 @@ test('fallbackCartAdd posts JSON items payload and returns cart url on success',
     return createResponse(
       {
         token: 'abcdef',
+
+        items: [
+          {
+            id: 987654321,
+            variant_id: 987654321,
+            quantity: 2,
+          },
+        ],
+
       },
       { headers: { 'content-type': 'application/json' } },
     );
@@ -145,3 +157,124 @@ test('fallbackCartAdd surfaces detail when Shopify AJAX cart fails', async () =>
     fetchStub.mock.restore();
   }
 });
+
+
+test('fallbackCartAdd fails when Shopify returns 200 without matching item', async () => {
+  const fetchStub = mock.method(global, 'fetch', async () =>
+    createResponse(
+      {
+        token: '',
+        items: [],
+      },
+      { headers: { 'content-type': 'application/json' } },
+    ),
+  );
+
+  try {
+    const result = await fallbackCartAdd({ variantNumericId: '123456789', quantity: 1 });
+
+    assert.equal(result.ok, false);
+    assert.equal(result.reason, 'ajax_cart_silent_failure');
+    assert.match(result.detail, /"items":\[]/);
+  } finally {
+    fetchStub.mock.restore();
+  }
+});
+
+test('waitForVariantAvailability resolves once the variant is available', async () => {
+  const prevEnv = {
+    SHOPIFY_STOREFRONT_TOKEN: process.env.SHOPIFY_STOREFRONT_TOKEN,
+    SHOPIFY_STOREFRONT_DOMAIN: process.env.SHOPIFY_STOREFRONT_DOMAIN,
+    SHOPIFY_STORE_DOMAIN: process.env.SHOPIFY_STORE_DOMAIN,
+  };
+  process.env.SHOPIFY_STOREFRONT_TOKEN = 'test-token';
+  process.env.SHOPIFY_STOREFRONT_DOMAIN = 'https://store.example';
+  process.env.SHOPIFY_STORE_DOMAIN = 'store.example';
+
+  const responses = [
+    { data: { productVariant: { id: 'gid://shopify/ProductVariant/1', availableForSale: false } } },
+    { data: { productVariant: { id: 'gid://shopify/ProductVariant/1', availableForSale: true } } },
+  ];
+
+  const fetchStub = mock.method(global, 'fetch', async () =>
+    createResponse(responses.shift() ?? responses[responses.length - 1], {
+      headers: { 'content-type': 'application/json' },
+    }),
+  );
+
+  try {
+    const result = await waitForVariantAvailability({
+      variantGid: 'gid://shopify/ProductVariant/1',
+      attempts: 3,
+      delayMs: 1,
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.attempts, 2);
+  } finally {
+    fetchStub.mock.restore();
+    if (prevEnv.SHOPIFY_STOREFRONT_TOKEN === undefined) {
+      delete process.env.SHOPIFY_STOREFRONT_TOKEN;
+    } else {
+      process.env.SHOPIFY_STOREFRONT_TOKEN = prevEnv.SHOPIFY_STOREFRONT_TOKEN;
+    }
+    if (prevEnv.SHOPIFY_STOREFRONT_DOMAIN === undefined) {
+      delete process.env.SHOPIFY_STOREFRONT_DOMAIN;
+    } else {
+      process.env.SHOPIFY_STOREFRONT_DOMAIN = prevEnv.SHOPIFY_STOREFRONT_DOMAIN;
+    }
+    if (prevEnv.SHOPIFY_STORE_DOMAIN === undefined) {
+      delete process.env.SHOPIFY_STORE_DOMAIN;
+    } else {
+      process.env.SHOPIFY_STORE_DOMAIN = prevEnv.SHOPIFY_STORE_DOMAIN;
+    }
+  }
+});
+
+test('waitForVariantAvailability times out when variant never appears', async () => {
+  const prevEnv = {
+    SHOPIFY_STOREFRONT_TOKEN: process.env.SHOPIFY_STOREFRONT_TOKEN,
+    SHOPIFY_STOREFRONT_DOMAIN: process.env.SHOPIFY_STOREFRONT_DOMAIN,
+    SHOPIFY_STORE_DOMAIN: process.env.SHOPIFY_STORE_DOMAIN,
+  };
+  process.env.SHOPIFY_STOREFRONT_TOKEN = 'test-token';
+  process.env.SHOPIFY_STOREFRONT_DOMAIN = 'https://store.example';
+  process.env.SHOPIFY_STORE_DOMAIN = 'store.example';
+
+  const fetchStub = mock.method(global, 'fetch', async () =>
+    createResponse(
+      { data: { productVariant: null } },
+      { headers: { 'content-type': 'application/json' } },
+    ),
+  );
+
+  try {
+    const result = await waitForVariantAvailability({
+      variantGid: 'gid://shopify/ProductVariant/2',
+      attempts: 2,
+      delayMs: 1,
+    });
+
+    assert.equal(result.ok, false);
+    assert.equal(result.reason, 'variant_not_ready');
+    assert.equal(result.attempts, 2);
+  } finally {
+    fetchStub.mock.restore();
+    if (prevEnv.SHOPIFY_STOREFRONT_TOKEN === undefined) {
+      delete process.env.SHOPIFY_STOREFRONT_TOKEN;
+    } else {
+      process.env.SHOPIFY_STOREFRONT_TOKEN = prevEnv.SHOPIFY_STOREFRONT_TOKEN;
+    }
+    if (prevEnv.SHOPIFY_STOREFRONT_DOMAIN === undefined) {
+      delete process.env.SHOPIFY_STOREFRONT_DOMAIN;
+    } else {
+      process.env.SHOPIFY_STOREFRONT_DOMAIN = prevEnv.SHOPIFY_STOREFRONT_DOMAIN;
+    }
+    if (prevEnv.SHOPIFY_STORE_DOMAIN === undefined) {
+      delete process.env.SHOPIFY_STORE_DOMAIN;
+    } else {
+      process.env.SHOPIFY_STORE_DOMAIN = prevEnv.SHOPIFY_STORE_DOMAIN;
+    }
+  }
+});
+
