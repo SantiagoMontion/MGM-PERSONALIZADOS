@@ -290,7 +290,7 @@ export default function Mockup() {
       if (typeof window !== 'undefined') {
         try {
           const popup = window.open(productUrl, '_blank', 'noopener');
-          if (popup && !popup.closed) {
+          if (popup) {
             try {
               popup.opener = null;
             } catch (openerErr) {
