@@ -1,3 +1,5 @@
+import { Buffer } from 'buffer';
+
 const STORAGE_KEY = 'MGM_prints_gate';
 export const PRINTS_GATE_PASSWORD = 'Spesia666';
 const DURATION_MS = 24 * 60 * 60 * 1000;

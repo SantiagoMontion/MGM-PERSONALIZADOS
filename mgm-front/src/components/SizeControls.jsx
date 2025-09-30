@@ -1,9 +1,8 @@
 // src/components/SizeControls.jsx
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import styles from './SizeControls.module.css';
 import { LIMITS, STANDARD, GLASSPAD_SIZE_CM } from '../lib/material.js';
-import { resolveIconAsset } from '../lib/iconRegistry.js';
 import { useFloatingMenu } from '../hooks/useFloatingMenu.js';
 import widthIcon from '../icons/largo.png';
 import heightIcon from '../icons/ancho.png';
@@ -50,6 +49,46 @@ const MATERIAL_OPTIONS = [
   { value: 'Classic', main: 'CLASSIC', variant: 'híbrido' },
 ];
 
+const MOBILE_QUERY = '(max-width: 768px)';
+
+const useMediaQuery = (query) => {
+  const [matches, setMatches] = useState(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return false;
+    }
+    return window.matchMedia(query).matches;
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return undefined;
+    }
+
+    const mediaQueryList = window.matchMedia(query);
+    const handleChange = (event) => {
+      setMatches(event.matches);
+    };
+
+    if (typeof mediaQueryList.addEventListener === 'function') {
+      mediaQueryList.addEventListener('change', handleChange);
+    } else if (typeof mediaQueryList.addListener === 'function') {
+      mediaQueryList.addListener(handleChange);
+    }
+
+    setMatches(mediaQueryList.matches);
+
+    return () => {
+      if (typeof mediaQueryList.removeEventListener === 'function') {
+        mediaQueryList.removeEventListener('change', handleChange);
+      } else if (typeof mediaQueryList.removeListener === 'function') {
+        mediaQueryList.removeListener(handleChange);
+      }
+    };
+  }, [query]);
+
+  return matches;
+};
+
 /**
  * Props:
  * - material: 'Classic' | 'PRO' | 'Glasspad'
@@ -58,8 +97,16 @@ const MATERIAL_OPTIONS = [
  */
 export default function SizeControls({ material, size, onChange, locked = false, disabled = false }) {
   const limits = LIMITS[material] || { maxW: size.w, maxH: size.h };
-  const presets = STANDARD[material] || [];
   const isGlasspad = material === 'Glasspad';
+  const isMobile = useMediaQuery(MOBILE_QUERY);
+  const filteredPresets = useMemo(() => {
+    if (isGlasspad) return [];
+    const presets = STANDARD[material] || [];
+    if (material === 'Classic' && isMobile) {
+      return presets.filter((preset) => !(Number(preset?.w) === 100 && Number(preset?.h) === 60));
+    }
+    return presets;
+  }, [isGlasspad, material, isMobile]);
 
   const widthErrorId = useId();
   const heightErrorId = useId();
@@ -186,8 +233,6 @@ export default function SizeControls({ material, size, onChange, locked = false,
       setSeriesOpen(false);
     }
   }, [disabled, isSeriesOpen]);
-
-  useEffect(() => { setSeriesOpen(false); }, [material]);
 
   const numPattern = /^[0-9]{0,3}(\.[0-9]{0,2})?$/;
 
@@ -425,9 +470,9 @@ export default function SizeControls({ material, size, onChange, locked = false,
           </div>
         )}
 
-        {presets.length > 0 && (
+        {filteredPresets.length > 0 && (
           <div className={styles.quickSizes}>
-            {presets.map(p => (
+            {filteredPresets.map(p => (
               <button
                 key={`${p.w}x${p.h}`}
                 type="button"
@@ -496,7 +541,6 @@ export default function SizeControls({ material, size, onChange, locked = false,
                     if (String(option.value) !== String(material)) {
                       onChange({ material: option.value });
                     }
-                    setSeriesOpen(false);
                   }}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter' || event.key === ' ') {
@@ -505,7 +549,6 @@ export default function SizeControls({ material, size, onChange, locked = false,
                       if (String(option.value) !== String(material)) {
                         onChange({ material: option.value });
                       }
-                      setSeriesOpen(false);
                     }
                   }}
                 >
