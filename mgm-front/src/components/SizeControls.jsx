@@ -541,6 +541,7 @@ export default function SizeControls({ material, size, onChange, locked = false,
                     if (String(option.value) !== String(material)) {
                       onChange({ material: option.value });
                     }
+                    setSeriesOpen(true);
                   }}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter' || event.key === ' ') {
@@ -549,6 +550,7 @@ export default function SizeControls({ material, size, onChange, locked = false,
                       if (String(option.value) !== String(material)) {
                         onChange({ material: option.value });
                       }
+                      setSeriesOpen(true);
                     }
                   }}
                 >

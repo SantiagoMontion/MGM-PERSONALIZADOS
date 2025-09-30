@@ -167,7 +167,8 @@ export default function Home() {
         return;
       }
       const lim = LIMITS[next.material];
-      const prev = lastSize.current[next.material] || size;
+      const stored = lastSize.current[next.material];
+      const prev = mode === 'custom' || !stored ? size : stored;
       const clamped = {
         w: Math.min(Math.max(prev.w, 1), lim.maxW),
         h: Math.min(Math.max(prev.h, 1), lim.maxH),
@@ -178,6 +179,9 @@ export default function Home() {
         opt => Number(opt.w) === Number(clamped.w) && Number(opt.h) === Number(clamped.h)
       );
       setMode(isStd ? 'standard' : 'custom');
+      if (!stored || stored.w !== clamped.w || stored.h !== clamped.h) {
+        lastSize.current[next.material] = clamped;
+      }
       return;
     }
     if (next.mode && next.mode !== mode) {
