@@ -12,14 +12,18 @@ import {
   ONLINE_STORE_DISABLED_MESSAGE,
   ONLINE_STORE_MISSING_MESSAGE,
 } from '@/lib/shopify.ts';
+import Testimonio1 from "../icons/testimonio1.png";
+import Testimonio2 from "../icons/testimonio2.png";
+import Testimonio3 from "../icons/testimonio3.png";
 
+const TESTIMONIAL_ICONS = [Testimonio1, Testimonio2, Testimonio3];
 const CART_STATUS_LABELS = {
   idle: 'Agregar al carrito',
   creating: 'Creando producto…',
   opening: 'Abriendo producto…',
 };
 
-const TESTIMONIAL_IMAGES = ['testimonio1', 'testimonio2', 'testimonio3'];
+
 
 const BENEFITS = [
   {
@@ -836,19 +840,20 @@ export default function Mockup() {
             Nos encantaría que formes parte de nuestra comunidad
           </h2>
           <p className={styles.communitySubtitle}>por eso vamos a convencerte</p>
-          <div className={styles.testimonialsGrid}>
-            {TESTIMONIAL_IMAGES.map((image) => (
-              <figure key={image} className={styles.testimonialCard}>
-                <div className={styles.testimonialImageWrapper}>
-                  <img
-                    src={`/mockup/${image}.jpg`}
-                    alt={`Testimonio de cliente ${image.replace('testimonio', '')}`}
-                    loading="lazy"
-                  />
-                </div>
-              </figure>
-            ))}
-          </div>
+         <div className={styles.testimonialsGrid}>
+  {TESTIMONIAL_ICONS.map((src, i) => (
+    <figure key={i} className={styles.testimonialCard}>
+      <div className={styles.testimonialImageWrapper}>
+        <img
+          src={src}
+          alt={`Testimonio de cliente ${i + 1}`}
+          className={styles.testimonialSvg}   // tu clase para tamaño/estilo
+          loading="lazy"
+        />
+      </div>
+    </figure>
+  ))}
+</div>
           <div className={styles.benefitsGrid}>
             {BENEFITS.map((benefit) => (
               <article key={benefit.title} className={styles.benefitCard}>
