@@ -540,11 +540,15 @@ export default function SizeControls({ material, size, onChange, locked = false,
             {MATERIAL_OPTIONS.map((option) => {
               const isActive = material === option.value;
               const closeSeriesMenu = () => {
+
+                setSeriesOpen(false);
+
                 if (disabled) return;
                 if (String(option.value) !== String(material)) {
                   onChange({ material: option.value });
                 }
-                setSeriesOpen(false);
+
+
               };
               return (
                 <div
