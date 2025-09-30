@@ -14,7 +14,7 @@ export default function App() {
         <Link to="/" className={styles.brand}>
           MGM GAMERS®
         </Link>
-        <span>EDITOR</span>
+        {location.pathname === '/' && <span>EDITOR</span>}
       </header>
       <main className={styles.main}>
         <Outlet />
