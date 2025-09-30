@@ -918,13 +918,31 @@ export default function Home() {
                       const amount = typeof transfer === 'number' ? Math.max(0, transfer) : 0;
                       const formattedAmount = `$${format(amount)}`;
                       const priceClasses = [styles.canvasPriceTag];
+                      const widthValue = Number(activeSizeCm?.w);
+                      const heightValue = Number(activeSizeCm?.h);
+                      const hasDimensions =
+                        Number.isFinite(widthValue) && Number.isFinite(heightValue) && widthValue > 0 && heightValue > 0;
+                      const formatDimension = value => {
+                        if (!Number.isFinite(value)) return '';
+                        const hasDecimals = Math.abs(value - Math.trunc(value)) > 0.0001;
+                        return value.toLocaleString('es-AR', {
+                          minimumFractionDigits: hasDecimals ? 1 : 0,
+                          maximumFractionDigits: hasDecimals ? 1 : 1,
+                        });
+                      };
+                      const summaryLabel = hasDimensions
+                        ? `${material}/${formatDimension(widthValue)}x${formatDimension(heightValue)}`
+                        : material;
                       if (!valid) {
                         priceClasses.push(styles.canvasPriceTagDisabled);
                       }
                       return (
                         <div className={priceClasses.join(' ')}>
-                          <span className={styles.canvasPriceAmount}>{formattedAmount}</span>
-                          <span className={styles.canvasPriceLabel}>Con transferencia</span>
+                          <span className={styles.canvasPriceSummary}>{summaryLabel}</span>
+                          <div className={styles.canvasPriceLine}>
+                            <span className={styles.canvasPriceAmount}>{formattedAmount}</span>
+                            <span className={styles.canvasPriceLabel}>Con transferencia</span>
+                          </div>
                         </div>
                       );
                     }}
