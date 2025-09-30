@@ -27,8 +27,14 @@
 }
 
 .main {
+<<<<<<< HEAD
   width: 100vw;
   margin: 0;
+=======
+  width: 100%;
+  max-width: 1920px;
+  margin: 0 auto;
+>>>>>>> cd8ed0bc637fc789b176f2f6d73a1374a3b20865
   display: flex;
   flex-direction: column;
   align-items: center;
