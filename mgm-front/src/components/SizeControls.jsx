@@ -2,7 +2,12 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import styles from './SizeControls.module.css';
-import { LIMITS, STANDARD, GLASSPAD_SIZE_CM } from '../lib/material.js';
+import {
+  LIMITS,
+  STANDARD,
+  GLASSPAD_SIZE_CM,
+  MIN_DIMENSION_CM_BY_MATERIAL,
+} from '../lib/material.js';
 import { useFloatingMenu } from '../hooks/useFloatingMenu.js';
 import widthIcon from '../icons/largo.png';
 import heightIcon from '../icons/ancho.png';
@@ -10,7 +15,7 @@ import heightIcon from '../icons/ancho.png';
 
 
 const INVALID_NUMBER_MESSAGE = 'Ingresá un número';
-const DIMENSION_MIN_CM = 1;
+const FALLBACK_DIMENSION_MIN_CM = 1;
 const DECIMALS = 2;
 const EPSILON = 1e-4;
 
@@ -256,7 +261,10 @@ export default function SizeControls({ material, size, onChange, locked = false,
     const max = typeof maxLimit === 'number' && Number.isFinite(maxLimit)
       ? maxLimit
       : Number.POSITIVE_INFINITY;
-    const clamped = clampValue(parsed, DIMENSION_MIN_CM, max);
+    const minLimit = field === 'w'
+      ? MIN_DIMENSION_CM_BY_MATERIAL[material]?.w ?? FALLBACK_DIMENSION_MIN_CM
+      : MIN_DIMENSION_CM_BY_MATERIAL[material]?.h ?? FALLBACK_DIMENSION_MIN_CM;
+    const clamped = clampValue(parsed, minLimit, max);
     const value = roundToDecimals(clamped);
     if (!Number.isFinite(value)) return { valid: false };
     return { valid: true, value, display: formatDisplayValue(value) };

@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { z } from 'zod';
-import { STANDARD, LIMITS } from '../lib/material.js';
+import {
+  STANDARD,
+  LIMITS,
+  GLASSPAD_SIZE_CM,
+  DEFAULT_SIZE_CM,
+  MIN_DIMENSION_CM_BY_MATERIAL,
+} from '../lib/material.js';
 import {
   dpiFor,
   dpiLevel,
@@ -25,8 +31,8 @@ const Form = z.object({
 
 export default function OptionsStep({ uploaded, onSubmitted }) {
   const [material, setMaterial] = useState('Classic');
-  const [wText, setWText] = useState('90');
-  const [hText, setHText] = useState('40');
+  const [wText, setWText] = useState(String(DEFAULT_SIZE_CM.Classic.w));
+  const [hText, setHText] = useState(String(DEFAULT_SIZE_CM.Classic.h));
   const [fit, setFit] = useState('cover');
   const [bg, setBg] = useState('#ffffff');
   const [imgPx, setImgPx] = useState({ w: 0, h: 0 });
@@ -48,8 +54,8 @@ export default function OptionsStep({ uploaded, onSubmitted }) {
 
   useEffect(() => {
     if (material === 'Glasspad') {
-      setWText('50');
-      setHText('40');
+      setWText(String(GLASSPAD_SIZE_CM.w));
+      setHText(String(GLASSPAD_SIZE_CM.h));
     }
   }, [material]);
 
@@ -67,11 +73,13 @@ export default function OptionsStep({ uploaded, onSubmitted }) {
   };
   const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
   const handleWBlur = () => {
-    const num = clamp(parseFloat(wText || '0'), 1, limits.maxW);
+    const min = MIN_DIMENSION_CM_BY_MATERIAL[material]?.w ?? 1;
+    const num = clamp(parseFloat(wText || '0'), min, limits.maxW);
     setWText(num ? String(num) : '');
   };
   const handleHBlur = () => {
-    const num = clamp(parseFloat(hText || '0'), 1, limits.maxH);
+    const min = MIN_DIMENSION_CM_BY_MATERIAL[material]?.h ?? 1;
+    const num = clamp(parseFloat(hText || '0'), min, limits.maxH);
     setHText(num ? String(num) : '');
   };
   const applyPreset = (w, h) => {
@@ -99,8 +107,10 @@ export default function OptionsStep({ uploaded, onSubmitted }) {
     setErr('');
     setBusy(true);
     try {
-    const wNum = clamp(parseFloat(wText || '0'), 1, limits.maxW);
-    const hNum = clamp(parseFloat(hText || '0'), 1, limits.maxH);
+    const minW = MIN_DIMENSION_CM_BY_MATERIAL[material]?.w ?? 1;
+    const minH = MIN_DIMENSION_CM_BY_MATERIAL[material]?.h ?? 1;
+    const wNum = clamp(parseFloat(wText || '0'), minW, limits.maxW);
+    const hNum = clamp(parseFloat(hText || '0'), minH, limits.maxH);
 
     if (!wText || !hText) {
       setErr('Completá las medidas');

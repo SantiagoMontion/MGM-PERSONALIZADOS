@@ -17,7 +17,13 @@ import EditorCanvas from '../components/EditorCanvas';
 import SizeControls from '../components/SizeControls';
 import LoadingOverlay from '../components/LoadingOverlay';
 
-import { LIMITS, STANDARD, GLASSPAD_SIZE_CM } from '../lib/material.js';
+import {
+  LIMITS,
+  STANDARD,
+  GLASSPAD_SIZE_CM,
+  DEFAULT_SIZE_CM,
+  MIN_DIMENSION_CM_BY_MATERIAL,
+} from '../lib/material.js';
 
 import {
   dpiLevel,
@@ -82,14 +88,10 @@ export default function Home() {
   // medidas y material (source of truth)
   const [material, setMaterial] = useState('Classic');
   const [mode, setMode] = useState('standard');
-  const [size, setSize] = useState(() => ({ ...DEFAULT_SIZE }));
-  const sizeCm = useMemo(
-    () => ({
-      w: Number(size.w) || DEFAULT_SIZE.w,
-      h: Number(size.h) || DEFAULT_SIZE.h,
-    }),
-    [size.w, size.h],
-  );
+
+  const [size, setSize] = useState(() => ({ ...DEFAULT_SIZE_CM.Classic }));
+  const sizeCm = useMemo(() => ({ w: Number(size.w) || 90, h: Number(size.h) || 40 }), [size.w, size.h]);
+
   const isGlasspad = material === 'Glasspad';
   const activeWcm = isGlasspad ? GLASSPAD_SIZE_CM.w : sizeCm.w;
   const activeHcm = isGlasspad ? GLASSPAD_SIZE_CM.h : sizeCm.h;
@@ -175,38 +177,22 @@ export default function Home() {
       }
       const lim = LIMITS[next.material];
       const stored = lastSize.current[next.material];
-      let preservedCustom = false;
 
-      const numericCurrent = {
-        w: Number(size.w),
-        h: Number(size.h),
-      };
-
-      let candidate;
-      if (
-        mode === 'custom'
-        && Number.isFinite(numericCurrent.w)
-        && Number.isFinite(numericCurrent.h)
-        && numericCurrent.w >= 1
-        && numericCurrent.h >= 1
-        && numericCurrent.w <= lim.maxW
-        && numericCurrent.h <= lim.maxH
-      ) {
-        candidate = { w: numericCurrent.w, h: numericCurrent.h };
-        preservedCustom = true;
-      }
-
-      if (!candidate) {
-        const fallbackSource = stored || DEFAULT_SIZE;
-        candidate = {
-          w: Number(fallbackSource.w) || DEFAULT_SIZE.w,
-          h: Number(fallbackSource.h) || DEFAULT_SIZE.h,
-        };
-      }
-
+      const shouldUseDefaultSize = !stored && material === 'Glasspad';
+      const defaultSize = DEFAULT_SIZE_CM[next.material];
+      const prev = shouldUseDefaultSize
+        ? defaultSize || size
+        : (mode === 'custom' || !stored ? size : stored);
       const clamped = {
-        w: Math.min(Math.max(candidate.w, 1), lim.maxW),
-        h: Math.min(Math.max(candidate.h, 1), lim.maxH),
+        w: Math.min(
+          Math.max(prev.w, MIN_DIMENSION_CM_BY_MATERIAL[next.material]?.w ?? 1),
+          lim.maxW,
+        ),
+        h: Math.min(
+          Math.max(prev.h, MIN_DIMENSION_CM_BY_MATERIAL[next.material]?.h ?? 1),
+          lim.maxH,
+        ),
+
       };
 
       setMaterial(next.material);
