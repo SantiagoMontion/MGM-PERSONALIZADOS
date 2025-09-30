@@ -490,8 +490,8 @@ export default function SizeControls({ material, size, onChange, locked = false,
                   aria-selected={isActive}
                   className={styles.selectOption}
                   tabIndex={0}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
+                  onPointerDown={(event) => {
+                    event.preventDefault();
                     if (disabled) return;
                     if (String(option.value) !== String(material)) {
                       onChange({ material: option.value });
