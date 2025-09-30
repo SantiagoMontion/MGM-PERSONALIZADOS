@@ -840,20 +840,20 @@ export default function Mockup() {
             Nos encantaría que formes parte de nuestra comunidad
           </h2>
           <p className={styles.communitySubtitle}>por eso vamos a convencerte</p>
-         <div className={styles.testimonialsGrid}>
-  {TESTIMONIAL_ICONS.map((src, i) => (
-    <figure key={i} className={styles.testimonialCard}>
-      <div className={styles.testimonialImageWrapper}>
-        <img
-          src={src}
-          alt={`Testimonio de cliente ${i + 1}`}
-          className={styles.testimonialSvg}   // tu clase para tamaño/estilo
-          loading="lazy"
-        />
-      </div>
-    </figure>
-  ))}
-</div>
+          <div className={styles.testimonialsGrid}>
+            {TESTIMONIAL_ICONS.map((src, i) => (
+              <figure key={i} className={styles.testimonialCard}>
+                <div className={styles.testimonialImageWrapper}>
+                  <img
+                    src={src}
+                    alt={`Testimonio de cliente ${i + 1}`}
+                    className={styles.testimonialSvg}
+                    loading="lazy"
+                  />
+                </div>
+              </figure>
+            ))}
+          </div>
           <div className={styles.benefitsGrid}>
             {BENEFITS.map((benefit) => (
               <article key={benefit.title} className={styles.benefitCard}>
