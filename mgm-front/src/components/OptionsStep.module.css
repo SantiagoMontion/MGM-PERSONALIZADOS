@@ -36,4 +36,37 @@
 
 .submitButton {
   margin-top: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+}
+
+.submitButtonIcon {
+  width: 24px;
+  height: 24px;
+  display: block;
+}
+
+.submitButtonText {
+  display: none;
+}
+
+@media (max-width: 600px) {
+  .submitButton {
+    background-color: rgba(48, 93, 38, 0.2);
+    color: #305D26;
+    border-radius: 999px;
+    padding: 12px 24px;
+    font-weight: 600;
+  }
+
+  .submitButtonIcon {
+    display: none;
+  }
+
+  .submitButtonText {
+    display: inline;
+  }
 }

@@ -10,8 +10,10 @@ import {
 import styles from './OptionsStep.module.css';
 import { buildSubmitJobBody, prevalidateSubmitBody } from '../lib/jobPayload';
 import { submitJob } from '../lib/submitJob';
+import { resolveIconAsset } from '../lib/iconRegistry.js';
 
 const LOW_ACK_ERROR_MESSAGE = 'La calidad parece baja. Confirmá que aceptás continuar.';
+const CONTINUE_ICON_SRC = resolveIconAsset('continuar.svg');
 
 const Form = z.object({
   material: z.enum(['Classic','PRO','Glasspad']),
@@ -243,8 +245,18 @@ export default function OptionsStep({ uploaded, onSubmitted }) {
         className={styles.submitButton}
         disabled={busy || (level === 'bad' && !ackLow)}
         onClick={submit}
+        type="button"
       >
-        {busy ? 'Enviando…' : 'Continuar'}
+        {busy ? 'Enviando…' : (
+          <>
+            <span className={styles.submitButtonText}>Continuar</span>
+            <img
+              alt="Continuar"
+              className={styles.submitButtonIcon}
+              src={CONTINUE_ICON_SRC}
+            />
+          </>
+        )}
       </button>
     </div>
   );
