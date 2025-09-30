@@ -25,31 +25,32 @@
 }
 
 .groupLabel {
-  font-size: 14px;
-  letter-spacing: 0.08em;
-  font-weight: 700;
-  text-transform: uppercase;
-  color: var(--cfg-text);
+  font-size: 16px;
+  letter-spacing: 5%;
+  font-weight: 400;
   opacity: 0.9;
+  margin: 0;
+  padding-left: 5px;
 }
 
 .measureRow {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-  margin-top: 8px;
+  gap: 6px;
+  margin-top: 0px;
 }
 
 .measureField {
   display: flex;
   align-items: center;
-  gap: 10px;
-  min-block-size: 56px;
-  padding: 14px 16px;
-  border-radius: 16px;
+  gap: 40px;
+  min-block-size: 45px;
+  padding: 8px 20px;
+  border-radius: 11px;
   border: 1px solid var(--cfg-border);
-  background: var(--cfg-surface);
+  background: #181818ab;
   color: var(--cfg-text);
+  margin: 0;
 }
 
 .measureFieldDisabled {
@@ -63,15 +64,15 @@
 }
 
 .measureIcon {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   flex-shrink: 0;
   opacity: 0.9;
 }
 
 .measureInput {
   margin-left: auto;
-  width: 72px;
+  width: 50px;
   text-align: right;
   background: transparent;
   border: 0;
@@ -114,22 +115,23 @@
   flex-wrap: wrap;
   gap: 10px;
   margin-top: 14px;
+ 
 }
 
 .quickChip {
-  padding: 8px 12px;
-  border-radius: 999px;
+  padding: 14px 14px;
+  border-radius: 5px;
   border: 1px solid var(--cfg-border);
-  background: rgba(255, 255, 255, 0.04);
+  background: #181818ab;
   color: var(--cfg-text-soft);
   font-size: 14px;
   cursor: pointer;
-  transition: background-color 0.18s ease, color 0.18s ease, transform 0.18s ease;
+  transition: background-color 0.18s ease, transform 0.18s ease;
 }
 
 .quickChip:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.06);
-  color: var(--cfg-text);
+  color: #fff;
   transform: translateY(-1px);
 }
 
@@ -164,7 +166,7 @@
   padding: 14px 18px;
   border-radius: 16px;
   border: 1px solid var(--cfg-border);
-  background: var(--cfg-surface);
+  background: #181818ab;
   color: var(--cfg-text);
   cursor: pointer;
   transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
@@ -203,7 +205,7 @@
 }
 
 .selectTrigger:hover:not(:disabled) {
-  border-color: var(--cfg-border-strong);
+  border-color: #181818ab;
   transform: translateY(-1px);
   box-shadow: 0 0 0 1px rgba(200, 200, 200, 0.06) inset;
 }
@@ -213,7 +215,7 @@
 }
 
 .selectTrigger:focus-visible {
-  outline: 2px solid #79c0ff66;
+  outline: 2px solid #181818ab;
   outline-offset: 3px;
 }
 

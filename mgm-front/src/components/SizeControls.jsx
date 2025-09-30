@@ -5,9 +5,10 @@ import styles from './SizeControls.module.css';
 import { LIMITS, STANDARD, GLASSPAD_SIZE_CM } from '../lib/material.js';
 import { resolveIconAsset } from '../lib/iconRegistry.js';
 import { useFloatingMenu } from '../hooks/useFloatingMenu.js';
+import widthIcon from '../icons/largo.png';
+import heightIcon from '../icons/ancho.png';
 
-const WIDTH_ICON_SRC = resolveIconAsset('largo.svg');
-const HEIGHT_ICON_SRC = resolveIconAsset('ancho.svg');
+
 
 const INVALID_NUMBER_MESSAGE = 'Ingresá un número';
 const DIMENSION_MIN_CM = 1;
@@ -375,12 +376,7 @@ export default function SizeControls({ material, size, onChange, locked = false,
         <div className={styles.measureRow}>
           <label className={measureFieldClass(locked || isGlasspad || disabled)}>
             <span className={styles.measureLabel}>Largo</span>
-            <img
-              src={WIDTH_ICON_SRC}
-              alt=""
-              className={styles.measureIcon}
-              aria-hidden="true"
-            />
+            <img src={widthIcon} alt="" className={styles.measureIcon} aria-hidden="true" />
             <input
               ref={wInputRef}
               className={styles.measureInput}
@@ -397,12 +393,7 @@ export default function SizeControls({ material, size, onChange, locked = false,
           </label>
           <label className={measureFieldClass(locked || isGlasspad || disabled)}>
             <span className={styles.measureLabel}>Ancho</span>
-            <img
-              src={HEIGHT_ICON_SRC}
-              alt=""
-              className={styles.measureIcon}
-              aria-hidden="true"
-            />
+            <img src={heightIcon} alt="" className={styles.measureIcon} aria-hidden="true" />
             <input
               ref={hInputRef}
               className={styles.measureInput}
@@ -450,94 +441,88 @@ export default function SizeControls({ material, size, onChange, locked = false,
           </div>
         )}
 
-        {!locked && !isGlasspad && (
-          <p className={styles.helper}>
-            Máximo {limits.maxW}×{limits.maxH} cm para {material}
-          </p>
-        )}
-
-        {locked && (
-          <p className={styles.helper}>Medida fija {GLASSPAD_SIZE_CM.w}×{GLASSPAD_SIZE_CM.h} cm</p>
-        )}
+        
       </div>
 
       <div className={`${styles.section} ${styles.seriesSection} ${styles.formRow}`}>
-        <span className={styles.groupLabel}>Serie</span>
-        <div className={styles.selectGroup}>
-          <button
-            type="button"
-            className={styles.selectTrigger}
-            aria-haspopup="listbox"
-            aria-expanded={isSeriesOpen}
-            aria-controls={seriesMenuId}
-            ref={seriesTriggerRef}
-            onClick={() => {
-              if (disabled) return;
-              setSeriesOpen((prev) => !prev);
-            }}
-            disabled={disabled}
-          >
-            <span className={styles.selectLabel}>
-              <strong className={styles.selectLabelStrong}>{activeMaterialOption.main}</strong>
-              <em className={styles.selectLabelSoft}>{activeMaterialOption.variant}</em>
-            </span>
-            <svg className={styles.selectChevron} viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2" />
-            </svg>
-          </button>
+  <span className={styles.groupLabel}>Serie</span>
+  <div className={styles.selectGroup}>
+    <button
+      type="button"
+      className={styles.selectTrigger}
+      aria-haspopup="listbox"
+      aria-expanded={isSeriesOpen}
+      aria-controls={seriesMenuId}
+      ref={seriesTriggerRef}
+      onClick={() => {
+        if (disabled) return;
+        setSeriesOpen((prev) => !prev);
+      }}
+      disabled={disabled}
+    >
+      <span className={styles.selectLabel}>
+        <strong className={styles.selectLabelStrong}>{activeMaterialOption.main}</strong>
+        <em className={styles.selectLabelSoft}>{activeMaterialOption.variant}</em>
+      </span>
+      <svg className={styles.selectChevron} viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2" />
+      </svg>
+    </button>
 
-          {isSeriesOpen
-            && seriesTriggerRef.current
-            && portalTarget
-            && createPortal(
-              (
+    {isSeriesOpen
+      && seriesTriggerRef.current
+      && portalTarget
+      && createPortal(
+        (
+          <div
+            id={seriesMenuId}
+            role="listbox"
+            className={styles.selectMenu}
+            style={floatingMenuStyle}
+            ref={seriesMenuRef}
+          >
+            {MATERIAL_OPTIONS.map((option) => {
+              const isActive = material === option.value;
+              return (
                 <div
-                  id={seriesMenuId}
-                  role="listbox"
-                  className={styles.selectMenu}
-                  style={floatingMenuStyle}
-                  ref={seriesMenuRef}
+                  role="option"
+                  key={option.value}
+                  aria-selected={isActive}
+                  className={styles.selectOption}
+                  tabIndex={0}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    if (disabled) return;
+                    if (String(option.value) !== String(material)) {
+                      onChange({ material: option.value });
+                    }
+                    setSeriesOpen(false);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      if (disabled) return;
+                      if (String(option.value) !== String(material)) {
+                        onChange({ material: option.value });
+                      }
+                      setSeriesOpen(false);
+                    }
+                  }}
                 >
-                  {MATERIAL_OPTIONS.map((option) => {
-                    const isActive = material === option.value;
-                    return (
-                      <div
-                        role="option"
-                        key={option.value}
-                        aria-selected={isActive}
-                        className={styles.selectOption}
-                        tabIndex={0}
-                        onClick={() => {
-                          if (disabled) return;
-                          setSeriesOpen(false);
-                          if (option.value !== material) {
-                            onChange({ material: option.value });
-                          }
-                        }}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter' || event.key === ' ') {
-                            event.preventDefault();
-                            if (disabled) return;
-                            setSeriesOpen(false);
-                            if (option.value !== material) {
-                              onChange({ material: option.value });
-                            }
-                          }
-                        }}
-                      >
-                        <span className={styles.selectLabel}>
-                          <strong className={styles.selectLabelStrong}>{option.main}</strong>
-                          <em className={styles.selectLabelSoft}>{option.variant}</em>
-                        </span>
-                      </div>
-                    );
-                  })}
+                  <span className={styles.selectLabel}>
+                    <strong className={styles.selectLabelStrong}>{option.main}</strong>
+                    <em className={styles.selectLabelSoft}>{option.variant}</em>
+                  </span>
                 </div>
-              ),
-              portalTarget,
-            )}
-        </div>
-      </div>
+              );
+            })}
+          </div>
+        ),
+        portalTarget,
+      )}
+  </div>
+</div>
+
     </div>
   );
 }

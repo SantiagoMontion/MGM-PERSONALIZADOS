@@ -16,6 +16,8 @@
   min-height: 100%;
 }
 
+
+
 .sectionOne {
   width: 100%;
   display: flex;
@@ -219,24 +221,7 @@
   transform: rotate(180deg);
 }
 
-.configPanel {
-  position: absolute;
-  top: calc(100% + 12px);
-  left: 0;
-  min-width: min(420px, calc(100vw - 96px));
-  max-width: min(520px, calc(100vw - 96px));
-  display: block;
-  padding: 0;
-  border: none;
-  background: transparent;
-  box-shadow: none;
-  z-index: 30;
-  max-height: 70vh;
-  overflow-y: auto;
-  overflow-x: visible;
-  -webkit-overflow-scrolling: touch;
-  box-sizing: border-box;
-}
+
 
 .configPanelDisabled {
   opacity: 0.6;
@@ -281,6 +266,7 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+ 
 }
 
 .configForm {
@@ -299,20 +285,21 @@
 }
 
 .configSectionTitle {
-  font-size: 14px;
-  letter-spacing: 0.08em;
-  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 5%;
+  font-weight: 400;
   opacity: 0.9;
-  margin: 10px 0 8px;
-  text-transform: uppercase;
+  margin: 10px 0 0px;
+ 
+  padding-left: 5px;
 }
 
 .configSheet {
   inline-size: min(100%, 720px);
   margin-inline: auto;
-  background: var(--cfg-bg);
+  background: #282828d7;
   border: 1px solid var(--cfg-border);
-  border-radius: 16px;
+  border-radius: 5px;
   box-shadow: var(--cfg-shadow);
   padding: 20px 18px 22px;
   color: var(--cfg-text);
@@ -321,17 +308,23 @@
 }
 
 .inputText {
+  width: 100%;
+  margin: 0;                 
+  box-sizing: border-box;
+
+ 
   display: block;
   inline-size: 100%;
-  min-block-size: 56px;
-  padding: 14px 18px;
-  border-radius: 16px;
-  border: 1px solid var(--cfg-border);
-  background: var(--cfg-surface);
-  color: var(--cfg-text);
-  font-size: 16px;
-  letter-spacing: 0.01em;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  min-block-size: 40px;
+  padding: 22px 12px;
+  border-radius: 11px;
+  
+  background: #181818ab;
+  color: #fff;
+  font-size: 14px;
+  letter-spacing: 5%;
+  border: solid 1px #74747475;
+  font-family: Poppins;
 }
 
 .inputText::placeholder {
@@ -340,7 +333,7 @@
 }
 
 .inputText:focus-visible {
-  outline: 2px solid #79c0ff66;
+  outline: 2px solid #8a8a8a66;
   outline-offset: 3px;
   border-color: var(--cfg-border-strong);
 }
@@ -350,21 +343,13 @@
   cursor: not-allowed;
 }
 
-.inputTextError {
-  border-color: #ffb4a6;
-  box-shadow: 0 0 0 1px rgba(255, 180, 166, 0.25) inset;
-}
-
-.inputTextError:focus-visible {
-  border-color: #ffb4a6;
-  box-shadow: 0 0 0 1px rgba(255, 180, 166, 0.3) inset;
-}
-
 .errorMessage {
   margin-top: 8px;
   color: #ffb4a6;
   font-size: 14px;
 }
+
+
 
 
 .canvasHistoryActions {
@@ -766,12 +751,12 @@
 
 .errorMessage {
   margin: 0;
-  padding: 12px 18px;
+  
   border-radius: 14px;
-  border: 1px solid rgba(239, 68, 68, 0.45);
-  background: rgba(64, 18, 26, 0.82);
-  color: #fca5a5;
-  font-size: 0.9rem;
+
+  
+  color: #e24545;
+  font-size: 14px;
   max-width: 520px;
 }
 
