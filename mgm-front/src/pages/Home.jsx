@@ -87,10 +87,7 @@ export default function Home() {
   const activeWcm = isGlasspad ? GLASSPAD_SIZE_CM.w : sizeCm.w;
   const activeHcm = isGlasspad ? GLASSPAD_SIZE_CM.h : sizeCm.h;
   const activeSizeCm = useMemo(() => ({ w: activeWcm, h: activeHcm }), [activeWcm, activeHcm]);
-  const lastSize = useRef({
-    Classic: { w: 90, h: 40 },
-    PRO: { w: 90, h: 40 },
-  });
+  const lastSize = useRef({});
 
   const glasspadInitRef = useRef(false);
   useEffect(() => {
