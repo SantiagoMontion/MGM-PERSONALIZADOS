@@ -192,56 +192,65 @@
 }
 
 .communitySection {
-  width: min(1100px, 100%);
-  margin: clamp(48px, 10vh, 96px) auto 0;
-  display: flex;
-  flex-direction: column;
-  gap: clamp(24px, 6vh, 48px);
-  align-items: center;
-  text-align: center;
+  inline-size: min(100%, 1200px);
+  margin-inline: auto;
+  padding-inline: 16px;
 }
 
 .communityTitle {
-  margin: 0;
-  font-size: clamp(26px, 4vw, 40px);
-  font-weight: 600;
+  text-align: center;
+  font-size: clamp(24px, 4.2vw, 40px);
+  line-height: 1.15;
+  font-weight: 800;
   letter-spacing: 0.01em;
-  color: rgba(242, 243, 245, 0.96);
+  margin: 0 0 6px 0;
 }
 
 .communitySubtitle {
-  margin: 0;
-  font-size: 16px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: rgba(154, 160, 166, 0.9);
+  text-align: center;
+  font-size: clamp(14px, 2.8vw, 18px);
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+  margin: 0 0 28px 0;
 }
 
 .testimonialsGrid {
-  width: 100%;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: clamp(16px, 3vw, 28px);
+  grid-template-columns: 1fr;
+  gap: 20px;
+  margin: 0 auto 28px;
+  inline-size: min(100%, 1100px);
+}
+
+@media (min-width: 700px) {
+  .testimonialsGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .testimonialsGrid {
+    grid-template-columns: repeat(3, 1fr);
+  }
 }
 
 .testimonialCard {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  padding: 0;
   margin: 0;
-  padding: clamp(12px, 3vw, 20px);
-  border-radius: calc(var(--radius) + 4px);
-  background: var(--surface);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  box-shadow: var(--shadow);
+  overflow: hidden;
 }
 
 .testimonialImageWrapper {
   position: relative;
-  width: 100%;
-  padding-top: 75%;
+  inline-size: 100%;
+  aspect-ratio: 16 / 10;
   overflow: hidden;
-  border-radius: calc(var(--radius) - 2px);
-  background: rgba(15, 16, 17, 0.6);
+  border-radius: 16px;
 }
 
+.testimonialSvg,
 .testimonialImageWrapper img {
   position: absolute;
   inset: 0;
@@ -251,40 +260,58 @@
 }
 
 .benefitsGrid {
-  width: 100%;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: clamp(16px, 3vw, 28px);
+  grid-template-columns: 1fr;
+  gap: 24px;
+  margin: 24px auto 0;
+  inline-size: min(100%, 1100px);
+  align-items: start;
+}
+
+@media (min-width: 700px) {
+  .benefitsGrid {
+    grid-template-columns: repeat(3, 1fr);
+  }
 }
 
 .benefitCard {
-  background: rgba(18, 20, 22, 0.85);
-  border-radius: calc(var(--radius) + 2px);
-  padding: clamp(20px, 4vw, 28px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  text-align: left;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  box-shadow: var(--shadow);
-}
-
-.benefitIcon {
-  font-size: 24px;
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  row-gap: 10px;
+  text-align: center;
+  padding-inline: 8px;
 }
 
 .benefitTitle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
   margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  color: rgba(242, 243, 245, 0.98);
+  font-size: clamp(16px, 2.6vw, 20px);
+  line-height: 1.25;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.benefitIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  line-height: 1;
 }
 
 .benefitDescription {
   margin: 0;
-  font-size: 14px;
-  line-height: 1.6;
-  color: rgba(154, 160, 166, 0.92);
+  font-size: clamp(13px, 2.3vw, 15px);
+  line-height: 1.45;
+  letter-spacing: 0.01em;
+  opacity: 0.9;
+}
+
+.communitySection :where(.testimonialsGrid, .benefitsGrid) {
+  margin-block-end: clamp(20px, 5vw, 36px);
 }
 
 .marketingSection {
