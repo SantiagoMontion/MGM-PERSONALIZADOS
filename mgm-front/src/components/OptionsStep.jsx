@@ -248,6 +248,7 @@ export default function OptionsStep({ uploaded, onSubmitted }) {
         type="button"
       >
         {busy ? 'Enviando…' : (
+
           <>
             <span className={styles.submitButtonText}>Continuar</span>
             <img
@@ -256,6 +257,7 @@ export default function OptionsStep({ uploaded, onSubmitted }) {
               src={CONTINUE_ICON_SRC}
             />
           </>
+
         )}
       </button>
     </div>

@@ -1860,10 +1860,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         )}
       </div>
 
-      {topLeftOverlay ? (
-        <div className={styles.overlayTopLeft}>{topLeftOverlay}</div>
-      ) : null}
-
       {showHistoryControls && (
         <div className={`${styles.overlayTopRight} ${styles.historyControls}`}>
           <button
@@ -2245,6 +2241,10 @@ const EditorCanvas = forwardRef(function EditorCanvas(
           </div>
         </div>
       </div>
+
+      {topLeftOverlay ? (
+        <div className={styles.overlayTopLeft}>{topLeftOverlay}</div>
+      ) : null}
     </div>
 
       {lastDiag && <p className={styles.errorBox}>{lastDiag}</p>}

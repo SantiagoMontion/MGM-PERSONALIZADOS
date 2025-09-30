@@ -39,14 +39,17 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+
   gap: 8px;
   padding: 12px;
+
 }
 
 .submitButtonIcon {
   width: 24px;
   height: 24px;
   display: block;
+
 }
 
 .submitButtonText {
@@ -69,4 +72,5 @@
   .submitButtonText {
     display: inline;
   }
+
 }
