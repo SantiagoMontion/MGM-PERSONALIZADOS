@@ -525,6 +525,9 @@ export default function SizeControls({ material, size, onChange, locked = false,
             className={styles.selectMenu}
             style={floatingMenuStyle}
             ref={seriesMenuRef}
+            onPointerDown={(event) => {
+              event.stopPropagation();
+            }}
           >
             {MATERIAL_OPTIONS.map((option) => {
               const isActive = material === option.value;
