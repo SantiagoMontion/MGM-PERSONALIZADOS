@@ -43,7 +43,7 @@
 .measureField {
   display: flex;
   align-items: center;
-  gap: 40px;
+  gap: 35px;
   min-block-size: 45px;
   padding: 8px 20px;
   border-radius: 11px;
@@ -80,6 +80,7 @@
   font-size: 16px;
   font-variant-numeric: tabular-nums;
   outline: none;
+  margin-left: -30px;
 }
 
 .measureInput:disabled {
@@ -215,7 +216,7 @@
 }
 
 .selectTrigger:focus-visible {
-  outline: 2px solid #181818ab;
+  outline: 2px solid #181818ab;;
   outline-offset: 3px;
 }
 
@@ -258,4 +259,16 @@
   .selectTrigger {
     min-block-size: 54px;
   }
+  .measureInput {
+  margin-left: auto;
+  width: 50px;
+  text-align: right;
+  background: transparent;
+  border: 0;
+  color: var(--cfg-text);
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+  outline: none;
+  margin-left: -30px;
+}
 }

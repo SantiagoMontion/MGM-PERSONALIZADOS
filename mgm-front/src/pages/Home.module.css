@@ -99,6 +99,28 @@
 }
 
 
+.configSheet {
+  inline-size: min(100%, 442px);
+  margin-inline: auto;
+  background: #282828d0;
+  border: 1px solid var(--cfg-border);
+  border-radius: 5px;
+ 
+  padding: 20px 18px 22px;
+  color: var(--cfg-text);
+  overflow: hidden;
+  touch-action: pan-y;
+  margin: 0;
+  margin-top: -13px;
+  border-top: none;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  
+}
+
+
+
+
 .tutorialButton::before {
   content: "";
   position: absolute;
@@ -145,10 +167,13 @@
 
 .configDropdown {
   position: relative;
-  display: inline-flex;
+  display: flex;
   flex-direction: column;
   gap: 12px;
+  width: 480px;
+  justify-content: space-evenly;
 }
+
 
 .configTrigger {
   display: inline-flex;
@@ -163,17 +188,31 @@
   font-size: 1rem;
   cursor: pointer;
   transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  display: flex;
+  justify-content: space-between;
+
 }
 
+
+.configTrigger[aria-expanded="true"] {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  border-bottom: 0;
+}
+
+
+
+
+
 .configTrigger:hover:not(:disabled) {
-  border: 1px solid #34343b;
+ border: 1px solid #5c5c5ca2;
  
-  transform: translateY(-1px);
+  
 }
 
 .configTrigger:disabled,
 .configTriggerDisabled {
-  opacity: 0.45;
+  
   cursor: not-allowed;
   transform: none;
 }
@@ -186,7 +225,7 @@
   gap: 12px;
   padding: 20px 24px;
   border: none;
-  background: #181818;
+  background: #282828d0;
   border: 1px solid #34343b;
   color: inherit;
   cursor: pointer;
@@ -205,6 +244,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  
 }
 
 .configTriggerLabel {
@@ -260,6 +300,27 @@
   .inputText {
     min-block-size: 54px;
   }
+
+  .configTrigger[aria-expanded="true"] {
+  border: 1px solid var(--cfg-border);
+  border-radius: 11px;
+}
+
+  .configSheet {
+  inline-size: min(100%, 78%);
+  margin-inline: auto;
+  background: #282828d0;
+  border: 1px solid var(--cfg-border);
+  border-radius: 5px;
+  box-shadow: var(--cfg-shadow);
+  padding: 20px 18px 22px;
+  color: var(--cfg-text);
+  overflow: hidden;
+  touch-action: pan-y;
+  margin: 0;
+  margin-top: 0px;
+  margin-left: 30px;
+}
 }
 
 .field {
@@ -289,23 +350,15 @@
   letter-spacing: 5%;
   font-weight: 400;
   opacity: 0.9;
-  margin: 10px 0 0px;
+  margin: 0px 0 0px;
  
   padding-left: 5px;
 }
 
-.configSheet {
-  inline-size: min(100%, 720px);
-  margin-inline: auto;
-  background: #282828d7;
-  border: 1px solid var(--cfg-border);
-  border-radius: 5px;
-  box-shadow: var(--cfg-shadow);
-  padding: 20px 18px 22px;
-  color: var(--cfg-text);
-  overflow: hidden;
-  touch-action: pan-y;
-}
+
+
+
+
 
 .inputText {
   width: 100%;
@@ -316,7 +369,7 @@
   display: block;
   inline-size: 100%;
   min-block-size: 40px;
-  padding: 22px 12px;
+  padding: 18px 12px;
   border-radius: 11px;
   
   background: #181818ab;
@@ -333,8 +386,8 @@
 }
 
 .inputText:focus-visible {
-  outline: 2px solid #8a8a8a66;
-  outline-offset: 3px;
+  outline: 1px solid #8a8a8a66;
+  outline-offset: 0px;
   border-color: var(--cfg-border-strong);
 }
 
