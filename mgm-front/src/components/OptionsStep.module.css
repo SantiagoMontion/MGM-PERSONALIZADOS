@@ -36,4 +36,13 @@
 
 .submitButton {
   margin-top: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.submitButtonIcon {
+  width: 24px;
+  height: 24px;
+  display: block;
 }
