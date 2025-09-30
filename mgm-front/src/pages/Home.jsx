@@ -45,6 +45,7 @@ const TUTORIAL_ICON_SRC = resolveIconAsset('play.svg');
 
 
 const CANVAS_MAX_WIDTH = 1280;
+const DEFAULT_SIZE = { w: 90, h: 40 };
 const ACK_LOW_ERROR_MESSAGE = 'Confirmá que aceptás imprimir en baja calidad.';
 const MODERATION_REASON_MESSAGES = {
   real_nudity: 'Bloqueado por moderación: contenido adulto explícito detectado.',
@@ -87,8 +88,10 @@ export default function Home() {
   // medidas y material (source of truth)
   const [material, setMaterial] = useState('Classic');
   const [mode, setMode] = useState('standard');
+
   const [size, setSize] = useState(() => ({ ...DEFAULT_SIZE_CM.Classic }));
   const sizeCm = useMemo(() => ({ w: Number(size.w) || 90, h: Number(size.h) || 40 }), [size.w, size.h]);
+
   const isGlasspad = material === 'Glasspad';
   const activeWcm = isGlasspad ? GLASSPAD_SIZE_CM.w : sizeCm.w;
   const activeHcm = isGlasspad ? GLASSPAD_SIZE_CM.h : sizeCm.h;
@@ -174,6 +177,7 @@ export default function Home() {
       }
       const lim = LIMITS[next.material];
       const stored = lastSize.current[next.material];
+
       const shouldUseDefaultSize = !stored && material === 'Glasspad';
       const defaultSize = DEFAULT_SIZE_CM[next.material];
       const prev = shouldUseDefaultSize
@@ -188,13 +192,22 @@ export default function Home() {
           Math.max(prev.h, MIN_DIMENSION_CM_BY_MATERIAL[next.material]?.h ?? 1),
           lim.maxH,
         ),
+
       };
+
       setMaterial(next.material);
       setSize(clamped);
-      const isStd = (STANDARD[next.material] || []).some(
-        opt => Number(opt.w) === Number(clamped.w) && Number(opt.h) === Number(clamped.h)
-      );
-      setMode(isStd ? 'standard' : 'custom');
+
+      let nextModeValue = 'custom';
+      if (!preservedCustom) {
+        const isStd = (STANDARD[next.material] || []).some(
+          opt => Number(opt.w) === Number(clamped.w) && Number(opt.h) === Number(clamped.h)
+        );
+        nextModeValue = isStd ? 'standard' : 'custom';
+      }
+
+      setMode(nextModeValue);
+
       if (!stored || stored.w !== clamped.w || stored.h !== clamped.h) {
         lastSize.current[next.material] = clamped;
       }
