@@ -783,9 +783,7 @@ export default function Mockup() {
           ) : null}
 
         </div>
-        <p className={styles.discountBadge}>
-          Aprovechá un 20% off pagando en transferencia bancaria
-        </p>
+        
         <div className={styles.ctaRow}>
           <div className={styles.ctaCard}>
             <button
@@ -821,7 +819,8 @@ export default function Mockup() {
             <button
               type="button"
               disabled={busy}
-              className={`${styles.ctaButton} ${styles.ctaButtonPrimary}`}
+              
+              className={`${styles.ctaButton} ${styles.ctaButtonPrimary1}`}
               ref={buyNowButtonRef}
               onClick={() => {
                 if (busy) return;
