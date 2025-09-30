@@ -27,14 +27,9 @@
 }
 
 .main {
-<<<<<<< HEAD
-  width: 100vw;
-  margin: 0;
-=======
   width: 100%;
   max-width: 1920px;
   margin: 0 auto;
->>>>>>> cd8ed0bc637fc789b176f2f6d73a1374a3b20865
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -44,11 +39,9 @@
 
 .previewWrapper {
   position: relative;
-
-
-  max-width: min(640px, 90vw);
+  max-width: min(960px, 92vw);
   margin-bottom: -8%;
- 
+
   text-align: center;
 }
 
@@ -90,7 +83,7 @@
 .mockupImage {
   display: block;
   max-width: 1280px !important;
-  width: 820px !important;
+  width: min(92vw, 960px) !important;
   margin: 0;
   height: auto;
   object-fit: contain;
@@ -132,6 +125,31 @@
   align-items: center;
   gap: 8px;
   width: 100%;
+}
+
+@media (max-width: 1024px) {
+  .previewWrapper {
+    max-width: min(92vw, 720px);
+  }
+
+  .mockupImage {
+    width: min(92vw, 720px) !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .previewWrapper {
+    max-width: min(94vw, 640px);
+  }
+
+  .mockupImage {
+    width: min(94vw, 640px) !important;
+  }
+
+  .ctaRow {
+    width: min(480px, 100%);
+    grid-template-columns: 1fr;
+  }
 }
 
 
