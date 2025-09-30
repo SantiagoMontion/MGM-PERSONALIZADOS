@@ -539,6 +539,13 @@ export default function SizeControls({ material, size, onChange, locked = false,
           >
             {MATERIAL_OPTIONS.map((option) => {
               const isActive = material === option.value;
+              const closeSeriesMenu = () => {
+                setSeriesOpen(false);
+                if (disabled) return;
+                if (String(option.value) !== String(material)) {
+                  onChange({ material: option.value });
+                }
+              };
               return (
                 <div
                   role="option"
@@ -546,22 +553,14 @@ export default function SizeControls({ material, size, onChange, locked = false,
                   aria-selected={isActive}
                   className={styles.selectOption}
                   tabIndex={0}
-                  onPointerDown={(event) => {
+                  onClick={(event) => {
                     event.preventDefault();
-                    if (disabled) return;
-                    if (String(option.value) !== String(material)) {
-                      onChange({ material: option.value });
-                    }
-                    setSeriesOpen(true);
+                    closeSeriesMenu();
                   }}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter' || event.key === ' ') {
                       event.preventDefault();
-                      if (disabled) return;
-                      if (String(option.value) !== String(material)) {
-                        onChange({ material: option.value });
-                      }
-                      setSeriesOpen(true);
+                      closeSeriesMenu();
                     }
                   }}
                 >
