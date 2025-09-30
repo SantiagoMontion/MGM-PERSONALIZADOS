@@ -555,12 +555,16 @@ export default function SizeControls({ material, size, onChange, locked = false,
                   tabIndex={0}
                   onClick={(event) => {
                     event.preventDefault();
+
                     closeSeriesMenu();
+
                   }}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter' || event.key === ' ') {
                       event.preventDefault();
+
                       closeSeriesMenu();
+
                     }
                   }}
                 >
