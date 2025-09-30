@@ -540,11 +540,15 @@ export default function SizeControls({ material, size, onChange, locked = false,
             {MATERIAL_OPTIONS.map((option) => {
               const isActive = material === option.value;
               const closeSeriesMenu = () => {
+
                 setSeriesOpen(false);
+
                 if (disabled) return;
                 if (String(option.value) !== String(material)) {
                   onChange({ material: option.value });
                 }
+
+
               };
               return (
                 <div
@@ -555,12 +559,16 @@ export default function SizeControls({ material, size, onChange, locked = false,
                   tabIndex={0}
                   onClick={(event) => {
                     event.preventDefault();
+
                     closeSeriesMenu();
+
                   }}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter' || event.key === ' ') {
                       event.preventDefault();
+
                       closeSeriesMenu();
+
                     }
                   }}
                 >
