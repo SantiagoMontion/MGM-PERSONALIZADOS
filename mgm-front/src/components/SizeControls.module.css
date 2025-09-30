@@ -45,7 +45,7 @@
   align-items: center;
   gap: 35px;
   min-block-size: 45px;
-  padding: 8px 20px;
+  padding: 2px 20px;
   border-radius: 11px;
   border: 1px solid var(--cfg-border);
   background: #181818ab;
@@ -116,24 +116,26 @@
   flex-wrap: wrap;
   gap: 10px;
   margin-top: 14px;
- 
+  justify-content: space-evenly;
 }
 
 .quickChip {
-  padding: 14px 14px;
-  border-radius: 5px;
+  padding: 12px 14px;
+  border-radius: 11px;
   border: 1px solid var(--cfg-border);
   background: #181818ab;
   color: var(--cfg-text-soft);
   font-size: 14px;
   cursor: pointer;
   transition: background-color 0.18s ease, transform 0.18s ease;
+  margin-top: -20px;
 }
 
 .quickChip:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.06);
+  background: #181818;
   color: #fff;
   transform: translateY(-1px);
+  border-color: #888888b4;
 }
 
 .quickChip:disabled {
@@ -193,8 +195,10 @@
 }
 
 .selectLabelSoft {
-  font-style: italic;
+ font-size: 15px;
   opacity: 0.9;
+  letter-spacing: 5%;
+  font-weight: 400;
 }
 
 .selectChevron {
@@ -225,10 +229,11 @@
   z-index: 3000;
   border-radius: 12px;
   border: 1px solid var(--cfg-border);
-  background: #1c1c1f;
+  background: #181818;
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4);
   overflow: hidden;
   max-height: min(320px, 70vh);
+  margin-top: -5px;
 }
 
 .selectOption {
@@ -246,15 +251,25 @@
   background: rgba(255, 255, 255, 0.05);
 }
 
-.selectOption[aria-selected='true'] {
-  background: rgba(255, 255, 255, 0.08);
-}
+
 
 @media (max-width: 640px) {
   .measureRow {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  .measureLabel{font-size: 14px;}
+  .quickSizes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+  justify-content: start;
+}
+.measureField{padding: 0px 10px 0px 10px;}
+.measureIcon{width: 15px; height: 15px; margin-left: -20px;}
+.measureInput{margin-left: -40px !important;}
 
+.quickChip{margin-top: 0;}
   .measureField,
   .selectTrigger {
     min-block-size: 54px;

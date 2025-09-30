@@ -107,9 +107,7 @@ export default function SizeControls({ material, size, onChange, locked = false,
   const filteredPresets = useMemo(() => {
     if (isGlasspad) return [];
     const presets = STANDARD[material] || [];
-    if (material === 'Classic' && isMobile) {
-      return presets.filter((preset) => !(Number(preset?.w) === 100 && Number(preset?.h) === 60));
-    }
+    
     return presets;
   }, [isGlasspad, material, isMobile]);
 

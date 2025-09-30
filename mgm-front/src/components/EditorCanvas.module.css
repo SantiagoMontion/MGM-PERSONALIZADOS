@@ -706,6 +706,9 @@
     bottom: 12px;
     max-width: calc(100% - 24px);
   }
+
+  .historyButton{width: 38px;
+  height: 38px;}
 }
 
 

@@ -12,8 +12,9 @@
   display: flex;
   flex-direction: column;
   gap: 32px;
-  padding: 32px 48px 56px;
+  padding: 0px 48px 0px;
   min-height: 100%;
+  margin-top: -20px
 }
 
 
@@ -104,7 +105,7 @@
   margin-inline: auto;
   background: #282828d0;
   border: 1px solid var(--cfg-border);
-  border-radius: 5px;
+  border-radius: 11px;
  
   padding: 20px 18px 22px;
   color: var(--cfg-text);
@@ -172,6 +173,7 @@
   gap: 12px;
   width: 480px;
   justify-content: space-evenly;
+  border-bottom: 0;
 }
 
 
@@ -180,17 +182,17 @@
   align-items: center;
   gap: 14px;
   padding: 16px 20px;
-  border-radius: 16px;
-  background: #282828d0;
+  border-radius: 11px;
+  background: #2c2c2cd3;
   border: 1px solid #5c5c5ca2;
   color: #f6f7fb;
   font-weight: 400;
   font-size: 1rem;
   cursor: pointer;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+
   display: flex;
   justify-content: space-between;
-
+  border-bottom: 0;
 }
 
 
@@ -205,7 +207,7 @@
 
 
 .configTrigger:hover:not(:disabled) {
- border: 1px solid #5c5c5ca2;
+ border: 1px solid #4e4e4ea2;
  
   
 }
@@ -234,7 +236,7 @@
 }
 
 .configTrigger:focus-visible {
-  outline: 2px solid rgba(255, 255, 255, 0.35);
+  outline: 1px solid rgba(255, 255, 255, 0.35);
   outline-offset: 4px;
 }
 
@@ -292,9 +294,11 @@
 
 @media (max-width: 640px) {
   .configSheet {
-    border-radius: 14px;
-    padding: 18px 14px 20px;
+    border-radius: 11px;
+    
     overflow-x: hidden;
+    background-color: #181818 !important;
+    
   }
 
   .inputText {
@@ -307,7 +311,7 @@
 }
 
   .configSheet {
-  inline-size: min(100%, 78%);
+  inline-size: min(100%, 86%);
   margin-inline: auto;
   background: #282828d0;
   border: 1px solid var(--cfg-border);
@@ -318,8 +322,8 @@
   overflow: hidden;
   touch-action: pan-y;
   margin: 0;
-  margin-top: 0px;
-  margin-left: 30px;
+  margin-top: -10px;
+  margin-left: 5px;
 }
 }
 
@@ -351,27 +355,20 @@
   font-weight: 400;
   opacity: 0.9;
   margin: 0px 0 0px;
- 
   padding-left: 5px;
 }
-
-
-
 
 
 
 .inputText {
   width: 100%;
   margin: 0;                 
-  box-sizing: border-box;
-
- 
+  box-sizing: border-box; 
   display: block;
   inline-size: 100%;
   min-block-size: 40px;
-  padding: 18px 12px;
+  padding: 14px 12px;
   border-radius: 11px;
-  
   background: #181818ab;
   color: #fff;
   font-size: 14px;
@@ -477,7 +474,7 @@
   --canvas-continue-height: clamp(48px, 6vw, 52px);
   display: flex;
   flex-direction: column;
-  background: rgba(12, 12, 18, 0.95);
+  background: #181818;
   border: 1px solid rgba(63, 63, 77, 0.55);
   border-radius: 12px;
 
@@ -493,7 +490,7 @@
   display: flex;
   justify-content: center;
   pointer-events: none;
-
+  margin: 0;
   z-index: 6;
 
 }
@@ -513,12 +510,12 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 16px;
+  padding: 0px 1px;
   border-radius: 14px;
-  background: rgba(34, 35, 44, 0.86);
-  box-shadow: 0 10px 30px rgba(7, 7, 9, 0.55);
-  font-size: 18px;
-  font-weight: 600;
+  
+  
+  font-size: 15px;
+  font-weight: 400;
   color: #f8fafc;
 }
 
@@ -526,16 +523,17 @@
   display: inline-flex;
   align-items: baseline;
   gap: 10px;
+  margin-top: -15px;
 }
 
 .canvasPriceLabel {
-  font-size: 17px;
+  font-size: 15px;
   font-weight: 500;
   color: rgba(246, 247, 251, 0.82);
 }
 
 .canvasPriceAmount {
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 600;
   color: #f8fafc;
 }
@@ -694,6 +692,7 @@
   text-align: center;
   width: 100%;
   transition: color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+  z-index: 1 !important;
 }
 
 .ackLabel:hover {
@@ -838,7 +837,7 @@
   height: var(--canvas-continue-height, 48px);
   border-radius: 11px;
   border: 1px solid #34343b;
-  background: #282828a8;
+  background: #305d26c0;
   color: inherit;
   font-size: 1rem;
   font-weight: 600;
@@ -851,6 +850,7 @@
   cursor: pointer;
   transition: background-color 0.18s ease, border-color 0.18s ease,
     box-shadow 0.18s ease;
+  z-index: 1;
 }
 
 .continueButton:disabled {
@@ -860,8 +860,9 @@
 }
 
 .continueButton:not(:disabled):hover {
-  background: rgba(117, 117, 117, 0.644);
-  border-color: rgba(128, 128, 128, 0.32);
+  background: #305d267c;
+  border-color: #ffffff88;
+  color: #ffffff;
 }
 
 .continueButton:focus-visible {
@@ -885,20 +886,27 @@
   }
 
   .canvasPriceWrapper {
-    top: 16px;
+    top: 45px;
   }
 
   .canvasStage {
-    padding: 28px;
+    padding: 0px;
     height: auto;
-    min-height: 520px;
+    min-height: 620px;
   }
+
+   .configTriggerIcon{width: 28px;
+  height: 29px;}
+
+  .configTrigger{width: 60px;}
+ 
 }
 
 @media (max-width: 640px) {
   .page {
     padding: 22px 18px 40px;
   }
+  .configTrigger{width: 48px;}
 
   .editor {
     gap: 24px;
@@ -918,14 +926,48 @@
   }
 
   .canvasPriceWrapper {
-    top: 14px;
+    top: 65%;
+    left: 58vw;
+    
   }
 
+  .canvasPriceTag{
+    align-items: start;
+    flex-direction: row;
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    align-content: center;
+    gap: 5px;
+  }
+
+.canvasPriceSummary{display: flex;flex-wrap: nowrap; width: 180px;}
+
+.canvasPriceLine{display: flex;flex-wrap: nowrap; width: 100%; align-items: end;}
+
+  .configTriggerIcon{width: 18px;
+  height: 19px;}
+ 
+  .configTrigger{border-radius: 8px;padding: 12px 14px;}
+  .canvasPriceLine{
+    display: flex;
+    flex-wrap: nowrap;
+    width: 100%;
+    gap: 0;
+    margin-top: 0px;
+    align-items: center;
+  }
+  
+
+  .canvasPriceLabel{font-size: 11px; width: 150px;padding-left: 5px;}
+
+  .canvasPriceAmount{font-size: 14px;}
+
   .canvasStage {
-    padding: 22px;
-    border-radius: 24px;
+    padding: 0px;
+    border-radius: 11px;
     height: auto;
-    min-height: 460px;
+    min-height: 680px;
   }
 
   .canvasHistoryActions {

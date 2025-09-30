@@ -29,6 +29,7 @@ export const STANDARD = {
   PRO: [
     { w: 25, h: 25 },
     { w: 50, h: 40 },
+    { w: 82, h: 32 },
     { w: 90, h: 40 },
     { w: 120, h: 60 },
   ],

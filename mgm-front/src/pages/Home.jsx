@@ -925,14 +925,14 @@ export default function Home() {
             className={styles.pageHeading}
             ref={headingRef}
           >
-            <Link target="_blank" rel="noopener" to="/tutorial" className={styles.tutorialButton}>
+            {/* <Link target="_blank" rel="noopener" to="/tutorial" className={styles.tutorialButton}>
               <span>Ver tutorial</span>
               <img
                 src={TUTORIAL_ICON_SRC}
                 alt=""
                 className={styles.tutorialButtonIcon}
               />
-            </Link>
+            </Link> */}
           </div>
 
           <div className={editorContainerClasses}>
@@ -961,7 +961,7 @@ export default function Home() {
                         });
                       };
                       const summaryLabel = hasDimensions
-                        ? `${material}/${formatDimension(widthValue)}x${formatDimension(heightValue)}`
+                        ? `${material} / ${formatDimension(widthValue)}x${formatDimension(heightValue)}`
                         : material;
                       if (!valid) {
                         priceClasses.push(styles.canvasPriceTagDisabled);
