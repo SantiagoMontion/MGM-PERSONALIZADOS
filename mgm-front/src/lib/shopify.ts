@@ -234,6 +234,14 @@ export async function createJobAndProduct(
     && lastProduct.visibility === requestedVisibility;
 
   const customerEmail = typeof flow.customerEmail === 'string' ? flow.customerEmail.trim() : '';
+  const jobIdForPdf = readJobId(flow);
+  const printSourceUrl = typeof (flow as any)?.fileOriginalUrl === 'string'
+    ? (flow as any).fileOriginalUrl.trim()
+    : '';
+  const printDataUrl = typeof flow.printFullResDataUrl === 'string'
+    ? flow.printFullResDataUrl
+    : '';
+  const printBackgroundHex = (flow.editorState as any)?.background || '#ffffff';
 
   let publish: any = null;
   let productId: string | undefined;
@@ -324,6 +332,11 @@ export async function createJobAndProduct(
         seoDescription: metaDescription,
         visibility: requestedVisibility,
         isPrivate,
+        jobId: jobIdForPdf || undefined,
+        printSourceUrl: printSourceUrl || undefined,
+        printDataUrl: printDataUrl || undefined,
+        printBackgroundColor: printBackgroundHex,
+        printDpi: (approxDpi ?? undefined),
       }),
     });
     const publishData = await publishResp.json().catch(() => null);

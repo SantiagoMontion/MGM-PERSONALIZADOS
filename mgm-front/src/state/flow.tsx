@@ -6,6 +6,14 @@ export type FlowState = {
   mockupBlob?: Blob;
   mockupUrl?: string;
   printFullResDataUrl?: string;
+  fileOriginalUrl?: string | null;
+  uploadObjectKey?: string | null;
+  uploadBucket?: string | null;
+  uploadDiagId?: string | null;
+  uploadSizeBytes?: number | null;
+  uploadContentType?: string | null;
+  uploadSha256?: string | null;
+  jobId?: string | null;
   designName?: string;
   material?: string;
   lowQualityAck?: boolean;
@@ -39,6 +47,14 @@ const defaultState: Omit<FlowState, 'set' | 'reset'> = {
   mockupBlob: undefined,
   mockupUrl: undefined,
   printFullResDataUrl: undefined,
+  fileOriginalUrl: undefined,
+  uploadObjectKey: undefined,
+  uploadBucket: undefined,
+  uploadDiagId: undefined,
+  uploadSizeBytes: undefined,
+  uploadContentType: undefined,
+  uploadSha256: undefined,
+  jobId: undefined,
   designName: '',
   material: 'Classic',
   lowQualityAck: false,

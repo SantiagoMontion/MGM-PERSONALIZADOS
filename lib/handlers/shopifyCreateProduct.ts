@@ -5,6 +5,7 @@ import { shopifyAdmin } from '../shopify';
 import { slugifyName, sizeLabel } from '../_lib/slug.js';
 import getSupabaseAdmin from '../_lib/supabaseAdmin.js';
 import savePrintPdfToSupabase from '../_lib/savePrintPdfToSupabase.js';
+import imageBufferToPdf from '../_lib/imageToPdf.js';
 
 type DataUrlPayload = {
   mimeType: string;
@@ -326,11 +327,12 @@ export default async function handler(req: any, res: any) {
       pdfBuffer = imagePayload.buffer;
     } else if (imagePayload.mimeType.startsWith('image/')) {
       try {
-        pdfBuffer = await sharp(imagePayload.buffer)
-          .flatten({ background: '#ffffff' })
-          .withMetadata({ density: 300 })
-          .toFormat('pdf')
-          .toBuffer();
+        const pdfResult = await imageBufferToPdf({
+          buffer: imagePayload.buffer,
+          density: 300,
+          background: '#ffffff',
+        });
+        pdfBuffer = pdfResult.pdfBuffer;
       } catch (err) {
         console.error('shopify_create_product_pdf', err);
         return res.status(500).json({ ok: false, message: 'pdf_generation_failed' });
@@ -488,4 +490,3 @@ export default async function handler(req: any, res: any) {
     return res.status(status).json({ ok: false, message: e?.message || 'shopify_error' });
   }
 }
-

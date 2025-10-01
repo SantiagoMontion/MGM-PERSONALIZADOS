@@ -6,6 +6,40 @@ import fs from 'node:fs';
 
 import handler from '../api/[...slug].js';
 
+function enhanceResponse(res) {
+  if (res.__enhanced) return res;
+  res.status = function status(code) {
+    if (Number.isFinite(code)) {
+      res.statusCode = code;
+    }
+    return res;
+  };
+  res.json = function json(payload) {
+    if (!res.headersSent) {
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    }
+    res.end(typeof payload === 'string' ? payload : JSON.stringify(payload));
+    return res;
+  };
+  res.send = function send(payload) {
+    if (payload === undefined || payload === null) {
+      res.end();
+      return res;
+    }
+    if (Buffer.isBuffer(payload)) {
+      res.end(payload);
+      return res;
+    }
+    if (typeof payload === 'object') {
+      return res.json(payload);
+    }
+    res.end(String(payload));
+    return res;
+  };
+  res.__enhanced = true;
+  return res;
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, '..');
@@ -57,14 +91,13 @@ bootstrapEnv();
 const port = Number(process.env.API_PORT || process.env.PORT || 3001);
 
 const server = http.createServer(async (req, res) => {
+  const enhancedRes = enhanceResponse(res);
   try {
-    await handler(req, res);
+    await handler(req, enhancedRes);
   } catch (err) {
     console.error('[dev-api] handler_error', err);
-    if (!res.headersSent) {
-      res.statusCode = 500;
-      res.setHeader('Content-Type', 'application/json; charset=utf-8');
-      res.end(JSON.stringify({ ok: false, error: 'handler_error' }));
+    if (!enhancedRes.headersSent) {
+      enhancedRes.status(500).json({ ok: false, error: 'handler_error' });
     }
   }
 });

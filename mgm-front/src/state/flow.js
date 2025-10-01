@@ -13,6 +13,7 @@ const defaultState = {
   uploadSizeBytes: null,
   uploadContentType: null,
   uploadSha256: null,
+  jobId: null,
   designName: '',
   material: 'Classic',
   lowQualityAck: false,
