@@ -43,20 +43,31 @@
   margin-bottom: -8%;
 
   text-align: center;
+  position: relative;
+  background: #181818;
+  min-height: 600px;      /* alto del bloque de reserva */
+  border-radius: 16px;
+  overflow: hidden;
+  display: grid;          /* centra el título */
+  place-items: center;
 }
 
 .previewWithImage {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  aspect-ratio: 1 / 1;          /* mantiene alto constante relativo al ancho */
+  background: #181818;   
 }
 
 .previewTitle {
-  font-size: 55px;
+  font-size: 50px;
   font-weight: 600;
   letter-spacing: 5%;
   color: rgba(242, 243, 245, 0.98);
- 
+  z-index: 999 !important;
+  pointer-events: auto;    
+  margin-top: -50px !important;
 }
 
 .previewTitleOverlay {
@@ -72,8 +83,8 @@
   display: inline-flex;
   justify-content: center;
   text-shadow: 0 4px 22px rgba(0, 0, 0, 0.55);
-  pointer-events: none;
-  z-index: 1;
+  pointer-events: auto; 
+  
 }
 
 .previewWithImage .previewTitle {
@@ -82,14 +93,17 @@
 
 .mockupImage {
   display: block;
-  max-width: 1280px !important;
-  width: min(92vw, 960px) !important;
+  max-width: 900px !important;
+  width: min(92vw, 800px) !important;
   margin: 0;
   height: auto;
   object-fit: contain;
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   margin-top: -15%;
+  z-index: 0;
+   object-fit: contain;           /* entra completa aunque tenga bordes transparentes */
+  display: block;    
 }
 
 .discountBadge {
@@ -109,14 +123,16 @@
 }
 
 .ctaRow {
-  width: min(980px, 100%);
+  width: min(1280px, 100%);
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
   align-items: center;
   justify-items: center;
   margin: 0 auto;
-  margin-top: -3%;
+  margin-top: -50px;
+  z-index: 999;
+  margin-bottom: 160px;
 }
 
 .ctaCard {
@@ -180,7 +196,7 @@
 }
 
 .ctaButtonPrimary {
-  background: #68ff464d;
+  background: #68ff463d;
   color: var(--text);
   border-color: #426F3F !important;
   color: rgba(242, 243, 245, 0.92);
@@ -201,7 +217,13 @@
 }
 
 .ctaButtonPrimary:not(:disabled):hover {
-  background: var(--accent-600);
+  background: #426f3f4b;
+  border-color: #EEECE4 !important;
+}
+
+.ctaButtonPrimary1:not(:disabled):hover {
+  background-color: rgba(66, 111, 63, 0.26) !important;
+  border-color: #EEECE4 !important;
 }
 
 .ctaButtonPrimary:not(:disabled):active {
@@ -225,7 +247,8 @@
 }
 
 .ctaButtonSecondary:not(:disabled):hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: #2828289c;
+  border-color: #EEECE4 !important;
 }
 
 .ctaButtonSecondary:focus-visible {
@@ -235,35 +258,39 @@
 
 .ctaHint {
   margin: 0;
-  margin-top: 8px;
-  font-size: 12px;
-  line-height: 1.4;
+  margin-top: 10px;
+  font-size: 13px;
+  line-height: 1.8;
   color: var(--muted);
   text-align: center;
   max-width: 320px;
 }
 
 .communitySection {
-  inline-size: min(100%, 1200px);
+  inline-size: min(100%, 1400px);
   margin-inline: auto;
   padding-inline: 16px;
 }
 
 .communityTitle {
   text-align: center;
-  font-size: clamp(24px, 4.2vw, 40px);
+  font-size: 36px;
   line-height: 1.15;
-  font-weight: 800;
-  letter-spacing: 0.01em;
+  font-weight: bold;
+  letter-spacing: 5%;
   margin: 0 0 6px 0;
+  font-family: Poppins;
 }
 
 .communitySubtitle {
   text-align: center;
-  font-size: clamp(14px, 2.8vw, 18px);
+  font-size: 32px;
   line-height: 1.2;
-  letter-spacing: 0.02em;
-  margin: 0 0 28px 0;
+  letter-spacing: 5%;
+  margin-top:5px ;
+  color:#7AD565;font-family: Poppins;
+  font-style: italic;
+
 }
 
 .testimonialsGrid {
@@ -271,7 +298,7 @@
   grid-template-columns: 1fr;
   gap: 20px;
   margin: 0 auto 28px;
-  inline-size: min(100%, 1100px);
+  inline-size: min(100%, 1450px);
 }
 
 @media (min-width: 700px) {
@@ -316,7 +343,7 @@
   grid-template-columns: 1fr;
   gap: 24px;
   margin: 24px auto 0;
-  inline-size: min(100%, 1100px);
+  inline-size: min(100%, 1400px);
   align-items: start;
 }
 
@@ -374,10 +401,12 @@
 
 .marketingTitle {
   margin: 0;
-  font-size: clamp(24px, 3.2vw, 36px);
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  font-size: 32px;
+  font-weight: bold;
+  letter-spacing: 5%;
+  margin-top: 110px;
   color: rgba(242, 243, 245, 0.96);
+  font-family: Poppins;
 }
 
 .marketingSubtitle {
@@ -525,6 +554,175 @@
   box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.16);
 }
 
+/* ======= Showcase (imagen + texto absoluto + volver) ======= */
+.showcaseSection {
+  width: 100%;
+  max-width: 1280px;
+  margin: 56px auto 40px;
+  
+}
+
+.showcaseImageWrapper {
+  position: relative;                 /* Necesario para el overlay absoluto */
+  border-radius: 16px;
+  overflow: hidden;                    /* Recorta el overlay dentro de la imagen */
+  
+}
+
+.showcaseImage {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: cover;
+}
+
+/* Texto metido dentro de la imagen */
+.showcaseOverlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -30px;
+  z-index: 5;                          /* Alto para que quede por encima */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;                /* El texto no bloquea clicks en la imagen */
+  padding: 12px 12px;
+  
+}
+
+.showcaseOverlayText {
+  pointer-events: auto;                /* Permite seleccionar texto si querés */
+  font-size: 17px;
+  font-family: Poppins;
+  font-style: italic;
+  font-weight: 400;
+  line-height: 1.25;
+  color: #f6f7fb;
+  background: #2828289a;     /* “metido” dentro, sin tapar del todo */
+  padding: 22px 22px;
+ 
+ border-radius: 11px;
+  
+  text-align: center;
+  border: 1px solid #80808042 !important;
+
+}
+
+/* Contenedor del botón volver */
+.showcaseCta {
+  display: flex;
+  justify-content: center;
+  margin-top: 20px;
+}
+.backToTopBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 20px;              /* <— espacio entre “volver” y la flecha */
+}
+
+
+
+/* flecha más grande */
+.backArrow {
+  font-size: 1.7em;       /* hacela más grande (probá 1.8em si querés aún más) */
+  line-height: 1;
+  transform: translateY(-4px); /* ajuste fino vertical */
+  font-family: Poppins;
+}
+
+/* Botón “volver ↑” que scrollea al tope */
+.backToTopBtn {
+  appearance: none;
+  border: 0px solid rgba(92,92,92,0.64);
+  color: #f6f7fb;
+  font-size: 17px;
+  letter-spacing: 5%;
+  font-weight: 300;
+  padding: 16px 50px;
+  border-radius: 5px;
+  background: #305d2696;
+  font-family: Poppins;
+  cursor: pointer;
+  transition: transform .15s ease, border-color .2s ease, box-shadow .2s ease;
+  margin-top: 40px;
+  margin-bottom: 90px;
+  border-radius: 11px;
+
+}
+
+.backToTopBtn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255,255,255,0.7);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+}
+
+.backToTopBtn:active {
+  transform: translateY(0);
+}
+
+.backToTopBtn:focus-visible {
+  outline: 2px solid #8ab4ff;
+  outline-offset: 2px;
+}
+
+
+.communityGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+  margin: 0 auto 28px;
+  inline-size: min(100%, 1400px);
+}
+
+/* Tablet/desktop: 3 columnas como antes */
+@media (min-width: 700px) {
+  .communityGrid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* Estructura de cada item */
+.communityItem {
+  display: grid;
+  grid-template-rows: auto auto;
+  row-gap: 12px;
+}
+
+/* Contenedor del texto, reaprovecha tu tipografía existing */
+.communityCopy {
+  display: grid;
+  row-gap: 8px;
+  text-align: center;
+  padding-inline: 8px;
+}
+
+/* Ajustes responsive finos */
+@media (max-width: 560px) {
+  .communityCopy {
+    row-gap: 6px;
+  }
+  .marketingTitle {
+ 
+    
+  margin-top: 0px !important;
+  
+  
+}
+}
+
+/* ======= Responsive tweaks ======= */
+@media (max-width: 720px) {
+  .showcaseSection { margin-top: 40px; }
+  .showcaseOverlay { bottom: 4%; }
+  .showcaseOverlayText {
+    padding: 8px 12px;
+    border-radius: 10px;
+  }
+}
+
+
+
 @media (max-width: 1024px) {
   .ctaRow {
     grid-template-columns: 1fr;
@@ -588,4 +786,84 @@
   .modalDescription {
     font-size: 13px;
   }
+}
+@media (max-width: 560px) {
+  #mockup-review { 
+    overflow-x: hidden;                 /* previene corrimiento por elementos con vw */
+  }
+
+  /* ancho general + padding chico a los bordes */
+  .main,
+  .communitySection,
+  .marketingSection {
+    width: 100%;
+    margin-inline: auto;
+    padding-inline: 14px;               /* borde pequeño */
+    box-sizing: border-box;
+  }
+
+  /* que nada se pase del ancho del contenedor */
+  .main > *,
+  .communitySection > *,
+  .marketingSection > * {
+    max-width: 100%;
+  }
+
+  /* la imagen no usa vw en mobile (causaba desalineo) */
+  .mockupImage {
+    width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  .previewWrapper {
+    width: 100%;
+    max-width: 100%;
+    margin-inline: auto;
+  }
+}
+
+/* ===== Tablet: ancho consistente y padding moderado ===== */
+@media (min-width: 361px) and (max-width: 1024px) {
+  .main,
+  .communitySection,
+  .marketingSection {
+    width: min(900px, 100%);
+    margin-inline: auto;
+    padding-inline: 18px;
+    box-sizing: border-box;
+  }
+
+  .communityTitle{font-size: 28px;}
+  .communitySubtitle{font-size: 22px;}
+  .benefitTitle{font-size: 16px;}
+
+  .main > *,
+  .communitySection > *,
+  .marketingSection > * {
+    max-width: 100%;
+  }
+  .previewTitle{font-size: 30px !important;
+  margin-top: 20px !important;}
+  .previewTitleOverlay{white-space: wrap;}
+
+  .mockupImage {
+    width: 100% !important;             /* evita “respiro” extra por vw */
+  }
+  .ctaHint{display: none;}
+  .ctaRow{display: flex;
+  flex-direction: column-reverse !important;margin-top: -25%;}
+
+  .previewWrapper {
+    width: 100%;
+    max-width: 100%;
+  }
+  
+  .showcaseOverlayText{font-size: 14px;}
+  .showcaseImage{width: 360px;}
+  .showcaseImageWrapper{width: 100%;display: flex;justify-content: center;flex-wrap: wrap;}
+  .showcaseOverlay{position: relative;}
+  .showcaseSection{height: 450px !important;}
+  
+  
 }

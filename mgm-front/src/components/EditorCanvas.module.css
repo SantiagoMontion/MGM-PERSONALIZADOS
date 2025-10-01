@@ -449,6 +449,8 @@
 @media (max-width: 768px) {
   .overlayBottomCenter {
     align-items: stretch;
+    bottom: -40px !important;
+  left: 50%;
   }
 
   .toolbarScroller {
@@ -464,6 +466,7 @@
     touch-action: pan-x;
     overscroll-behavior-x: contain;
     scrollbar-width: none;
+    
   }
 
   .toolbarScroller::-webkit-scrollbar {
@@ -476,6 +479,7 @@
     width: max-content;
     max-width: none;
     justify-content: flex-start;
+    
   }
 }
 

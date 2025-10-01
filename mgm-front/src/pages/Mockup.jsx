@@ -16,6 +16,9 @@ import Testimonio1 from "../icons/testimonio1.png";
 import Testimonio2 from "../icons/testimonio2.png";
 import Testimonio3 from "../icons/testimonio3.png";
 
+/** NUEVO: imagen de la sección (reemplazá el path por el tuyo) */
+import CommunityHero from "../icons/community-hero.png";
+
 const TESTIMONIAL_ICONS = [Testimonio1, Testimonio2, Testimonio3];
 const CART_STATUS_LABELS = {
   idle: 'Agregar al carrito',
@@ -23,26 +26,23 @@ const CART_STATUS_LABELS = {
   opening: 'Abriendo producto…',
 };
 
-
-
 const BENEFITS = [
   {
-    icon: '🎁',
-    title: 'Regalos sorpresa en cada pedido',
-    description: 'Detalles pensados para vos y tu comunidad en cada envío.',
+    icon: '',
+    title: '🎁 Regalos sorpresa en cada pedido',
+    description: 'Cada compra merece un mimo extra <3',
   },
   {
-    icon: '💪',
-    title: 'Durabilidad y calidad garantizada',
-    description: 'Hechos a mano, con materiales premium y testeados por creadores.',
+    icon: '',
+    title: '✅ Durabilidad y calidad garantizada',
+    description: 'Materiales seleccionaos, costuras reforzadas y tests reales. Tu pad está hecho para durar..',
   },
   {
-    icon: '🎨',
-    title: 'Un mousepad que se adapta a tu setup',
-    description: 'Elegí tamaño, material y diseño para que combine con tu espacio.',
+    icon: '',
+    title: '🎨 Un mousepad que se adapta perfecto a tu setup',
+    description: 'Material, diseño y medida elegidos por vos.',
   },
 ];
-
 
 export default function Mockup() {
   const flow = useFlow();
@@ -197,8 +197,7 @@ export default function Mockup() {
     else if (reasonRaw === 'missing_variant') friendly = 'No se pudo obtener la variante del producto creado en Shopify.';
     else if (reasonRaw === 'cart_link_failed') friendly = 'No se pudo generar el enlace del carrito. Revisá la configuración de Shopify.';
     else if (reasonRaw === 'checkout_link_failed') friendly = 'No se pudo generar el enlace de compra.';
-    else if (reasonRaw === 'private_checkout_failed') friendly = 'No pudimos generar el checkout privado, probá de nuevo.';
-    else if (reasonRaw === 'draft_order_failed' || reasonRaw === 'draft_order_http_error' || reasonRaw === 'missing_invoice_url') {
+    else if (reasonRaw === 'private_checkout_failed' || reasonRaw === 'draft_order_failed' || reasonRaw === 'draft_order_http_error' || reasonRaw === 'missing_invoice_url') {
       friendly = 'No pudimos generar el checkout privado, probá de nuevo.';
     }
     else if (reasonRaw === 'missing_customer_email' || reasonRaw === 'missing_email') friendly = 'Completá un correo electrónico válido para comprar en privado.';
@@ -324,7 +323,6 @@ export default function Mockup() {
           }
         } catch (openErr) {
           console.warn('[mockup] product_page_open_failed', openErr);
-
 
           try {
             window.open(productUrl, '_blank');
@@ -754,6 +752,15 @@ export default function Mockup() {
     }
   }
 
+  /** NUEVO: scroll-to-top suave para el botón “volver” de la sección */
+  const scrollToTop = () => {
+    try {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch {
+      window.scrollTo(0, 0);
+    }
+  };
+
   const mockupUrl = flow.mockupUrl;
   const hasMockupImage =
     typeof mockupUrl === 'string' ? mockupUrl.trim().length > 0 : Boolean(mockupUrl);
@@ -799,7 +806,7 @@ export default function Mockup() {
               Volver
             </button>
             <p className={styles.ctaHint}>
-              Volvé al editor para hacer los cambios que quieras ✏️
+              Volvé al editor para hacer los <br></br>cambios que quieras ✏️
             </p>
           </div>
           <div className={styles.ctaCard}>
@@ -812,8 +819,10 @@ export default function Mockup() {
               {cartButtonLabel}
             </button>
             <p className={styles.ctaHint}>
-              Arma un carrito con todo lo que te guste y obtené envío gratis ❤️
+              Arma un carrito con todo lo que te guste <br></br> y obtené envío gratis ❤️
             </p>
+            
+             
           </div>
           <div className={styles.ctaCard}>
             <button
@@ -830,7 +839,7 @@ export default function Mockup() {
               Comprar ahora
             </button>
             <p className={styles.ctaHint}>
-              Finalizá tu compra para que tu creación se haga realidad ✨
+              Finalizá tu compra para que tu creación <br></br>se haga realidad ✨
             </p>
           </div>
         </div>
@@ -838,32 +847,33 @@ export default function Mockup() {
           <h2 className={styles.communityTitle}>
             Nos encantaría que formes parte de nuestra comunidad
           </h2>
-          <p className={styles.communitySubtitle}>por eso vamos a convencerte</p>
-          <div className={styles.testimonialsGrid}>
-            {TESTIMONIAL_ICONS.map((src, i) => (
-              <figure key={i} className={styles.testimonialCard}>
-                <div className={styles.testimonialImageWrapper}>
-                  <img
-                    src={src}
-                    alt={`Testimonio de cliente ${i + 1}`}
-                    className={styles.testimonialSvg}
-                    loading="lazy"
-                  />
-                </div>
-              </figure>
-            ))}
-          </div>
-          <div className={styles.benefitsGrid}>
-            {BENEFITS.map((benefit) => (
-              <article key={benefit.title} className={styles.benefitCard}>
-                <span aria-hidden="true" className={styles.benefitIcon}>
-                  {benefit.icon}
-                </span>
-                <h3 className={styles.benefitTitle}>{benefit.title}</h3>
-                <p className={styles.benefitDescription}>{benefit.description}</p>
-              </article>
-            ))}
-          </div>
+          <p className={styles.communitySubtitle}>por eso vamos a convencerte<br></br>✨</p>
+          <div className={styles.communityGrid}>
+  {BENEFITS.map((item, i) => (
+    <article key={i} className={styles.communityItem}>
+      <figure className={styles.testimonialCard}>
+        <div className={styles.testimonialImageWrapper}>
+          <img
+            src={TESTIMONIAL_ICONS[i]}
+            alt={`Testimonio de cliente ${i + 1}`}
+            className={styles.testimonialSvg}
+            loading="lazy"
+          />
+        </div>
+      </figure>
+
+      <div className={styles.communityCopy}>
+        {/* Reutilizo tus clases de tipografía */}
+        <h3 className={styles.benefitTitle}>
+          {item.icon && <span className={styles.benefitIcon}>{item.icon}</span>}
+          {item.title}
+        </h3>
+        <p className={styles.benefitDescription}>{item.description}</p>
+      </div>
+    </article>
+  ))}
+</div>
+          
         </section>
         <button
           type="button"
@@ -884,10 +894,43 @@ export default function Mockup() {
           Descargar PDF
         </button>
       </main>
+
       <section className={styles.marketingSection}>
         <h2 className={styles.marketingTitle}>Nuestro mejor marketing</h2>
-        <p className={styles.marketingSubtitle}>nuestros clientes</p>
+        <p className={styles.communitySubtitle}>nuestros clientes</p>
       </section>
+
+     
+      <section className={styles.showcaseSection}>
+        <div className={styles.showcaseImageWrapper}>
+          <img
+            src={CommunityHero}
+            alt="Galería de setups de la comunidad MgM"
+            className={styles.showcaseImage}
+            loading="lazy"
+          />
+         
+          <div className={styles.showcaseOverlay}>
+            <p className={styles.showcaseOverlayText}>
+              Conocé a los +2000 que ya lo hicieron
+            </p>
+          </div>
+        </div>
+
+        <div className={styles.showcaseCta}>
+         <button
+  type="button"
+  className={styles.backToTopBtn}
+  onClick={scrollToTop}
+  aria-label="Volver arriba"
+>
+  <span className={styles.backLabel}>Volver</span>
+  <span className={styles.backArrow} aria-hidden="true">↑</span>
+</button>
+        </div>
+      </section>
+      
+
       {isBuyPromptOpen ? (
         <div
           role="presentation"

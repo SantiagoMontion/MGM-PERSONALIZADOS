@@ -1,11 +1,12 @@
 .footer {
-  background: #101010;
+  background: #181818;
   padding: clamp(32px, 6vw, 60px) clamp(24px, 8vw, 80px);
   color: rgba(242, 243, 245, 0.92);
   display: flex;
   flex-direction: column;
   gap: clamp(24px, 4vw, 40px);
   font-family: 'Poppins', sans-serif;
+  
 }
 
 .topRow {

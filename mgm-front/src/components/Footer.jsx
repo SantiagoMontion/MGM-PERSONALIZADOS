@@ -1,30 +1,45 @@
+import { Link } from 'react-router-dom';
 import styles from './Footer.module.css';
 
 const sections = [
   {
     title: 'Más de nosotros',
     links: [
-      { label: 'Nuestros productos' },
-      { label: 'Instagram' },
-      { label: 'Facebook' },
-      { label: 'TikTok' },
+      { label: 'Nuestros productos', href: 'https://mgmgamers.store/collections/todos-los-mousepads', external: true },                    // interno
+      { label: 'Instagram', href: 'https://instagram.com/mgmgamers.store', external: true },
+      { label: 'TikTok',    href: 'https://www.tiktok.com/@mgmgamers', external: true },
     ],
   },
   {
     title: '¿Necesitás ayuda?',
     links: [
-      { label: 'Ayuda' },
-      { label: 'Contactanos' },
+      { label: 'Cuidados', href: 'https://mgmgamers.store/pages/cuidados', external: true },                            // interno
+      { label: 'Contactanos', href: 'https://mgmgamers.store/pages/contact', external: true },
     ],
   },
   {
     title: 'Legal',
     links: [
-      { label: 'ARCA' },
-      { label: 'Términos y Condiciones' },
+      
+      { label: 'Términos y Condiciones', href: 'https://mgmgamers.store/blogs/noticias/terminos-y-condiciones', external: true },
     ],
   },
 ];
+
+// Link inteligente
+function SmartLink({ item, className, children }) {
+  if (item.to) {
+    return <Link to={item.to} className={className}>{children}</Link>;
+  }
+  // externo o absoluto
+  const target = item.external ? '_blank' : '_self';
+  const rel = item.external ? 'noopener noreferrer' : undefined;
+  return (
+    <a href={item.href || '#'} target={target} rel={rel} className={className}>
+      {children}
+    </a>
+  );
+}
 
 export default function Footer() {
   return (
@@ -37,9 +52,9 @@ export default function Footer() {
               <ul className={styles.linkList}>
                 {section.links.map((item) => (
                   <li key={item.label}>
-                    <a href="" className={styles.link}>
+                    <SmartLink item={item} className={styles.link}>
                       {item.label}
-                    </a>
+                    </SmartLink>
                   </li>
                 ))}
               </ul>
