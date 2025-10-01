@@ -16,6 +16,7 @@ export type MockupOptions = SizeOptions & {
 export async function renderMockup1080(opts: MockupOptions): Promise<Blob> {
   const size = 1080;
   const margin = 40;
+  const SCALE_UP = 1.12;
   const maxContent = size - margin * 2;
   const canvas = document.createElement('canvas');
   canvas.width = size;
@@ -80,6 +81,9 @@ export async function renderMockup1080(opts: MockupOptions): Promise<Blob> {
     drawH = targetLongestPx;
     drawW = Math.round((iw / Math.max(1e-6, ih)) * drawH);
   }
+
+  drawW *= SCALE_UP;
+  drawH *= SCALE_UP;
 
   if (drawW > maxContent) {
     const ratio = drawH / Math.max(1e-6, drawW);

@@ -4,7 +4,7 @@ import { buildCorsHeaders } from '../cors';
 import { shopifyAdmin } from '../shopify';
 import { slugifyName, sizeLabel } from '../_lib/slug.js';
 import getSupabaseAdmin from '../_lib/supabaseAdmin.js';
-import savePrintPdfToSupabase from '../_lib/savePrintPdfToSupabase.js';
+import savePrintPdfToSupabase, { savePrintPreviewToSupabase } from '../_lib/savePrintPdfToSupabase.js';
 import imageBufferToPdf from '../_lib/imageToPdf.js';
 
 type DataUrlPayload = {
@@ -301,6 +301,8 @@ export default async function handler(req: any, res: any) {
     const height = Number(height_cm);
     const bleed = Number(bleed_mm);
     const rotate = Number(rotate_deg);
+    const EXTRA_MARGIN_TOTAL_CM = 2;
+    const marginPerSideCm = EXTRA_MARGIN_TOTAL_CM / 2;
     if (!modeOk || Number.isNaN(width) || Number.isNaN(height) || Number.isNaN(bleed) || Number.isNaN(rotate)) {
       return res.status(400).json({ ok: false, message: 'invalid_fields' });
     }
@@ -323,6 +325,7 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ ok: false, message: 'invalid_image_dataurl' });
     }
     let pdfBuffer: Buffer;
+    let previewBuffer: Buffer | null = null;
     if (imagePayload.mimeType === 'application/pdf') {
       pdfBuffer = imagePayload.buffer;
     } else if (imagePayload.mimeType.startsWith('image/')) {
@@ -331,6 +334,9 @@ export default async function handler(req: any, res: any) {
           buffer: imagePayload.buffer,
           density: 300,
           background: '#ffffff',
+          widthCm: Number.isFinite(width) ? width : undefined,
+          heightCm: Number.isFinite(height) ? height : undefined,
+          bleedCm: marginPerSideCm,
         });
         pdfBuffer = pdfResult.pdfBuffer;
       } catch (err) {
@@ -371,8 +377,8 @@ export default async function handler(req: any, res: any) {
     try {
       const pdfFilename = buildPdfFilename({
         designName: designNameForPath,
-        widthCm: width,
-        heightCm: height,
+        widthCm: Number.isFinite(width) ? width : undefined,
+        heightCm: Number.isFinite(height) ? height : undefined,
         material: mode,
       });
       const pdfMetadata: MetadataRecord = {
@@ -380,22 +386,43 @@ export default async function handler(req: any, res: any) {
         createdBy: 'editor',
         slug: slugifyName(designNameForPath) || 'design',
       };
-      if (Number.isFinite(width)) pdfMetadata.widthCm = Number(width);
-      if (Number.isFinite(height)) pdfMetadata.heightCm = Number(height);
+      if (Number.isFinite(width)) {
+        pdfMetadata.widthCm = Number(width);
+        pdfMetadata.widthCmPrint = Number(width) + EXTRA_MARGIN_TOTAL_CM;
+      }
+      if (Number.isFinite(height)) {
+        pdfMetadata.heightCm = Number(height);
+        pdfMetadata.heightCmPrint = Number(height) + EXTRA_MARGIN_TOTAL_CM;
+      }
       if (mode) pdfMetadata.material = mode;
       if (product?.id) pdfMetadata.productId = String(product.id);
       if (variantId) pdfMetadata.variantId = variantId;
 
+      let pdfUpload;
+      try {
+        pdfUpload = await savePrintPdfToSupabase(
+          pdfBuffer,
+          pdfFilename,
+          pdfMetadata,
+        );
+      } catch (uploadErr: any) {
+        if (uploadErr?.code === 'supabase_object_too_large') {
+          return res.status(413).json({
+            ok: false,
+            reason: 'pdf_too_large',
+            message: 'El PDF generado supera el tamaño permitido por Supabase.',
+            limit_bytes: uploadErr.limit ?? undefined,
+            size_bytes: uploadErr.size ?? undefined,
+          });
+        }
+        throw uploadErr;
+      }
       const {
         path: pdfPath,
         signedUrl: pdfSignedUrl,
         publicUrl: pdfPublicUrl,
         expiresIn,
-      } = await savePrintPdfToSupabase(
-        pdfBuffer,
-        pdfFilename,
-        pdfMetadata,
-      );
+      } = pdfUpload;
 
       const effectivePdfUrl = pdfPublicUrl || pdfSignedUrl || null;
       const previewPath = pdfPath.startsWith('outputs/') ? pdfPath : `outputs/${pdfPath}`;

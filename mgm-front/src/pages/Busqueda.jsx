@@ -299,19 +299,21 @@ export default function Busqueda() {
                 results.map((item) => {
                   const key = item.id || item.path || item.fileName;
                   const measurement = formatMeasurement(item.widthCm, item.heightCm);
+                  const previewContent = item.previewUrl ? (
+                    <img
+                      src={item.previewUrl}
+                      alt={item.fileName || 'preview'}
+                      className={styles.previewImage}
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  ) : (
+                    <span className={styles.previewPlaceholder} aria-label="PDF">PDF</span>
+                  );
                   return (
                     <tr key={key}>
                       <td className={styles.previewCell}>
-                        {item.previewUrl ? (
-                          <img
-                            src={item.previewUrl}
-                            alt={item.fileName || 'preview'}
-                            className={styles.previewImage}
-                            loading="lazy"
-                          />
-                        ) : (
-                          <span className={styles.previewPlaceholder}>PDF</span>
-                        )}
+                        {previewContent}
                       </td>
                       <td className={styles.fileCell}>{item.fileName || item.name || '-'}</td>
                       <td className={styles.measureCell}>{measurement}</td>
