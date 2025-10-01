@@ -517,6 +517,24 @@ export async function createJobAndProduct(
       ...(productId ? { productId } : {}),
       ...(customerEmail ? { email: customerEmail } : {}),
     };
+    if (variantIdGid) {
+      basePrivatePayload.variantGid = variantIdGid;
+    }
+    if (variantId) {
+      basePrivatePayload.variantIds = [variantId];
+    }
+    if (variantIdGid) {
+      basePrivatePayload.variantGids = [variantIdGid];
+    }
+    basePrivatePayload.quantities = [1];
+    const linePayload: Record<string, unknown> = {
+      variantId: variantIdGid || variantId,
+      quantity: 1,
+    };
+    if (variantIdGid) {
+      linePayload.variantGid = variantIdGid;
+    }
+    basePrivatePayload.lines = [linePayload];
     if (privateDraftOrder?.note) {
       basePrivatePayload.note = privateDraftOrder.note;
     }
