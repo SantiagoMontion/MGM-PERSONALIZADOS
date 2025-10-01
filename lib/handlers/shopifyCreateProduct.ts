@@ -3,6 +3,7 @@ import sharp from 'sharp';
 import { buildCorsHeaders } from '../cors';
 import { shopifyAdmin } from '../shopify';
 import { slugifyName, sizeLabel } from '../_lib/slug.js';
+import getSupabaseAdmin from '../_lib/supabaseAdmin.js';
 import savePrintPdfToSupabase from '../_lib/savePrintPdfToSupabase.js';
 
 type DataUrlPayload = {
@@ -10,6 +11,18 @@ type DataUrlPayload = {
   buffer: Buffer;
   extension: string;
 };
+
+type MetadataRecord = Record<string, string | number | boolean | null | undefined>;
+
+type UploadResult = {
+  path: string;
+  signedUrl: string | null;
+  publicUrl: string | null;
+  expiresIn: number;
+};
+
+const OUTPUT_BUCKET = 'outputs';
+const SIGNED_URL_TTL_SECONDS = 600;
 
 function parseDataUrl(value: unknown): DataUrlPayload {
   if (typeof value !== 'string') {
@@ -94,6 +107,176 @@ function buildGlasspadTitle(measurement?: string): string {
   const normalizedMeasurement = (measurement || '').trim();
   if (normalizedMeasurement) parts.push(normalizedMeasurement);
   return `${parts.join(' ')} | PERSONALIZADO`;
+}
+
+type LegacyStorageArgs = {
+  productHandle?: string | null;
+  productId?: string | null;
+  designName?: string | null;
+  widthCm?: number | null;
+  heightCm?: number | null;
+  material?: string | null;
+};
+
+function buildLegacyStorageBaseKey({
+  productHandle,
+  productId,
+  designName,
+  widthCm,
+  heightCm,
+  material,
+}: LegacyStorageArgs) {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const designSlug = slugifyName(designName || '') || null;
+  const materialSlug = slugifyName(material || '') || null;
+  const width = safeNumber(widthCm);
+  const height = safeNumber(heightCm);
+  const measurement = width && height ? sizeLabel(width, height) : null;
+  const handleSlug = slugifyName(productHandle || '') || null;
+  const numericId = (productId || '').replace(/[^0-9a-z]+/gi, '').slice(-10);
+  const identifier = handleSlug || (numericId ? `p${numericId}` : randomUUID().slice(0, 8));
+  const descriptorParts = [designSlug, measurement ? measurement.toLowerCase() : null, materialSlug]
+    .filter(Boolean);
+  const descriptor = descriptorParts.length ? descriptorParts.join('-') : 'design';
+  const base = `products/${year}/${month}/${identifier}/${descriptor}`;
+  return base.replace(/\/+/g, '/');
+}
+
+function buildLegacyAssetPath(baseKey: string, filename: string) {
+  const normalizedBase = String(baseKey || '').replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+  const normalizedFilename = String(filename || '').replace(/\\/g, '/').replace(/^\/+/, '');
+  if (!normalizedBase) return normalizedFilename;
+  if (!normalizedFilename) return normalizedBase;
+  return `${normalizedBase}/${normalizedFilename}`;
+}
+
+function determineMockupExtension(payload: DataUrlPayload) {
+  const ext = (payload?.extension || '').toLowerCase();
+  if (!ext || ext === 'bin' || ext === 'pdf') return 'png';
+  return ext;
+}
+
+function normalizeMetadata(meta: MetadataRecord = {}) {
+  const base: Record<string, string> = { private: 'true', createdBy: 'editor' };
+  const output: Record<string, string> = { ...base };
+  for (const [key, value] of Object.entries(meta)) {
+    if (value == null) continue;
+    if (typeof value === 'boolean') {
+      output[key] = value ? 'true' : 'false';
+    } else {
+      output[key] = typeof value === 'string' ? value : String(value);
+    }
+  }
+  if (!('private' in meta)) output.private = 'true';
+  if (!('createdBy' in meta)) output.createdBy = 'editor';
+  return output;
+}
+
+async function uploadAssetToSupabase({
+  path,
+  buffer,
+  contentType,
+  metadata,
+  logLabel,
+}: {
+  path: string;
+  buffer: Buffer;
+  contentType: string;
+  metadata?: MetadataRecord;
+  logLabel?: string;
+}): Promise<UploadResult> {
+  if (!buffer || !Buffer.isBuffer(buffer) || buffer.length === 0) {
+    const error: any = new Error('buffer_empty');
+    error.code = 'buffer_empty';
+    throw error;
+  }
+
+  const normalizedPath = String(path || '').replace(/\\/g, '/').replace(/^\/+/, '');
+  if (!normalizedPath || normalizedPath.includes('..')) {
+    const error: any = new Error('invalid_path');
+    error.code = 'invalid_path';
+    throw error;
+  }
+
+  let supabase;
+  try {
+    supabase = getSupabaseAdmin();
+  } catch (err: any) {
+    console.error('shopify_asset_supabase_env', { message: err?.message || err });
+    const error: any = new Error('Faltan credenciales de Supabase');
+    error.code = 'supabase_credentials_missing';
+    error.cause = err;
+    throw error;
+  }
+
+  const storage = supabase.storage.from(OUTPUT_BUCKET);
+  const size = buffer.length;
+  const label = logLabel || 'asset';
+
+  console.info('shopify_asset_upload_start', {
+    label,
+    bucket: OUTPUT_BUCKET,
+    path: normalizedPath,
+    sizeBytes: size,
+    contentType,
+  });
+
+  const { error: uploadError } = await storage.upload(normalizedPath, buffer, {
+    upsert: true,
+    cacheControl: '3600',
+    contentType,
+    metadata: normalizeMetadata(metadata || {}),
+  });
+
+  if (uploadError) {
+    console.error('shopify_asset_upload_error', {
+      label,
+      bucket: OUTPUT_BUCKET,
+      path: normalizedPath,
+      sizeBytes: size,
+      status: uploadError?.status || uploadError?.statusCode || null,
+      message: uploadError?.message,
+      name: uploadError?.name,
+    });
+    const error: any = new Error('supabase_upload_failed');
+    error.code = 'supabase_upload_failed';
+    error.cause = uploadError;
+    throw error;
+  }
+
+  const { data: signedData, error: signedError } = await storage.createSignedUrl(
+    normalizedPath,
+    SIGNED_URL_TTL_SECONDS,
+    { download: true },
+  );
+
+  if (signedError) {
+    console.error('shopify_asset_signed_url_error', {
+      label,
+      path: normalizedPath,
+      status: signedError?.status || signedError?.statusCode || null,
+      message: signedError?.message,
+      name: signedError?.name,
+    });
+  }
+
+  const { data: publicData } = storage.getPublicUrl(normalizedPath);
+
+  console.info('shopify_asset_upload_ok', {
+    label,
+    bucket: OUTPUT_BUCKET,
+    path: normalizedPath,
+    sizeBytes: size,
+  });
+
+  return {
+    path: normalizedPath,
+    signedUrl: signedData?.signedUrl || null,
+    publicUrl: publicData?.publicUrl || null,
+    expiresIn: SIGNED_URL_TTL_SECONDS,
+  };
 }
 
 export default async function handler(req: any, res: any) {
@@ -190,7 +373,7 @@ export default async function handler(req: any, res: any) {
         heightCm: height,
         material: mode,
       });
-      const pdfMetadata: Record<string, string | boolean | number> = {
+      const pdfMetadata: MetadataRecord = {
         private: true,
         createdBy: 'editor',
         slug: slugifyName(designNameForPath) || 'design',
@@ -216,22 +399,82 @@ export default async function handler(req: any, res: any) {
       const previewPath = pdfPath.startsWith('outputs/') ? pdfPath : `outputs/${pdfPath}`;
       const previewUrl = `/api/prints/preview?path=${encodeURIComponent(previewPath)}`;
 
-      return res.status(200).json({
+      const legacyBaseKey = buildLegacyStorageBaseKey({
+        productHandle: product?.handle,
+        productId: product?.id ? String(product.id) : null,
+        designName: designNameForPath,
+        widthCm: width,
+        heightCm: height,
+        material: mode,
+      });
+
+      const mockupExtension = determineMockupExtension(mockupPayload);
+      const mockupPath = buildLegacyAssetPath(legacyBaseKey, `mockup.${mockupExtension}`);
+
+      const mockupUpload = await uploadAssetToSupabase({
+        path: mockupPath,
+        buffer: mockupPayload.buffer,
+        contentType: mockupPayload.mimeType,
+        metadata: { ...pdfMetadata, assetType: 'mockup_image' },
+        logLabel: 'mockup',
+      });
+
+      let legacyPdfUpload: UploadResult | null = null;
+      try {
+        legacyPdfUpload = await uploadAssetToSupabase({
+          path: buildLegacyAssetPath(legacyBaseKey, 'print.pdf'),
+          buffer: pdfBuffer,
+          contentType: 'application/pdf',
+          metadata: { ...pdfMetadata, assetType: 'print_pdf', legacy: true },
+          logLabel: 'legacy_pdf',
+        });
+      } catch (legacyErr: any) {
+        console.warn('shopify_create_product_legacy_pdf_failed', {
+          message: legacyErr?.message || legacyErr,
+          code: legacyErr?.code || null,
+        });
+        legacyPdfUpload = null;
+      }
+
+      const assets: Record<string, unknown> = {
+        pdf_url: effectivePdfUrl,
+        pdf_path: pdfPath,
+        pdf_expires_in: expiresIn,
+        preview_url: previewUrl,
+        mockup_url: mockupUpload.publicUrl || mockupUpload.signedUrl || null,
+        mockup_path: mockupUpload.path,
+        storage_key_prefix: legacyBaseKey,
+      };
+
+      const responsePayload: Record<string, unknown> = {
         ok: true,
         productUrl,
         checkoutUrl,
-        assets: {
-          pdf_url: effectivePdfUrl,
-          pdf_path: pdfPath,
-          pdf_expires_in: expiresIn,
-          preview_url: previewUrl,
-        },
+        assets,
         pdf: {
           path: pdfPath,
           download_url: effectivePdfUrl,
           expires_in: expiresIn,
         },
-      });
+      };
+
+      if (mockupUpload) {
+        responsePayload.mockup = {
+          path: mockupUpload.path,
+          download_url: mockupUpload.publicUrl || mockupUpload.signedUrl || null,
+          expires_in: mockupUpload.expiresIn,
+        };
+      }
+
+      if (legacyPdfUpload) {
+        responsePayload.legacy_pdf = {
+          path: legacyPdfUpload.path,
+          download_url: legacyPdfUpload.publicUrl || legacyPdfUpload.signedUrl || null,
+          expires_in: legacyPdfUpload.expiresIn,
+        };
+      }
+
+      return res.status(200).json(responsePayload);
     } catch (uploadErr: any) {
       const reason = typeof uploadErr?.code === 'string' ? uploadErr.code : 'supabase_upload_failed';
       console.error('shopify_create_product_supabase', uploadErr);
