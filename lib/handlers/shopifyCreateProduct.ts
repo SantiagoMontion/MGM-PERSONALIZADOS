@@ -312,6 +312,12 @@ export default async function handler(req: any, res: any) {
     let mockupPayload: DataUrlPayload;
     try {
       mockupPayload = parseDataUrl(mockup_dataurl);
+      if (mode === 'Glasspad') {
+        mockupPayload = {
+          ...mockupPayload,
+          buffer: await sharp(mockupPayload.buffer).blur(2).toBuffer(),
+        };
+      }
     } catch {
       return res.status(400).json({ ok: false, message: 'invalid_mockup_dataurl' });
     }
