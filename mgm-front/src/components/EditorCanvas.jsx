@@ -1668,8 +1668,10 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                         "bottom-right",
                       ]}
                     boundBoxFunc={(oldBox, newBox) => {
-                      const MIN_W = 0.02 * (imgBaseCm?.w || 1);
-                      const MIN_H = 0.02 * (imgBaseCm?.h || 1);
+                      const baseW = imgBaseCm?.w || 1;
+                      const baseH = imgBaseCm?.h || 1;
+                      const MIN_W = 0.02 * baseW;
+                      const MIN_H = 0.02 * baseH;
 
                       if (!keepRatioRef.current) {
                         // ⟵ MODO LIBRE: sólo mínimo, SIN límites superiores
@@ -1678,12 +1680,49 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                         return { ...newBox, width: w, height: h };
                       }
 
-                      // Mantener proporción: con topes razonables
-                      const MAX_W = (imgBaseCm?.w || 1) * IMG_ZOOM_MAX;
-                      const MAX_H = (imgBaseCm?.h || 1) * IMG_ZOOM_MAX;
-                      const w = Math.max(MIN_W, Math.min(newBox.width, MAX_W));
-                      const h = Math.max(MIN_H, Math.min(newBox.height, MAX_H));
-                      return { ...newBox, width: w, height: h };
+                      // Mantener proporción original incluso si venimos de "estirar"
+                      const MIN_SCALE = 0.02;
+                      const MAX_SCALE = IMG_ZOOM_MAX;
+                      const cos = Math.abs(Math.cos(theta));
+                      const sin = Math.abs(Math.sin(theta));
+                      const boundBaseW = baseW * cos + baseH * sin;
+                      const boundBaseH = baseW * sin + baseH * cos;
+
+                      if (!(boundBaseW > 0) || !(boundBaseH > 0)) {
+                        const fallbackW = Math.max(MIN_W, Math.min(newBox.width, baseW * MAX_SCALE));
+                        const fallbackH = Math.max(MIN_H, Math.min(newBox.height, baseH * MAX_SCALE));
+                        return { ...newBox, width: fallbackW, height: fallbackH };
+                      }
+
+                      const widthDelta = Math.abs(newBox.width - oldBox.width);
+                      const heightDelta = Math.abs(newBox.height - oldBox.height);
+                      const scaleFromWidth = newBox.width / boundBaseW;
+                      const scaleFromHeight = newBox.height / boundBaseH;
+
+                      let targetScale;
+                      if (widthDelta >= heightDelta) {
+                        targetScale = Number.isFinite(scaleFromWidth)
+                          ? scaleFromWidth
+                          : scaleFromHeight;
+                      } else {
+                        targetScale = Number.isFinite(scaleFromHeight)
+                          ? scaleFromHeight
+                          : scaleFromWidth;
+                      }
+
+                      if (!Number.isFinite(targetScale)) {
+                        targetScale = 1;
+                      }
+
+                      const clampedScale = Math.max(
+                        MIN_SCALE,
+                        Math.min(targetScale, MAX_SCALE),
+                      );
+
+                      const width = boundBaseW * clampedScale;
+                      const height = boundBaseH * clampedScale;
+
+                      return { ...newBox, width, height };
                     }}
                     onTransformStart={onTransformStart}
                     onTransformEnd={onTransformEnd}
