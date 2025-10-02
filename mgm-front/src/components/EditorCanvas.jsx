@@ -457,6 +457,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const lastCommittedBgColorRef = useRef(DEFAULT_BG_COLOR);
   const [activeAlign, setActiveAlign] = useState({ horizontal: null, vertical: null });
   const isTransformingRef = useRef(false);
+  const cornerScaleRef = useRef({ prev: null });
+
   const setKeepRatioImmediate = useCallback(
     (value) => {
       keepRatioRef.current = value;
@@ -795,12 +797,43 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       !anchorName ||
       anchorName === "rotater" ||
       CORNER_ANCHORS.has(anchorName);
+    cornerScaleRef.current = { prev: null };
+    if (shouldKeep && imgRef.current && imgBaseCm) {
+      const node = imgRef.current;
+      const rotationRad = (node.rotation() * Math.PI) / 180;
+      const cos = Math.abs(Math.cos(rotationRad));
+      const sin = Math.abs(Math.sin(rotationRad));
+      const absScaleX = Math.abs(node.scaleX());
+      const absScaleY = Math.abs(node.scaleY());
+      const scaledW = imgBaseCm.w * absScaleX;
+      const scaledH = imgBaseCm.h * absScaleY;
+      const baseBoundW = imgBaseCm.w * cos + imgBaseCm.h * sin;
+      const baseBoundH = imgBaseCm.w * sin + imgBaseCm.h * cos;
+      const currentBoundW = scaledW * cos + scaledH * sin;
+      const currentBoundH = scaledW * sin + scaledH * cos;
+      const widthScale = baseBoundW > 0 ? currentBoundW / baseBoundW : null;
+      const heightScale = baseBoundH > 0 ? currentBoundH / baseBoundH : null;
+      let prevScale = null;
+      if (widthScale > 0 && heightScale > 0) {
+        prevScale = Math.sqrt(widthScale * heightScale);
+      } else if (widthScale > 0) {
+        prevScale = widthScale;
+      } else if (heightScale > 0) {
+        prevScale = heightScale;
+      }
+      const fallbackScale = Math.max(absScaleX, absScaleY, 0.01);
+      cornerScaleRef.current.prev =
+        prevScale && Number.isFinite(prevScale) && prevScale > 0
+          ? prevScale
+          : fallbackScale;
+    }
     setKeepRatioImmediate(shouldKeep);
-  }, [setKeepRatioImmediate]);
+  }, [imgBaseCm, setKeepRatioImmediate]);
 
   const onTransformEnd = () => {
     isTransformingRef.current = false;
     stickRef.current = { x: null, y: null, activeX: false, activeY: false };
+    cornerScaleRef.current = { prev: null };
     if (!imgRef.current || !imgBaseCm) {
       setKeepRatioImmediate(true);
       return;
@@ -1696,6 +1729,38 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
                       const widthDelta = Math.abs(newBox.width - oldBox.width);
                       const heightDelta = Math.abs(newBox.height - oldBox.height);
+                      const scaleFromWidth =
+                        boundBaseW > 0 && Number.isFinite(newBox.width / boundBaseW)
+                          ? newBox.width / boundBaseW
+                          : null;
+                      const scaleFromHeight =
+                        boundBaseH > 0 &&
+                        Number.isFinite(newBox.height / boundBaseH)
+                          ? newBox.height / boundBaseH
+                          : null;
+
+                      const prevScale = cornerScaleRef.current?.prev ?? null;
+                      let targetScale = prevScale ?? 1;
+
+                      if (scaleFromWidth != null && scaleFromHeight != null) {
+                        if (prevScale != null && Number.isFinite(prevScale)) {
+                          const diffW = Math.abs(scaleFromWidth - prevScale);
+                          const diffH = Math.abs(scaleFromHeight - prevScale);
+                          targetScale = diffW <= diffH ? scaleFromWidth : scaleFromHeight;
+                        } else {
+                          targetScale =
+                            widthDelta >= heightDelta ? scaleFromWidth : scaleFromHeight;
+                        }
+                      } else if (scaleFromWidth != null) {
+                        targetScale = scaleFromWidth;
+                      } else if (scaleFromHeight != null) {
+                        targetScale = scaleFromHeight;
+                      }
+
+                      if (!Number.isFinite(targetScale) || !(targetScale > 0)) {
+                        targetScale = prevScale && Number.isFinite(prevScale) && prevScale > 0
+                          ? prevScale
+                          : 1;
                       const scaleFromWidth = newBox.width / boundBaseW;
                       const scaleFromHeight = newBox.height / boundBaseH;
 
@@ -1721,6 +1786,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
                       const width = boundBaseW * clampedScale;
                       const height = boundBaseH * clampedScale;
+
+                      cornerScaleRef.current.prev = clampedScale;
 
                       return { ...newBox, width, height };
                     }}
