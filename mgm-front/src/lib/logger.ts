@@ -16,7 +16,11 @@ function resolveLevel(): keyof typeof LEVELS {
       return normalized as keyof typeof LEVELS;
     }
   }
-  const mode = (import.meta as any)?.env?.MODE ?? (process as any)?.env?.NODE_ENV;
+
+  const mode =
+    (import.meta as any)?.env?.MODE ??
+    (typeof process !== 'undefined' ? (process as any)?.env?.NODE_ENV : undefined);
+
   return mode === 'production' ? 'warn' : 'debug';
 }
 
