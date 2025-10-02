@@ -243,7 +243,7 @@ export default function DevCanvasPreview() {
       {render_v2 && (
         <div style={{ display: 'flex', gap: '20px', marginTop: '10px' }}>
           <pre style={{ whiteSpace: 'pre-wrap' }}>
-            {JSON.stringify(render_v2, null, 2)}
+            {JSON.stringify(render_v2)}
           </pre>
           <div>
             <p>{`canvas_px: ${JSON.stringify(render_v2.canvas_px)}`}</p>

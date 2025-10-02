@@ -1,3 +1,4 @@
+import logger from '../lib/logger';
 /* eslint-disable */
 import {
   useEffect,
@@ -1589,7 +1590,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
       const pre = prevalidateSubmitBody(submitBody);
       if (!pre.ok) {
-        console.error("[PREVALIDATE EditorCanvas]", pre, submitBody);
+        logger.error("[PREVALIDATE EditorCanvas]", pre, submitBody);
         alert(pre.problems.join("\n"));
         return;
       }
@@ -1598,7 +1599,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
       onDone?.(job);
     } catch (err) {
-      console.error(err);
+      logger.error(err);
       alert(String(err?.message || err));
     }
   }

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { apiFetch } from '@/lib/api';
 import styles from './Confirm.module.css';
+import logger from '../lib/logger';
 
 export default function Confirm() {
   const [sp] = useSearchParams();
@@ -40,11 +41,11 @@ export default function Confirm() {
           try {
             popup.opener = null;
           } catch (openerErr) {
-            console.debug?.('[confirm] opener_clear_failed', openerErr);
+            logger.debug('[confirm] opener_clear_failed', openerErr);
           }
         }
       } catch (openErr) {
-        console.warn('[confirm] product_open_failed', openErr);
+        logger.warn('[confirm] product_open_failed', openErr);
       } finally {
         setAutoOpened(true);
       }

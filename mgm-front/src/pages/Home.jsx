@@ -1,3 +1,4 @@
+import logger from '../lib/logger';
 // src/pages/Home.jsx
 import {
   useCallback,
@@ -294,7 +295,7 @@ export default function Home() {
           return;
         }
       } catch (scanErr) {
-        console.error('[continue] nudity scan failed', scanErr?.message || scanErr);
+        logger.error('[continue] nudity scan failed', scanErr?.message || scanErr);
       }
 
       const resp = await apiFetch('/api/moderate-image', {
@@ -357,7 +358,7 @@ export default function Home() {
         });
         const uploadJson = await uploadResp.json().catch(() => ({}));
         if (!uploadResp.ok || !uploadJson?.file_original_url) {
-          console.error('[upload-original FAILED]', {
+          logger.error('[upload-original FAILED]', {
             status: uploadResp.status,
             diagId: uploadJson?.diag_id,
             supabase: uploadJson?.supabase,
@@ -367,13 +368,13 @@ export default function Home() {
           return;
         }
         uploadData = uploadJson;
-        console.info('[upload-original OK]', {
+        logger.debug('[upload-original OK]', {
           diagId: uploadJson?.diag_id,
           bucket: uploadJson?.bucket,
           path: uploadJson?.path,
         });
       } catch (uploadErr) {
-        console.error('[upload-original EXCEPTION]', uploadErr);
+        logger.error('[upload-original EXCEPTION]', uploadErr);
         setErr('Error subiendo el archivo. Intentá nuevamente.');
         setBusy(false);
         return;
@@ -428,7 +429,7 @@ export default function Home() {
       });
       navigate('/mockup');
     } catch (e) {
-      console.error(e);
+      logger.error(e);
       setErr(String(e?.message || e));
     } finally {
       setBusy(false);

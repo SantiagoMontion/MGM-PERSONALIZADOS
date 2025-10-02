@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import logger from '../../lib/_lib/logger.js';
 
 import { withCors } from '../../lib/cors.js';
 
@@ -11,7 +12,7 @@ function sendJson(res, status, payload) {
 export default withCors(function printsHealth(req, res) {
   if (req.method !== 'GET') {
     const requestId = randomUUID();
-    console.error('prints_health_error', {
+    logger.error('prints_health_error', {
       diagId: requestId,
       type: 'method_not_allowed',
       method: req.method,

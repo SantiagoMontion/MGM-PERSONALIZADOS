@@ -1,6 +1,7 @@
 import { withCors } from '../lib/cors.js';
 import { ensureQuery } from '../lib/_lib/http.js';
 import { enforceRateLimit } from '../lib/_lib/rateLimit.js';
+import logger from '../lib/_lib/logger.js';
 
 function pathOf(req) {
   try {
@@ -182,7 +183,7 @@ export default withCors(async function handler(req, res) {
       }
     }
   } catch (err) {
-    try { console.error('[router]', key, err); } catch {}
+    try { logger.error('[router]', key, err); } catch {}
     res.statusCode = 500;
     res.setHeader('Content-Type', 'application/json');
     return res.end(JSON.stringify({ ok: false, code: 'handler_error' }));

@@ -6,6 +6,7 @@ import { slugifyName, sizeLabel } from '../_lib/slug.js';
 import getSupabaseAdmin from '../_lib/supabaseAdmin.js';
 import savePrintPdfToSupabase, { savePrintPreviewToSupabase } from '../_lib/savePrintPdfToSupabase.js';
 import imageBufferToPdf from '../_lib/imageToPdf.js';
+import logger from '../_lib/logger.js';
 
 type DataUrlPayload = {
   mimeType: string;
@@ -205,7 +206,7 @@ async function uploadAssetToSupabase({
   try {
     supabase = getSupabaseAdmin();
   } catch (err: any) {
-    console.error('shopify_asset_supabase_env', { message: err?.message || err });
+    logger.error('shopify_asset_supabase_env', { message: err?.message || err });
     const error: any = new Error('Faltan credenciales de Supabase');
     error.code = 'supabase_credentials_missing';
     error.cause = err;
@@ -216,7 +217,7 @@ async function uploadAssetToSupabase({
   const size = buffer.length;
   const label = logLabel || 'asset';
 
-  console.info('shopify_asset_upload_start', {
+  logger.debug('shopify_asset_upload_start', {
     label,
     bucket: OUTPUT_BUCKET,
     path: normalizedPath,
@@ -232,7 +233,7 @@ async function uploadAssetToSupabase({
   });
 
   if (uploadError) {
-    console.error('shopify_asset_upload_error', {
+    logger.error('shopify_asset_upload_error', {
       label,
       bucket: OUTPUT_BUCKET,
       path: normalizedPath,
@@ -254,7 +255,7 @@ async function uploadAssetToSupabase({
   );
 
   if (signedError) {
-    console.error('shopify_asset_signed_url_error', {
+    logger.error('shopify_asset_signed_url_error', {
       label,
       path: normalizedPath,
       status: signedError?.status || signedError?.statusCode || null,
@@ -265,7 +266,7 @@ async function uploadAssetToSupabase({
 
   const { data: publicData } = storage.getPublicUrl(normalizedPath);
 
-  console.info('shopify_asset_upload_ok', {
+  logger.debug('shopify_asset_upload_ok', {
     label,
     bucket: OUTPUT_BUCKET,
     path: normalizedPath,
@@ -340,7 +341,7 @@ export default async function handler(req: any, res: any) {
         });
         pdfBuffer = pdfResult.pdfBuffer;
       } catch (err) {
-        console.error('shopify_create_product_pdf', err);
+        logger.error('shopify_create_product_pdf', err);
         return res.status(500).json({ ok: false, message: 'pdf_generation_failed' });
       }
     } else {
@@ -458,7 +459,7 @@ export default async function handler(req: any, res: any) {
           logLabel: 'legacy_pdf',
         });
       } catch (legacyErr: any) {
-        console.warn('shopify_create_product_legacy_pdf_failed', {
+        logger.warn('shopify_create_product_legacy_pdf_failed', {
           message: legacyErr?.message || legacyErr,
           code: legacyErr?.code || null,
         });
@@ -506,7 +507,7 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json(responsePayload);
     } catch (uploadErr: any) {
       const reason = typeof uploadErr?.code === 'string' ? uploadErr.code : 'supabase_upload_failed';
-      console.error('shopify_create_product_supabase', uploadErr);
+      logger.error('shopify_create_product_supabase', uploadErr);
       const message = reason === 'supabase_credentials_missing'
         ? 'Faltan credenciales de Supabase'
         : 'supabase_upload_failed';

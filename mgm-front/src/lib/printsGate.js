@@ -1,4 +1,5 @@
 import { Buffer } from 'buffer';
+import logger from './logger';
 
 const STORAGE_KEY = 'MGM_prints_gate';
 export const PRINTS_GATE_PASSWORD = 'Spesia666';
@@ -39,7 +40,7 @@ export function readStoredGate() {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     return decodeStored(raw);
   } catch (err) {
-    console.warn?.('[prints-gate] storage_read_failed', err);
+    logger.warn('[prints-gate] storage_read_failed', err);
     return null;
   }
 }
@@ -49,7 +50,7 @@ export function storeGate(record) {
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(record));
   } catch (err) {
-    console.warn?.('[prints-gate] storage_write_failed', err);
+    logger.warn('[prints-gate] storage_write_failed', err);
   }
 }
 
@@ -58,7 +59,7 @@ export function clearGate() {
   try {
     window.localStorage.removeItem(STORAGE_KEY);
   } catch (err) {
-    console.warn?.('[prints-gate] storage_clear_failed', err);
+    logger.warn('[prints-gate] storage_clear_failed', err);
   }
 }
 

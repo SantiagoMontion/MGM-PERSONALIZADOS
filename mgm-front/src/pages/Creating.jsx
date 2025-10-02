@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import LoadingOverlay from '../components/LoadingOverlay';
 import { apiFetch } from '@/lib/api';
+import logger from '../lib/logger';
 
 export default function Creating() {
   const { jobId } = useParams();
@@ -47,7 +48,7 @@ export default function Creating() {
           }
         }
       } catch (summaryErr) {
-        console.warn('[creating] job_summary_failed', summaryErr);
+        logger.warn('[creating] job_summary_failed', summaryErr);
       }
     } catch {
       setNeedsRetry(true);
@@ -66,11 +67,11 @@ export default function Creating() {
         try {
           popup.opener = null;
         } catch (openerErr) {
-          console.debug?.('[creating] opener_clear_failed', openerErr);
+          logger.debug('[creating] opener_clear_failed', openerErr);
         }
       }
     } catch (openErr) {
-      console.warn('[creating] product_open_failed', openErr);
+      logger.warn('[creating] product_open_failed', openErr);
     } finally {
       setAutoOpened(true);
     }
