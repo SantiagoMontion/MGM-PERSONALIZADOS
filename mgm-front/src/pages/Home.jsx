@@ -1002,6 +1002,7 @@ export default function Home() {
                         setUploaded(info);
                         setAckLow(false);
                         setAckLowError(false);
+                        setConfigOpen(true);
                       }}
                       renderTrigger={({ openPicker, busy }) => (
                         <button

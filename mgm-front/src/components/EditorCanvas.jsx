@@ -1761,6 +1761,22 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                         targetScale = prevScale && Number.isFinite(prevScale) && prevScale > 0
                           ? prevScale
                           : 1;
+                      const scaleFromWidth = newBox.width / boundBaseW;
+                      const scaleFromHeight = newBox.height / boundBaseH;
+
+                      let targetScale;
+                      if (widthDelta >= heightDelta) {
+                        targetScale = Number.isFinite(scaleFromWidth)
+                          ? scaleFromWidth
+                          : scaleFromHeight;
+                      } else {
+                        targetScale = Number.isFinite(scaleFromHeight)
+                          ? scaleFromHeight
+                          : scaleFromWidth;
+                      }
+
+                      if (!Number.isFinite(targetScale)) {
+                        targetScale = 1;
                       }
 
                       const clampedScale = Math.max(
