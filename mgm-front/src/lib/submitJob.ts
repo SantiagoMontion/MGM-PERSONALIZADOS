@@ -1,3 +1,4 @@
+import logger from './logger';
 // src/lib/submitJob.ts
 export interface SubmitJobBody {
   job_id: string;
@@ -39,7 +40,7 @@ export async function submitJob(body: SubmitJobBody): Promise<any> {
   } catch (err) {}
 
   if (!res.ok) {
-    console.error("[submit-job FAILED]", {
+    logger.error("[submit-job FAILED]", {
       status: res.status,
       diagId,
       ...data,

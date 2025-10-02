@@ -10,6 +10,7 @@ import {
   isGateValid,
 } from '@/lib/printsGate.js';
 import styles from './Busqueda.module.css';
+import logger from '../lib/logger';
 
 const PAGE_LIMIT = 25;
 
@@ -204,7 +205,7 @@ export default function Busqueda() {
       if (requestError?.name === 'AbortError') {
         return;
       }
-      console.error('[prints-search]', requestError);
+      logger.error('[prints-search]', requestError);
       setError('Ocurrió un error al buscar en Supabase.');
       setResults([]);
       setTotal(0);

@@ -15,8 +15,7 @@
     "dev:all": "concurrently -k -n api,front -c blue,green \"npm:dev:api\" \"npm:dev:front\"",
     "deploy:prod": "vercel --prod --yes",
     "doctor:vercel": "node scripts/doctor-vercel.mjs",
-    "doctor:shopify-env": "node -e \"const r=['SHOPIFY_STORE_DOMAIN','SHOPIFY_ADMIN_TOKEN','SHOPIFY_API_VERSION'];const m=r.filter(k=>!process.env[k]);console.log({missing:m});process.exit(m.length?1:0)\"",
-    "test": "node --test"
+    "doctor:shopify-env": "node -e \"const r=['SHOPIFY_STORE_DOMAIN','SHOPIFY_ADMIN_TOKEN','SHOPIFY_API_VERSION'];const m=r.filter(k=>!process.env[k]);console.log({missing:m});process.exit(m.length?1:0)\""
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.54.0",

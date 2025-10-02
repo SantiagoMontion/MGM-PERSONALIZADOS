@@ -1,3 +1,4 @@
+import logger from '../logger';
 // Keep a single lazy-loaded model instance in-memory across scans so repeated
 // "Continuar" clicks don't keep downloading TFJS weights.
 let modelPromise = null;
@@ -73,10 +74,9 @@ export async function scanNudityClient(dataUrl) {
     return { blocked: false, reason: 'client_clear', scores };
   } catch (e) {
     // On failure to load ML libs in browser, default to allow (server will gate as needed)
-    console.error('[scanNudityClient] failed', e?.message || e);
+    logger.error('[scanNudityClient] failed', e?.message || e);
     return { blocked: false, reason: 'client_scan_failed' };
   }
 }
 
 export default { scanNudityClient };
-

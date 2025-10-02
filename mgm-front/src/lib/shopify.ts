@@ -1,5 +1,6 @@
 import { apiFetch, getResolvedApiUrl } from './api';
 import { FlowState } from '@/state/flow';
+import logger from './logger';
 
 const DEFAULT_STORE_BASE = 'https://kw0f4u-ji.myshopify.com';
 const IS_DEV = Boolean(
@@ -306,7 +307,7 @@ export async function createJobAndProduct(
       try {
         onPrivateStageChange?.('creating_product');
       } catch (stageErr) {
-        console.debug?.('[createJobAndProduct] stage_callback_failed', stageErr);
+        logger.debug('[createJobAndProduct] stage_callback_failed', stageErr);
       }
     }
 
@@ -443,9 +444,9 @@ export async function createJobAndProduct(
 
   if (collectedWarningMessages && collectedWarningMessages.length) {
     try {
-      console.warn('[createJobAndProduct] warnings', collectedWarningMessages);
+      logger.warn('[createJobAndProduct] warnings', collectedWarningMessages);
     } catch (warnErr) {
-      console.debug?.('[createJobAndProduct] warn_log_failed', warnErr);
+      logger.debug('[createJobAndProduct] warn_log_failed', warnErr);
     }
   }
 
@@ -532,7 +533,7 @@ export async function createJobAndProduct(
         try {
           onPrivateStageChange?.('creating_checkout');
         } catch (stageErr) {
-          console.debug?.('[createJobAndProduct] stage_callback_failed', stageErr);
+          logger.debug('[createJobAndProduct] stage_callback_failed', stageErr);
         }
       }
       if (shouldRequestPrivateCheckout) {
@@ -579,13 +580,13 @@ export async function createJobAndProduct(
           } catch (parseErr) {
             ck = null;
             try {
-              console.warn('[private-checkout] json_parse_failed', parseErr);
+              logger.warn('[private-checkout] json_parse_failed', parseErr);
             } catch {}
           }
         }
         const logError = (label: string) => {
           try {
-            console.error(`[private-checkout] ${label}`, {
+            logger.error(`[private-checkout] ${label}`, {
               status: ckResp.status,
               contentType,
               bodyPreview: typeof rawBody === 'string' ? rawBody.slice(0, 200) : '',
@@ -674,7 +675,7 @@ export async function createJobAndProduct(
           }
           if (Array.isArray(ck.requestIds) && ck.requestIds.length) {
             try {
-              console.info('[private-checkout] request_ids', ck.requestIds);
+              logger.debug('[private-checkout] request_ids', ck.requestIds);
             } catch {}
           }
         } else {
@@ -790,7 +791,7 @@ export function buildCartPermalink(
   try {
     cartUrl = new URL(`/cart/${numericId}:${qty}`, baseRaw);
   } catch (err) {
-    console.error('[buildCartPermalink] invalid base url', err);
+    logger.error('[buildCartPermalink] invalid base url', err);
     return '';
   }
   const rawReturn = options?.returnTo;
@@ -823,7 +824,7 @@ export function buildCartAddUrl(
   try {
     cartUrl = new URL('/cart/add', baseRaw);
   } catch (err) {
-    console.error('[buildCartAddUrl] invalid base url', err);
+    logger.error('[buildCartAddUrl] invalid base url', err);
     return '';
   }
   cartUrl.searchParams.set('id', numericId);
@@ -914,7 +915,7 @@ function setStoredCartId(cartId?: string | null) {
       window.localStorage.removeItem(STOREFRONT_CART_STORAGE_KEY);
     }
   } catch (err) {
-    console.warn('[storefront-cart] write failed', err);
+    logger.warn('[storefront-cart] write failed', err);
   }
 }
 
@@ -924,7 +925,7 @@ function getStoredCartId() {
     const stored = window.localStorage.getItem(STOREFRONT_CART_STORAGE_KEY);
     return typeof stored === 'string' && stored.trim() ? stored.trim() : '';
   } catch (err) {
-    console.warn('[storefront-cart] read failed', err);
+    logger.warn('[storefront-cart] read failed', err);
     return '';
   }
 }
@@ -1041,9 +1042,9 @@ export async function addVariantToCartStorefront(
   const configResult = resolveStorefrontConfig();
   if (!configResult.ok) {
     try {
-      console.error('[cart-flow] storefront_env_missing', { missing: configResult.missing });
+      logger.error('[cart-flow] storefront_env_missing', { missing: configResult.missing });
     } catch (logErr) {
-      console.warn?.('[cart-flow] storefront_env_missing_log_failed', logErr);
+      logger.warn('[cart-flow] storefront_env_missing_log_failed', logErr);
     }
     const error = new Error('shopify_storefront_env_missing');
     (error as Error & { reason?: string; missing?: string[] }).reason = 'shopify_storefront_env_missing';
@@ -1052,24 +1053,24 @@ export async function addVariantToCartStorefront(
   }
   if (IS_DEV) {
     try {
-      console.info('[cart-flow] storefront_env_ok');
+      logger.debug('[cart-flow] storefront_env_ok');
     } catch (logErr) {
-      console.warn?.('[cart-flow] storefront_env_log_failed', logErr);
+      logger.warn('[cart-flow] storefront_env_log_failed', logErr);
     }
   }
   const { config } = configResult;
   if (config.domain !== 'kw0f4u-ji.myshopify.com') {
     try {
-      console.warn('[cart-flow] storefront_domain_unexpected', { domain: config.domain });
+      logger.warn('[cart-flow] storefront_domain_unexpected', { domain: config.domain });
     } catch (logErr) {
-      console.debug?.('[cart-flow] storefront_domain_log_failed', logErr);
+      logger.debug('[cart-flow] storefront_domain_log_failed', logErr);
     }
   }
   if (config.version !== '2024-07') {
     try {
-      console.warn('[cart-flow] storefront_version_unexpected', { version: config.version });
+      logger.warn('[cart-flow] storefront_version_unexpected', { version: config.version });
     } catch (logErr) {
-      console.debug?.('[cart-flow] storefront_version_log_failed', logErr);
+      logger.debug('[cart-flow] storefront_version_log_failed', logErr);
     }
   }
   const merchandiseId = buildVariantGid(variantId);
@@ -1130,22 +1131,22 @@ export async function addVariantToCartStorefront(
     if (response.ok && !payloadErrors.length && !userErrors.length && resolvedCartId && resolvedCheckoutUrl) {
       setStoredCartId(resolvedCartId);
       try {
-        console.info('[cart-flow] cart_lines_add_ok', { cartId: resolvedCartId, checkoutUrl: resolvedCheckoutUrl });
+        logger.debug('[cart-flow] cart_lines_add_ok', { cartId: resolvedCartId, checkoutUrl: resolvedCheckoutUrl });
       } catch (logErr) {
-        console.warn?.('[cart-flow] cart_lines_add_log_failed', logErr);
+        logger.warn('[cart-flow] cart_lines_add_log_failed', logErr);
       }
       return { ok: true, value: { cartId: resolvedCartId, checkoutUrl: resolvedCheckoutUrl } };
     }
 
     try {
-      console.error('[cart-flow] cart_lines_add_error', {
+      logger.error('[cart-flow] cart_lines_add_error', {
         requestId,
         status: response.status,
         userErrors,
         graphQLErrors: payloadErrors,
       });
     } catch (logErr) {
-      console.warn?.('[cart-flow] cart_lines_add_log_failed', logErr);
+      logger.warn('[cart-flow] cart_lines_add_log_failed', logErr);
     }
 
     if (userErrors.length && attempt < 2) {
@@ -1174,22 +1175,22 @@ export async function addVariantToCartStorefront(
     if (response.ok && !payloadErrors.length && !userErrors.length && createdCartId && createdCheckoutUrl) {
       setStoredCartId(createdCartId);
       try {
-        console.info('[cart-flow] cart_create_ok', { cartId: createdCartId, checkoutUrl: createdCheckoutUrl });
+        logger.debug('[cart-flow] cart_create_ok', { cartId: createdCartId, checkoutUrl: createdCheckoutUrl });
       } catch (logErr) {
-        console.warn?.('[cart-flow] cart_create_log_failed', logErr);
+        logger.warn('[cart-flow] cart_create_log_failed', logErr);
       }
       return { ok: true, value: { cartId: createdCartId, checkoutUrl: createdCheckoutUrl } };
     }
 
     try {
-      console.error('[cart-flow] cart_create_error', {
+      logger.error('[cart-flow] cart_create_error', {
         requestId,
         status: response.status,
         userErrors,
         graphQLErrors: payloadErrors,
       });
     } catch (logErr) {
-      console.warn?.('[cart-flow] cart_create_log_failed', logErr);
+      logger.warn('[cart-flow] cart_create_log_failed', logErr);
     }
 
     if (userErrors.length && attempt < 2) {
@@ -1250,19 +1251,19 @@ export async function ensureProductPublication(productId?: string | null): Promi
   }
   try {
     if (Array.isArray(json.recoveries) && json.recoveries.includes('publication_missing_detected')) {
-      console.info('[cart-flow] publication_missing detectado', json.recoveries);
+      logger.debug('[cart-flow] publication_missing detectado', json.recoveries);
     }
     if (json.publicationId && typeof json.publicationIdSource === 'string') {
       const source = json.publicationIdSource;
       if (source && source !== 'env') {
-        console.info('[cart-flow] publicationId elegido dinámicamente', { id: json.publicationId, source });
+        logger.debug('[cart-flow] publicationId elegido dinámicamente', { id: json.publicationId, source });
       }
     }
     if (typeof json.publishAttempts === 'number' && Number.isFinite(json.publishAttempts)) {
-      console.info('[cart-flow] publish attempts', json.publishAttempts);
+      logger.debug('[cart-flow] publish attempts', json.publishAttempts);
     }
   } catch (logErr) {
-    console.debug?.('[ensureProductPublication] log_failed', logErr);
+    logger.debug('[ensureProductPublication] log_failed', logErr);
   }
   return json;
 }
@@ -1292,12 +1293,12 @@ export async function verifyProductPublicationStatus(productId?: string | number
   const json: ProductPublicationStatusResponse | null = await resp.json().catch(() => null);
   if (!resp.ok || !json?.ok) {
     try {
-      console.warn('[verifyProductPublicationStatus] request_failed', {
+      logger.warn('[verifyProductPublicationStatus] request_failed', {
         status: resp.status,
         body: json,
       });
     } catch (logErr) {
-      console.debug?.('[verifyProductPublicationStatus] log_failed', logErr);
+      logger.debug('[verifyProductPublicationStatus] log_failed', logErr);
     }
     return { published: false, statusActive: false };
   }
@@ -1356,9 +1357,9 @@ export async function waitForVariantAvailability(
   const configResult = resolveStorefrontConfig();
   if (!configResult.ok) {
     try {
-      console.warn('[waitForVariantAvailability] storefront env missing', { missing: configResult.missing });
+      logger.warn('[waitForVariantAvailability] storefront env missing', { missing: configResult.missing });
     } catch (logErr) {
-      console.warn?.('[waitForVariantAvailability] env_log_failed', logErr);
+      logger.warn('[waitForVariantAvailability] env_log_failed', logErr);
     }
     return {
       ready: true,
@@ -1433,19 +1434,19 @@ export async function waitForVariantAvailability(
             message: error?.message ? String(error.message) : '',
             path: Array.isArray(error?.path) ? error.path : undefined,
           }));
-          console.warn('waitForVariantAvailability storefront errors:', normalizedErrors);
+          logger.warn('waitForVariantAvailability storefront errors:', normalizedErrors);
         } catch (logErr) {
-          console.warn?.('[waitForVariantAvailability] error_log_failed', logErr);
+          logger.warn('[waitForVariantAvailability] error_log_failed', logErr);
         }
       }
       if (!response.ok) {
         try {
-          console.warn('[waitForVariantAvailability] storefront response issue', {
+          logger.warn('[waitForVariantAvailability] storefront response issue', {
             status: response.status,
             requestId,
           });
         } catch (logErr) {
-          console.warn?.('[waitForVariantAvailability] response_issue_log_failed', logErr);
+          logger.warn('[waitForVariantAvailability] response_issue_log_failed', logErr);
         }
       }
 
@@ -1457,19 +1458,19 @@ export async function waitForVariantAvailability(
         if (variantPresent) {
           logPayload.variantPresent = true;
         }
-        console.info('[cart-flow] storefront_poll', logPayload);
+        logger.debug('[cart-flow] storefront_poll', logPayload);
       } catch (logErr) {
-        console.warn?.('[waitForVariantAvailability] poll_log_failed', logErr);
+        logger.warn('[waitForVariantAvailability] poll_log_failed', logErr);
       }
 
       return { availableForSale, variantPresent };
     } catch (error) {
       if ((error as Error)?.name === 'AbortError') throw error;
-      console.error('[waitForVariantAvailability] poll error', error);
+      logger.error('[waitForVariantAvailability] poll error', error);
       try {
-        console.info('[cart-flow] storefront_poll', { attempt: attemptNumber, availableForSale: false });
+        logger.debug('[cart-flow] storefront_poll', { attempt: attemptNumber, availableForSale: false });
       } catch (logErr) {
-        console.warn?.('[waitForVariantAvailability] poll_log_failed', logErr);
+        logger.warn('[waitForVariantAvailability] poll_log_failed', logErr);
       }
       return { availableForSale: false, variantPresent: false };
     }
@@ -1507,17 +1508,17 @@ export async function waitForVariantAvailability(
           : Boolean(adminResult && (adminResult as { published?: boolean; statusActive?: boolean }).published === true
               && (adminResult as { published?: boolean; statusActive?: boolean }).statusActive !== false);
         try {
-          console.info('[cart-flow] admin_publication_check', { ok: adminOk });
+          logger.debug('[cart-flow] admin_publication_check', { ok: adminOk });
         } catch (logErr) {
-          console.warn?.('[waitForVariantAvailability] admin_check_log_failed', logErr);
+          logger.warn('[waitForVariantAvailability] admin_check_log_failed', logErr);
         }
       } catch (adminErr) {
         try {
-          console.info('[cart-flow] admin_publication_check', { ok: false });
+          logger.debug('[cart-flow] admin_publication_check', { ok: false });
         } catch (logErr) {
-          console.warn?.('[waitForVariantAvailability] admin_check_log_failed', logErr);
+          logger.warn('[waitForVariantAvailability] admin_check_log_failed', logErr);
         }
-        console.error('[waitForVariantAvailability] admin_publication_check_failed', adminErr);
+        logger.error('[waitForVariantAvailability] admin_publication_check_failed', adminErr);
       }
     }
 

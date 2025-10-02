@@ -1,3 +1,4 @@
+import logger from './logger';
 const RAW_API_URL = typeof import.meta.env.VITE_API_URL === 'string'
   ? import.meta.env.VITE_API_URL
   : '';
@@ -24,7 +25,7 @@ function resolveRequestUrl(path: string): string {
     if (!hasWarnedAboutMissingApiUrl) {
       hasWarnedAboutMissingApiUrl = true;
       try {
-        console.error('[api] missing_api_url', {
+        logger.error('[api] missing_api_url', {
           message: 'VITE_API_URL is not configured. Requests will fail.',
           path: normalizedPath,
         });
