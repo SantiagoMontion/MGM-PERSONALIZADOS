@@ -1,6 +1,8 @@
 {
   "version": 2,
-  "buildCommand": "npm run vercel-build",
+
+  "buildCommand": "npm run build",
+
   "outputDirectory": "mgm-front/dist",
   "functions": {
     "api/**": {
@@ -18,11 +20,9 @@
     }
   },
   "rewrites": [
-    { "source": "/sitemap.xml", "destination": "/api/sitemap.xml" },
-    { "source": "/robots.txt", "destination": "/api/robots.txt" },
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/assets/(.*)", "destination": "/assets/$1" },
-    { "source": "/(?!api/|assets/|.*\\.[^/]+$)(.*)", "destination": "/index.html" }
+    { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [
     {
