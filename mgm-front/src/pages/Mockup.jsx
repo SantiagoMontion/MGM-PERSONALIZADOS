@@ -538,7 +538,7 @@ export default function Mockup() {
           if (missingApiUrl) {
             const err = new Error('private_checkout_missing_api_url');
             err.reason = 'private_checkout_missing_api_url';
-            err.friendlyMessage = 'Configurá VITE_API_URL para conectar con la API.';
+            err.friendlyMessage = 'Verificá que la API esté disponible en /api (vercel dev o proxy activo).';
             throw err;
           }
           const err = new Error('private_checkout_network_error');
