@@ -911,7 +911,7 @@ export default function Mockup() {
           />
          
           <div className={styles.showcaseOverlay}>
-           <a href='https://www.instagram.com/stories/highlights/18057726377123944/' target='_blank'> <p className={styles.showcaseOverlayText}>
+           <a href='https://www.instagram.com/stories/highlights/18057726377123944/'  style={{ textDecoration: 'none', color: 'inherit' }} target='_blank'> <p className={styles.showcaseOverlayText}>
               Conocé a los +2000 que ya lo hicieron
             </p></a>
           </div>
