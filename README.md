@@ -19,7 +19,14 @@ With this setup:
 - Front: http://localhost:5173
 - API:   http://localhost:3001
 
-The front uses a small API wrapper and a Vite proxy in dev to avoid CORS issues.
+La app de React resuelve todas las llamadas como rutas relativas (`/api/...`), por lo que no hace falta un proxy local.
+
+## Build para deploy
+
+- Comando: `npm run build`
+- Salida estática: `mgm-front/dist`
+
+El build compila el cliente de Vite y deja los assets listos para que Vercel los sirva junto a las funciones de `/api`.
 
 ## CORS configuration
 
@@ -40,6 +47,17 @@ Para reproducir un upload exitoso en local:
 3. Verificar en la consola del API el log `upload-original start` y confirmar que el objeto aparece en Supabase Storage bajo el bucket `uploads`.
 
 El endpoint histórico `/api/upload-url` continúa disponible para compatibilidad con clientes que necesiten firmar subidas desde el front.
+
+## QA manual
+
+Smoke tests sugeridos después de cada deploy (Preview/Prod):
+
+- Abrir `/` y verificar que la SPA carga sin errores.
+- `GET /api/health` (si está habilitado) → 200.
+- `GET /api/prints/search?query=test&limit=5&offset=0` → 200 y `returned <= 5`.
+- Ejecutar “Agregar al carrito” y “Comprar” público: debe devolver permalink y abrir checkout.
+- Ejecutar “Comprar privado”: debe marcar `custom.private=true`, devolver permalink y abrir checkout privado.
+- Revisar logs: solo `warn`/`error`, sin dumps grandes.
 
 ## Buckets
 
