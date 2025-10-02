@@ -1,6 +1,8 @@
 {
   "version": 2,
+
   "buildCommand": "npm run build",
+
   "outputDirectory": "mgm-front/dist",
   "functions": {
     "api/**": {
