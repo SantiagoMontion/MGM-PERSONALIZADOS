@@ -1,23 +1,8 @@
 {
   "version": 2,
   "functions": {
-    "api/**/*.{js,ts,mjs,cjs}": {
+    "api/**/*": {
       "runtime": "nodejs20.x"
-    },
-    "api/publishProduct.*": {
-      "runtime": "nodejs20.x",
-      "memory": 1024,
-      "maxDuration": 60
-    },
-    "api/publish-product.*": {
-      "runtime": "nodejs20.x",
-      "memory": 1024,
-      "maxDuration": 60
-    },
-    "api/private/checkout.*": {
-      "runtime": "nodejs20.x",
-      "memory": 1024,
-      "maxDuration": 60
     }
   },
   "rewrites": [
@@ -39,7 +24,7 @@
       ]
     }
   ],
-  "installCommand": "npm ci",
+  "installCommand": "npm ci && npm ci --prefix mgm-front",
   "buildCommand": "npm run build",
   "outputDirectory": "mgm-front/dist"
 }
