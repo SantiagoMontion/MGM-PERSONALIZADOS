@@ -33,17 +33,17 @@ Returns `{ ok: true, ts }`. Useful for load balancers.
 Creates a Shopify cart that includes a single product variant and returns `{ url, webUrl, checkoutUrl?, strategy, requestId? }` where `url === webUrl` on the Storefront path. When Shopify cannot create the cart the handler falls back to the public permalink (`https://www.mgmgamers.store/cart/<variantId>:<quantity>`).
 
 - Request body must include `variantId` (numeric or GraphQL). `quantity` defaults to `1` and is clamped between `1` and `99`.
-- The handler short-polls variant availability through Storefront (`WaitVariant`) for up to ~5 s before attempting `cartCreate`. Failures (user errors, Storefront outages, 5xx responses) return a permalink so the browser can open `/cart` directly. All error payloads include `ok: false` and, when available, Shopify `requestId`/`userErrors`.
+- The handler short-polls variant availability through Storefront (`WaitVariant`) for up to ~5 s and then responds with the Online Store permalink (`/cart/{variant}:{qty}`). Failures (user errors, Storefront outages, 5xx responses) still return the permalink so the browser can open `/cart` directly. All error payloads include `ok: false` and, when available, Shopify `requestId`/`userErrors`.
 - Invalid payloads return `400 { reason: 'bad_request' }`. Oversized bodies return `413`.
 
 ### `POST /api/private/checkout`
 
-Creates a Shopify draft order for the private flow and always responds with JSON:
+Generates the private checkout permalink (`/cart/{variant}:{qty}[?discount=...]`) after confirming the variant is available on the Headless publication. Responds with JSON:
 
-- Success → `{ ok: true, invoiceUrl, draftOrderId?, draftOrderName?, requestIds?, strategy: 'draft_order' }`. The frontend opens `invoiceUrl` in a new tab.
-- Handled failure → `{ ok: false, reason, userErrors?, status?, detail?, requestId?, requestIds?, missing? }` using HTTP 4xx/5xx codes depending on the failure (validation errors → `400`, Shopify errors → `502`, missing env → `500`).
+- Success → `{ ok: true, mode: 'permalink', url, checkoutUrl, cartPlain?, checkoutPlain?, requestIds? }` so the frontend can open the Online Store cart directly.
+- Handled failure → `{ ok: false, reason, message?, status?, detail?, requestIds?, missing? }` using HTTP 4xx/5xx codes depending on the failure (validation errors → `400`, Shopify errors → `502`, missing env → `500`).
 
-The request accepts `variantId`, optional `quantity`, `email`, `note`, `noteAttributes` and `discount`. Missing or invalid payloads yield `400 { ok: false, reason: 'bad_request' }`. Shopify failures include diagnostic fields (user errors, `requestId(s)`) to aid debugging.
+The request accepts `variantId`, optional `quantity`, and optional `discountCode`/`discount`. Missing or invalid payloads yield `400 { ok: false, reason: 'bad_request' }`. Shopify admin failures include diagnostic fields (`requestIds`) to aid debugging.
 
 ### `POST /api/create-checkout`
 
