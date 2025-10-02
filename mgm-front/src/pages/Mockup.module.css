@@ -443,13 +443,13 @@
 
 .modalCard {
   position: relative;
-  background: #181818fd;
-  border-radius: 11px;
+  background: var(--surface);
+  border-radius: var(--radius);
   width: min(520px, 100%);
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.45);
   padding: clamp(20px, 4vh, 28px);
   color: var(--text);
-  border: 1px solid rgba(255, 255, 255, 0.432);
+  border: 1px solid rgba(255, 255, 255, 0.04);
 }
 
 .modalClose {
@@ -478,7 +478,7 @@
 
 .modalDescription {
   margin: 0 0 20px;
-  font-size: 15px;
+  font-size: 14px;
   color: var(--muted);
   line-height: 1.5;
 }
@@ -495,16 +495,18 @@
   border-radius: 10px;
   font-size: 16px;
   font-weight: 600;
-  background-color: #2b523196;
   border: none;
   cursor: pointer;
   transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
 }
 
-
+.modalPrimary {
+  background: var(--accent-500);
+  color: var(--text);
+}
 
 .modalPrimary:not(:disabled):hover {
-  background-color: #2b5231e3;
+  background: var(--accent-600);
 }
 
 .modalPrimary:focus-visible {
@@ -512,10 +514,14 @@
   box-shadow: 0 0 0 3px rgba(51, 95, 58, 0.45);
 }
 
-
+.modalSecondary {
+  background: transparent;
+  border: 1px solid var(--stroke);
+  color: var(--text);
+}
 
 .modalSecondary:not(:disabled):hover {
-  background-color: #2b5231e3;
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .modalSecondary:focus-visible {

@@ -1,5 +1,5 @@
 # Integrations
 
-- En dev (modo recomendado): correr `npm run dev:vercel` en la raíz para levantar `vercel dev` en `http://localhost:3001` y, en `mgm-front`, ejecutar `npm run dev`. El front habla siempre con `/api`, así que no se necesitan URLs absolutas.
-- En dev (modo alternativo): si corrés la API con `npm run dev:api`, asegurate de exportar `VITE_USE_PROXY=1` antes de `npm run dev` en `mgm-front` para que el proxy de Vite mantenga `/api` como origen.
+- En dev: correr `npx vercel dev` (API → http://localhost:3001) y `npm run dev` (front → http://localhost:5173).
+- En prod: configurar `VITE_API_URL` en Vercel del proyecto front con la URL pública de la API.
 - Webhooks Shopify: apuntar a `https://<tu-api>.vercel.app/api/shopify-webhook`.
