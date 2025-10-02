@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import logger from '../../lib/_lib/logger.js';
 
 import { withCors } from '../../lib/cors.js';
 import { ensureQuery } from '../../lib/_lib/http.js';
@@ -13,7 +14,7 @@ function sendJson(res, status, payload) {
 export default withCors(async function printsSearch(req, res) {
   if (req.method !== 'GET') {
     const requestId = randomUUID();
-    console.error('prints_search_error', {
+    logger.error('prints_search_error', {
       diagId: requestId,
       type: 'method_not_allowed',
       method: req.method,

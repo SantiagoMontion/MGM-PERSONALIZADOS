@@ -15,6 +15,7 @@ import {
 import Testimonio1 from "../icons/testimonio1.png";
 import Testimonio2 from "../icons/testimonio2.png";
 import Testimonio3 from "../icons/testimonio3.png";
+import logger from '../lib/logger';
 
 /** NUEVO: imagen de la sección (reemplazá el path por el tuyo) */
 import CommunityHero from "../icons/community-hero.png";
@@ -73,11 +74,11 @@ export default function Mockup() {
         const stored = window.sessionStorage.getItem('MGM_discountCode');
         return typeof stored === 'string' ? stored.trim() : '';
       } catch (storageErr) {
-        console.warn('[mockup-discount-storage-read]', storageErr);
+        logger.warn('[mockup-discount-storage-read]', storageErr);
         return '';
       }
     } catch (err) {
-      console.warn('[mockup-discount-parse]', err);
+      logger.warn('[mockup-discount-parse]', err);
       return '';
     }
   }, [location.search]);
@@ -91,7 +92,7 @@ export default function Mockup() {
         window.sessionStorage.removeItem('MGM_discountCode');
       }
     } catch (err) {
-      console.warn('[mockup-discount-storage-write]', err);
+      logger.warn('[mockup-discount-storage-write]', err);
     }
   }, [discountCode]);
 
@@ -112,7 +113,7 @@ export default function Mockup() {
       try {
         firstActionButtonRef.current?.focus?.();
       } catch (focusErr) {
-        console.warn('[buy-prompt-focus]', focusErr);
+        logger.warn('[buy-prompt-focus]', focusErr);
       }
     }, 0);
     return () => {
@@ -126,7 +127,7 @@ export default function Mockup() {
     try {
       buyNowButtonRef.current?.focus?.();
     } catch (focusErr) {
-      console.warn('[buy-prompt-return-focus]', focusErr);
+      logger.warn('[buy-prompt-return-focus]', focusErr);
     }
   }, [isBuyPromptOpen]);
 
@@ -153,7 +154,7 @@ export default function Mockup() {
           try {
             last.focus();
           } catch (focusErr) {
-            console.warn('[buy-prompt-trap-focus]', focusErr);
+            logger.warn('[buy-prompt-trap-focus]', focusErr);
           }
         }
       } else {
@@ -162,7 +163,7 @@ export default function Mockup() {
           try {
             first.focus();
           } catch (focusErr) {
-            console.warn('[buy-prompt-trap-focus]', focusErr);
+            logger.warn('[buy-prompt-trap-focus]', focusErr);
           }
         }
       }
@@ -183,7 +184,7 @@ export default function Mockup() {
   }, []);
 
   function showFriendlyError(error) {
-    console.error('[mockup]', error);
+    logger.error('[mockup]', error);
     const reasonRaw = typeof error?.reason === 'string' && error.reason
       ? error.reason
       : typeof error?.message === 'string' && error.message
@@ -263,7 +264,7 @@ export default function Mockup() {
     try {
       navigate('/', { replace: true });
     } catch (navErr) {
-      console.warn('[mockup] cart_success_navigate_failed', navErr);
+      logger.warn('[mockup] cart_success_navigate_failed', navErr);
     }
   }
 
@@ -298,9 +299,9 @@ export default function Mockup() {
       const warningMessages = extractWarningMessages(result?.warnings, result?.warningMessages);
       if (warningMessages.length) {
         try {
-          console.warn('[mockup] cart_flow_warnings', warningMessages);
+          logger.warn('[mockup] cart_flow_warnings', warningMessages);
         } catch (warnErr) {
-          console.debug?.('[mockup] cart_flow_warn_log_failed', warnErr);
+          logger.debug('[mockup] cart_flow_warn_log_failed', warnErr);
         }
         setToast({ message: warningMessages.join(' ') });
       }
@@ -328,17 +329,17 @@ export default function Mockup() {
             try {
               popup.opener = null;
             } catch (openerErr) {
-              console.debug?.('[mockup] product_tab_opener_clear_failed', openerErr);
+              logger.debug('[mockup] product_tab_opener_clear_failed', openerErr);
             }
           }
         } catch (openErr) {
-          console.warn('[mockup] product_page_open_failed', openErr);
+          logger.warn('[mockup] product_page_open_failed', openErr);
 
           try {
             window.open(productUrl, '_blank');
             opened = true;
           } catch (fallbackErr) {
-            console.warn('[mockup] product_page_fallback_open_failed', fallbackErr);
+            logger.warn('[mockup] product_page_fallback_open_failed', fallbackErr);
           }
         }
 
@@ -346,7 +347,7 @@ export default function Mockup() {
           try {
             window.location.assign(productUrl);
           } catch (navErr) {
-            console.warn('[mockup] product_page_navigation_failed', navErr);
+            logger.warn('[mockup] product_page_navigation_failed', navErr);
           }
         }
       }
@@ -426,9 +427,9 @@ export default function Mockup() {
       const warningMessages = extractWarningMessages(result?.warnings, result?.warningMessages);
       if (warningMessages.length) {
         try {
-          console.warn(`[${mode}-flow] warnings`, warningMessages);
+          logger.warn(`[${mode}-flow] warnings`, warningMessages);
         } catch (warnErr) {
-          console.debug?.('[handle] warn_log_failed', warnErr);
+          logger.debug('[handle] warn_log_failed', warnErr);
         }
         setToast({ message: warningMessages.join(' ') });
       }
@@ -439,10 +440,10 @@ export default function Mockup() {
           const checkoutTab = window.open(checkoutUrl, '_blank', 'noopener');
           opened = Boolean(checkoutTab);
           if (!opened) {
-            console.warn('[checkout-open] popup_blocked', { url: checkoutUrl });
+            logger.warn('[checkout-open] popup_blocked', { url: checkoutUrl });
           }
         } catch (openErr) {
-          console.warn('[checkout-open]', openErr);
+          logger.warn('[checkout-open]', openErr);
         }
         if (!opened) {
           window.location.assign(checkoutUrl);
@@ -459,7 +460,7 @@ export default function Mockup() {
         try {
           privateStageCallback?.('creating_checkout');
         } catch (stageErr) {
-          console.debug?.('[private-checkout] stage_callback_failed', stageErr);
+          logger.debug('[private-checkout] stage_callback_failed', stageErr);
         }
         const payloadFromResult = result?.privateCheckoutPayload && typeof result.privateCheckoutPayload === 'object'
           ? result.privateCheckoutPayload
@@ -487,7 +488,7 @@ export default function Mockup() {
         try {
           resolvedPrivateCheckoutUrl = getResolvedApiUrl(privateEndpoint);
         } catch (resolveErr) {
-          console.warn('[private-checkout] resolve_failed', resolveErr);
+          logger.warn('[private-checkout] resolve_failed', resolveErr);
         }
         let privateResp;
         try {
@@ -518,10 +519,10 @@ export default function Mockup() {
             privateJson = rawBody ? JSON.parse(rawBody) : null;
           } catch (parseErr) {
             privateJson = null;
-            console.warn('[private-checkout] json_parse_failed', parseErr);
+            logger.warn('[private-checkout] json_parse_failed', parseErr);
           }
         } else {
-          console.error('[private-checkout] non_json_response', {
+          logger.error('[private-checkout] non_json_response', {
             status: privateResp.status,
             contentType,
             bodyPreview: typeof rawBody === 'string' ? rawBody.slice(0, 200) : '',
@@ -530,14 +531,14 @@ export default function Mockup() {
         }
         const logError = (label) => {
           try {
-            console.error(`[private-checkout] ${label}`, {
+            logger.error(`[private-checkout] ${label}`, {
               status: privateResp.status,
               contentType,
               bodyPreview: typeof rawBody === 'string' ? rawBody.slice(0, 200) : '',
               url: privateResp.url || resolvedPrivateCheckoutUrl || null,
             });
           } catch (logErr) {
-            console.debug?.('[private-checkout] log_failed', logErr);
+            logger.debug('[private-checkout] log_failed', logErr);
           }
         };
         const buildError = (reason) => {
@@ -605,18 +606,18 @@ export default function Mockup() {
           }
           if (Array.isArray(privateJson.requestIds) && privateJson.requestIds.length) {
             try {
-              console.info('[private-checkout] request_ids', privateJson.requestIds);
+              logger.debug('[private-checkout] request_ids', privateJson.requestIds);
             } catch (infoErr) {
-              console.debug?.('[private-checkout] request_ids_log_failed', infoErr);
+              logger.debug('[private-checkout] request_ids_log_failed', infoErr);
             }
           }
           try {
             const opened = window.open(checkoutUrlFromResponse, '_blank', 'noopener');
             if (!opened) {
-              console.warn('[private-checkout-open] popup_blocked', { url: checkoutUrlFromResponse });
+              logger.warn('[private-checkout-open] popup_blocked', { url: checkoutUrlFromResponse });
             }
           } catch (tabErr) {
-            console.warn('[private-checkout-open]', tabErr);
+            logger.warn('[private-checkout-open]', tabErr);
           }
           const lastProductPayload = {
             ...(flow.lastProduct || {}),
@@ -706,7 +707,7 @@ export default function Mockup() {
         }
         const message = extraParts.length ? `${baseMessage} ${extraParts.join(' | ')}` : baseMessage;
         try {
-          console.error('[private-checkout] toast_error', {
+          logger.error('[private-checkout] toast_error', {
             reason: reason || null,
             status: typeof error?.status === 'number' ? error.status : null,
             userErrors,
@@ -771,7 +772,7 @@ export default function Mockup() {
       );
       downloadBlob(pdfBlob, `${baseName}.pdf`);
     } catch (error) {
-      console.error('[download-pdf]', error);
+      logger.error('[download-pdf]', error);
       alert('No se pudo generar el PDF.');
     } finally {
       setBusy(false);
