@@ -7,6 +7,7 @@ import { slugifyName, sizeLabel } from '../_lib/slug.js';
 import getSupabaseAdmin from '../_lib/supabaseAdmin.js';
 import savePrintPdfToSupabase, { savePrintPreviewToSupabase } from '../_lib/savePrintPdfToSupabase.js';
 import imageBufferToPdf from '../_lib/imageToPdf.js';
+import { idVariantGidToNumeric } from '../utils/shopifyIds.js';
 
 type DataUrlPayload = {
   mimeType: string;
@@ -453,8 +454,15 @@ export default async function handler(req: any, res: any) {
     }
     const pubBase = process.env.SHOPIFY_PUBLIC_BASE || `https://${process.env.SHOPIFY_STORE_DOMAIN}`;
     const productUrl = `${pubBase}/products/${product.handle}`;
-    const variantId = String(product?.variants?.[0]?.id || '');
-    const checkoutUrl = `${pubBase}/cart/${variantId}:1`;
+    const variantIdRaw = product?.variants?.[0]?.id ?? '';
+    const variantId = String(variantIdRaw || '');
+    let checkoutVariantId = variantId;
+    try {
+      checkoutVariantId = idVariantGidToNumeric(variantIdRaw || variantId);
+    } catch {
+      checkoutVariantId = variantId;
+    }
+    const checkoutUrl = checkoutVariantId ? `${pubBase}/cart/${checkoutVariantId}:1` : `${pubBase}/cart/${variantId}:1`;
     try {
       const pdfFilename = buildPdfFilename({
         designName: designNameForPath,
