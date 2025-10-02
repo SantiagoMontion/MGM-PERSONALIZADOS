@@ -1,6 +1,16 @@
 # MGM API
 
-## Dev setup (two terminals)
+## Dev setup
+
+### Modo recomendado (mismo origen que Vercel)
+
+```bash
+npm run dev:vercel
+```
+
+Esto levanta `vercel dev` en `http://localhost:3001`. El frontend debe seguir apuntando a `/api`, por lo que no se necesitan cambios adicionales.
+
+### Modo alternativo (dos terminales)
 
 Terminal 1 (API):
 
