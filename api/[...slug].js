@@ -2,11 +2,24 @@ import { withCors } from '../lib/cors.js';
 import { ensureQuery } from '../lib/_lib/http.js';
 import { enforceRateLimit } from '../lib/_lib/rateLimit.js';
 
+
+function normalizeSlug(value) {
+  if (!value) return '';
+  if (Array.isArray(value)) {
+    return value.filter(Boolean).join('/');
+  }
+  if (typeof value === 'string') {
+    return value.replace(/^\/+/, '').replace(/\/$/, '');
+  }
+  return '';
+}
+
 function stripApiPrefix(pathname) {
   if (!pathname) return '';
   let current = pathname;
-  // Vercel CLI proxies requests through /_vercel/path{n}/... during development
-  current = current.replace(/^\/_vercel\/path\d+\//, '/');
+  // Vercel CLI proxies requests through /_vercel/* during development
+  current = current.replace(/^\/_vercel\/(?:path\d+\/)?/, '/');
+
   current = current.replace(/^\/api\/?/, '');
   current = current.replace(/^\/+/, '');
   current = current.replace(/\/$/, '');
@@ -14,6 +27,13 @@ function stripApiPrefix(pathname) {
 }
 
 function pathOf(req) {
+
+  const slugFromQuery = normalizeSlug(req?.query?.slug);
+  if (slugFromQuery) {
+    return slugFromQuery;
+  }
+
+
   const rawUrl = typeof req?.url === 'string' ? req.url : '';
   const headers = req?.headers || {};
   const host = headers.host || headers['x-forwarded-host'] || 'localhost';
