@@ -36,7 +36,7 @@ const BENEFITS = [
   {
     icon: '',
     title: '✅ Durabilidad y calidad garantizada',
-    description: 'Materiales seleccionaos, costuras reforzadas y tests reales. Tu pad está hecho para durar..',
+    description: 'Materiales seleccionados, costuras reforzadas y tests reales. Tu pad está hecho para durar.',
   },
   {
     icon: '',
@@ -830,10 +830,10 @@ export default function Mockup() {
                 navigate('/');
               }}
             >
-              Volver
+              Volver y cancelar
             </button>
             <p className={styles.ctaHint}>
-              Volvé al editor para hacer los <br></br>cambios que quieras ✏️
+              Volvé al editor para crear <br></br>nuevamente tu modelo ✏️
             </p>
           </div>
           <div className={styles.ctaCard}>
@@ -936,12 +936,13 @@ export default function Mockup() {
             className={styles.showcaseImage}
             loading="lazy"
           />
-         
+         <a href='https://www.instagram.com/stories/highlights/18057726377123944/' style={{ textDecoration: 'none' }} target='_blank'>
           <div className={styles.showcaseOverlay}>
             <p className={styles.showcaseOverlayText}>
               Conocé a los +2000 que ya lo hicieron
             </p>
           </div>
+          </a>
         </div>
 
         <div className={styles.showcaseCta}>
