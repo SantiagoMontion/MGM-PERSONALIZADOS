@@ -1,28 +1,14 @@
 {
   "version": 2,
-  "functions": {
-    "api/**/*": {
-      "runtime": "nodejs20.x"
-    }
-  },
+  "functions": { "api/**/*": { "runtime": "nodejs20.x" } },
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/assets/(.*)", "destination": "/assets/$1" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [
-    {
-      "source": "/assets/(.*)",
-      "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
-      ]
-    },
-    {
-      "source": "/api/(.*)",
-      "headers": [
-        { "key": "Cache-Control", "value": "no-store" }
-      ]
-    }
+    { "source": "/assets/(.*)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }] },
+    { "source": "/api/(.*)", "headers": [{ "key": "Cache-Control", "value": "no-store" }] }
   ],
   "installCommand": "npm ci && npm ci --prefix mgm-front",
   "buildCommand": "npm run build",
