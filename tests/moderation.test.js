@@ -172,14 +172,15 @@ test('evaluateImage allows neutral graphics', async () => {
   const buf = await createNeutralBuffer();
   const result = await evaluateImage(buf, 'poster.png');
   assert.equal(result.label, 'ALLOW');
-  assert.equal(result.reasons.includes('no_violation_detected'), true);
+  assert.equal(result.reasons.includes('non_real_photo'), true);
 });
 
 test('evaluateImage allows stylized explicit art', async () => {
   const buf = await createCartoonBuffer();
   const result = await evaluateImage(buf, 'stylized.png', '', { approxDpi: 320 });
   assert.equal(result.label, 'ALLOW');
-  assert.equal(result.reasons.includes('no_violation_detected'), true);
+  assert.equal(result.reasons.includes('non_real_photo'), true);
+  assert.equal(result.reasons.includes('pink_inhibitor'), true);
   assert(result.confidence >= 0.7);
 });
 
@@ -187,7 +188,7 @@ test('evaluateImage allows stylized character renders', async () => {
   const buf = await createStylizedCharacterBuffer();
   const result = await evaluateImage(buf, 'character.png', '', { approxDpi: 320 });
   assert.equal(result.label, 'ALLOW');
-  assert.equal(result.reasons.includes('no_violation_detected'), true);
+  assert.equal(result.reasons.includes('non_real_photo'), true);
   assert(result.confidence >= 0.7);
 });
 
