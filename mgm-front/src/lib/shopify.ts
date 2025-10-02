@@ -517,24 +517,6 @@ export async function createJobAndProduct(
       ...(productId ? { productId } : {}),
       ...(customerEmail ? { email: customerEmail } : {}),
     };
-    if (variantIdGid) {
-      basePrivatePayload.variantGid = variantIdGid;
-    }
-    if (variantId) {
-      basePrivatePayload.variantIds = [variantId];
-    }
-    if (variantIdGid) {
-      basePrivatePayload.variantGids = [variantIdGid];
-    }
-    basePrivatePayload.quantities = [1];
-    const linePayload: Record<string, unknown> = {
-      variantId: variantIdGid || variantId,
-      quantity: 1,
-    };
-    if (variantIdGid) {
-      linePayload.variantGid = variantIdGid;
-    }
-    basePrivatePayload.lines = [linePayload];
     if (privateDraftOrder?.note) {
       basePrivatePayload.note = privateDraftOrder.note;
     }
@@ -649,7 +631,7 @@ export async function createJobAndProduct(
             err.friendlyMessage = 'No pudimos generar el checkout privado, probá de nuevo.';
           }
           if (reason === 'private_checkout_missing_api_url') {
-            err.friendlyMessage = 'Verificá que la API esté disponible en /api (vercel dev o proxy activo).';
+            err.friendlyMessage = 'Configurá VITE_API_URL para conectar con la API.';
           }
           if (!err.detail && typeof rawBody === 'string' && rawBody) {
             err.detail = rawBody.slice(0, 200);
@@ -966,6 +948,22 @@ interface StorefrontGraphQLError {
   extensions?: Record<string, unknown> | null;
 }
 
+interface StorefrontCartUserError {
+  message?: string | null;
+  code?: string | null;
+  field?: (string | null)[] | null;
+}
+
+interface StorefrontCartPayload {
+  cart?: { id?: string | null; checkoutUrl?: string | null } | null;
+  userErrors?: StorefrontCartUserError[] | null;
+}
+
+interface StorefrontCartResponse {
+  cartCreate?: StorefrontCartPayload | null;
+  cartLinesAdd?: StorefrontCartPayload | null;
+}
+
 interface StorefrontGraphQLResponse<T> {
   data?: T;
   errors?: StorefrontGraphQLError[];
@@ -991,6 +989,35 @@ async function performStorefrontGraphQL<T>(
   return { response, payload, requestId: requestId || undefined };
 }
 
+function extractUserErrors(payload?: StorefrontCartPayload | null) {
+  if (!payload?.userErrors?.length) return [];
+  return payload.userErrors
+    .map((entry) => (entry && typeof entry.message === 'string' ? entry.message.trim() : ''))
+    .filter((message): message is string => Boolean(message));
+}
+
+async function performStorefrontCartMutation(
+  config: StorefrontConfig,
+  query: string,
+  variables: Record<string, unknown>,
+) {
+  return performStorefrontGraphQL<StorefrontCartResponse>(config, query, variables);
+}
+
+const CART_CREATE_MUTATION = `mutation CartCreate($lines: [CartLineInput!]!, $discountCodes: [String!]) {
+  cartCreate(input: { lines: $lines, discountCodes: $discountCodes }) {
+    cart { id checkoutUrl }
+    userErrors { message code field }
+  }
+}`;
+
+const CART_LINES_ADD_MUTATION = `mutation CartLinesAdd($cartId: ID!, $lines: [CartLineInput!]!) {
+  cartLinesAdd(cartId: $cartId, lines: $lines) {
+    cart { id checkoutUrl }
+    userErrors { message code field }
+  }
+}`;
+
 const VARIANT_AVAILABILITY_QUERY = `query WaitVariant($id: ID!) {
   node(id: $id) {
     ... on ProductVariant {
@@ -1002,7 +1029,7 @@ const VARIANT_AVAILABILITY_QUERY = `query WaitVariant($id: ID!) {
 }`;
 
 export interface StorefrontCartSuccess {
-  cartId?: string;
+  cartId: string;
   checkoutUrl: string;
 }
 
@@ -1011,18 +1038,192 @@ export async function addVariantToCartStorefront(
   quantity = 1,
   options: { discountCode?: string | null } = {},
 ): Promise<StorefrontCartSuccess> {
-  const permalink = buildCartPermalink(variantId, quantity, { discountCode: options?.discountCode ?? undefined });
-  if (!permalink) {
-    const error = new Error('permalink_build_failed') as Error & { reason?: string };
-    error.reason = 'permalink_build_failed';
+  const configResult = resolveStorefrontConfig();
+  if (!configResult.ok) {
+    try {
+      console.error('[cart-flow] storefront_env_missing', { missing: configResult.missing });
+    } catch (logErr) {
+      console.warn?.('[cart-flow] storefront_env_missing_log_failed', logErr);
+    }
+    const error = new Error('shopify_storefront_env_missing');
+    (error as Error & { reason?: string; missing?: string[] }).reason = 'shopify_storefront_env_missing';
+    (error as Error & { reason?: string; missing?: string[] }).missing = configResult.missing;
     throw error;
   }
-  try {
-    console.info('[cart-flow] permalink_checkout', { variantId, quantity, permalink });
-  } catch (logErr) {
-    console.debug?.('[cart-flow] permalink_checkout_log_failed', logErr);
+  if (IS_DEV) {
+    try {
+      console.info('[cart-flow] storefront_env_ok');
+    } catch (logErr) {
+      console.warn?.('[cart-flow] storefront_env_log_failed', logErr);
+    }
   }
-  return { checkoutUrl: permalink };
+  const { config } = configResult;
+  if (config.domain !== 'kw0f4u-ji.myshopify.com') {
+    try {
+      console.warn('[cart-flow] storefront_domain_unexpected', { domain: config.domain });
+    } catch (logErr) {
+      console.debug?.('[cart-flow] storefront_domain_log_failed', logErr);
+    }
+  }
+  if (config.version !== '2024-07') {
+    try {
+      console.warn('[cart-flow] storefront_version_unexpected', { version: config.version });
+    } catch (logErr) {
+      console.debug?.('[cart-flow] storefront_version_log_failed', logErr);
+    }
+  }
+  const merchandiseId = buildVariantGid(variantId);
+  const lines = [{ merchandiseId, quantity: clampQuantity(quantity) }];
+  const normalizedDiscount = typeof options?.discountCode === 'string' ? options.discountCode.trim() : '';
+  const discountCodes = normalizedDiscount ? [normalizedDiscount] : undefined;
+  const RETRY_DELAY_MS = 1_500;
+
+  function buildCartError(
+    context: 'cart_create' | 'cart_lines_add',
+    requestId: string | undefined,
+    status: number,
+    userErrors: string[],
+    graphQLErrors: StorefrontGraphQLError[] = [],
+  ) {
+    const error = new Error('shopify_cart_user_error') as Error & {
+      reason?: string;
+      requestId?: string;
+      userErrors?: string[];
+      status?: number;
+      friendlyMessage?: string;
+      context?: string;
+    };
+    error.reason = 'shopify_cart_user_error';
+    if (requestId) error.requestId = requestId;
+    if (Number.isFinite(status)) error.status = status;
+    const combinedErrors = [
+      ...userErrors,
+      ...graphQLErrors
+        .map((entry) => (entry?.message ? String(entry.message).trim() : ''))
+        .filter((message) => Boolean(message)),
+    ];
+    if (combinedErrors.length) {
+      error.userErrors = combinedErrors;
+      const friendly = combinedErrors.join(' | ');
+      if (friendly) {
+        error.friendlyMessage = friendly;
+      }
+    }
+    error.context = context;
+    return error;
+  }
+
+  const attemptCartLinesAdd = async (
+    cartId: string,
+    attempt = 1,
+  ): Promise<{ ok: true; value: StorefrontCartSuccess } | { ok: false; error: Error }> => {
+    const { response, payload, requestId } = await performStorefrontCartMutation(
+      config,
+      CART_LINES_ADD_MUTATION,
+      { cartId, lines },
+    );
+    const data = payload?.data?.cartLinesAdd;
+    const userErrors = extractUserErrors(data);
+    const payloadErrors = Array.isArray(payload?.errors) ? payload.errors.filter(Boolean) : [];
+    const resolvedCartId = data?.cart?.id ? String(data.cart.id) : cartId;
+    const resolvedCheckoutUrl = data?.cart?.checkoutUrl ? String(data.cart.checkoutUrl) : '';
+    if (response.ok && !payloadErrors.length && !userErrors.length && resolvedCartId && resolvedCheckoutUrl) {
+      setStoredCartId(resolvedCartId);
+      try {
+        console.info('[cart-flow] cart_lines_add_ok', { cartId: resolvedCartId, checkoutUrl: resolvedCheckoutUrl });
+      } catch (logErr) {
+        console.warn?.('[cart-flow] cart_lines_add_log_failed', logErr);
+      }
+      return { ok: true, value: { cartId: resolvedCartId, checkoutUrl: resolvedCheckoutUrl } };
+    }
+
+    try {
+      console.error('[cart-flow] cart_lines_add_error', {
+        requestId,
+        status: response.status,
+        userErrors,
+        graphQLErrors: payloadErrors,
+      });
+    } catch (logErr) {
+      console.warn?.('[cart-flow] cart_lines_add_log_failed', logErr);
+    }
+
+    if (userErrors.length && attempt < 2) {
+      await sleep(RETRY_DELAY_MS);
+      return attemptCartLinesAdd(cartId, attempt + 1);
+    }
+
+    const error = buildCartError('cart_lines_add', requestId, response.status, userErrors, payloadErrors);
+    return { ok: false, error };
+  };
+
+  const attemptCartCreate = async (
+    attempt = 1,
+  ): Promise<{ ok: true; value: StorefrontCartSuccess } | { ok: false; error: Error }> => {
+    const variables = discountCodes?.length ? { lines, discountCodes } : { lines };
+    const { response, payload, requestId } = await performStorefrontCartMutation(
+      config,
+      CART_CREATE_MUTATION,
+      variables,
+    );
+    const data = payload?.data?.cartCreate;
+    const userErrors = extractUserErrors(data);
+    const payloadErrors = Array.isArray(payload?.errors) ? payload.errors.filter(Boolean) : [];
+    const createdCartId = data?.cart?.id ? String(data.cart.id) : '';
+    const createdCheckoutUrl = data?.cart?.checkoutUrl ? String(data.cart.checkoutUrl) : '';
+    if (response.ok && !payloadErrors.length && !userErrors.length && createdCartId && createdCheckoutUrl) {
+      setStoredCartId(createdCartId);
+      try {
+        console.info('[cart-flow] cart_create_ok', { cartId: createdCartId, checkoutUrl: createdCheckoutUrl });
+      } catch (logErr) {
+        console.warn?.('[cart-flow] cart_create_log_failed', logErr);
+      }
+      return { ok: true, value: { cartId: createdCartId, checkoutUrl: createdCheckoutUrl } };
+    }
+
+    try {
+      console.error('[cart-flow] cart_create_error', {
+        requestId,
+        status: response.status,
+        userErrors,
+        graphQLErrors: payloadErrors,
+      });
+    } catch (logErr) {
+      console.warn?.('[cart-flow] cart_create_log_failed', logErr);
+    }
+
+    if (userErrors.length && attempt < 2) {
+      await sleep(RETRY_DELAY_MS);
+      return attemptCartCreate(attempt + 1);
+    }
+
+    const error = buildCartError('cart_create', requestId, response.status, userErrors, payloadErrors);
+    return { ok: false, error };
+  };
+
+  let lastError: Error | null = null;
+  const storedCartId = getStoredCartId();
+  if (storedCartId) {
+    const addResult = await attemptCartLinesAdd(storedCartId);
+    if (addResult.ok) {
+      return addResult.value;
+    }
+    lastError = addResult.error;
+    setStoredCartId(null);
+  }
+
+  const createResult = await attemptCartCreate();
+  if (createResult.ok) {
+    return createResult.value;
+  }
+
+  lastError = createResult.error || lastError;
+  if (lastError) {
+    throw lastError;
+  }
+  const fallbackError = new Error('shopify_cart_user_error');
+  (fallbackError as Error & { reason?: string }).reason = 'shopify_cart_user_error';
+  throw fallbackError;
 }
 
 export interface EnsurePublicationResponse {

@@ -10,7 +10,6 @@
     "vercel-build": "node -e \"const fs=require('fs');fs.mkdirSync('public',{recursive:true});fs.writeFileSync('public/index.html','OK');console.log('no-build');\"",
     "vercel:link": "node scripts/vercel-link.mjs",
     "vercel:pull": "vercel pull --yes --environment=development",
-    "dev:vercel": "node ./scripts/dev-vercel.mjs",
     "dev:api": "node ./scripts/dev-api-server.mjs",
     "dev:front": "cd mgm-front && vite",
     "dev:all": "concurrently -k -n api,front -c blue,green \"npm:dev:api\" \"npm:dev:front\"",
@@ -23,7 +22,6 @@
     "@supabase/supabase-js": "^2.54.0",
     "pdf-lib": "^1.17.1",
     "sharp": "^0.33.5",
-    "ssim.js": "^4.0.1",
     "tesseract.js": "^5.1.1",
     "vercel": "^48.1.6",
     "zod": "^3.25.76"

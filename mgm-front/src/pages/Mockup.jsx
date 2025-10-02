@@ -911,9 +911,9 @@ export default function Mockup() {
           />
          
           <div className={styles.showcaseOverlay}>
-           <a href='https://www.instagram.com/stories/highlights/18057726377123944/'  style={{ textDecoration: 'none', color: 'inherit' }} target='_blank'> <p className={styles.showcaseOverlayText}>
+            <p className={styles.showcaseOverlayText}>
               Conocé a los +2000 que ya lo hicieron
-            </p></a>
+            </p>
           </div>
         </div>
 
@@ -962,10 +962,10 @@ export default function Mockup() {
               ×
             </button>
             <h2 id={buyPromptTitleId} className={styles.modalTitle}>
-              Elige cómo publicar tu diseño
+              ¿Quieres comprarlo en privado o público?
             </h2>
             <p id={buyPromptDescriptionId} className={styles.modalDescription}>
-              🔓 Público: visible en la tienda. <br></br><br></br>🔒 Privado: solo vos lo verás.
+              Público: tu diseño será visible en la tienda. Privado: solo vos verás el producto.
             </p>
             <div className={styles.modalActions}>
               <button
@@ -978,7 +978,7 @@ export default function Mockup() {
                   handle('checkout');
                 }}
               >
-                Comprar público
+                Comprar ahora (público)
               </button>
               <button
                 type="button"
@@ -989,7 +989,7 @@ export default function Mockup() {
                   handle('private');
                 }}
               >
-                Comprar privado
+                Comprar en privado
               </button>
             </div>
           </div>

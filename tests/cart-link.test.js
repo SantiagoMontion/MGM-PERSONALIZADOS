@@ -41,7 +41,7 @@ function createFetchResponse(body, options = {}) {
   };
 }
 
-test('cart/link returns permalink for available variant', async () => {
+test('cart/link uses Storefront API and returns mgm cart link', async () => {
   const prev = {
     STORE_DOMAIN: process.env.SHOPIFY_STORE_DOMAIN,
     STOREFRONT_DOMAIN: process.env.SHOPIFY_STOREFRONT_DOMAIN,
@@ -57,17 +57,36 @@ test('cart/link returns permalink for available variant', async () => {
     global.fetch = async (url, init) => {
       callCount += 1;
       const payload = JSON.parse(init.body);
-      assert.equal(callCount, 1);
-      assert.match(payload.query, /WaitVariant/);
-      assert.equal(payload.variables.id, 'gid://shopify/ProductVariant/123456789');
-      return createFetchResponse({
-        data: {
-          node: {
-            id: 'gid://shopify/ProductVariant/123456789',
-            availableForSale: true,
+      if (callCount === 1) {
+        assert.match(payload.query, /WaitVariant/);
+        assert.equal(payload.variables.id, 'gid://shopify/ProductVariant/123456789');
+        return createFetchResponse({
+          data: {
+            node: {
+              id: 'gid://shopify/ProductVariant/123456789',
+              availableForSale: true,
+            },
+          },
+        });
+      }
+      assert.equal(callCount, 2);
+      assert.ok(url.includes('/graphql.json'));
+      assert.equal(payload.variables.lines[0].merchandiseId, 'gid://shopify/ProductVariant/123456789');
+      assert.equal(payload.variables.lines[0].quantity, 2);
+      return createFetchResponse(
+        {
+          data: {
+            cartCreate: {
+              cart: {
+                id: 'gid://shopify/Cart/abcdef',
+                checkoutUrl: 'https://www.mgmgamers.store/checkouts/abcdef',
+              },
+              userErrors: [],
+            },
           },
         },
-      });
+        { headers: { 'x-request-id': 'req-1' } },
+      );
     };
 
     const req = {
@@ -79,14 +98,14 @@ test('cart/link returns permalink for available variant', async () => {
 
     await cartLink(req, res);
 
-    assert.equal(callCount, 1);
+    assert.equal(callCount, 2);
     assert.equal(res.statusCode, 200);
     assert(res.jsonPayload);
     const { url, webUrl, checkoutUrl, cartPlain, strategy } = res.jsonPayload;
-    assert.equal(strategy, 'permalink');
-    assert.equal(url, '/cart/123456789:2');
-    assert.equal(webUrl, '/cart/123456789:2');
-    assert.equal(checkoutUrl, '/cart/123456789:2');
+    assert.equal(strategy, 'storefront');
+    assert.equal(url, 'https://www.mgmgamers.store/cart/c/abcdef');
+    assert.equal(webUrl, 'https://www.mgmgamers.store/cart/c/abcdef');
+    assert.equal(checkoutUrl, 'https://www.mgmgamers.store/checkouts/abcdef');
     assert.equal(cartPlain, 'https://www.mgmgamers.store/cart');
   } finally {
     global.fetch = prevFetch;
@@ -127,8 +146,8 @@ test('cart/link falls back to permalink when Storefront env missing', async () =
     assert(res.jsonPayload);
     const { url, webUrl, strategy } = res.jsonPayload;
     assert.equal(strategy, 'permalink');
-    assert.equal(url, '/cart/123456789:2');
-    assert.equal(webUrl, '/cart/123456789:2');
+    assert.equal(url, 'https://www.mgmgamers.store/cart/123456789:2');
+    assert.equal(webUrl, 'https://www.mgmgamers.store/cart/123456789:2');
   } finally {
     global.fetch = prevFetch;
     process.env.SHOPIFY_STORE_DOMAIN = prev.STORE_DOMAIN;
