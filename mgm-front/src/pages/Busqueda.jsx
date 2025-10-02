@@ -13,6 +13,29 @@ import styles from './Busqueda.module.css';
 
 const PAGE_LIMIT = 25;
 
+function PreviewImage({ src, alt }) {
+  const [failed, setFailed] = useState(false);
+
+  if (!src || failed) {
+    return (
+      <span className={styles.previewPlaceholder} aria-label="PDF">
+        PDF
+      </span>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className={styles.previewImage}
+      loading="lazy"
+      decoding="async"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
 function formatBytes(size) {
   const value = Number(size);
   if (!Number.isFinite(value) || value <= 0) return '-';
@@ -299,16 +322,8 @@ export default function Busqueda() {
                 results.map((item) => {
                   const key = item.id || item.path || item.fileName;
                   const measurement = formatMeasurement(item.widthCm, item.heightCm);
-                  const previewContent = item.previewUrl ? (
-                    <img
-                      src={item.previewUrl}
-                      alt={item.fileName || 'preview'}
-                      className={styles.previewImage}
-                      loading="lazy"
-                      decoding="async"
-                    />
-                  ) : (
-                    <span className={styles.previewPlaceholder} aria-label="PDF">PDF</span>
+                  const previewContent = (
+                    <PreviewImage src={item.previewUrl} alt={item.fileName || 'preview'} />
                   );
                   return (
                     <tr key={key}>
