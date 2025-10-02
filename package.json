@@ -10,7 +10,7 @@
     "vercel-build": "node -e \"const fs=require('fs');fs.mkdirSync('public',{recursive:true});fs.writeFileSync('public/index.html','OK');console.log('no-build');\"",
     "vercel:link": "node scripts/vercel-link.mjs",
     "vercel:pull": "vercel pull --yes --environment=development",
-    "dev:vercel": "vercel dev --listen 0.0.0.0:3001",
+    "dev:vercel": "node ./scripts/dev-vercel.mjs",
     "dev:api": "node ./scripts/dev-api-server.mjs",
     "dev:front": "cd mgm-front && vite",
     "dev:all": "concurrently -k -n api,front -c blue,green \"npm:dev:api\" \"npm:dev:front\"",
