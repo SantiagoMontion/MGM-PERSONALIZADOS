@@ -13,15 +13,5 @@ export default defineConfig({
   build: {
     sourcemap: false,
     minify: 'esbuild',
-  },
-  server: {
-    proxy: {
-      '/api': {
-        target: 'http://localhost:3001',
-        changeOrigin: true,
-        secure: false,
-        // sin "rewrite": que /api/cart/start llegue al backend tal cual
-      }
-    }
   }
 });

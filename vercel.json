@@ -1,7 +1,50 @@
 {
   "version": 2,
+  "buildCommand": "npm run build",
+  "outputDirectory": "mgm-front/dist",
+  "functions": {
+    "api/**": {
+      "runtime": "nodejs20.x"
+    },
+    "api/publish-product.js": {
+      "runtime": "nodejs20.x",
+      "maxDuration": 60,
+      "memory": 1024
+    },
+    "api/private/checkout/**": {
+      "runtime": "nodejs20.x",
+      "maxDuration": 60,
+      "memory": 1024
+    }
+  },
   "rewrites": [
-    { "source": "/sitemap.xml", "destination": "/api/sitemap.xml" },
-    { "source": "/robots.txt", "destination": "/api/robots.txt" }
-  ]
+    { "source": "/api/(.*)", "destination": "/api/$1" },
+    { "source": "/assets/(.*)", "destination": "/assets/$1" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store" }
+      ]
+    },
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    }
+  ],
+  "git": {
+    "ignore": [
+      "**/tests/**",
+      "**/__tests__/**",
+      "**/__mocks__/**",
+      "**/mocks/**",
+      "**/fixtures/**",
+      "docs/**",
+      "playground/**"
+    ]
+  }
 }
