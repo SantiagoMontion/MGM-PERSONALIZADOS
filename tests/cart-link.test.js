@@ -84,9 +84,9 @@ test('cart/link returns permalink for available variant', async () => {
     assert(res.jsonPayload);
     const { url, webUrl, checkoutUrl, cartPlain, strategy } = res.jsonPayload;
     assert.equal(strategy, 'permalink');
-    assert.equal(url, 'https://www.mgmgamers.store/cart/123456789:2');
-    assert.equal(webUrl, 'https://www.mgmgamers.store/cart/123456789:2');
-    assert.equal(checkoutUrl, 'https://www.mgmgamers.store/cart/123456789:2');
+    assert.equal(url, '/cart/123456789:2');
+    assert.equal(webUrl, '/cart/123456789:2');
+    assert.equal(checkoutUrl, '/cart/123456789:2');
     assert.equal(cartPlain, 'https://www.mgmgamers.store/cart');
   } finally {
     global.fetch = prevFetch;
@@ -127,8 +127,8 @@ test('cart/link falls back to permalink when Storefront env missing', async () =
     assert(res.jsonPayload);
     const { url, webUrl, strategy } = res.jsonPayload;
     assert.equal(strategy, 'permalink');
-    assert.equal(url, 'https://www.mgmgamers.store/cart/123456789:2');
-    assert.equal(webUrl, 'https://www.mgmgamers.store/cart/123456789:2');
+    assert.equal(url, '/cart/123456789:2');
+    assert.equal(webUrl, '/cart/123456789:2');
   } finally {
     global.fetch = prevFetch;
     process.env.SHOPIFY_STORE_DOMAIN = prev.STORE_DOMAIN;
