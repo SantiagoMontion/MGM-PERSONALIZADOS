@@ -1722,8 +1722,14 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                       const boundBaseH = baseW * sin + baseH * cos;
 
                       if (!(boundBaseW > 0) || !(boundBaseH > 0)) {
-                        const fallbackW = Math.max(MIN_W, Math.min(newBox.width, baseW * MAX_SCALE));
-                        const fallbackH = Math.max(MIN_H, Math.min(newBox.height, baseH * MAX_SCALE));
+                        const fallbackW = Math.max(
+                          MIN_W,
+                          Math.min(newBox.width, baseW * MAX_SCALE),
+                        );
+                        const fallbackH = Math.max(
+                          MIN_H,
+                          Math.min(newBox.height, baseH * MAX_SCALE),
+                        );
                         return { ...newBox, width: fallbackW, height: fallbackH };
                       }
 
@@ -1758,25 +1764,10 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                       }
 
                       if (!Number.isFinite(targetScale) || !(targetScale > 0)) {
-                        targetScale = prevScale && Number.isFinite(prevScale) && prevScale > 0
-                          ? prevScale
-                          : 1;
-                      const scaleFromWidth = newBox.width / boundBaseW;
-                      const scaleFromHeight = newBox.height / boundBaseH;
-
-                      let targetScale;
-                      if (widthDelta >= heightDelta) {
-                        targetScale = Number.isFinite(scaleFromWidth)
-                          ? scaleFromWidth
-                          : scaleFromHeight;
-                      } else {
-                        targetScale = Number.isFinite(scaleFromHeight)
-                          ? scaleFromHeight
-                          : scaleFromWidth;
-                      }
-
-                      if (!Number.isFinite(targetScale)) {
-                        targetScale = 1;
+                        targetScale =
+                          prevScale && Number.isFinite(prevScale) && prevScale > 0
+                            ? prevScale
+                            : 1;
                       }
 
                       const clampedScale = Math.max(
