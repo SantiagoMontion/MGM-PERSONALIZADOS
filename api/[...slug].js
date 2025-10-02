@@ -2,12 +2,46 @@ import { withCors } from '../lib/cors.js';
 import { ensureQuery } from '../lib/_lib/http.js';
 import { enforceRateLimit } from '../lib/_lib/rateLimit.js';
 
+function normalizeSlug(value) {
+  if (!value) return '';
+  if (Array.isArray(value)) {
+    return value.filter(Boolean).join('/');
+  }
+  if (typeof value === 'string') {
+    return value.replace(/^\/+/, '').replace(/\/$/, '');
+  }
+  return '';
+}
+
+function stripApiPrefix(pathname) {
+  if (!pathname) return '';
+  let current = pathname;
+  // Vercel CLI proxies requests through /_vercel/* during development
+  current = current.replace(/^\/_vercel\/(?:path\d+\/)?/, '/');
+  current = current.replace(/^\/api\/?/, '');
+  current = current.replace(/^\/+/, '');
+  current = current.replace(/\/$/, '');
+  return current;
+}
+
 function pathOf(req) {
+  const slugFromQuery = normalizeSlug(req?.query?.slug);
+  if (slugFromQuery) {
+    return stripApiPrefix(`/${slugFromQuery}`);
+  }
+
+  const rawUrl = typeof req?.url === 'string' ? req.url : '';
+  const headers = req?.headers || {};
+  const host = headers.host || headers['x-forwarded-host'] || 'localhost';
+  const base = host.includes('://') ? host : `http://${host}`;
   try {
-    const url = new URL(req.url, `http://${req.headers.host}`);
+    const url = new URL(rawUrl || '/', base);
     const pathname = url.pathname || '';
-    return pathname.replace(/^\/api\/?/, '').replace(/^\/+/, '').replace(/\/$/, '');
+    return stripApiPrefix(pathname);
   } catch {
+    if (rawUrl.startsWith('/')) {
+      return stripApiPrefix(rawUrl);
+    }
     return '';
   }
 }
