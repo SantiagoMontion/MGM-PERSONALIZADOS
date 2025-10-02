@@ -1,22 +1,23 @@
 {
   "version": 2,
-
-  "buildCommand": "npm run build",
-
-  "outputDirectory": "mgm-front/dist",
   "functions": {
-    "api/**": {
+    "api/**/*.{js,ts,mjs,cjs}": {
       "runtime": "nodejs20.x"
     },
-    "api/publish-product.js": {
+    "api/publishProduct.*": {
       "runtime": "nodejs20.x",
-      "maxDuration": 60,
-      "memory": 1024
+      "memory": 1024,
+      "maxDuration": 60
     },
-    "api/private/checkout/**": {
+    "api/publish-product.*": {
       "runtime": "nodejs20.x",
-      "maxDuration": 60,
-      "memory": 1024
+      "memory": 1024,
+      "maxDuration": 60
+    },
+    "api/private/checkout.*": {
+      "runtime": "nodejs20.x",
+      "memory": 1024,
+      "maxDuration": 60
     }
   },
   "rewrites": [
@@ -26,27 +27,19 @@
   ],
   "headers": [
     {
-      "source": "/api/(.*)",
-      "headers": [
-        { "key": "Cache-Control", "value": "no-store" }
-      ]
-    },
-    {
       "source": "/assets/(.*)",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
       ]
+    },
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store" }
+      ]
     }
   ],
-  "git": {
-    "ignore": [
-      "**/tests/**",
-      "**/__tests__/**",
-      "**/__mocks__/**",
-      "**/mocks/**",
-      "**/fixtures/**",
-      "docs/**",
-      "playground/**"
-    ]
-  }
+  "installCommand": "npm ci",
+  "buildCommand": "npm run build",
+  "outputDirectory": "mgm-front/dist"
 }
