@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import sharp from 'sharp';
 import { buildCorsHeaders } from '../cors';
-import { shopifyAdmin } from '../shopify';
+import { shopifyAdmin, shopifyAdminGraphQL } from '../shopify';
+import { getHeadlessPublicationId } from '../shopify/publication.js';
 import { slugifyName, sizeLabel } from '../_lib/slug.js';
 import getSupabaseAdmin from '../_lib/supabaseAdmin.js';
 import savePrintPdfToSupabase, { savePrintPreviewToSupabase } from '../_lib/savePrintPdfToSupabase.js';
@@ -24,6 +25,18 @@ type UploadResult = {
 
 const OUTPUT_BUCKET = 'outputs';
 const SIGNED_URL_TTL_SECONDS = 600;
+const PUBLISH_HEADLESS_MUTATION = `
+  mutation PublishHeadlessProduct($id: ID!, $publicationId: ID!) {
+    publishablePublish(id: $id, input: [{ publicationId: $publicationId }]) {
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
 
 function parseDataUrl(value: unknown): DataUrlPayload {
   if (typeof value !== 'string') {
@@ -46,6 +59,17 @@ function parseDataUrl(value: unknown): DataUrlPayload {
   else if (normalizedMime === 'image/svg+xml') extension = 'svg';
   else if (normalizedMime === 'application/pdf') extension = 'pdf';
   return { mimeType: normalizedMime, buffer, extension };
+
+function ensureProductGid(value: unknown): string {
+  if (value == null) return '';
+  const raw = String(value).trim();
+  if (!raw) return '';
+  if (raw.startsWith('gid://')) return raw;
+  const numeric = raw.replace(/[^0-9]/g, '');
+  if (numeric) {
+    return `gid://shopify/Product/${numeric}`;
+  }
+  return '';
 }
 
 function safeNumber(value: unknown): number | null {
@@ -369,13 +393,64 @@ export default async function handler(req: any, res: any) {
         body_html: `<p>Personalizado ${width}x${height} cm</p>`,
         images: [{ attachment: base64 }],
         variants: [{ price: '0.00' }],
-        status: 'draft'
+        status: 'active'
       }
     };
     const { product } = await shopifyAdmin('/products.json', {
       method: 'POST',
       body: JSON.stringify(payload)
     });
+    const headlessPublicationId = (getHeadlessPublicationId() || '').trim();
+    const productGid = ensureProductGid(product?.id);
+    if (!headlessPublicationId) {
+      try {
+        console.warn('shopify_create_product_headless_publication_missing');
+      } catch {}
+    } else if (productGid) {
+      try {
+        const publishResp = await shopifyAdminGraphQL(PUBLISH_HEADLESS_MUTATION, {
+          id: productGid,
+          publicationId: headlessPublicationId,
+        });
+        const publishRequestId = (publishResp.headers?.get && (publishResp.headers.get('x-request-id') || publishResp.headers.get('X-Request-ID'))) || null;
+        const publishText = await publishResp.text();
+        let publishJson: any = null;
+        try {
+          publishJson = publishText ? JSON.parse(publishText) : null;
+        } catch {
+          publishJson = null;
+        }
+        if (!publishResp.ok) {
+          try {
+            console.error('shopify_create_product_headless_publish_http', {
+              status: publishResp.status,
+              bodyPreview: typeof publishText === 'string' ? publishText.slice(0, 500) : null,
+              requestId: publishRequestId,
+            });
+          } catch {}
+        } else {
+          const userErrors = Array.isArray(publishJson?.data?.publishablePublish?.userErrors)
+            ? publishJson.data.publishablePublish.userErrors
+            : [];
+          if (userErrors.length) {
+            try {
+              console.warn('shopify_create_product_headless_publish_user_errors', {
+                requestId: publishRequestId,
+                userErrors,
+              });
+            } catch {}
+          }
+        }
+      } catch (publishErr) {
+        try {
+          console.error('shopify_create_product_headless_publish_failed', publishErr);
+        } catch {}
+      }
+    } else {
+      try {
+        console.warn('shopify_create_product_headless_publish_missing_gid', { rawId: product?.id ?? null });
+      } catch {}
+    }
     const pubBase = process.env.SHOPIFY_PUBLIC_BASE || `https://${process.env.SHOPIFY_STORE_DOMAIN}`;
     const productUrl = `${pubBase}/products/${product.handle}`;
     const variantId = String(product?.variants?.[0]?.id || '');
@@ -416,7 +491,7 @@ export default async function handler(req: any, res: any) {
           return res.status(413).json({
             ok: false,
             reason: 'pdf_too_large',
-            message: 'El PDF generado supera el tamaño permitido por Supabase.',
+            message: 'El PDF generado supera el tamaÃ±o permitido por Supabase.',
             limit_bytes: uploadErr.limit ?? undefined,
             size_bytes: uploadErr.size ?? undefined,
           });
