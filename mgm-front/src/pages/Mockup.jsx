@@ -448,76 +448,14 @@ export default function Mockup() {
         if (!privatePayload.variantId) {
           privatePayload.variantId = variantIdForCheckout;
         }
-        if (!privatePayload.variantGid) {
-          const variantGidFromResult =
-            (typeof payloadFromResult?.variantGid === 'string' && payloadFromResult.variantGid.trim())
-              ? payloadFromResult.variantGid.trim()
-              : Array.isArray(payloadFromResult?.variantGids) && payloadFromResult.variantGids.length
-                ? String(payloadFromResult.variantGids[0] || '').trim()
-                : typeof result?.variantIdGid === 'string'
-                  ? result.variantIdGid
-                  : '';
-          if (variantGidFromResult) {
-            privatePayload.variantGid = variantGidFromResult;
-          }
-        }
         if (!privatePayload.quantity || Number(privatePayload.quantity) <= 0) {
           privatePayload.quantity = 1;
-        }
-        const normalizedLines = Array.isArray(payloadFromResult?.lines)
-          ? payloadFromResult.lines
-              .map((entry) => {
-                if (!entry || typeof entry !== 'object') return null;
-                const rawVariantId =
-                  typeof entry.variantId === 'string' && entry.variantId.trim()
-                    ? entry.variantId.trim()
-                    : typeof entry.variantGid === 'string' && entry.variantGid.trim()
-                      ? entry.variantGid.trim()
-                      : '';
-                if (!rawVariantId) return null;
-                const qtyRaw = Number(entry.quantity);
-                const normalizedQty = Number.isFinite(qtyRaw) && qtyRaw > 0 ? Math.max(1, Math.floor(qtyRaw)) : privatePayload.quantity;
-                const line = { variantId: rawVariantId, quantity: normalizedQty };
-                if (typeof entry.variantGid === 'string' && entry.variantGid.trim()) {
-                  line.variantGid = entry.variantGid.trim();
-                }
-                return line;
-              })
-              .filter(Boolean)
-          : [];
-        if (normalizedLines.length) {
-          privatePayload.lines = normalizedLines;
-        } else {
-          const fallbackLine = {
-            variantId: privatePayload.variantId,
-            quantity: privatePayload.quantity,
-          };
-          if (typeof privatePayload.variantGid === 'string' && privatePayload.variantGid.trim()) {
-            fallbackLine.variantGid = privatePayload.variantGid.trim();
-          }
-          privatePayload.lines = [fallbackLine];
-        }
-        if (!Array.isArray(privatePayload.variantIds) || !privatePayload.variantIds.length) {
-          if (privatePayload.variantId) {
-            privatePayload.variantIds = [privatePayload.variantId];
-          }
-        }
-        if (!Array.isArray(privatePayload.variantGids) || !privatePayload.variantGids.length) {
-          if (typeof privatePayload.variantGid === 'string' && privatePayload.variantGid.trim()) {
-            privatePayload.variantGids = [privatePayload.variantGid.trim()];
-          }
-        }
-        if (!Array.isArray(privatePayload.quantities) || !privatePayload.quantities.length) {
-          privatePayload.quantities = [privatePayload.quantity];
         }
         const emailCandidate = typeof submissionFlow.customerEmail === 'string'
           ? submissionFlow.customerEmail.trim()
           : '';
         if (emailCandidate && !privatePayload.email) {
           privatePayload.email = emailCandidate;
-        }
-        if (normalizedDiscountCode) {
-          privatePayload.discountCode = normalizedDiscountCode;
         }
         const privateEndpoint = '/api/private/checkout';
         let resolvedPrivateCheckoutUrl = '';
@@ -538,7 +476,7 @@ export default function Mockup() {
           if (missingApiUrl) {
             const err = new Error('private_checkout_missing_api_url');
             err.reason = 'private_checkout_missing_api_url';
-            err.friendlyMessage = 'Verificá que la API esté disponible en /api (vercel dev o proxy activo).';
+            err.friendlyMessage = 'Configurá VITE_API_URL para conectar con la API.';
             throw err;
           }
           const err = new Error('private_checkout_network_error');
@@ -973,9 +911,9 @@ export default function Mockup() {
           />
          
           <div className={styles.showcaseOverlay}>
-            <p className={styles.showcaseOverlayText}>
+           <a href='https://www.instagram.com/stories/highlights/18057726377123944/' target='_blank'> <p className={styles.showcaseOverlayText}>
               Conocé a los +2000 que ya lo hicieron
-            </p>
+            </p></a>
           </div>
         </div>
 
