@@ -233,7 +233,14 @@ export default function Mockup() {
     alert(friendly);
   }
 
-  function finalizeCartSuccess(message) {
+  function finalizeCartSuccess(message, options = {}) {
+    const {
+      preserveLastProduct = false,
+      lastProductOverride = null,
+    } = options;
+    const lastProductToPreserve = preserveLastProduct
+      ? lastProductOverride || flow.lastProduct || null
+      : null;
     if (successToastTimeoutRef.current) {
       clearTimeout(successToastTimeoutRef.current);
       successToastTimeoutRef.current = null;
@@ -250,6 +257,9 @@ export default function Mockup() {
     setCartStatus('idle');
     setBusy(false);
     flow.reset();
+    if (lastProductToPreserve) {
+      flow.set({ lastProduct: lastProductToPreserve });
+    }
     try {
       navigate('/', { replace: true });
     } catch (navErr) {
@@ -423,7 +433,22 @@ export default function Mockup() {
         setToast({ message: warningMessages.join(' ') });
       }
       if (mode === 'checkout' && result.checkoutUrl) {
-        window.location.assign(result.checkoutUrl);
+        const checkoutUrl = result.checkoutUrl;
+        let opened = false;
+        try {
+          const checkoutTab = window.open(checkoutUrl, '_blank', 'noopener');
+          opened = Boolean(checkoutTab);
+          if (!opened) {
+            console.warn('[checkout-open] popup_blocked', { url: checkoutUrl });
+          }
+        } catch (openErr) {
+          console.warn('[checkout-open]', openErr);
+        }
+        if (!opened) {
+          window.location.assign(checkoutUrl);
+          return;
+        }
+        finalizeCartSuccess('Listo. Abrimos tu checkout en otra pestaña.');
         return;
       }
       if (mode === 'private') {
@@ -593,26 +618,27 @@ export default function Mockup() {
           } catch (tabErr) {
             console.warn('[private-checkout-open]', tabErr);
           }
-          flow.set({
-            lastProduct: {
-              ...(flow.lastProduct || {}),
-              productId: result.productId,
-              variantId: result.variantId,
-              variantIdNumeric: result.variantIdNumeric,
-              variantIdGid: result.variantIdGid,
-              productUrl: result.productUrl,
-              productHandle: result.productHandle,
-              visibility: result.visibility,
-              checkoutUrl: checkoutUrlFromResponse,
-              ...(result.draftOrderId ? { draftOrderId: result.draftOrderId } : {}),
-              ...(result.draftOrderName ? { draftOrderName: result.draftOrderName } : {}),
-              ...(Array.isArray(result.warnings) && result.warnings.length ? { warnings: result.warnings } : {}),
-              ...(Array.isArray(result.warningMessages) && result.warningMessages.length
-                ? { warningMessages: result.warningMessages }
-                : {}),
-            },
+          const lastProductPayload = {
+            ...(flow.lastProduct || {}),
+            productId: result.productId,
+            variantId: result.variantId,
+            variantIdNumeric: result.variantIdNumeric,
+            variantIdGid: result.variantIdGid,
+            productUrl: result.productUrl,
+            productHandle: result.productHandle,
+            visibility: result.visibility,
+            checkoutUrl: checkoutUrlFromResponse,
+            ...(result.draftOrderId ? { draftOrderId: result.draftOrderId } : {}),
+            ...(result.draftOrderName ? { draftOrderName: result.draftOrderName } : {}),
+            ...(Array.isArray(result.warnings) && result.warnings.length ? { warnings: result.warnings } : {}),
+            ...(Array.isArray(result.warningMessages) && result.warningMessages.length
+              ? { warningMessages: result.warningMessages }
+              : {}),
+          };
+          finalizeCartSuccess('Listo. Abrimos tu checkout privado en otra pestaña.', {
+            preserveLastProduct: true,
+            lastProductOverride: lastProductPayload,
           });
-          setToast({ message: 'Listo. Abrimos tu checkout privado en otra pestaña.' });
           return;
         }
         logError('invalid_payload');
