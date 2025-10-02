@@ -142,7 +142,7 @@ async function createStylizedCharacterBuffer() {
   return sharp(data, { raw: { width, height, channels } }).png().toBuffer();
 }
 
-function swastikaSVG({ size = 256, stroke = 26, flag = true } = {}) {
+function swastikaSVG({ size = 256, stroke = 26, flag = true, rotate = 45 } = {}) {
   const s = size;
   const m = s / 2;
   const bg = flag ? '#c00' : '#fff';
@@ -152,7 +152,7 @@ function swastikaSVG({ size = 256, stroke = 26, flag = true } = {}) {
         s * 0.04,
       )}"/>`
     : '';
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${s}" viewBox="0 0 ${s} ${s}">\n  <rect width="100%" height="100%" fill="${bg}"/>\n  ${circle}\n  <g transform="rotate(0, ${m}, ${m})" fill="#000">\n    <rect x="${m - stroke / 2}" y="${m - s * 0.36}" width="${stroke}" height="${s * 0.72}"/>\n    <rect x="${m - s * 0.36}" y="${m - stroke / 2}" width="${s * 0.72}" height="${stroke}"/>\n    <rect x="${m + stroke * 0.45}" y="${m - s * 0.36}" width="${s * 0.2}" height="${stroke}"/>\n    <rect x="${m - stroke / 2}" y="${m + stroke * 0.45}" width="${stroke}" height="${s * 0.2}"/>\n    <rect x="${m - s * 0.36}" y="${m - stroke * 0.45 - s * 0.2}" width="${s * 0.2}" height="${stroke}"/>\n    <rect x="${m - stroke * 0.45 - s * 0.2}" y="${m - stroke / 2}" width="${stroke}" height="${s * 0.2}"/>\n  </g>\n</svg>`;
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${s}" viewBox="0 0 ${s} ${s}">\n  <rect width="100%" height="100%" fill="${bg}"/>\n  ${circle}\n  <g transform="rotate(${rotate}, ${m}, ${m})" fill="#000">\n    <rect x="${m - stroke / 2}" y="${m - s * 0.36}" width="${stroke}" height="${s * 0.72}"/>\n    <rect x="${m - s * 0.36}" y="${m - stroke / 2}" width="${s * 0.72}" height="${stroke}"/>\n    <rect x="${m + stroke * 0.45}" y="${m - s * 0.36}" width="${s * 0.2}" height="${stroke}"/>\n    <rect x="${m - stroke / 2}" y="${m + stroke * 0.45}" width="${stroke}" height="${s * 0.2}"/>\n    <rect x="${m - s * 0.36}" y="${m - stroke * 0.45 - s * 0.2}" width="${s * 0.2}" height="${stroke}"/>\n    <rect x="${m - stroke * 0.45 - s * 0.2}" y="${m - stroke / 2}" width="${stroke}" height="${s * 0.2}"/>\n  </g>\n</svg>`;
 }
 
 async function createSwastikaBuffer() {
@@ -198,10 +198,10 @@ test('evaluateImage blocks nazi symbols', async () => {
   assert(result.reasons.includes('extremism_nazi'));
 });
 
-test('evaluateImage blocks nazi text metadata', async () => {
+test('evaluateImage flags nazi text metadata for review', async () => {
   const buf = await createNeutralBuffer();
   const result = await evaluateImage(buf, 'safe.png', 'Heil Hitler banner');
-  assert.equal(result.label, 'BLOCK');
+  assert.equal(result.label, 'REVIEW');
   assert(result.reasons.includes('extremism_nazi_text'));
 });
 
