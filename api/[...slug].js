@@ -3,6 +3,7 @@ import { ensureQuery } from '../lib/_lib/http.js';
 import { enforceRateLimit } from '../lib/_lib/rateLimit.js';
 
 
+
 function normalizeSlug(value) {
   if (!value) return '';
   if (Array.isArray(value)) {
@@ -20,6 +21,7 @@ function stripApiPrefix(pathname) {
   // Vercel CLI proxies requests through /_vercel/* during development
   current = current.replace(/^\/_vercel\/(?:path\d+\/)?/, '/');
 
+
   current = current.replace(/^\/api\/?/, '');
   current = current.replace(/^\/+/, '');
   current = current.replace(/\/$/, '');
@@ -30,7 +32,7 @@ function pathOf(req) {
 
   const slugFromQuery = normalizeSlug(req?.query?.slug);
   if (slugFromQuery) {
-    return slugFromQuery;
+    return stripApiPrefix(`/${slugFromQuery}`);
   }
 
 
