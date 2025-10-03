@@ -86,7 +86,7 @@ export function apiFetch(methodOrPath, maybePathOrInit, maybeBody, maybeInitOver
   return fetch(url, maybePathOrInit);
 }
 
-export async function postJSON(url, data, timeoutMs = 20000) {
+export async function postJSON(url, data, timeoutMs = 60000) {
   const ctrl = new AbortController();
   const id = setTimeout(() => ctrl.abort(), timeoutMs);
 
@@ -106,6 +106,11 @@ export async function postJSON(url, data, timeoutMs = 20000) {
       throw new Error(`HTTP ${res.status} ${res.statusText} | ${text}`);
     }
     return json ?? { ok: true };
+  } catch (err) {
+    if (err?.name === 'AbortError' || err?.name === 'DOMException') {
+      throw new Error('TIMEOUT: la solicitud tardó demasiado (>60s)');
+    }
+    throw err;
   } finally {
     clearTimeout(id);
   }

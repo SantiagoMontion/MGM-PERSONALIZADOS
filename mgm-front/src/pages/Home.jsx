@@ -305,8 +305,9 @@ export default function Home() {
       let moderationResponse;
       try {
         moderationResponse = await postJSON(
-          getResolvedApiUrl('/api/moderate-image'),
+          getResolvedApiUrl('/api/moderate-image?debug=1'),
           moderationPayload,
+          60000,
         );
       } catch (moderationErr) {
         console.error('moderate-image failed', moderationErr);
