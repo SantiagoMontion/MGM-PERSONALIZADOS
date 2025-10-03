@@ -243,13 +243,17 @@ function normalizeStorageRoot(root: string | undefined): string {
 function buildChildPrefix(prefix: string, name: string): string {
   const cleanName = name.replace(/^\/+/, '').replace(/\/+$/, '');
   if (!cleanName) return prefix;
+
   return prefix ? `${prefix}/${cleanName}`.replace(/\/+/g, '/') : cleanName;
+
 }
 
 function buildFilePath(prefix: string, name: string): string {
   const cleanName = name.replace(/^\/+/, '');
+
   if (!cleanName) return prefix;
   return prefix ? `${prefix}/${cleanName}`.replace(/\/+/g, '/') : cleanName;
+
 }
 
 function isPdfFile(name: string): boolean {
