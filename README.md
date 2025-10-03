@@ -30,11 +30,11 @@ El build compila el cliente de Vite y deja los assets listos para que Vercel los
 
 ## CORS configuration
 
-Set ALLOWED_ORIGINS to the list of explicit origins (no trailing slash).
+`lib/cors.js` keeps a base allowlist for localhost, the production storefront, and the Vercel API URL. For deployments:
 
-`
-ALLOWED_ORIGINS=http://localhost:5173,https://www.mgmgamers.store,https://mgm-api.vercel.app
-`
+- Preview builds rely on `VERCEL_URL`, so `https://<project>.vercel.app` is added automatically.
+- Set `API_PUBLIC_ORIGIN` to your public domain (for example `https://www.mgmgamers.store`) and include any additional custom domains that serve the SPA.
+- Local development continues to use `http://localhost:5173` or `http://127.0.0.1:5173`.
 
 ## Upload de archivos
 
@@ -68,3 +68,4 @@ Smoke tests sugeridos después de cada deploy (Preview/Prod):
 
 Server-side only: 
 sfwjs + @tensorflow/tfjs in the API and OCR with 	esseract.js. No paid services.
+

@@ -1,3 +1,5 @@
-mgm-front/
 node_modules/
 .git/
+mgm-front/node_modules/
+mgm-front/dist/
+
