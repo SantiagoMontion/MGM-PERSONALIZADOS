@@ -27,6 +27,24 @@ const CART_STATUS_LABELS = {
   opening: 'Abriendo producto…',
 };
 
+const SHOPIFY_DOMAIN = (() => {
+  const fromImportMeta =
+    typeof import.meta !== 'undefined'
+    && import.meta?.env
+    && typeof import.meta.env.VITE_SHOPIFY_DOMAIN === 'string'
+      ? import.meta.env.VITE_SHOPIFY_DOMAIN
+      : '';
+  const fromProcess =
+    typeof process !== 'undefined'
+    && process?.env
+    && typeof process.env.VITE_SHOPIFY_DOMAIN === 'string'
+      ? process.env.VITE_SHOPIFY_DOMAIN
+      : '';
+  const raw = (fromImportMeta || fromProcess || '').trim();
+  if (!raw) return '';
+  return raw.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+})();
+
 const BENEFITS = [
   {
     icon: '',
@@ -306,49 +324,60 @@ export default function Mockup() {
         setToast({ message: warningMessages.join(' ') });
       }
 
+      const productUrlFromResult =
+        typeof result?.productUrl === 'string' && result.productUrl.trim()
+          ? result.productUrl.trim()
+          : '';
+      const checkoutUrlFromResult =
+        typeof result?.checkoutUrl === 'string' && result.checkoutUrl.trim()
+          ? result.checkoutUrl.trim()
+          : '';
+      const genericUrlFromResult =
+        typeof result?.url === 'string' && result.url.trim()
+          ? result.url.trim()
+          : typeof result?.product?.url === 'string' && result.product.url.trim()
+            ? result.product.url.trim()
+            : '';
       const handleFromResult =
         typeof result?.productHandle === 'string' && result.productHandle.trim()
           ? result.productHandle.trim()
-          : typeof result?.product?.handle === 'string' && result.product.handle.trim()
-            ? result.product.handle.trim()
-            : '';
-      if (!handleFromResult) {
-        const missingHandleError = new Error('missing_product_handle');
-        missingHandleError.reason = 'missing_product_handle';
-        throw missingHandleError;
+          : typeof result?.handle === 'string' && result.handle.trim()
+            ? result.handle.trim()
+            : typeof result?.product?.handle === 'string' && result.product.handle.trim()
+              ? result.product.handle.trim()
+              : '';
+
+      const fallbackFromHandle =
+        SHOPIFY_DOMAIN && handleFromResult
+          ? `https://${SHOPIFY_DOMAIN}/products/${encodeURIComponent(handleFromResult)}`
+          : null;
+
+      const targetUrl =
+        productUrlFromResult
+        || checkoutUrlFromResult
+        || genericUrlFromResult
+        || fallbackFromHandle;
+
+      if (!targetUrl) {
+        const missingTargetError = new Error('Missing target url');
+        missingTargetError.reason = 'missing_target_url';
+        throw missingTargetError;
       }
 
       setCartStatus('opening');
-      const productUrl = `https://www.mgmgamers.store/products/${encodeURIComponent(handleFromResult)}`;
       if (typeof window !== 'undefined') {
-        let opened = false;
+        const navigationPayload = {
+          productUrl: productUrlFromResult || null,
+          checkoutUrl: checkoutUrlFromResult || null,
+          url: genericUrlFromResult || null,
+          handle: handleFromResult || null,
+          target: targetUrl,
+        };
+        console.debug('[publish/add-to-cart]', navigationPayload);
         try {
-          const popup = window.open(productUrl, '_blank', 'noopener');
-          opened = true;
-          if (popup) {
-            try {
-              popup.opener = null;
-            } catch (openerErr) {
-              logger.debug('[mockup] product_tab_opener_clear_failed', openerErr);
-            }
-          }
-        } catch (openErr) {
-          logger.warn('[mockup] product_page_open_failed', openErr);
-
-          try {
-            window.open(productUrl, '_blank');
-            opened = true;
-          } catch (fallbackErr) {
-            logger.warn('[mockup] product_page_fallback_open_failed', fallbackErr);
-          }
-        }
-
-        if (!opened) {
-          try {
-            window.location.assign(productUrl);
-          } catch (navErr) {
-            logger.warn('[mockup] product_page_navigation_failed', navErr);
-          }
+          window.location.assign(targetUrl);
+        } catch (navErr) {
+          logger.warn('[mockup] product_page_navigation_failed', navErr);
         }
       }
 
