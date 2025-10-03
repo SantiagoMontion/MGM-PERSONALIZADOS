@@ -1,15 +1,15 @@
-import logger from './logger';
+﻿import logger from './logger';
 
 const RAW_API_URL = typeof import.meta.env.VITE_API_URL === 'string' ? import.meta.env.VITE_API_URL : '';
 const USE_PROXY = (import.meta.env.VITE_USE_PROXY || '').trim() === '1';
 const IS_DEV = Boolean(import.meta.env && import.meta.env.DEV);
 
-function sanitizeBase(value) {
+function sanitize(value) {
   if (!value) return '';
   return value.trim().replace(/\/+$/, '');
 }
 
-function applyProtocol(value) {
+function ensureProtocol(value) {
   if (!value) return '';
   if (/^https?:\/\//i.test(value) || value.startsWith('/')) {
     return value;
@@ -17,15 +17,14 @@ function applyProtocol(value) {
   return `https://${value}`;
 }
 
-function resolveBaseOrigin(value) {
-  const trimmed = sanitizeBase(value);
+function resolveOrigin(value) {
+  const trimmed = sanitize(value);
   if (!trimmed) return '';
   const withoutApi = trimmed.endsWith('/api') ? trimmed.slice(0, -4) : trimmed;
-  return sanitizeBase(applyProtocol(withoutApi));
+  return sanitize(ensureProtocol(withoutApi));
 }
 
-const CONFIGURED_ORIGIN = resolveBaseOrigin(RAW_API_URL);
-const DEFAULT_BASE = '/api';
+const CONFIGURED_ORIGIN = resolveOrigin(RAW_API_URL);
 let hasWarnedAboutFallback = false;
 
 function normalizePath(path) {
@@ -43,11 +42,11 @@ function resolveRequestUrl(path) {
       hasWarnedAboutFallback = true;
       try {
         logger.warn?.('[api] using_default_base', {
-          message: 'VITE_API_URL not set; defaulting to same-origin /api.',
+          message: 'VITE_API_URL not set; defaulting to same-origin.',
         });
       } catch {}
     }
-    return `${DEFAULT_BASE}${normalizedPath}`;
+    return normalizedPath;
   }
   return `${CONFIGURED_ORIGIN}${normalizedPath}`;
 }
@@ -92,7 +91,7 @@ export function getApiBaseUrl() {
     return '/api';
   }
   if (!CONFIGURED_ORIGIN) {
-    return DEFAULT_BASE;
+    return '/api';
   }
   return `${CONFIGURED_ORIGIN}/api`;
 }
