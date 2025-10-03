@@ -9,6 +9,8 @@ const MIN_LIMIT = 1;
 const DEFAULT_OFFSET = 0;
 const SUPABASE_TIMEOUT_MS = 15000;
 const PRINTS_TABLE = 'prints';
+const DEFAULT_BUCKET = 'outputs';
+const DEFAULT_ROOT = '';
 
 type PrintRow = {
   id?: string | number;
@@ -34,10 +36,44 @@ type SearchResultItem = {
   createdAt: string | null;
 };
 
+type StorageListError = { prefix: string; message: string };
+
+type StorageFileEntry = {
+  name: string;
+  path: string;
+  updated_at?: string | null;
+  metadata?: { size?: number | null } | null;
+};
+
+type StorageSearchResult = {
+  items: Array<{
+    name: string;
+    path: string;
+    size: number | null;
+    updatedAt: string | null;
+    url: string | null;
+  }>;
+  total: number;
+  scannedDirs: number;
+  scannedFiles: number;
+  errors: StorageListError[];
+};
+
+type StorageSearchFailure = 'storage_list_failed' | 'timeout';
+
+const MATCH_NORMALIZER = (value: string) =>
+  value
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase();
+
 let cachedClient: SupabaseClient | null = null;
 
 function resolveSupabaseKey(): string | undefined {
-  return process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE;
+  return (
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_SERVICE_KEY
+  );
 }
 
 function hasSupabaseConfig(): boolean {
@@ -80,6 +116,21 @@ function normalizeQuery(value: unknown): string {
     return '';
   }
   return value.trim();
+}
+
+function parseDebug(value: unknown): boolean {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (typeof raw === 'string') {
+    const normalized = raw.trim().toLowerCase();
+    return normalized === '1' || normalized === 'true' || normalized === 'yes';
+  }
+  if (typeof raw === 'number') {
+    return raw === 1;
+  }
+  if (typeof raw === 'boolean') {
+    return raw;
+  }
+  return false;
 }
 
 function escapeForIlike(term: string): string {
@@ -179,6 +230,144 @@ function sendJsonResponse(req: VercelRequest, res: VercelResponse, status: numbe
   res.end(JSON.stringify(body));
 }
 
+function normalizeStorageRoot(root: string | undefined): string {
+  if (!root) return '';
+  const trimmed = root.trim();
+  if (!trimmed) return '';
+  const withoutLeading = trimmed.replace(/^\/+/, '');
+  const withoutTrailing = withoutLeading.replace(/\/+$/, '');
+  if (!withoutTrailing) return '';
+  return withoutTrailing.replace(/\/+/g, '/');
+}
+
+function buildChildPrefix(prefix: string, name: string): string {
+  const cleanName = name.replace(/^\/+/, '').replace(/\/+$/, '');
+  if (!cleanName) return prefix;
+  return prefix ? `${prefix}/${cleanName}`.replace(/\/+/g, '/') : cleanName;
+}
+
+function buildFilePath(prefix: string, name: string): string {
+  const cleanName = name.replace(/^\/+/, '');
+  if (!cleanName) return prefix;
+  return prefix ? `${prefix}/${cleanName}`.replace(/\/+/g, '/') : cleanName;
+}
+
+function isPdfFile(name: string): boolean {
+  return name.toLowerCase().endsWith('.pdf');
+}
+
+function filterStorageFiles(files: StorageFileEntry[], query: string): StorageFileEntry[] {
+  const normalizedQuery = MATCH_NORMALIZER(query);
+  return files.filter((file) => {
+    if (!isPdfFile(file.name)) {
+      return false;
+    }
+    if (!normalizedQuery) {
+      return true;
+    }
+    try {
+      return MATCH_NORMALIZER(file.name).includes(normalizedQuery);
+    } catch (err) {
+      return file.name.toLowerCase().includes(normalizedQuery);
+    }
+  });
+}
+
+function getUpdatedAtTimestamp(value?: string | null): number | null {
+  if (!value) return null;
+  const time = Date.parse(value);
+  return Number.isFinite(time) ? time : null;
+}
+
+function sortStorageFiles(files: StorageFileEntry[]): StorageFileEntry[] {
+  return [...files].sort((a, b) => {
+    const aUpdated = getUpdatedAtTimestamp(a.updated_at ?? null);
+    const bUpdated = getUpdatedAtTimestamp(b.updated_at ?? null);
+    if (aUpdated != null && bUpdated != null && aUpdated !== bUpdated) {
+      return bUpdated - aUpdated;
+    }
+    if (aUpdated != null && bUpdated == null) {
+      return -1;
+    }
+    if (aUpdated == null && bUpdated != null) {
+      return 1;
+    }
+    return a.name.localeCompare(b.name);
+  });
+}
+
+async function searchStorage(
+  client: SupabaseClient,
+  query: string,
+  limit: number,
+  offset: number,
+): Promise<StorageSearchResult | StorageSearchFailure> {
+  const bucket = process.env.SEARCH_STORAGE_BUCKET || DEFAULT_BUCKET;
+  const root = normalizeStorageRoot(process.env.SEARCH_STORAGE_ROOT ?? DEFAULT_ROOT);
+  const storage = client.storage.from(bucket);
+  const queue: string[] = [root];
+  const collected: StorageFileEntry[] = [];
+  const errors: StorageListError[] = [];
+  let scannedDirs = 0;
+  let scannedFiles = 0;
+  const deadline = Date.now() + SUPABASE_TIMEOUT_MS;
+
+  while (queue.length) {
+    if (Date.now() > deadline) {
+      return 'timeout';
+    }
+    const prefix = queue.shift() ?? '';
+    const { data, error } = await storage.list(prefix, {
+      limit: 1000,
+      offset: 0,
+      sortBy: { column: 'updated_at', order: 'desc' },
+    });
+
+    if (error) {
+      errors.push({ prefix, message: error.message || String(error) });
+      continue;
+    }
+
+    const entries = Array.isArray(data) ? data : [];
+    for (const entry of entries) {
+      const isFolder = !entry.metadata;
+      if (isFolder) {
+        scannedDirs += 1;
+        queue.push(buildChildPrefix(prefix, entry.name));
+        continue;
+      }
+      scannedFiles += 1;
+      collected.push({
+        name: entry.name,
+        path: buildFilePath(prefix, entry.name),
+        updated_at: entry.updated_at,
+        metadata: entry.metadata as StorageFileEntry['metadata'],
+      });
+    }
+  }
+
+  if (!collected.length && errors.length) {
+    return 'storage_list_failed';
+  }
+
+  const filtered = filterStorageFiles(collected, query);
+  const sorted = sortStorageFiles(filtered);
+  const total = sorted.length;
+  const sliced = sorted.slice(offset, offset + limit);
+  const items = sliced.map((file) => {
+    const { data: publicData } = storage.getPublicUrl(file.path);
+    return {
+      name: file.name,
+      path: file.path,
+      size: file.metadata?.size ?? null,
+      updatedAt: file.updated_at ?? null,
+      url: publicData?.publicUrl ?? null,
+    };
+  });
+
+  return { items, total, scannedDirs, scannedFiles, errors };
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const diagId = createDiagId();
   res.setHeader('X-Diag-Id', diagId);
@@ -202,49 +391,104 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const limit = parseLimit(req.query?.limit);
   const offset = parseOffset(req.query?.offset);
+  const debug = parseDebug(req.query?.debug);
 
-  if (!hasSupabaseConfig()) {
-    sendJsonResponse(req, res, 200, {
-      ok: true,
-      items: [],
-      total: 0,
-      limit,
-      offset,
-      diagId,
-      mode: 'stub',
-    });
-    return;
-  }
+  const supabaseConfigured = hasSupabaseConfig();
 
-  let client: SupabaseClient;
-  try {
-    client = getSupabaseClient();
-  } catch (err) {
-    logApiError('prints-search', { diagId, step: 'init_client', error: err });
-    sendJsonResponse(req, res, 200, { ok: false, error: 'search_failed', diagId });
-    return;
-  }
-
-  try {
-    const { items, total } = await searchPrints(client, rawQuery, limit, offset);
-    sendJsonResponse(req, res, 200, {
-      ok: true,
-      items,
-      total,
-      limit,
-      offset,
-      diagId,
-    });
-  } catch (err) {
-    if (isAbortError(err)) {
-      logApiError('prints-search', { diagId, step: 'timeout', error: err });
-      sendJsonResponse(req, res, 200, { ok: false, error: 'timeout', diagId });
-      return;
+  let client: SupabaseClient | null = null;
+  if (supabaseConfigured) {
+    try {
+      client = getSupabaseClient();
+    } catch (err) {
+      logApiError('prints-search', { diagId, step: 'init_client', error: err });
+      client = null;
     }
-
-    const code = (err as Error & { code?: string })?.code;
-    const errorCode = code === 'SUPABASE_DB_ERROR' ? 'db_error' : 'search_failed';
-    logApiError('prints-search', { diagId, step: errorCode, error: err });
-    sendJsonResponse(req, res, 200, { ok: false, error: errorCode, diagId });
   }
+
+  if (client) {
+    try {
+      const { items, total } = await searchPrints(client, rawQuery, limit, offset);
+      if (total > 0) {
+        sendJsonResponse(req, res, 200, {
+          ok: true,
+          items,
+          total,
+          limit,
+          offset,
+          diagId,
+          mode: 'db',
+        });
+        return;
+      }
+    } catch (err) {
+      if (isAbortError(err)) {
+        logApiError('prints-search', { diagId, step: 'timeout', error: err });
+        sendJsonResponse(req, res, 200, { ok: false, error: 'timeout', diagId });
+        return;
+      }
+
+      const code = (err as Error & { code?: string })?.code;
+      const errorCode = code === 'SUPABASE_DB_ERROR' ? 'db_error' : 'search_failed';
+      logApiError('prints-search', { diagId, step: errorCode, error: err });
+      // fall through to storage fallback below
+      client = null;
+    }
+  }
+
+  if (!client) {
+    if (!supabaseConfigured) {
+      logApiError('prints-search', { diagId, step: 'missing_supabase_config' });
+    }
+    if (supabaseConfigured && !client) {
+      try {
+        client = getSupabaseClient();
+      } catch (err) {
+        logApiError('prints-search', { diagId, step: 'init_client_fallback', error: err });
+        sendJsonResponse(req, res, 200, { ok: false, error: 'storage_list_failed', diagId });
+        return;
+      }
+    }
+  }
+
+  if (!client) {
+    sendJsonResponse(req, res, 200, { ok: false, error: 'storage_list_failed', diagId });
+    return;
+  }
+
+  const storageResult = await searchStorage(client, rawQuery, limit, offset);
+  if (storageResult === 'timeout') {
+    logApiError('prints-search', { diagId, step: 'storage_timeout' });
+    sendJsonResponse(req, res, 200, { ok: false, error: 'timeout', diagId });
+    return;
+  }
+  if (storageResult === 'storage_list_failed') {
+    logApiError('prints-search', { diagId, step: 'storage_list_failed' });
+    sendJsonResponse(req, res, 200, { ok: false, error: 'storage_list_failed', diagId });
+    return;
+  }
+
+  const { items, total, scannedDirs, scannedFiles, errors } = storageResult;
+  const bucket = process.env.SEARCH_STORAGE_BUCKET || DEFAULT_BUCKET;
+  const root = normalizeStorageRoot(process.env.SEARCH_STORAGE_ROOT ?? DEFAULT_ROOT);
+  const payload: Record<string, unknown> = {
+    ok: true,
+    items,
+    total,
+    limit,
+    offset,
+    diagId,
+    mode: 'storage',
+  };
+
+  if (debug) {
+    payload.scannedDirs = scannedDirs;
+    payload.scannedFiles = scannedFiles;
+    payload.bucket = bucket;
+    payload.root = root;
+    if (errors.length) {
+      payload.errors = errors;
+    }
+  }
+
+  sendJsonResponse(req, res, 200, payload);
 }
