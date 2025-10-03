@@ -233,11 +233,16 @@ function sendJsonResponse(req: VercelRequest, res: VercelResponse, status: numbe
 function normalizeStorageRoot(root: string | undefined): string {
   if (!root) return '';
   const trimmed = root.trim();
-  if (!trimmed) return '';
+  if (!trimmed || trimmed === '/') return '';
   const withoutLeading = trimmed.replace(/^\/+/, '');
-  const withoutTrailing = withoutLeading.replace(/\/+$/, '');
-  if (!withoutTrailing) return '';
-  return withoutTrailing.replace(/\/+/g, '/');
+  if (!withoutLeading) return '';
+  const normalized = withoutLeading.replace(/\/+/g, '/');
+  return normalized.endsWith('/') ? normalized : `${normalized}/`;
+}
+
+function ensureTrailingSlash(value: string): string {
+  if (!value) return '';
+  return value.endsWith('/') ? value : `${value}/`;
 }
 
 function buildChildPrefix(prefix: string, name: string): string {
@@ -309,7 +314,7 @@ async function searchStorage(
   const bucket = process.env.SEARCH_STORAGE_BUCKET || DEFAULT_BUCKET;
   const root = normalizeStorageRoot(process.env.SEARCH_STORAGE_ROOT ?? DEFAULT_ROOT);
   const storage = client.storage.from(bucket);
-  const queue: string[] = [root];
+  const queue: string[] = [root || ''];
   const collected: StorageFileEntry[] = [];
   const errors: StorageListError[] = [];
   let scannedDirs = 0;
@@ -320,7 +325,10 @@ async function searchStorage(
     if (Date.now() > deadline) {
       return 'timeout';
     }
-    const prefix = queue.shift() ?? '';
+    const rawPrefix = queue.shift() ?? '';
+    const normalizedPrefix = rawPrefix.replace(/^\/+/, '').replace(/\/+/g, '/');
+    const listPrefix = normalizedPrefix;
+    const pathPrefix = normalizedPrefix.replace(/\/+$/, '');
     let pageOffset = 0;
     let hasMore = true;
 
@@ -329,14 +337,28 @@ async function searchStorage(
         return 'timeout';
       }
 
-      const { data, error } = await storage.list(prefix, {
+      const listOptions = {
         limit: 1000,
         offset: pageOffset,
-        sortBy: { column: 'updated_at', order: 'desc' },
-      });
+        sortBy: { column: 'updated_at', order: 'desc' as const },
+      };
+      let currentPrefix = listPrefix;
+      let { data, error } = await storage.list(currentPrefix, listOptions);
+
+      if (error && currentPrefix && currentPrefix.endsWith('/')) {
+        const retryPrefix = currentPrefix.replace(/\/+$/, '');
+        if (retryPrefix !== currentPrefix) {
+          const retry = await storage.list(retryPrefix, listOptions);
+          if (!retry.error) {
+            currentPrefix = retryPrefix;
+            data = retry.data;
+            error = null;
+          }
+        }
+      }
 
       if (error) {
-        errors.push({ prefix, message: error.message || String(error) });
+        errors.push({ prefix: currentPrefix || pathPrefix, message: error.message || String(error) });
         break;
       }
 
@@ -349,13 +371,14 @@ async function searchStorage(
         const isFolder = !entry.metadata;
         if (isFolder) {
           scannedDirs += 1;
-          queue.push(buildChildPrefix(prefix, entry.name));
+          const childPrefix = ensureTrailingSlash(buildChildPrefix(pathPrefix, entry.name));
+          queue.push(childPrefix);
           continue;
         }
         scannedFiles += 1;
         collected.push({
           name: entry.name,
-          path: buildFilePath(prefix, entry.name),
+          path: buildFilePath(pathPrefix, entry.name),
           updated_at: entry.updated_at,
           metadata: entry.metadata as StorageFileEntry['metadata'],
         });
