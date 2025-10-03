@@ -1,7 +1,9 @@
 import { buildStubRequestId, resolveFrontOrigin } from '../../lib/_lib/stubHelpers.js';
 import { runWithLenientCors, sendCorsOptions, sendJsonWithCors } from '../_lib/lenientCors.js';
+import { createDiagId, logApiError } from '../_lib/diag.js';
 
 const SHOPIFY_ENABLED = process.env.SHOPIFY_ENABLED === '1';
+const SHOPIFY_TIMEOUT_STATUS = 504;
 
 function buildStubPrivatePayload() {
   const rid = buildStubRequestId();
@@ -31,6 +33,7 @@ async function proxyRealHandler(req, res) {
 }
 
 export default async function handler(req, res) {
+  const diagId = createDiagId();
   if (req.method === 'OPTIONS') {
     sendCorsOptions(req, res);
     return;
@@ -40,23 +43,35 @@ export default async function handler(req, res) {
     if (typeof res.setHeader === 'function') {
       res.setHeader('Allow', 'POST, OPTIONS');
     }
-    sendJsonWithCors(req, res, 405, { ok: false, error: 'method_not_allowed' });
+    sendJsonWithCors(req, res, 405, { ok: false, error: 'method_not_allowed', diagId });
     return;
   }
 
   if (!SHOPIFY_ENABLED) {
     const payload = buildStubPrivatePayload();
-    sendJsonWithCors(req, res, 200, payload);
+    sendJsonWithCors(req, res, 200, { ...payload, diagId });
     return;
   }
 
   try {
+    req.mgmDiagId = diagId;
     await proxyRealHandler(req, res);
   } catch (err) {
+    const step = err?.code === 'SHOPIFY_TIMEOUT' ? err?.step || 'shopify_request' : 'proxy_handler';
+    logApiError('private-checkout', { diagId, step, error: err });
     if (!res.headersSent) {
-      sendJsonWithCors(req, res, 500, { ok: false, error: 'internal_error' });
+      if (err?.code === 'SHOPIFY_TIMEOUT') {
+        sendJsonWithCors(req, res, SHOPIFY_TIMEOUT_STATUS, {
+          ok: false,
+          error: 'shopify_timeout',
+          diagId,
+          step,
+        });
+        return;
+      }
+      sendJsonWithCors(req, res, 502, { ok: false, error: 'checkout_failed', diagId });
     }
   }
 }
 
-export const config = { memory: 256 };
+export const config = { memory: 256, maxDuration: 60 };

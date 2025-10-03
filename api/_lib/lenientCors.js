@@ -1,5 +1,5 @@
 const ALLOW_METHODS = 'POST, OPTIONS';
-const ALLOW_HEADERS = 'Content-Type, Authorization';
+const ALLOW_HEADERS = 'Content-Type, Authorization, Content-Type: application/json';
 
 function resolveOrigin(req) {
   if (req && req.headers && typeof req.headers.origin === 'string') {
