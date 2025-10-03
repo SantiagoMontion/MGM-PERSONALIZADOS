@@ -17,19 +17,13 @@ async function readBody(req: VercelRequest) {
   });
 }
 
-function sendJson(
-  req: VercelRequest,
-  res: VercelResponse,
-  status: number,
-  body: any,
-) {
-  applyCors(req, res, 'POST, OPTIONS');
+function sendJson(res: VercelResponse, status: number, body: any) {
   ensureJsonContentType(res);
   res.status(status).send(JSON.stringify(body));
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const cors = applyCors(req, res, 'POST, OPTIONS');
+  applyCors(req, res, 'POST, OPTIONS');
   const rid = Date.now().toString(36);
 
   try {
@@ -39,21 +33,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (req.method !== 'POST') {
-      return sendJson(req, res, 405, { error: 'Method Not Allowed' });
-    }
-
-    if (cors.strict && !cors.allowed) {
-      return sendJson(req, res, 403, { error: 'origin_not_allowed' });
+      return sendJson(res, 405, { ok: false, error: 'method_not_allowed' });
     }
 
     // Fast mode manual para pruebas
     if (req.query?.debug === '1' || req.headers['x-debug-fast'] === '1') {
-      return sendJson(req, res, 200, { ok: true, fast: true, rid });
+      return sendJson(res, 200, { ok: true, fast: true, rid });
     }
 
     // Desbloqueo inmediato: desactivar OCR por default con env OCR_ENABLED!=1
     if (process.env.OCR_ENABLED !== '1') {
-      return sendJson(req, res, 200, { ok: true, ocr: 'disabled', rid });
+      return sendJson(res, 200, { ok: true, ocr: 'disabled' });
     }
 
     // Obtener body asegurando JSON válido
@@ -80,12 +70,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (!body || typeof body !== 'object') {
-      return sendJson(req, res, 400, { ok: false, reason: 'invalid_body', rid });
+      return sendJson(res, 400, { ok: false, error: 'invalid_body' });
     }
 
     const image = body?.image;
     if (!image) {
-      return sendJson(req, res, 400, { ok: false, reason: 'missing_image', rid });
+      return sendJson(res, 400, { ok: false, error: 'missing_image' });
     }
 
     // ========= OPCIÓN B: OCR con Tesseract usando CDN =========
@@ -111,10 +101,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       await worker.terminate();
     }
 
-    return sendJson(req, res, 200, { ok: true, rid /*, text: data.text */ });
+    return sendJson(res, 200, { ok: true, rid /*, text: data.text */ });
     // ===========================================================
   } catch (err: any) {
+    applyCors(req, res, 'POST, OPTIONS');
+    const diagId = `mid-${rid}`;
     console.error('moderate-image error', { rid, err: err?.message });
-    return sendJson(req, res, 500, { error: err?.message || 'Internal error', rid });
+    return sendJson(res, 500, {
+      ok: false,
+      error: err?.message || 'internal_error',
+      diagId,
+    });
   }
 }
