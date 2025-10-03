@@ -763,6 +763,28 @@ export async function createJobAndProduct(
           body: JSON.stringify(checkoutPayload),
         });
         const ck = await ckResp.json().catch(() => null);
+        (result as Record<string, unknown>).publicCheckoutResponse = ck && typeof ck === 'object' ? ck : null;
+        (result as Record<string, unknown>).publicCheckoutStatus = typeof ckResp.status === 'number' ? ckResp.status : null;
+        if (SHOULD_LOG_COMMERCE) {
+          try {
+            logger.debug('[commerce]', {
+              tag: 'public-checkout-response',
+              status: typeof ckResp.status === 'number' ? ckResp.status : null,
+              keys: ck && typeof ck === 'object' ? Object.keys(ck) : [],
+              checkoutUrl:
+                (typeof ck?.checkoutUrl === 'string' && ck.checkoutUrl.trim())
+                  ? ck.checkoutUrl.trim()
+                  : typeof ck?.url === 'string' && ck.url.trim()
+                    ? ck.url.trim()
+                    : null,
+              diagId: typeof ck?.diagId === 'string' && ck.diagId ? ck.diagId : null,
+              mode: typeof ck?.mode === 'string' ? ck.mode : null,
+              error: typeof ck?.error === 'string' ? ck.error : null,
+            });
+          } catch (logErr) {
+            logger.warn('[createJobAndProduct] public_checkout_log_failed', logErr);
+          }
+        }
         const checkoutUrlFromResponse =
           typeof ck?.checkoutUrl === 'string' && ck.checkoutUrl.trim()
             ? ck.checkoutUrl.trim()

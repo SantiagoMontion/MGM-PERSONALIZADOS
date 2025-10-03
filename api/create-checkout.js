@@ -9,7 +9,6 @@ const REQUIRED_ENV = [
   ['SHOPIFY_STOREFRONT_API_TOKEN', 'SHOPIFY_STOREFRONT_TOKEN'],
   'SHOPIFY_API_VERSION',
 ];
-const SHOPIFY_TIMEOUT_STATUS = 504;
 const SHOPIFY_TIMEOUT_MS = 20000;
 const CHECKOUT_CREATE_MUTATION = `
   mutation($input: CheckoutCreateInput!) {
@@ -58,6 +57,17 @@ function parseQuantity(value) {
   return Math.min(Math.max(rounded, 1), 100);
 }
 
+function normalizeVariantNumericId(value) {
+  if (value == null) return '';
+  const raw = String(value).trim();
+  if (!raw) return '';
+  if (/^\d+$/.test(raw)) {
+    return raw;
+  }
+  const match = raw.match(/(\d+)(?:[^\d]*)$/);
+  return match ? match[1] : '';
+}
+
 function normalizeVariantGid(value) {
   if (value == null) return '';
   const raw = String(value).trim();
@@ -73,6 +83,92 @@ function normalizeVariantGid(value) {
     return `gid://shopify/ProductVariant/${match[1]}`;
   }
   return raw;
+}
+
+function extractString(candidate, keys) {
+  if (!candidate || typeof candidate !== 'object') return '';
+  for (const key of keys) {
+    if (!key) continue;
+    const value = candidate?.[key];
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (trimmed) return trimmed;
+    }
+  }
+  return '';
+}
+
+function extractVariantFromBody(body) {
+  const variantCandidates = [];
+  const potentialSources = [
+    body,
+    body?.variant,
+    body?.lastProduct,
+    body?.product,
+    body?.defaultVariant,
+    body?.default_variant,
+  ];
+
+  for (const source of potentialSources) {
+    if (!source || typeof source !== 'object') continue;
+    const candidatesForSource = [
+      source.variantId,
+      source.variant_id,
+      source.variantGid,
+      source.variant_gid,
+      source.id,
+      source.gid,
+      source.legacyResourceId,
+      source.legacy_resource_id,
+      source.variantIdNumeric,
+      source.variant_id_numeric,
+    ];
+    for (const candidate of candidatesForSource) {
+      if (candidate == null) continue;
+      variantCandidates.push(candidate);
+    }
+
+    if (Array.isArray(source.variants)) {
+      for (const entry of source.variants) {
+        if (!entry || typeof entry !== 'object') continue;
+        const entryCandidates = [entry.id, entry.variantId, entry.variant_id, entry.legacyResourceId];
+        for (const candidate of entryCandidates) {
+          if (candidate == null) continue;
+          variantCandidates.push(candidate);
+        }
+      }
+    }
+  }
+
+  const variantNumeric = (() => {
+    for (const candidate of variantCandidates) {
+      const normalized = normalizeVariantNumericId(candidate);
+      if (normalized) return normalized;
+    }
+    return '';
+  })();
+
+  let variantGid = '';
+  for (const candidate of variantCandidates) {
+    const normalized = normalizeVariantGid(candidate);
+    if (normalized && normalized.startsWith('gid://')) {
+      variantGid = normalized;
+      break;
+    }
+  }
+  if (!variantGid && variantNumeric) {
+    variantGid = `gid://shopify/ProductVariant/${variantNumeric}`;
+  }
+
+  const productHandle = extractString(body, [
+    'productHandle',
+    'product_handle',
+    'handle',
+  ])
+    || extractString(body?.product, ['handle', 'productHandle', 'product_handle'])
+    || extractString(body?.lastProduct, ['productHandle', 'product_handle', 'handle']);
+
+  return { variantNumeric, variantGid, productHandle };
 }
 
 async function readJsonBody(req) {
@@ -275,6 +371,32 @@ async function callShopifyCheckoutCreate({ variantId, quantity, discountCode }) 
   return { ok: true, checkoutUrl: webUrl, checkoutId, requestId };
 }
 
+function buildCartFallbackUrl(domain, variantNumericId, quantity, discountCode) {
+  if (!domain || !variantNumericId) return '';
+  const normalizedDomain = domain.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+  if (!normalizedDomain) return '';
+  const qty = parseQuantity(quantity);
+  const baseUrl = `https://${normalizedDomain}/cart/${variantNumericId}:${qty}`;
+  const discount = typeof discountCode === 'string' ? discountCode.trim() : '';
+  if (!discount) {
+    return baseUrl;
+  }
+  const sanitizedDiscount = discount.replace(/[^A-Za-z0-9-_]/g, '');
+  if (!sanitizedDiscount) {
+    return baseUrl;
+  }
+  const separator = baseUrl.includes('?') ? '&' : '?';
+  return `${baseUrl}${separator}discount=${encodeURIComponent(sanitizedDiscount)}`;
+}
+
+function buildProductFallbackUrl(domain, handle) {
+  if (!domain || !handle) return '';
+  const normalizedDomain = domain.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+  const trimmedHandle = handle.trim().replace(/^\/+/, '').replace(/\/+$/, '');
+  if (!normalizedDomain || !trimmedHandle) return '';
+  return `https://${normalizedDomain}/products/${trimmedHandle}`;
+}
+
 async function handleRealHandler(req, res, diagId) {
   await runWithLenientCors(req, res, async () => {
     let body;
@@ -287,11 +409,9 @@ async function handleRealHandler(req, res, diagId) {
       return;
     }
 
-    const variantCandidate =
-      body?.variantId ?? body?.variant_id ?? body?.variantGid ?? body?.variant_gid ?? body?.variant ?? null;
-    const normalizedVariantId = normalizeVariantGid(variantCandidate);
-    if (!normalizedVariantId) {
-      sendJsonWithCors(req, res, 400, { ok: false, error: 'missing_variant', diagId });
+    const { variantNumeric, variantGid, productHandle } = extractVariantFromBody(body || {});
+    if (!variantGid) {
+      sendJsonWithCors(req, res, 200, { ok: false, error: 'invalid_variant', diagId });
       return;
     }
 
@@ -306,65 +426,66 @@ async function handleRealHandler(req, res, diagId) {
 
     let result;
     try {
-      result = await callShopifyCheckoutCreate({ variantId: normalizedVariantId, quantity, discountCode });
+      result = await callShopifyCheckoutCreate({ variantId: variantGid, quantity, discountCode });
     } catch (err) {
       if (err?.code === 'SHOPIFY_TIMEOUT') {
         throw err;
       }
       logApiError('create-checkout', { diagId, step: 'shopify_request', error: err });
-      sendJsonWithCors(req, res, 502, { ok: false, error: 'checkout_failed', diagId });
+      sendJsonWithCors(req, res, 200, { ok: false, error: 'checkout_error', diagId });
       return;
     }
 
+    const domain = resolveShopDomain();
+
     if (!result?.ok) {
-      if (result?.type === 'user_errors') {
-        sendJsonWithCors(req, res, 200, {
-          ok: false,
-          error: 'checkout_error',
-          userErrors: result.userErrors,
-          checkoutId: result.checkoutId || null,
-          requestId: result.requestId || null,
+      const userErrors = Array.isArray(result?.userErrors) ? result.userErrors : [];
+      const fallbackUrl =
+        buildCartFallbackUrl(domain, variantNumeric, quantity, discountCode)
+        || buildProductFallbackUrl(domain, productHandle);
+
+      if (fallbackUrl) {
+        const fallbackPayload = {
+          ok: true,
+          checkoutUrl: fallbackUrl,
+          url: fallbackUrl,
           diagId,
-        });
+          mode: 'fallback',
+          ...(userErrors.length ? { userErrors } : {}),
+          ...(result?.requestId ? { requestId: result.requestId } : {}),
+        };
+        sendJsonWithCors(req, res, 200, fallbackPayload);
         return;
       }
 
       const errorPayload = {
         ok: false,
-        error: 'checkout_failed',
+        error: result?.type === 'user_errors' ? 'checkout_error' : 'checkout_error',
         diagId,
-        requestId: result?.requestId || null,
+        ...(userErrors.length ? { userErrors } : {}),
+        ...(result?.requestId ? { requestId: result.requestId } : {}),
+        ...(result?.status ? { shopifyStatus: result.status } : {}),
       };
 
-      if (result?.status) {
-        errorPayload.shopifyStatus = result.status;
-      }
-
-      if (result?.type === 'http_error') {
+      if (result?.type === 'graphql_errors') {
+        logApiError('create-checkout', { diagId, step: 'shopify_graphql_error', error: result.errors });
+        if (result?.errors) {
+          errorPayload.detail = result.errors;
+        }
+      } else if (result?.type === 'http_error') {
         logApiError('create-checkout', {
           diagId,
           step: 'shopify_http_error',
           status: result.status,
           error: result.body,
         });
-        sendJsonWithCors(req, res, 502, errorPayload);
-        return;
-      }
-
-      if (result?.type === 'graphql_errors') {
-        logApiError('create-checkout', { diagId, step: 'shopify_graphql_error', error: result.errors });
-        errorPayload.detail = result.errors;
-        sendJsonWithCors(req, res, 502, errorPayload);
-        return;
-      }
-
-      if (result?.type === 'invalid_response') {
+      } else if (result?.type === 'invalid_response') {
         logApiError('create-checkout', { diagId, step: 'invalid_response', error: 'invalid_json' });
       } else if (result?.type === 'missing_checkout_url') {
         logApiError('create-checkout', { diagId, step: 'missing_checkout_url' });
       }
 
-      sendJsonWithCors(req, res, 502, errorPayload);
+      sendJsonWithCors(req, res, 200, errorPayload);
       return;
     }
 
@@ -443,7 +564,7 @@ export default async function handler(req, res) {
     logApiError('create-checkout', { diagId, step, error: err });
     if (!res.headersSent) {
       if (err?.code === 'SHOPIFY_TIMEOUT') {
-        sendJsonWithCors(req, res, SHOPIFY_TIMEOUT_STATUS, {
+        sendJsonWithCors(req, res, 200, {
           ok: false,
           error: 'shopify_timeout',
           diagId,
@@ -451,7 +572,7 @@ export default async function handler(req, res) {
         });
         return;
       }
-      sendJsonWithCors(req, res, 502, { ok: false, error: 'checkout_failed', diagId });
+      sendJsonWithCors(req, res, 200, { ok: false, error: 'checkout_error', diagId });
     }
   }
 }

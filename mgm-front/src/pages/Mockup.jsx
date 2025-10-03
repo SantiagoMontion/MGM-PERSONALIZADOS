@@ -591,34 +591,91 @@ export default function Mockup() {
         jsonCandidates.push(result);
       }
       if (mode === 'checkout') {
-        let checkoutTarget = '';
-        for (const candidate of jsonCandidates) {
-          if (!candidate || typeof candidate !== 'object') continue;
-          const checkoutUrlValue =
-            typeof candidate?.checkoutUrl === 'string' && candidate.checkoutUrl.trim()
-              ? candidate.checkoutUrl.trim()
-              : '';
-          if (checkoutUrlValue) {
-            checkoutTarget = checkoutUrlValue;
-            break;
-          }
-          const urlValue = typeof candidate?.url === 'string' && candidate.url.trim() ? candidate.url.trim() : '';
-          if (urlValue) {
-            checkoutTarget = urlValue;
-            break;
+        if (SHOULD_LOG_COMMERCE) {
+          const checkoutJson = result && typeof result === 'object' ? result.publicCheckoutResponse : null;
+          try {
+            logger.debug('[commerce]', {
+              tag: 'public-checkout',
+              status: typeof result?.publicCheckoutStatus === 'number' ? result.publicCheckoutStatus : null,
+              keys:
+                checkoutJson && typeof checkoutJson === 'object'
+                  ? Object.keys(checkoutJson)
+                  : [],
+              checkoutUrl:
+                checkoutJson && typeof checkoutJson === 'object'
+                  ? (typeof checkoutJson.checkoutUrl === 'string' && checkoutJson.checkoutUrl.trim()
+                    ? checkoutJson.checkoutUrl.trim()
+                    : typeof checkoutJson.url === 'string' && checkoutJson.url.trim()
+                      ? checkoutJson.url.trim()
+                      : null)
+                  : null,
+              diagId:
+                checkoutJson && typeof checkoutJson.diagId === 'string' && checkoutJson.diagId
+                  ? checkoutJson.diagId
+                  : null,
+            });
+          } catch (logErr) {
+            logger.warn('[checkout] public_log_failed', logErr);
           }
         }
-        if (checkoutTarget) {
+        let checkoutTarget = '';
+        let directUrlTarget = '';
+        let productUrlCandidate = '';
+        const handleCandidates = [];
+        for (const candidate of jsonCandidates) {
+          if (!candidate || typeof candidate !== 'object') continue;
+          if (!checkoutTarget) {
+            const checkoutUrlValue =
+              typeof candidate?.checkoutUrl === 'string' && candidate.checkoutUrl.trim()
+                ? candidate.checkoutUrl.trim()
+                : '';
+            if (checkoutUrlValue) {
+              checkoutTarget = checkoutUrlValue;
+            }
+          }
+          if (!directUrlTarget) {
+            const urlValue = typeof candidate?.url === 'string' && candidate.url.trim() ? candidate.url.trim() : '';
+            if (urlValue) {
+              directUrlTarget = urlValue;
+            }
+          }
+          if (!productUrlCandidate) {
+            const productUrlValue =
+              typeof candidate?.productUrl === 'string' && candidate.productUrl.trim()
+                ? candidate.productUrl.trim()
+                : '';
+            if (productUrlValue) {
+              productUrlCandidate = productUrlValue;
+            }
+          }
+          const handleValue =
+            typeof candidate?.productHandle === 'string' && candidate.productHandle.trim()
+              ? candidate.productHandle.trim()
+              : typeof candidate?.handle === 'string' && candidate.handle.trim()
+                ? candidate.handle.trim()
+                : '';
+          if (handleValue) {
+            handleCandidates.push(handleValue);
+          }
+        }
+        if (typeof result?.productHandle === 'string' && result.productHandle.trim()) {
+          handleCandidates.push(result.productHandle.trim());
+        }
+        const primaryTarget = checkoutTarget || directUrlTarget;
+        if (primaryTarget) {
           if (typeof window !== 'undefined') {
             let popup = null;
             try {
-              popup = window.open(checkoutTarget, '_blank');
+              popup = window.open(primaryTarget, '_blank');
             } catch (openErr) {
               logger.warn('[checkout] popup_open_failed', openErr);
             }
             if (popup == null) {
               try {
-                window.location.assign(checkoutTarget);
+                window.location.assign(primaryTarget);
+                return finalizeCartSuccess('Listo. Abrimos tu checkout en otra pestaña.', {
+                  skipNavigate: true,
+                });
               } catch (assignErr) {
                 logger.warn('[checkout] location_assign_failed', assignErr);
               }
@@ -629,35 +686,18 @@ export default function Mockup() {
           });
           return;
         }
-        const candidateKeys = ['productUrl'];
-        let directTarget = '';
-        for (const candidate of jsonCandidates) {
-          if (!candidate || typeof candidate !== 'object') continue;
-          for (const key of candidateKeys) {
-            const value = typeof candidate?.[key] === 'string' ? candidate[key].trim() : '';
-            if (value) {
-              directTarget = value;
-              break;
-            }
-          }
-          if (directTarget) {
-            break;
+        let fallbackTarget = productUrlCandidate;
+        if (!fallbackTarget) {
+          const handleCandidate = handleCandidates.find((entry) => typeof entry === 'string' && entry.trim());
+          if (handleCandidate && SHOPIFY_DOMAIN) {
+            const normalizedHandle = handleCandidate.trim().replace(/^\/+/, '').replace(/\/+$/, '');
+            fallbackTarget = `https://${SHOPIFY_DOMAIN}/products/${normalizedHandle}`;
           }
         }
-        if (directTarget) {
-          const opened = openCommerceTarget(directTarget);
-          if (!opened) {
-            const navigationError = new Error('checkout_navigation_failed');
-            navigationError.reason = 'checkout_navigation_failed';
-            throw navigationError;
-          }
-          finalizeCartSuccess('Listo. Abrimos tu checkout en otra pestaña.', {
-            skipNavigate: true,
-          });
-          return;
+        if (!fallbackTarget) {
+          fallbackTarget = pickCommerceTarget(result, SHOPIFY_DOMAIN)
+            || pickCommerceTarget(flow?.lastProduct || {}, SHOPIFY_DOMAIN);
         }
-        const SHOPIFY_DOMAIN = import.meta.env.VITE_SHOPIFY_DOMAIN || '';
-        const fallbackTarget = pickCommerceTarget(result, SHOPIFY_DOMAIN);
         if (fallbackTarget) {
           const opened = openCommerceTarget(fallbackTarget);
           if (!opened) {
