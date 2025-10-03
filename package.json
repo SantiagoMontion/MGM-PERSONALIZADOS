@@ -1,34 +1,24 @@
 {
-  "name": "mgm-api",
-  "version": "0.1.0",
-  "private": true,
-  "type": "module",
-  "engines": {
-    "node": "20.x"
-  },
-  "scripts": {
-    "build": "npm run --prefix mgm-front build",
-    "vercel-build": "npm run build",
-    "vercel:link": "node scripts/vercel-link.mjs",
-    "vercel:pull": "vercel pull --yes --environment=development",
-    "dev:api": "node ./scripts/dev-api-server.mjs",
-    "dev:front": "cd mgm-front && vite",
-    "dev:all": "concurrently -k -n api,front -c blue,green \"npm:dev:api\" \"npm:dev:front\"",
-    "dev": "npm run dev:all",
-    "dev:vercel": "vercel dev",
-    "deploy:prod": "vercel --prod --yes",
-    "doctor:vercel": "node scripts/doctor-vercel.mjs",
-    "doctor:shopify-env": "node -e \"const r=['SHOPIFY_STORE_DOMAIN','SHOPIFY_ADMIN_TOKEN','SHOPIFY_API_VERSION'];const m=r.filter(k=>!process.env[k]);console.log({missing:m});process.exit(m.length?1:0)\""
-  },
-  "dependencies": {
-    "@supabase/supabase-js": "^2.54.0",
-    "pdf-lib": "^1.17.1",
-    "sharp": "^0.33.5",
-    "tesseract.js": "^5.1.1",
-    "vercel": "^48.1.6",
-    "zod": "^3.25.76"
-  },
-  "devDependencies": {
-    "concurrently": "^8.2.2"
-  }
+    "name":  "mgm-api",
+    "version":  "0.1.0",
+    "private":  true,
+    "type":  "module",
+    "engines":  {
+                    "node":  "20.x"
+                },
+    "dependencies":  {
+                         "@supabase/supabase-js":  "^2.54.0",
+                         "pdf-lib":  "^1.17.1",
+                         "sharp":  "^0.33.5",
+                         "tesseract.js":  "^5.1.1",
+                         "vercel":  "^48.1.6",
+                         "zod":  "^3.25.76"
+                     },
+    "devDependencies":  {
+                            "concurrently":  "^8.2.2"
+                        },
+    "scripts":  {
+                    "build":  "echo \"no build step for api\"",
+                    "vercel-build":  "echo \"no vercel build\""
+                }
 }
