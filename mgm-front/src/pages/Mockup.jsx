@@ -591,7 +591,45 @@ export default function Mockup() {
         jsonCandidates.push(result);
       }
       if (mode === 'checkout') {
-        const candidateKeys = ['checkoutUrl', 'url', 'productUrl'];
+        let checkoutTarget = '';
+        for (const candidate of jsonCandidates) {
+          if (!candidate || typeof candidate !== 'object') continue;
+          const checkoutUrlValue =
+            typeof candidate?.checkoutUrl === 'string' && candidate.checkoutUrl.trim()
+              ? candidate.checkoutUrl.trim()
+              : '';
+          if (checkoutUrlValue) {
+            checkoutTarget = checkoutUrlValue;
+            break;
+          }
+          const urlValue = typeof candidate?.url === 'string' && candidate.url.trim() ? candidate.url.trim() : '';
+          if (urlValue) {
+            checkoutTarget = urlValue;
+            break;
+          }
+        }
+        if (checkoutTarget) {
+          if (typeof window !== 'undefined') {
+            let popup = null;
+            try {
+              popup = window.open(checkoutTarget, '_blank');
+            } catch (openErr) {
+              logger.warn('[checkout] popup_open_failed', openErr);
+            }
+            if (popup == null) {
+              try {
+                window.location.assign(checkoutTarget);
+              } catch (assignErr) {
+                logger.warn('[checkout] location_assign_failed', assignErr);
+              }
+            }
+          }
+          finalizeCartSuccess('Listo. Abrimos tu checkout en otra pestaña.', {
+            skipNavigate: true,
+          });
+          return;
+        }
+        const candidateKeys = ['productUrl'];
         let directTarget = '';
         for (const candidate of jsonCandidates) {
           if (!candidate || typeof candidate !== 'object') continue;
