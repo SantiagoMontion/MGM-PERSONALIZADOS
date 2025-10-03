@@ -17,6 +17,10 @@ const PAGE_LIMIT = 25;
 function PreviewImage({ src, alt }) {
   const [failed, setFailed] = useState(false);
 
+  useEffect(() => {
+    setFailed(false);
+  }, [src]);
+
   if (!src || failed) {
     return (
       <span className={styles.previewPlaceholder} aria-label="PDF">
@@ -32,9 +36,24 @@ function PreviewImage({ src, alt }) {
       className={styles.previewImage}
       loading="lazy"
       decoding="async"
-      onError={() => setFailed(true)}
+      referrerPolicy="no-referrer"
+      style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 8 }}
+      onError={(event) => {
+        event.currentTarget.onerror = null;
+        event.currentTarget.src = '';
+        setFailed(true);
+      }}
     />
   );
+}
+
+function getPreviewAlt(name) {
+  if (typeof name !== 'string' || !name) {
+    return 'Vista previa';
+  }
+  const base = name.split(/[/\\]/).pop() || name;
+  const withoutPdf = base.replace(/\.pdf$/i, '');
+  return withoutPdf || base;
 }
 
 function formatBytes(size) {
@@ -323,8 +342,17 @@ export default function Busqueda() {
                 results.map((item) => {
                   const key = item.id || item.path || item.fileName;
                   const measurement = formatMeasurement(item.widthCm, item.heightCm);
+                  if (import.meta.env?.DEV && typeof console !== 'undefined') {
+                    console.debug('[prints] preview', {
+                      name: item.fileName || item.name,
+                      preview: item.previewUrl,
+                    });
+                  }
                   const previewContent = (
-                    <PreviewImage src={item.previewUrl} alt={item.fileName || 'preview'} />
+                    <PreviewImage
+                      src={item.previewUrl}
+                      alt={getPreviewAlt(item.fileName || item.name)}
+                    />
                   );
                   return (
                     <tr key={key}>
@@ -342,7 +370,7 @@ export default function Busqueda() {
                             className={styles.downloadLink}
                             href={item.downloadUrl}
                             target="_blank"
-                            rel="noreferrer"
+                            rel="noopener noreferrer"
                           >
                             Descargar PDF
                           </a>

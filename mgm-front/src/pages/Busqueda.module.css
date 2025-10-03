@@ -146,8 +146,8 @@
 }
 
 .previewImage {
-  width: 96px;
-  height: 96px;
+  width: 72px;
+  height: 72px;
   object-fit: cover;
   border-radius: 8px;
   border: 1px solid rgba(59, 130, 246, 0.25);
@@ -158,8 +158,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 96px;
-  height: 96px;
+  width: 72px;
+  height: 72px;
   border-radius: 8px;
   border: 1px dashed rgba(148, 163, 184, 0.4);
   color: #94a3b8;
