@@ -1,4 +1,4 @@
-import { withCors } from '../../lib/cors.js';
+﻿import { withCors } from '../../lib/cors.js';
 import { ensureQuery } from '../../lib/_lib/http.js';
 import { enforceRateLimit } from '../../lib/_lib/rateLimit.js';
 import logger from '../../lib/_lib/logger.js';
@@ -87,3 +87,4 @@ export function createApiHandler(options) {
 }
 
 export default { createApiHandler };
+
