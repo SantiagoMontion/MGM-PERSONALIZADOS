@@ -45,14 +45,24 @@ type StorageFileEntry = {
   metadata?: { size?: number | null } | null;
 };
 
+type SupabaseStorageClient = ReturnType<SupabaseClient['storage']['from']>;
+
+type StorageSearchItem = {
+  name: string;
+  path: string;
+  downloadUrl: string | null;
+  previewUrl: string | null;
+  sizeBytes: number | null;
+  sizeMB: number | null;
+  updatedAt: string | null;
+  measure: string | null;
+  material: string | null;
+  previewTried?: string[];
+  previewFound?: boolean;
+};
+
 type StorageSearchResult = {
-  items: Array<{
-    name: string;
-    path: string;
-    size: number | null;
-    updatedAt: string | null;
-    url: string | null;
-  }>;
+  items: StorageSearchItem[];
   total: number;
   scannedDirs: number;
   scannedFiles: number;
@@ -305,11 +315,117 @@ function sortStorageFiles(files: StorageFileEntry[]): StorageFileEntry[] {
   });
 }
 
+function getSignedUrlTtl(): number {
+  const raw = Number(process.env.SIGNED_URL_TTL);
+  if (!Number.isFinite(raw) || raw <= 0) {
+    return 3600;
+  }
+  return Math.floor(raw);
+}
+
+async function resolveStorageUrl(
+  storage: SupabaseStorageClient,
+  path: string,
+): Promise<string | null> {
+  const { data: publicData } = storage.getPublicUrl(path);
+  if (publicData?.publicUrl) {
+    return publicData.publicUrl;
+  }
+
+  const ttl = getSignedUrlTtl();
+  try {
+    const { data, error } = await storage.createSignedUrl(path, ttl);
+    if (error) {
+      return null;
+    }
+    return data?.signedUrl ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function parseMeasureAndMaterial(name: string): {
+  measure: string | null;
+  material: string | null;
+} {
+  const match = name.match(/-(\d+x\d+)-([A-Za-z]+)-/i);
+  if (!match) {
+    return { measure: null, material: null };
+  }
+  return { measure: match[1] ?? null, material: match[2] ?? null };
+}
+
+function computeSizeMb(sizeBytes: number | null): number | null {
+  if (typeof sizeBytes !== 'number' || !Number.isFinite(sizeBytes)) {
+    return null;
+  }
+  const megabytes = sizeBytes / 1048576;
+  return Number.isFinite(megabytes) ? Number(megabytes.toFixed(2)) : null;
+}
+
+function splitPath(path: string): { dir: string; name: string } {
+  const index = path.lastIndexOf('/');
+  if (index === -1) {
+    return { dir: '', name: path };
+  }
+  const dir = path.slice(0, index);
+  const name = path.slice(index + 1);
+  return { dir, name };
+}
+
+async function checkStorageFileExists(
+  storage: SupabaseStorageClient,
+  path: string,
+): Promise<boolean> {
+  const { dir, name } = splitPath(path);
+  try {
+    const { data, error } = await storage.list(dir, {
+      limit: 100,
+      search: name,
+    });
+    if (error) {
+      return false;
+    }
+    return Array.isArray(data)
+      ? data.some((entry) => entry.name === name && Boolean(entry.metadata))
+      : false;
+  } catch {
+    return false;
+  }
+}
+
+async function resolvePreview(
+  storage: SupabaseStorageClient,
+  filePath: string,
+): Promise<{ url: string | null; tried: string[]; found: boolean }> {
+  const tried: string[] = [];
+  if (!/\.pdf$/i.test(filePath)) {
+    return { url: null, tried, found: false };
+  }
+
+  const previewBase = filePath.replace('/pdf/', '/preview/');
+  const baseWithoutExt = previewBase.replace(/\.pdf$/i, '');
+  const candidates = [`${baseWithoutExt}.jpg`, `${baseWithoutExt}.png`];
+
+  for (const candidate of candidates) {
+    tried.push(candidate);
+    const exists = await checkStorageFileExists(storage, candidate);
+    if (!exists) {
+      continue;
+    }
+    const url = await resolveStorageUrl(storage, candidate);
+    return { url, tried, found: true };
+  }
+
+  return { url: null, tried, found: false };
+}
+
 async function searchStorage(
   client: SupabaseClient,
   query: string,
   limit: number,
   offset: number,
+  debug: boolean,
 ): Promise<StorageSearchResult | StorageSearchFailure> {
   const bucket = process.env.SEARCH_STORAGE_BUCKET || DEFAULT_BUCKET;
   const root = normalizeStorageRoot(process.env.SEARCH_STORAGE_ROOT ?? DEFAULT_ROOT);
@@ -397,16 +513,32 @@ async function searchStorage(
   const sorted = sortStorageFiles(filtered);
   const total = sorted.length;
   const sliced = sorted.slice(offset, offset + limit);
-  const items = sliced.map((file) => {
-    const { data: publicData } = storage.getPublicUrl(file.path);
-    return {
-      name: file.name,
-      path: file.path,
-      size: file.metadata?.size ?? null,
-      updatedAt: file.updated_at ?? null,
-      url: publicData?.publicUrl ?? null,
-    };
-  });
+  const items = await Promise.all(
+    sliced.map(async (file) => {
+      const sizeBytes = file.metadata?.size ?? null;
+      const [downloadUrl, previewInfo] = await Promise.all([
+        resolveStorageUrl(storage, file.path),
+        resolvePreview(storage, file.path),
+      ]);
+      const { measure, material } = parseMeasureAndMaterial(file.name);
+      const item: StorageSearchItem = {
+        name: file.name,
+        path: file.path,
+        downloadUrl,
+        previewUrl: previewInfo.url,
+        sizeBytes,
+        sizeMB: computeSizeMb(sizeBytes),
+        updatedAt: file.updated_at ?? null,
+        measure,
+        material,
+      };
+      if (debug) {
+        item.previewTried = previewInfo.tried;
+        item.previewFound = previewInfo.found;
+      }
+      return item;
+    }),
+  );
 
   return { items, total, scannedDirs, scannedFiles, errors };
 }
@@ -498,7 +630,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const storageResult = await searchStorage(client, rawQuery, limit, offset);
+  const storageResult = await searchStorage(client, rawQuery, limit, offset, debug);
   if (storageResult === 'timeout') {
     logApiError('prints-search', { diagId, step: 'storage_timeout' });
     sendJsonResponse(req, res, 200, { ok: false, error: 'timeout', diagId });
