@@ -14,12 +14,45 @@ function createRid() {
   return `${base}${random}`;
 }
 
+function resolveCorsOrigin(req) {
+  if (typeof req?.headers?.origin === 'string') {
+    const value = req.headers.origin.trim();
+    if (value) {
+      return value;
+    }
+  }
+  return '*';
+}
+
+function resolveRequestedHeaders(req) {
+  const raw = req?.headers?.['access-control-request-headers'];
+  let headerList = '';
+
+  if (Array.isArray(raw)) {
+    headerList = raw.join(',');
+  } else if (typeof raw === 'string') {
+    headerList = raw;
+  }
+
+  if (!headerList) {
+    return 'content-type, authorization';
+  }
+
+  const names = headerList
+    .split(',')
+    .map((name) => name.split(':')[0].trim())
+    .filter(Boolean);
+
+  return names.length ? names.join(', ') : 'content-type, authorization';
+}
+
 function applyCors(req, res) {
-  const origin = typeof req?.headers?.origin === 'string' && req.headers.origin ? req.headers.origin : '*';
+  const origin = resolveCorsOrigin(req);
+  const allowHeaders = resolveRequestedHeaders(req);
   res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Vary', 'Origin');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Type: application/json');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', allowHeaders);
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
 }
 
