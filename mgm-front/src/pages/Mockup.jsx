@@ -46,6 +46,27 @@ const SHOPIFY_DOMAIN = (() => {
   return raw.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
 })();
 
+const SHOULD_LOG_COMMERCE = (() => {
+  const fromImportMeta =
+    typeof import.meta !== 'undefined'
+    && import.meta?.env
+    && typeof import.meta.env.VITE_LOG_COMMERCE === 'string'
+      ? import.meta.env.VITE_LOG_COMMERCE
+      : '';
+  const fromProcess =
+    typeof process !== 'undefined'
+    && process?.env
+    && typeof process.env.VITE_LOG_COMMERCE === 'string'
+      ? process.env.VITE_LOG_COMMERCE
+      : '';
+  const normalized = (fromImportMeta || fromProcess || '').trim().toLowerCase();
+  if (!normalized) return false;
+  return normalized === '1'
+    || normalized === 'true'
+    || normalized === 'yes'
+    || normalized === 'on';
+})();
+
 const BENEFITS = [
   {
     icon: '',
@@ -257,6 +278,7 @@ export default function Mockup() {
     const {
       preserveLastProduct = false,
       lastProductOverride = null,
+      skipNavigate = false,
     } = options;
     const lastProductToPreserve = preserveLastProduct
       ? lastProductOverride || flow.lastProduct || null
@@ -280,11 +302,49 @@ export default function Mockup() {
     if (lastProductToPreserve) {
       flow.set({ lastProduct: lastProductToPreserve });
     }
-    try {
-      navigate('/', { replace: true });
-    } catch (navErr) {
-      logger.warn('[mockup] cart_success_navigate_failed', navErr);
+    if (!skipNavigate) {
+      try {
+        navigate('/', { replace: true });
+      } catch (navErr) {
+        logger.warn('[mockup] cart_success_navigate_failed', navErr);
+      }
     }
+  }
+
+  function openCommerceTarget(targetUrl) {
+    if (typeof window === 'undefined') return false;
+    if (!targetUrl || typeof targetUrl !== 'string') return false;
+    const trimmed = targetUrl.trim();
+    if (!trimmed) return false;
+    try {
+      const urlInstance = new URL(trimmed, window.location.href);
+      const isSameOrigin = urlInstance.origin === window.location.origin;
+      if (isSameOrigin) {
+        const relative = `${urlInstance.pathname}${urlInstance.search}${urlInstance.hash}` || '/';
+        try {
+          navigate(relative, { replace: false });
+        } catch (navErr) {
+          logger.warn('[mockup] internal_navigation_failed', navErr);
+          window.location.assign(urlInstance.toString());
+        }
+        return true;
+      }
+      const opened = window.open(urlInstance.toString(), '_blank');
+      if (opened) {
+        return true;
+      }
+      window.location.assign(urlInstance.toString());
+      return true;
+    } catch (navErr) {
+      logger.warn('[mockup] commerce_navigation_failed', navErr);
+      try {
+        window.location.assign(trimmed);
+        return true;
+      } catch (assignErr) {
+        logger.warn('[mockup] commerce_navigation_assign_failed', assignErr);
+      }
+    }
+    return false;
   }
 
   function extractWarningMessages(warnings, warningMessages) {
@@ -311,10 +371,25 @@ export default function Mockup() {
     setToast(null);
     setCartStatus('creating');
     setBusy(true);
+    let didOpenTarget = false;
     try {
       const normalizedDiscountCode = discountCode || '';
       const creationCartOptions = normalizedDiscountCode ? { discountCode: normalizedDiscountCode } : {};
       const result = await createJobAndProduct('cart', flow, creationCartOptions);
+      if (SHOULD_LOG_COMMERCE) {
+        try {
+          const jsonForLog = result && typeof result === 'object' ? result : null;
+          logger.debug('[commerce]', {
+            tag: 'startCartFlow:publish',
+            json: jsonForLog,
+            keys: jsonForLog ? Object.keys(jsonForLog) : [],
+            busy,
+            cartStatus,
+          });
+        } catch (logErr) {
+          logger.warn('[mockup] cart_publish_log_failed', logErr);
+        }
+      }
       const warningMessages = extractWarningMessages(result?.warnings, result?.warningMessages);
       if (warningMessages.length) {
         try {
@@ -325,17 +400,42 @@ export default function Mockup() {
         setToast({ message: warningMessages.join(' ') });
       }
 
+      const jsonCandidates = [];
+      if (result && typeof result === 'object') {
+        if (result.raw && typeof result.raw === 'object') {
+          jsonCandidates.push(result.raw);
+        }
+        jsonCandidates.push(result);
+      }
+      let directTarget = '';
+      for (const candidate of jsonCandidates) {
+        if (!candidate || typeof candidate !== 'object') continue;
+        for (const key of ['productUrl', 'checkoutUrl', 'url']) {
+          const value = typeof candidate?.[key] === 'string' ? candidate[key].trim() : '';
+          if (value) {
+            directTarget = value;
+            break;
+          }
+        }
+        if (directTarget) {
+          break;
+        }
+      }
+      if (directTarget) {
+        didOpenTarget = openCommerceTarget(directTarget) || didOpenTarget;
+        setCartStatus('idle');
+        return;
+      }
+
       const SHOPIFY_DOMAIN = import.meta.env.VITE_SHOPIFY_DOMAIN || '';
       const tgt = pickCommerceTarget(result, SHOPIFY_DOMAIN);
       if (tgt) {
-        if (tgt.startsWith(window.location.origin)) {
-          const rel = tgt.replace(window.location.origin, '');
-          navigate(rel, { replace: false });
-        } else {
-          const w = window.open(tgt, '_blank');
-          if (!w) window.location.assign(tgt);
+        const opened = openCommerceTarget(tgt);
+        didOpenTarget = opened || didOpenTarget;
+        if (opened) {
+          setCartStatus('idle');
+          return;
         }
-        return;
       }
 
       const productUrlFromResult =
@@ -388,20 +488,25 @@ export default function Mockup() {
           target: targetUrl,
         };
         console.debug('[publish/add-to-cart]', navigationPayload);
-        try {
-          window.location.assign(targetUrl);
-        } catch (navErr) {
-          logger.warn('[mockup] product_page_navigation_failed', navErr);
+        const opened = openCommerceTarget(targetUrl);
+        didOpenTarget = opened || didOpenTarget;
+        if (!opened) {
+          const navigationError = new Error('navigation_failed');
+          navigationError.reason = 'navigation_failed';
+          throw navigationError;
         }
       }
 
-      finalizeCartSuccess('Abrimos la página del producto para que lo agregues al carrito.');
+      finalizeCartSuccess('Abrimos la página del producto para que lo agregues al carrito.', {
+        skipNavigate: didOpenTarget,
+      });
       return;
     } catch (err) {
       setCartStatus('idle');
-      setBusy(false);
       if (err?.name === 'AbortError') return;
       showFriendlyError(err);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -414,6 +519,8 @@ export default function Mockup() {
       await startCartFlow();
       return;
     }
+
+    if (busy) return;
 
     let submissionFlow = flow;
 
@@ -476,41 +583,55 @@ export default function Mockup() {
         }
         setToast({ message: warningMessages.join(' ') });
       }
-      if (mode === 'checkout') {
-        {
-          const SHOPIFY_DOMAIN = import.meta.env.VITE_SHOPIFY_DOMAIN || '';
-          const tgt = pickCommerceTarget(result, SHOPIFY_DOMAIN);
-          if (tgt) {
-            if (tgt.startsWith(window.location.origin)) {
-              const rel = tgt.replace(window.location.origin, '');
-              navigate(rel, { replace: false });
-            } else {
-              const w = window.open(tgt, '_blank');
-              if (!w) window.location.assign(tgt);
-            }
-            return;
-          }
+      const jsonCandidates = [];
+      if (result && typeof result === 'object') {
+        if (result.raw && typeof result.raw === 'object') {
+          jsonCandidates.push(result.raw);
         }
+        jsonCandidates.push(result);
       }
-
-      if (mode === 'checkout' && result.checkoutUrl) {
-        const checkoutUrl = result.checkoutUrl;
-        let opened = false;
-        try {
-          const checkoutTab = window.open(checkoutUrl, '_blank', 'noopener');
-          opened = Boolean(checkoutTab);
-          if (!opened) {
-            logger.warn('[checkout-open] popup_blocked', { url: checkoutUrl });
+      if (mode === 'checkout') {
+        const candidateKeys = ['checkoutUrl', 'url', 'productUrl'];
+        let directTarget = '';
+        for (const candidate of jsonCandidates) {
+          if (!candidate || typeof candidate !== 'object') continue;
+          for (const key of candidateKeys) {
+            const value = typeof candidate?.[key] === 'string' ? candidate[key].trim() : '';
+            if (value) {
+              directTarget = value;
+              break;
+            }
           }
-        } catch (openErr) {
-          logger.warn('[checkout-open]', openErr);
+          if (directTarget) {
+            break;
+          }
         }
-        if (!opened) {
-          window.location.assign(checkoutUrl);
+        if (directTarget) {
+          const opened = openCommerceTarget(directTarget);
+          if (!opened) {
+            const navigationError = new Error('checkout_navigation_failed');
+            navigationError.reason = 'checkout_navigation_failed';
+            throw navigationError;
+          }
+          finalizeCartSuccess('Listo. Abrimos tu checkout en otra pestaña.', {
+            skipNavigate: true,
+          });
           return;
         }
-        finalizeCartSuccess('Listo. Abrimos tu checkout en otra pestaña.');
-        return;
+        const SHOPIFY_DOMAIN = import.meta.env.VITE_SHOPIFY_DOMAIN || '';
+        const fallbackTarget = pickCommerceTarget(result, SHOPIFY_DOMAIN);
+        if (fallbackTarget) {
+          const opened = openCommerceTarget(fallbackTarget);
+          if (!opened) {
+            const navigationError = new Error('checkout_navigation_failed');
+            navigationError.reason = 'checkout_navigation_failed';
+            throw navigationError;
+          }
+          finalizeCartSuccess('Listo. Abrimos tu checkout en otra pestaña.', {
+            skipNavigate: true,
+          });
+          return;
+        }
       }
       if (mode === 'private') {
         const variantIdForCheckout = typeof result?.variantId === 'string' ? result.variantId : '';
@@ -653,20 +774,6 @@ export default function Mockup() {
               ? privateJson.checkoutUrl.trim()
               : '';
         if (privateJson.ok === true && checkoutUrlFromResponse) {
-          {
-            const SHOPIFY_DOMAIN = import.meta.env.VITE_SHOPIFY_DOMAIN || '';
-            const tgt = pickCommerceTarget(privateJson, SHOPIFY_DOMAIN);
-            if (tgt) {
-              if (tgt.startsWith(window.location.origin)) {
-                const rel = tgt.replace(window.location.origin, '');
-                navigate(rel, { replace: false });
-              } else {
-                const w = window.open(tgt, '_blank');
-                if (!w) window.location.assign(tgt);
-              }
-              return;
-            }
-          }
           result.checkoutUrl = checkoutUrlFromResponse;
           if (privateJson.draftOrderId) {
             result.draftOrderId = String(privateJson.draftOrderId);
@@ -685,13 +792,32 @@ export default function Mockup() {
               logger.debug('[private-checkout] request_ids_log_failed', infoErr);
             }
           }
-          try {
-            const opened = window.open(checkoutUrlFromResponse, '_blank', 'noopener');
-            if (!opened) {
-              logger.warn('[private-checkout-open] popup_blocked', { url: checkoutUrlFromResponse });
+          const SHOPIFY_DOMAIN = import.meta.env.VITE_SHOPIFY_DOMAIN || '';
+          const candidateKeys = ['checkoutUrl', 'url', 'productUrl'];
+          let privateTarget = '';
+          for (const candidate of [privateJson, result]) {
+            if (!candidate || typeof candidate !== 'object') continue;
+            for (const key of candidateKeys) {
+              const value = typeof candidate?.[key] === 'string' ? candidate[key].trim() : '';
+              if (value) {
+                privateTarget = value;
+                break;
+              }
             }
-          } catch (tabErr) {
-            logger.warn('[private-checkout-open]', tabErr);
+            if (privateTarget) {
+              break;
+            }
+          }
+          if (!privateTarget) {
+            privateTarget = pickCommerceTarget(privateJson, SHOPIFY_DOMAIN)
+              || pickCommerceTarget(result, SHOPIFY_DOMAIN)
+              || checkoutUrlFromResponse;
+          }
+          const opened = openCommerceTarget(privateTarget || checkoutUrlFromResponse);
+          if (!opened) {
+            const navigationError = new Error('private_checkout_navigation_failed');
+            navigationError.reason = 'private_checkout_navigation_failed';
+            throw navigationError;
           }
           const lastProductPayload = {
             ...(flow.lastProduct || {}),
@@ -713,6 +839,7 @@ export default function Mockup() {
           finalizeCartSuccess('Listo. Abrimos tu checkout privado en otra pestaña.', {
             preserveLastProduct: true,
             lastProductOverride: lastProductPayload,
+            skipNavigate: true,
           });
           return;
         }
@@ -726,7 +853,7 @@ export default function Mockup() {
         throw buildError(reason);
       }
       if (result.productUrl) {
-        window.open(result.productUrl, '_blank', 'noopener');
+        openCommerceTarget(result.productUrl);
         return;
       }
       alert('El producto se creó pero no se pudo obtener un enlace.');

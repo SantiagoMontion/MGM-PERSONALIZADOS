@@ -11,6 +11,16 @@ const IS_DEV = Boolean(
 const DEFAULT_STOREFRONT_API_VERSION = '2024-07';
 const PRIVATE_CHECKOUT_PATH = '/api/private/checkout';
 
+const RAW_LOG_COMMERCE = readEnv(['VITE_LOG_COMMERCE']);
+const SHOULD_LOG_COMMERCE = (() => {
+  if (!RAW_LOG_COMMERCE) return false;
+  const normalized = RAW_LOG_COMMERCE.trim().toLowerCase();
+  return normalized === '1'
+    || normalized === 'true'
+    || normalized === 'yes'
+    || normalized === 'on';
+})();
+
 const PRODUCT_LABELS = {
   mousepad: 'Mousepad',
   glasspad: 'Glasspad',
@@ -245,6 +255,7 @@ export async function createJobAndProduct(
   const printBackgroundHex = (flow.editorState as any)?.background || '#ffffff';
 
   let publish: any = null;
+  let publishStatus: number | null = null;
   let productId: string | undefined;
   let variantId: string | undefined;
   let productHandle: string | undefined;
@@ -340,8 +351,23 @@ export async function createJobAndProduct(
         printDpi: (approxDpi ?? undefined),
       }),
     });
+    publishStatus = Number.isFinite(publishResp.status) ? publishResp.status : null;
     const publishData = await publishResp.json().catch(() => null);
     publish = publishData;
+    if (SHOULD_LOG_COMMERCE) {
+      try {
+        const jsonForLog: Record<string, unknown> | null =
+          publishData && typeof publishData === 'object' ? (publishData as Record<string, unknown>) : null;
+        logger.debug('[commerce]', {
+          tag: 'publishProduct',
+          status: publishStatus,
+          jsonKeys: jsonForLog ? Object.keys(jsonForLog) : [],
+          json: jsonForLog,
+        });
+      } catch (logErr) {
+        logger.warn('[createJobAndProduct] publish_log_failed', logErr);
+      }
+    }
     if (Array.isArray(publishData?.warnings) && publishData.warnings.length) {
       collectedWarnings = publishData.warnings;
     }
@@ -497,6 +523,7 @@ export async function createJobAndProduct(
     warnings?: any[];
     warningMessages?: string[];
     privateCheckoutPayload?: Record<string, unknown>;
+    raw?: unknown;
   } = {
     productId,
     variantId,
@@ -510,6 +537,38 @@ export async function createJobAndProduct(
       ? { warningMessages: collectedWarningMessages }
       : {}),
   };
+
+  const publishJsonForResult = publish && typeof publish === 'object' ? (publish as Record<string, unknown>) : null;
+  if (publishJsonForResult) {
+    result.raw = publishJsonForResult;
+    const readString = (key: string) => {
+      const value = publishJsonForResult[key];
+      return typeof value === 'string' ? value.trim() : '';
+    };
+    const productUrlFromJson = readString('productUrl');
+    const checkoutUrlFromJson = readString('checkoutUrl');
+    const genericUrlFromJson = readString('url');
+    if (productUrlFromJson) {
+      result.productUrl = productUrlFromJson;
+    } else if (!result.productUrl && genericUrlFromJson) {
+      result.productUrl = genericUrlFromJson;
+    }
+    if (!result.checkoutUrl) {
+      if (checkoutUrlFromJson) {
+        result.checkoutUrl = checkoutUrlFromJson;
+      } else if (genericUrlFromJson) {
+        result.checkoutUrl = genericUrlFromJson;
+      }
+    }
+    if (!result.productHandle) {
+      const handleFromJson = readString('handle');
+      if (handleFromJson) {
+        result.productHandle = handleFromJson;
+      }
+    }
+  } else {
+    result.raw = publish ?? null;
+  }
 
   if (isPrivate) {
     const basePrivatePayload: Record<string, unknown> = {
@@ -730,6 +789,22 @@ export async function createJobAndProduct(
           throw err;
         }
         result.checkoutUrl = ck.url;
+      }
+    }
+    if (SHOULD_LOG_COMMERCE) {
+      try {
+        const jsonForLog: Record<string, unknown> | null =
+          result && typeof result === 'object' ? (result as Record<string, unknown>) : null;
+        const statusForLog =
+          publishStatus ?? (publish?.ok === true ? 200 : publish?.ok === false ? 500 : null);
+        logger.debug('[commerce]', {
+          tag: 'createJobAndProduct',
+          status: statusForLog,
+          jsonKeys: jsonForLog ? Object.keys(jsonForLog) : [],
+          json: jsonForLog,
+        });
+      } catch (logErr) {
+        logger.warn('[createJobAndProduct] result_log_failed', logErr);
       }
     }
     return result;
