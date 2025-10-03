@@ -14,7 +14,7 @@ export default function App() {
       <MobileAdvisoryBanner />
       <header className={styles.header}>
         <Link to="/" className={styles.brand}>
-          MGM GAMERSÂ®
+          MGM GAMERS®
         </Link>
         {location.pathname === '/' && <span>EDITOR</span>}
       </header>
