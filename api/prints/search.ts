@@ -77,6 +77,18 @@ const MATCH_NORMALIZER = (value: string) =>
     .replace(/\p{Diacritic}/gu, '')
     .toLowerCase();
 
+const PREVIEW_BUCKET =
+  process.env.PREVIEW_STORAGE_BUCKET ||
+  process.env.SEARCH_STORAGE_BUCKET ||
+  DEFAULT_BUCKET;
+let PREVIEW_ROOT = (process.env.PREVIEW_STORAGE_ROOT || 'preview')
+  .replace(/^\/+/, '')
+  .replace(/\/+$/, '');
+const PREVIEW_EXTS = (process.env.PREVIEW_EXTS || 'jpg,jpeg,png')
+  .split(',')
+  .map((s) => s.trim().toLowerCase())
+  .filter(Boolean);
+
 let cachedClient: SupabaseClient | null = null;
 
 function resolveSupabaseKey(): string | undefined {
@@ -373,25 +385,16 @@ function splitPath(path: string): { dir: string; name: string } {
   return { dir, name };
 }
 
-async function checkStorageFileExists(
-  storage: SupabaseStorageClient,
-  path: string,
-): Promise<boolean> {
-  const { dir, name } = splitPath(path);
-  try {
-    const { data, error } = await storage.list(dir, {
-      limit: 100,
-      search: name,
-    });
-    if (error) {
-      return false;
-    }
-    return Array.isArray(data)
-      ? data.some((entry) => entry.name === name && Boolean(entry.metadata))
-      : false;
-  } catch {
-    return false;
+function joinStoragePath(a: string, b: string): string {
+  const left = a.replace(/\/+$/, '');
+  const right = b.replace(/^\/+/, '');
+  if (!left) {
+    return right;
   }
+  if (!right) {
+    return left;
+  }
+  return `${left}/${right}`;
 }
 
 async function resolvePreview(
@@ -403,21 +406,91 @@ async function resolvePreview(
     return { url: null, tried, found: false };
   }
 
-  const previewBase = filePath.replace('/pdf/', '/preview/');
-  const baseWithoutExt = previewBase.replace(/\.pdf$/i, '');
-  const candidates = [`${baseWithoutExt}.jpg`, `${baseWithoutExt}.png`];
+  const normalizedRoot = PREVIEW_ROOT;
+  const replacement = normalizedRoot ? `/${normalizedRoot}/` : '/';
+  let previewPath = filePath.includes('/pdf/')
+    ? filePath.replace('/pdf/', replacement)
+    : filePath;
 
-  for (const candidate of candidates) {
-    tried.push(candidate);
-    const exists = await checkStorageFileExists(storage, candidate);
-    if (!exists) {
-      continue;
-    }
-    const url = await resolveStorageUrl(storage, candidate);
-    return { url, tried, found: true };
+  if (!filePath.includes('/pdf/')) {
+    const { dir: originalDir, name: originalName } = splitPath(filePath);
+    const previewDir = joinStoragePath(normalizedRoot, originalDir);
+    previewPath = joinStoragePath(previewDir, originalName);
   }
 
-  return { url: null, tried, found: false };
+  previewPath = previewPath.replace(/^\/+/, '');
+  const lastSlash = previewPath.lastIndexOf('/');
+  let dir = '';
+  if (lastSlash !== -1) {
+    dir = previewPath.substring(0, lastSlash);
+  } else {
+    const { dir: originalDir } = splitPath(filePath);
+    dir = joinStoragePath(normalizedRoot, originalDir);
+  }
+  dir = dir.replace(/^\/+/, '').replace(/\/+$/, '');
+
+  try {
+    const { data: listing, error } = await storage.list(dir, { limit: 1000 });
+    if (error || !Array.isArray(listing)) {
+      return { url: null, tried, found: false };
+    }
+
+    const { name: pdfName } = splitPath(filePath);
+    const base = pdfName.replace(/\.pdf$/i, '');
+    const baseLower = base.toLowerCase();
+
+    const match = listing.find((entry) => {
+      if (!entry || typeof entry.name !== 'string') {
+        return false;
+      }
+      const size = entry.metadata?.size;
+      if (size == null) {
+        return false;
+      }
+      const nameLower = entry.name.toLowerCase();
+      const dotIndex = nameLower.lastIndexOf('.');
+      const ext = dotIndex === -1 ? '' : nameLower.slice(dotIndex + 1);
+      if (!PREVIEW_EXTS.includes(ext)) {
+        return false;
+      }
+      if (!baseLower) {
+        return true;
+      }
+      if (nameLower === `${baseLower}.${ext}`) {
+        return true;
+      }
+      return nameLower.startsWith(baseLower);
+    });
+
+    if (!match) {
+      return { url: null, tried, found: false };
+    }
+
+    const candidatePath = dir ? `${dir}/${match.name}` : match.name;
+    tried.push(candidatePath);
+
+    const { data: publicResult } = storage.getPublicUrl(candidatePath);
+    let previewUrl = publicResult?.publicUrl ?? null;
+
+    if (!previewUrl) {
+      const ttl = getSignedUrlTtl();
+      try {
+        const { data: signedResult, error: signedError } = await storage.createSignedUrl(
+          candidatePath,
+          ttl,
+        );
+        if (!signedError) {
+          previewUrl = signedResult?.signedUrl ?? null;
+        }
+      } catch {
+        previewUrl = null;
+      }
+    }
+
+    return { url: previewUrl, tried, found: true };
+  } catch {
+    return { url: null, tried, found: false };
+  }
 }
 
 async function searchStorage(
@@ -430,6 +503,7 @@ async function searchStorage(
   const bucket = process.env.SEARCH_STORAGE_BUCKET || DEFAULT_BUCKET;
   const root = normalizeStorageRoot(process.env.SEARCH_STORAGE_ROOT ?? DEFAULT_ROOT);
   const storage = client.storage.from(bucket);
+  const previewStorage = client.storage.from(PREVIEW_BUCKET);
   const queue: string[] = [root || ''];
   const collected: StorageFileEntry[] = [];
   const errors: StorageListError[] = [];
@@ -518,7 +592,7 @@ async function searchStorage(
       const sizeBytes = file.metadata?.size ?? null;
       const [downloadUrl, previewInfo] = await Promise.all([
         resolveStorageUrl(storage, file.path),
-        resolvePreview(storage, file.path),
+        resolvePreview(previewStorage, file.path),
       ]);
       const { measure, material } = parseMeasureAndMaterial(file.name);
       const item: StorageSearchItem = {
