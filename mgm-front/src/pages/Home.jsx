@@ -36,7 +36,7 @@ import { renderMockup1080 } from '../lib/mockup.js';
 import { quickHateSymbolCheck } from '@/lib/moderation.ts';
 import { scanNudityClient } from '@/lib/moderation/nsfw.client.js';
 import { useFlow } from '@/state/flow.js';
-import { apiFetch } from '@/lib/api.js';
+import { apiFetch, postJSON, getResolvedApiUrl } from '@/lib/api.js';
 import { resolveIconAsset } from '@/lib/iconRegistry.js';
 import { sha256Hex } from '@/lib/hash.js';
 
@@ -268,7 +268,6 @@ export default function Home() {
       const master = canvasRef.current.exportPadDataURL?.(2);
       if (!master) {
         setErr('No se pudo generar la imagen');
-        setBusy(false);
         return;
       }
 
@@ -276,7 +275,6 @@ export default function Home() {
       const metaForCheck = [uploaded?.file?.name, trimmedDesignName].filter(Boolean).join(' ');
       if (quickHateSymbolCheck(metaForCheck)) {
         setErr('Contenido no permitido (odio nazi detectado)');
-        setBusy(false);
         return;
       }
 
@@ -291,29 +289,33 @@ export default function Home() {
             message = 'Contenido sexual explícito con personas reales detectado.';
           }
           setErr(message);
-          setBusy(false);
           return;
         }
       } catch (scanErr) {
         logger.error('[continue] nudity scan failed', scanErr?.message || scanErr);
       }
 
-      const resp = await apiFetch('/api/moderate-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          dataUrl: master,
-          filename: uploaded?.file?.name || 'image.png',
-          designName: trimmedDesignName,
-          lowQualityAck: level === 'bad' ? Boolean(ackLow) : false,
-          approxDpi: effDpi || undefined,
-        })
-      });
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({}));
-        const message = moderationReasonMessage(err?.reason);
+      const moderationPayload = {
+        dataUrl: master,
+        filename: uploaded?.file?.name || 'image.png',
+        designName: trimmedDesignName,
+        lowQualityAck: level === 'bad' ? Boolean(ackLow) : false,
+        approxDpi: effDpi || undefined,
+      };
+      let moderationResponse;
+      try {
+        moderationResponse = await postJSON(
+          getResolvedApiUrl('/api/moderate-image'),
+          moderationPayload,
+        );
+      } catch (moderationErr) {
+        console.error('moderate-image failed', moderationErr);
+        setErr('No se pudo validar la imagen. Intentá nuevamente.');
+        return;
+      }
+      if (!moderationResponse?.ok) {
+        const message = moderationReasonMessage(moderationResponse?.reason);
         setErr(message);
-        setBusy(false);
         return;
       }
 
@@ -332,7 +334,6 @@ export default function Home() {
       const designBlob = await designResponse.blob();
       if (!designBlob || !designBlob.size) {
         setErr('No se pudo preparar el archivo para subir.');
-        setBusy(false);
         return;
       }
       const designMime = designBlob.type || 'image/png';
@@ -364,7 +365,6 @@ export default function Home() {
             supabase: uploadJson?.supabase,
           });
           setErr('No se pudo subir el diseño. Probá de nuevo.');
-          setBusy(false);
           return;
         }
         uploadData = uploadJson;
@@ -376,7 +376,6 @@ export default function Home() {
       } catch (uploadErr) {
         logger.error('[upload-original EXCEPTION]', uploadErr);
         setErr('Error subiendo el archivo. Intentá nuevamente.');
-        setBusy(false);
         return;
       }
 
