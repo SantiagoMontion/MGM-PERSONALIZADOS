@@ -4,7 +4,6 @@ import finalizeAssets from '../api-routes/finalize-assets.js';
 import healthcheck from '../api-routes/healthcheck.js';
 import jobStatus from '../api-routes/job-status.js';
 import jobSummary from '../api-routes/job-summary.js';
-import moderateImage from '../api-routes/moderate-image.js';
 import publishProduct from '../api-routes/publish-product.js';
 import renderDryrun from '../api-routes/render-dryrun.js';
 import robotsTxt from '../api-routes/robots.txt.js';
@@ -37,7 +36,6 @@ const ROUTES = new Map([
   ['GET /api/healthcheck', healthcheck],
   ['GET /api/job-status', jobStatus],
   ['GET /api/job-summary', jobSummary],
-  ['POST /api/moderate-image', moderateImage],
   ['POST /api/publish-product', publishProduct],
   ['GET /api/render-dryrun', renderDryrun],
   ['GET /api/robots.txt', robotsTxt],
@@ -62,11 +60,6 @@ const ROUTES = new Map([
   ['GET /api/seo/editor', seoEditor],
   ['GET /api/seo/home', seoHome],
   ['GET /api/seo/product', seoProduct],
-  ['GET /api/ping', (req, res) => {
-    res.statusCode = 200;
-    res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    res.end(JSON.stringify({ ok: true }));
-  }],
 ]);
 
 function findHandler(method, pathname) {
