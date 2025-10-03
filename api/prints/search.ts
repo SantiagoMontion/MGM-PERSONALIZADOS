@@ -321,32 +321,48 @@ async function searchStorage(
       return 'timeout';
     }
     const prefix = queue.shift() ?? '';
-    const { data, error } = await storage.list(prefix, {
-      limit: 1000,
-      offset: 0,
-      sortBy: { column: 'updated_at', order: 'desc' },
-    });
+    let pageOffset = 0;
+    let hasMore = true;
 
-    if (error) {
-      errors.push({ prefix, message: error.message || String(error) });
-      continue;
-    }
-
-    const entries = Array.isArray(data) ? data : [];
-    for (const entry of entries) {
-      const isFolder = !entry.metadata;
-      if (isFolder) {
-        scannedDirs += 1;
-        queue.push(buildChildPrefix(prefix, entry.name));
-        continue;
+    while (hasMore) {
+      if (Date.now() > deadline) {
+        return 'timeout';
       }
-      scannedFiles += 1;
-      collected.push({
-        name: entry.name,
-        path: buildFilePath(prefix, entry.name),
-        updated_at: entry.updated_at,
-        metadata: entry.metadata as StorageFileEntry['metadata'],
+
+      const { data, error } = await storage.list(prefix, {
+        limit: 1000,
+        offset: pageOffset,
+        sortBy: { column: 'updated_at', order: 'desc' },
       });
+
+      if (error) {
+        errors.push({ prefix, message: error.message || String(error) });
+        break;
+      }
+
+      const entries = Array.isArray(data) ? data : [];
+      if (!entries.length) {
+        break;
+      }
+
+      for (const entry of entries) {
+        const isFolder = !entry.metadata;
+        if (isFolder) {
+          scannedDirs += 1;
+          queue.push(buildChildPrefix(prefix, entry.name));
+          continue;
+        }
+        scannedFiles += 1;
+        collected.push({
+          name: entry.name,
+          path: buildFilePath(prefix, entry.name),
+          updated_at: entry.updated_at,
+          metadata: entry.metadata as StorageFileEntry['metadata'],
+        });
+      }
+
+      pageOffset += entries.length;
+      hasMore = entries.length >= 1000;
     }
   }
 
