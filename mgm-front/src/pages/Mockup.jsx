@@ -1013,7 +1013,16 @@ export default function Mockup() {
   }
 
   async function handleDownloadPdf() {
-    if (!flow.printFullResDataUrl) {
+    const preferredSource =
+      typeof flow.fileOriginalUrl === 'string' && flow.fileOriginalUrl.trim()
+        ? flow.fileOriginalUrl.trim()
+        : null;
+    const fallbackSource =
+      typeof flow.printFullResDataUrl === 'string' && flow.printFullResDataUrl.trim()
+        ? flow.printFullResDataUrl.trim()
+        : null;
+    const downloadSource = preferredSource || fallbackSource;
+    if (!downloadSource) {
       alert('No se encontraron datos para generar el PDF.');
       return;
     }
@@ -1025,7 +1034,10 @@ export default function Mockup() {
     }
     try {
       setBusy(true);
-      const response = await fetch(flow.printFullResDataUrl);
+      const response = await fetch(downloadSource, { cache: 'no-store' });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
       const imageBlob = await response.blob();
       const imageBytes = new Uint8Array(await imageBlob.arrayBuffer());
       const pdfDoc = await PDFDocument.create();
@@ -1036,10 +1048,30 @@ export default function Mockup() {
       const pageWidthPt = cmToPt(targetWidthCm);
       const pageHeightPt = cmToPt(targetHeightCm);
       const page = pdfDoc.addPage([pageWidthPt, pageHeightPt]);
-      const embedded =
-        imageBlob.type === 'image/jpeg' || imageBlob.type === 'image/jpg'
-          ? await pdfDoc.embedJpg(imageBytes)
-          : await pdfDoc.embedPng(imageBytes);
+      const rawMime = (imageBlob.type || '').toLowerCase();
+      const inferredFromUrl = downloadSource.toLowerCase();
+      const isPngSignature =
+        imageBytes.length >= 8
+        && imageBytes[0] === 0x89
+        && imageBytes[1] === 0x50
+        && imageBytes[2] === 0x4e
+        && imageBytes[3] === 0x47
+        && imageBytes[4] === 0x0d
+        && imageBytes[5] === 0x0a
+        && imageBytes[6] === 0x1a
+        && imageBytes[7] === 0x0a;
+      const isJpegSignature =
+        imageBytes.length >= 2 && imageBytes[0] === 0xff && imageBytes[1] === 0xd8;
+      const shouldUseJpg =
+        isJpegSignature
+        || (!isPngSignature
+          && (rawMime.includes('jpeg')
+            || rawMime.includes('jpg')
+            || inferredFromUrl.endsWith('.jpg')
+            || inferredFromUrl.endsWith('.jpeg')));
+      const embedded = shouldUseJpg
+        ? await pdfDoc.embedJpg(imageBytes)
+        : await pdfDoc.embedPng(imageBytes);
       page.drawImage(embedded, { x: 0, y: 0, width: pageWidthPt, height: pageHeightPt });
       const pdfBytes = await pdfDoc.save();
       const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });

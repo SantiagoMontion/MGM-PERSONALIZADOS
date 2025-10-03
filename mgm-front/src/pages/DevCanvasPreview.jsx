@@ -39,39 +39,31 @@ export default function DevCanvasPreview() {
     const out_w_cm = w_cm + 2;
     const out_h_cm = h_cm + 2;
     const baseName = buildExportBaseName(designName, w_cm, h_cm, mode);
-    const dpi = 300;
-    const out_w_px = Math.round((out_w_cm * dpi) / 2.54);
-    const out_h_px = Math.round((out_h_cm * dpi) / 2.54);
-    const img = new Image();
-    img.onload = async () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = out_w_px;
-      canvas.height = out_h_px;
-      const ctx = canvas.getContext('2d');
-      if (!ctx || canvas.width <= 0 || canvas.height <= 0) return;
-      ctx.clearRect(0, 0, out_w_px, out_h_px);
-      ctx.globalAlpha = 1;
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.filter = 'none';
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(img, 0, 0, out_w_px, out_h_px);
-      const blob = await new Promise(resolve =>
-        canvas.toBlob(resolve, 'image/jpeg', 0.88)
-      );
-      if (!blob) return;
-      const jpegBytes = new Uint8Array(await blob.arrayBuffer());
-      const pdfDoc = await PDFDocument.create();
-      const page_w_pt = (out_w_cm / 2.54) * 72;
-      const page_h_pt = (out_h_cm / 2.54) * 72;
-      const page = pdfDoc.addPage([page_w_pt, page_h_pt]);
-      const jpg = await pdfDoc.embedJpg(jpegBytes);
-      page.drawImage(jpg, { x: 0, y: 0, width: page_w_pt, height: page_h_pt });
-      const pdfBytes = await pdfDoc.save();
-      downloadBlob(new Blob([pdfBytes], { type: 'application/pdf' }), `${baseName}.pdf`);
-    };
-    img.crossOrigin = 'anonymous';
-    img.src = URL.createObjectURL(padBlob);
+    const imageBytes = new Uint8Array(await padBlob.arrayBuffer());
+    const pdfDoc = await PDFDocument.create();
+    const page_w_pt = (out_w_cm / 2.54) * 72;
+    const page_h_pt = (out_h_cm / 2.54) * 72;
+    const page = pdfDoc.addPage([page_w_pt, page_h_pt]);
+    const mime = (padBlob.type || '').toLowerCase();
+    const isPngSignature =
+      imageBytes.length >= 8
+      && imageBytes[0] === 0x89
+      && imageBytes[1] === 0x50
+      && imageBytes[2] === 0x4e
+      && imageBytes[3] === 0x47
+      && imageBytes[4] === 0x0d
+      && imageBytes[5] === 0x0a
+      && imageBytes[6] === 0x1a
+      && imageBytes[7] === 0x0a;
+    const isJpegSignature = imageBytes.length >= 2 && imageBytes[0] === 0xff && imageBytes[1] === 0xd8;
+    const shouldUseJpg =
+      isJpegSignature || (!isPngSignature && (mime.includes('jpeg') || mime.includes('jpg')));
+    const embedded = shouldUseJpg
+      ? await pdfDoc.embedJpg(imageBytes)
+      : await pdfDoc.embedPng(imageBytes);
+    page.drawImage(embedded, { x: 0, y: 0, width: page_w_pt, height: page_h_pt });
+    const pdfBytes = await pdfDoc.save();
+    downloadBlob(new Blob([pdfBytes], { type: 'application/pdf' }), `${baseName}.pdf`);
   }
 
   async function downloadMockup() {
