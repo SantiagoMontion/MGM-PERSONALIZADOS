@@ -244,6 +244,42 @@ export default function Home() {
     }
   }
 
+  async function uploadOriginal(payload) {
+    const response = await apiFetch('/api/upload-original', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    const text = await response.text();
+    let json = null;
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch {
+      json = null;
+    }
+
+    if (!response.ok) {
+      const message = typeof json?.error === 'string' && json.error ? json.error : text;
+      const error = new Error(`HTTP ${response.status}${message ? ` ${message}` : ''}`.trim());
+      error.status = response.status;
+      error.bodyText = text;
+      error.json = json;
+      throw error;
+    }
+
+    const publicUrl = json?.publicUrl ?? json?.url ?? json?.supabase?.publicUrl ?? null;
+    if (!publicUrl) {
+      const error = new Error('upload-original: missing publicUrl');
+      error.status = response.status;
+      error.bodyText = text;
+      error.json = json;
+      throw error;
+    }
+
+    return { publicUrl, json: json ?? {} };
+  }
+
   async function handleContinue() {
     setErr('');
     if (!layout?.image || !canvasRef.current) {
@@ -353,34 +389,28 @@ export default function Home() {
           sha256: designSha,
           filename: uploaded?.file?.name || 'design.png',
         };
-        const uploadResp = await apiFetch('/api/upload-original', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(uploadPayload),
-        });
-        const uploadJson = await uploadResp.json().catch(() => ({}));
-        if (!uploadResp.ok || !uploadJson?.file_original_url) {
-          logger.error('[upload-original FAILED]', {
-            status: uploadResp.status,
-            diagId: uploadJson?.diag_id,
-            supabase: uploadJson?.supabase,
-          });
-          setErr('No se pudo subir el diseño. Probá de nuevo.');
-          return;
-        }
-        uploadData = uploadJson;
+        const uploadResult = await uploadOriginal(uploadPayload);
+        uploadData = { ...uploadResult.json, publicUrl: uploadResult.publicUrl };
         logger.debug('[upload-original OK]', {
-          diagId: uploadJson?.diag_id,
-          bucket: uploadJson?.bucket,
-          path: uploadJson?.path,
+          diagId: uploadData?.diag_id,
+          bucket: uploadData?.bucket,
+          path: uploadData?.path,
+          publicUrl: uploadResult.publicUrl,
         });
       } catch (uploadErr) {
-        logger.error('[upload-original EXCEPTION]', uploadErr);
+        logger.error('[upload-original EXCEPTION]', {
+          message: uploadErr?.message || uploadErr,
+          status: uploadErr?.status,
+          bodyText: uploadErr?.bodyText,
+        });
         setErr('Error subiendo el archivo. Intentá nuevamente.');
         return;
       }
 
-      const uploadCanonical = uploadData?.file_original_url || uploadData?.public_url || '';
+      const uploadCanonical = uploadData?.publicUrl
+        || uploadData?.file_original_url
+        || uploadData?.public_url
+        || '';
       const uploadObjectKey = uploadData?.object_key || uploadData?.path || '';
 
       setUploaded(prev => ({

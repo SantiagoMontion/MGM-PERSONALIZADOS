@@ -103,7 +103,9 @@ export async function postJSON(url, data, timeoutMs = 60000) {
     try { json = text ? JSON.parse(text) : null; } catch { /* no JSON */ }
 
     if (!res.ok) {
-      throw new Error(`HTTP ${res.status} ${res.statusText} | ${text}`);
+      const message = typeof json?.error === 'string' && json.error ? json.error : text;
+      const formatted = `HTTP ${res.status}${message ? ` ${message}` : ''}`.trim();
+      throw new Error(formatted);
     }
     return json ?? { ok: true };
   } catch (err) {
