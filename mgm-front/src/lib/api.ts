@@ -9,22 +9,23 @@ function sanitizeBase(value: string): string {
   return value.trim().replace(/\/+$/, '');
 }
 
-function ensureAbsoluteBase(value: string): string {
-  const trimmed = sanitizeBase(value);
-  if (!trimmed) return '';
-  if (/^https?:\/\//i.test(trimmed)) {
-    return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`;
+function applyProtocol(value: string): string {
+  if (!value) return '';
+  if (/^https?:\/\//i.test(value) || value.startsWith('/')) {
+    return value;
   }
-  if (trimmed.startsWith('/')) {
-    return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`;
-  }
-  const withProtocol = `https://${trimmed}`;
-  return withProtocol.endsWith('/api') ? withProtocol : `${withProtocol}/api`;
+  return `https://${value}`;
 }
 
-const CONFIGURED_BASE = ensureAbsoluteBase(RAW_API_URL);
-const API_BASE = CONFIGURED_BASE || '/api';
+function resolveBaseOrigin(value: string): string {
+  const trimmed = sanitizeBase(value);
+  if (!trimmed) return '';
+  const withoutApi = trimmed.endsWith('/api') ? trimmed.slice(0, -4) : trimmed;
+  return sanitizeBase(applyProtocol(withoutApi));
+}
 
+const CONFIGURED_ORIGIN = resolveBaseOrigin(RAW_API_URL);
+const DEFAULT_BASE = '/api';
 let hasWarnedAboutFallback = false;
 
 function normalizePath(path: string): string {
@@ -37,15 +38,18 @@ function resolveRequestUrl(path: string): string {
   if (IS_DEV && USE_PROXY) {
     return normalizedPath;
   }
-  if (!CONFIGURED_BASE && !hasWarnedAboutFallback) {
-    hasWarnedAboutFallback = true;
-    try {
-      logger.warn?.('[api] using_default_base', {
-        message: 'VITE_API_URL not set; defaulting to same-origin /api.',
-      });
-    } catch {}
+  if (!CONFIGURED_ORIGIN) {
+    if (!hasWarnedAboutFallback) {
+      hasWarnedAboutFallback = true;
+      try {
+        logger.warn?.('[api] using_default_base', {
+          message: 'VITE_API_URL not set; defaulting to same-origin /api.',
+        });
+      } catch {}
+    }
+    return `${DEFAULT_BASE}${normalizedPath}`;
   }
-  return `${API_BASE}${normalizedPath}`;
+  return `${CONFIGURED_ORIGIN}${normalizedPath}`;
 }
 
 export function apiFetch(path: string, init?: RequestInit): Promise<Response>;
@@ -102,7 +106,10 @@ export function getApiBaseUrl(): string {
   if (IS_DEV && USE_PROXY) {
     return '/api';
   }
-  return API_BASE;
+  if (!CONFIGURED_ORIGIN) {
+    return DEFAULT_BASE;
+  }
+  return `${CONFIGURED_ORIGIN}/api`;
 }
 
 export function getResolvedApiUrl(path: string): string {

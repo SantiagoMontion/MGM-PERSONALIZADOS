@@ -9,22 +9,23 @@ function sanitizeBase(value) {
   return value.trim().replace(/\/+$/, '');
 }
 
-function ensureAbsoluteBase(value) {
-  const trimmed = sanitizeBase(value);
-  if (!trimmed) return '';
-  if (/^https?:\/\//i.test(trimmed)) {
-    return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`;
+function applyProtocol(value) {
+  if (!value) return '';
+  if (/^https?:\/\//i.test(value) || value.startsWith('/')) {
+    return value;
   }
-  if (trimmed.startsWith('/')) {
-    return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`;
-  }
-  const withProtocol = `https://${trimmed}`;
-  return withProtocol.endsWith('/api') ? withProtocol : `${withProtocol}/api`;
+  return `https://${value}`;
 }
 
-const CONFIGURED_BASE = ensureAbsoluteBase(RAW_API_URL);
-const API_BASE = CONFIGURED_BASE || '/api';
+function resolveBaseOrigin(value) {
+  const trimmed = sanitizeBase(value);
+  if (!trimmed) return '';
+  const withoutApi = trimmed.endsWith('/api') ? trimmed.slice(0, -4) : trimmed;
+  return sanitizeBase(applyProtocol(withoutApi));
+}
 
+const CONFIGURED_ORIGIN = resolveBaseOrigin(RAW_API_URL);
+const DEFAULT_BASE = '/api';
 let hasWarnedAboutFallback = false;
 
 function normalizePath(path) {
@@ -37,15 +38,18 @@ function resolveRequestUrl(path) {
   if (IS_DEV && USE_PROXY) {
     return normalizedPath;
   }
-  if (!CONFIGURED_BASE && !hasWarnedAboutFallback) {
-    hasWarnedAboutFallback = true;
-    try {
-      logger.warn?.('[api] using_default_base', {
-        message: 'VITE_API_URL not set; defaulting to same-origin /api.',
-      });
-    } catch {}
+  if (!CONFIGURED_ORIGIN) {
+    if (!hasWarnedAboutFallback) {
+      hasWarnedAboutFallback = true;
+      try {
+        logger.warn?.('[api] using_default_base', {
+          message: 'VITE_API_URL not set; defaulting to same-origin /api.',
+        });
+      } catch {}
+    }
+    return `${DEFAULT_BASE}${normalizedPath}`;
   }
-  return `${API_BASE}${normalizedPath}`;
+  return `${CONFIGURED_ORIGIN}${normalizedPath}`;
 }
 
 export function apiFetch(methodOrPath, maybePathOrInit, maybeBody, maybeInitOverrides) {
@@ -87,16 +91,12 @@ export function getApiBaseUrl() {
   if (IS_DEV && USE_PROXY) {
     return '/api';
   }
-  return API_BASE;
+  if (!CONFIGURED_ORIGIN) {
+    return DEFAULT_BASE;
+  }
+  return `${CONFIGURED_ORIGIN}/api`;
 }
 
 export function getResolvedApiUrl(path) {
-  try {
-    return resolveRequestUrl(path);
-  } catch (err) {
-    if (err && err.code === 'missing_api_url') {
-      return '';
-    }
-    throw err;
-  }
+  return resolveRequestUrl(path);
 }

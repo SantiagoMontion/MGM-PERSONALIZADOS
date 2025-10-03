@@ -112,8 +112,8 @@
 }
 
 .eyedropperIcon {
-  width: 25px;
-  height: 25px;
+  width: 17px;
+  height: 17px;
   display: block;
   object-fit: contain;
   filter: brightness(0) invert(1);
@@ -212,7 +212,7 @@
   border: none;
   background: transparent;
   color: #f9fafb;
-  font-size: 25px;
+  font-size: 18px;
   line-height: 28px;
   font-family: "JetBrains Mono", "SFMono-Regular", Menlo, monospace;
   text-transform: uppercase;
