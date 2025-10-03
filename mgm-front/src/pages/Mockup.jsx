@@ -12,15 +12,15 @@ import {
   ONLINE_STORE_DISABLED_MESSAGE,
   ONLINE_STORE_MISSING_MESSAGE,
 } from '@/lib/shopify.ts';
-import Testimonio1 from "../icons/testimonio1.png";
-import Testimonio2 from "../icons/testimonio2.png";
-import Testimonio3 from "../icons/testimonio3.png";
 import logger from '../lib/logger';
 
 /** NUEVO: imagen de la sección (reemplazá el path por el tuyo) */
-import CommunityHero from "../icons/community-hero.png";
-
-const TESTIMONIAL_ICONS = [Testimonio1, Testimonio2, Testimonio3];
+const TESTIMONIAL_ICONS = [
+  '/icons/testimonio1.png',
+  '/icons/testimonio2.png',
+  '/icons/testimonio3.png',
+];
+const COMMUNITY_HERO_IMAGE = '/icons/community-hero.png';
 const CART_STATUS_LABELS = {
   idle: 'Agregar al carrito',
   creating: 'Creando producto…',
@@ -931,7 +931,7 @@ export default function Mockup() {
       <section className={styles.showcaseSection}>
         <div className={styles.showcaseImageWrapper}>
           <img
-            src={CommunityHero}
+            src={COMMUNITY_HERO_IMAGE}
             alt="Galería de setups de la comunidad MgM"
             className={styles.showcaseImage}
             loading="lazy"
