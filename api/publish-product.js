@@ -1,4 +1,5 @@
 const SHOPIFY_ENABLED = process.env.SHOPIFY_ENABLED === '1';
+const FRONT_ORIGIN = (process.env.FRONT_ORIGIN || 'https://mgm-app.vercel.app').replace(/\/$/, '');
 
 export const config = { memory: 256, maxDuration: 10 };
 
@@ -62,7 +63,8 @@ function buildMockProduct(payload) {
   const productId = `mock-product-${numericId}`;
   const variantNumeric = `${Number(numericId) % 9_000_000 + 1_000_000}`;
   const variantGid = `gid://shopify/ProductVariant/${variantNumeric}`;
-  const productUrl = `https://example.test/products/${handle}`;
+  const rid = productId;
+  const productUrl = `${FRONT_ORIGIN}/mockup?rid=${encodeURIComponent(rid)}`;
 
   return {
     ok: true,
