@@ -17,13 +17,7 @@ type RequestBody = {
   imageBase64?: unknown;
 };
 
-function sendJson(
-  req: VercelRequest,
-  res: VercelResponse,
-  status: number,
-  body: SuccessResponse | ErrorResponse,
-) {
-  applyCors(req, res, 'POST, OPTIONS');
+function sendJson(res: VercelResponse, status: number, body: SuccessResponse | ErrorResponse) {
   ensureJsonContentType(res);
   res.status(status).send(JSON.stringify(body));
 }
@@ -88,7 +82,7 @@ function generateKey(ext: string) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const cors = applyCors(req, res, 'POST, OPTIONS');
+  applyCors(req, res, 'POST, OPTIONS');
 
   if (req.method === 'OPTIONS') {
     res.status(200).end();
@@ -96,26 +90,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (req.method !== 'POST') {
-    return sendJson(req, res, 405, { ok: false, error: 'Method Not Allowed' });
-  }
-
-  if (cors.strict && !cors.allowed) {
-    return sendJson(req, res, 403, { ok: false, error: 'origin_not_allowed' });
+    return sendJson(res, 405, { ok: false, error: 'method_not_allowed' });
   }
 
   const normalized = normalizeBody(req.body);
   if (normalized === null) {
-    return sendJson(req, res, 400, { ok: false, error: 'Invalid JSON body' });
+    return sendJson(res, 400, { ok: false, error: 'invalid_json_body' });
   }
 
   const { url, imageBase64 } = normalized;
 
   if (process.env.UPLOAD_ENABLED !== '1') {
     if (typeof url !== 'string' || !url) {
-      return sendJson(req, res, 400, { ok: false, error: 'Missing url' });
+      return sendJson(res, 400, { ok: false, error: 'missing_url' });
     }
 
-    return sendJson(req, res, 200, {
+    return sendJson(res, 200, {
       ok: true,
       mode: 'passthrough',
       publicUrl: url,
@@ -127,20 +117,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const SUPABASE_BUCKET = process.env.SUPABASE_BUCKET || 'uploads';
 
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    return sendJson(req, res, 500, {
+    return sendJson(res, 500, {
       ok: false,
-      error: 'Supabase not configured (set UPLOAD_ENABLED to 0 or add credentials)',
+      error: 'supabase_not_configured',
     });
   }
 
   if (typeof url === 'string' && url && (imageBase64 == null || imageBase64 === '')) {
-    return sendJson(req, res, 200, { ok: true, mode: 'url', publicUrl: url });
+    return sendJson(res, 200, { ok: true, mode: 'url', publicUrl: url });
   }
 
   if (typeof imageBase64 !== 'string' || !imageBase64) {
-    return sendJson(req, res, 400, {
+    return sendJson(res, 400, {
       ok: false,
-      error: 'Missing image data (imageBase64 or url required)',
+      error: 'missing_image_data',
     });
   }
 
@@ -165,7 +155,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { data: publicData } = supabase.storage.from(SUPABASE_BUCKET).getPublicUrl(key);
     const publicUrl = publicData.publicUrl;
 
-    return sendJson(req, res, 200, {
+    return sendJson(res, 200, {
       ok: true,
       mode: 'supabase',
       publicUrl,
@@ -174,9 +164,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (error: any) {
     const diagId = makeDiagId();
     console.error(`upload-original failure ${diagId}`, error);
-    return sendJson(req, res, 500, {
+    applyCors(req, res, 'POST, OPTIONS');
+    return sendJson(res, 500, {
       ok: false,
-      error: error?.message || 'Upload failed',
+      error: error?.message || 'upload_failed',
       diagId,
     });
   }
