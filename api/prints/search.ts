@@ -59,6 +59,11 @@ type StorageSearchItem = {
   material: string | null;
   previewTried?: string[];
   previewFound?: boolean;
+  previewScan?: {
+    candidates: { dir: string; rule: string }[];
+    matched: string | null;
+    dirListed: string[];
+  };
 };
 
 type StorageSearchResult = {
@@ -397,81 +402,234 @@ function joinStoragePath(a: string, b: string): string {
   return `${left}/${right}`;
 }
 
+function normalizeDirPath(dir: string): string {
+  if (!dir) return '';
+  return dir.replace(/^\/+/, '').replace(/\/+$/, '');
+}
+
+function joinPreviewPath(...parts: Array<string | null | undefined>): string {
+  const cleaned = parts
+    .map((part) => (part ?? '').trim())
+    .filter((part) => part !== '')
+    .map((part) => part.replace(/^\/+/, '').replace(/\/+$/, ''))
+    .filter(Boolean);
+  return cleaned.join('/');
+}
+
+type PreviewScanCandidate = { dir: string; rule: string };
+
+type PreviewScan = {
+  candidates: PreviewScanCandidate[];
+  matched: string | null;
+  dirListed: string[];
+};
+
 async function resolvePreview(
   storage: SupabaseStorageClient,
   filePath: string,
-): Promise<{ url: string | null; tried: string[]; found: boolean }> {
+): Promise<{ url: string | null; tried: string[]; found: boolean; scan: PreviewScan | null }> {
   const tried: string[] = [];
   if (!/\.pdf$/i.test(filePath)) {
-    return { url: null, tried, found: false };
+    return { url: null, tried, found: false, scan: null };
   }
 
-  const normalizedRoot = PREVIEW_ROOT;
-  const replacement = normalizedRoot ? `/${normalizedRoot}/` : '/';
-  let previewPath = filePath.includes('/pdf/')
-    ? filePath.replace('/pdf/', replacement)
-    : filePath;
-
-  if (!filePath.includes('/pdf/')) {
-    const { dir: originalDir, name: originalName } = splitPath(filePath);
-    const previewDir = joinStoragePath(normalizedRoot, originalDir);
-    previewPath = joinStoragePath(previewDir, originalName);
+  const segments = filePath.split('/').filter(Boolean);
+  const pdfIndex = segments.indexOf('pdf');
+  let rootPrefix = '';
+  let tail = segments.slice();
+  if (pdfIndex !== -1) {
+    rootPrefix = segments.slice(0, pdfIndex).join('/');
+    tail = segments.slice(pdfIndex + 1);
+  } else if (segments.length > 1) {
+    rootPrefix = segments.slice(0, -1).join('/');
+    tail = [segments[segments.length - 1]];
   }
 
-  previewPath = previewPath.replace(/^\/+/, '');
-  const lastSlash = previewPath.lastIndexOf('/');
-  let dir = '';
-  if (lastSlash !== -1) {
-    dir = previewPath.substring(0, lastSlash);
-  } else {
-    const { dir: originalDir } = splitPath(filePath);
-    dir = joinStoragePath(normalizedRoot, originalDir);
-  }
-  dir = dir.replace(/^\/+/, '').replace(/\/+$/, '');
+  const file = tail[tail.length - 1] ?? '';
+  const base = file.replace(/\.pdf$/i, '');
+  const baseLower = base.toLowerCase();
+  const hasBase = Boolean(baseLower);
+  const yearCandidate = tail[0];
+  const year = yearCandidate && /^\d{4}$/.test(yearCandidate) ? yearCandidate : null;
+  const monthCandidate = year ? tail[1] : tail[0];
+  const month = monthCandidate && /^\d{1,2}$/.test(monthCandidate ?? '') ? monthCandidate : null;
 
-  try {
-    const { data: listing, error } = await storage.list(dir, { limit: 1000 });
-    if (error || !Array.isArray(listing)) {
-      return { url: null, tried, found: false };
+  const scan: PreviewScan = { candidates: [], matched: null, dirListed: [] };
+  const dirCache = new Map<string, StorageFileEntry[] | null>();
+  const listed = new Set<string>();
+
+  const listDir = async (dir: string): Promise<StorageFileEntry[] | null> => {
+    const normalized = normalizeDirPath(dir);
+    const display = normalized || '/';
+    if (!listed.has(display)) {
+      listed.add(display);
+      scan.dirListed.push(display);
     }
+    if (dirCache.has(normalized)) {
+      return dirCache.get(normalized) ?? null;
+    }
+    try {
+      const { data, error } = await storage.list(normalized, { limit: 1000 });
+      if (error || !Array.isArray(data)) {
+        dirCache.set(normalized, null);
+        return null;
+      }
+      dirCache.set(normalized, data as StorageFileEntry[]);
+      return data as StorageFileEntry[];
+    } catch {
+      dirCache.set(normalized, null);
+      return null;
+    }
+  };
 
-    const { name: pdfName } = splitPath(filePath);
-    const base = pdfName.replace(/\.pdf$/i, '');
-    const baseLower = base.toLowerCase();
-
-    const match = listing.find((entry) => {
+  const findMatch = (entries: StorageFileEntry[] | null): StorageFileEntry | null => {
+    if (!entries) {
+      return null;
+    }
+    let prefixMatch: StorageFileEntry | null = null;
+    for (const entry of entries) {
       if (!entry || typeof entry.name !== 'string') {
-        return false;
+        continue;
       }
       const size = entry.metadata?.size;
       if (size == null) {
-        return false;
+        continue;
       }
       const nameLower = entry.name.toLowerCase();
       const dotIndex = nameLower.lastIndexOf('.');
       const ext = dotIndex === -1 ? '' : nameLower.slice(dotIndex + 1);
       if (!PREVIEW_EXTS.includes(ext)) {
-        return false;
+        continue;
       }
-      if (!baseLower) {
-        return true;
+      if (!hasBase) {
+        return entry;
       }
       if (nameLower === `${baseLower}.${ext}`) {
-        return true;
+        return entry;
       }
-      return nameLower.startsWith(baseLower);
-    });
+      if (!prefixMatch && nameLower.startsWith(baseLower)) {
+        prefixMatch = entry;
+      }
+    }
+    return prefixMatch;
+  };
 
-    if (!match) {
-      return { url: null, tried, found: false };
+  const candidates: Array<{ dir: string; rule: string }> = [];
+  const previewRoot = PREVIEW_ROOT;
+  const originalDir = normalizeDirPath(splitPath(filePath).dir);
+  if (month) {
+    candidates.push({
+      dir: joinPreviewPath(rootPrefix, previewRoot, month),
+      rule: 'month',
+    });
+  }
+  candidates.push({
+    dir: joinPreviewPath(rootPrefix, previewRoot),
+    rule: 'root',
+  });
+  if (pdfIndex === -1 && previewRoot && originalDir) {
+    candidates.push({
+      dir: joinPreviewPath(previewRoot, originalDir),
+      rule: 'legacy-dir',
+    });
+  }
+  if (year && month) {
+    candidates.push({
+      dir: joinPreviewPath(rootPrefix, previewRoot, year, month),
+      rule: 'year-month',
+    });
+  }
+
+  let matchedDir: string | null = null;
+  let matchedEntry: StorageFileEntry | null = null;
+
+  const checkCandidate = async (candidate: { dir: string; rule: string }) => {
+    const normalizedDir = normalizeDirPath(candidate.dir);
+    scan.candidates.push({ dir: normalizedDir || '/', rule: candidate.rule });
+    const entries = await listDir(candidate.dir);
+    const match = findMatch(entries);
+    if (match) {
+      matchedDir = normalizedDir;
+      matchedEntry = match;
+      return true;
+    }
+    return false;
+  };
+
+  for (const candidate of candidates) {
+    const found = await checkCandidate(candidate);
+    if (found) {
+      break;
+    }
+  }
+
+  const basePreviewDir = joinPreviewPath(rootPrefix, previewRoot);
+  const baseDirs: string[] = [basePreviewDir];
+  if (pdfIndex === -1) {
+    const legacyBaseDir = joinPreviewPath(previewRoot, rootPrefix);
+    if (legacyBaseDir && !baseDirs.includes(legacyBaseDir)) {
+      baseDirs.push(legacyBaseDir);
+    }
+  }
+  if (!matchedEntry) {
+    const visited = new Set<string>();
+    const queue: Array<{ dir: string; depth: number }> = [];
+
+    const enqueueChildren = (
+      parentDir: string,
+      entries: StorageFileEntry[] | null,
+      depth: number,
+    ) => {
+      if (!entries || depth > 2) {
+        return;
+      }
+      for (const entry of entries) {
+        if (!entry || entry.metadata) {
+          continue;
+        }
+        const childDir = normalizeDirPath(joinPreviewPath(parentDir, entry.name));
+        if (visited.has(childDir)) {
+          continue;
+        }
+        visited.add(childDir);
+        queue.push({ dir: childDir, depth });
+      }
+    };
+
+    for (const dir of baseDirs) {
+      const entries = await listDir(dir);
+      enqueueChildren(dir, entries, 1);
     }
 
-    const candidatePath = dir ? `${dir}/${match.name}` : match.name;
+    while (queue.length && !matchedEntry) {
+      const { dir, depth } = queue.shift()!;
+      if (depth < 1 || depth > 2) {
+        continue;
+      }
+      const rule = `deep-${depth}`;
+      scan.candidates.push({ dir: dir || '/', rule });
+      const entries = await listDir(dir);
+      const match = findMatch(entries);
+      if (match) {
+        matchedDir = dir;
+        matchedEntry = match;
+        break;
+      }
+      if (depth < 2) {
+        enqueueChildren(dir, entries, depth + 1);
+      }
+    }
+  }
+
+  let previewUrl: string | null = null;
+  if (matchedEntry) {
+    const candidateDir = matchedDir ?? '';
+    const candidatePath = candidateDir ? `${candidateDir}/${matchedEntry.name}` : matchedEntry.name;
     tried.push(candidatePath);
+    scan.matched = candidatePath;
 
     const { data: publicResult } = storage.getPublicUrl(candidatePath);
-    let previewUrl = publicResult?.publicUrl ?? null;
-
+    previewUrl = publicResult?.publicUrl ?? null;
     if (!previewUrl) {
       const ttl = getSignedUrlTtl();
       try {
@@ -486,11 +644,13 @@ async function resolvePreview(
         previewUrl = null;
       }
     }
-
-    return { url: previewUrl, tried, found: true };
-  } catch {
-    return { url: null, tried, found: false };
   }
+
+  const hasScanData =
+    scan.candidates.length > 0 || scan.dirListed.length > 0 || Boolean(scan.matched);
+  const scanPayload = hasScanData ? scan : null;
+
+  return { url: previewUrl, tried, found: Boolean(matchedEntry), scan: scanPayload };
 }
 
 async function searchStorage(
@@ -609,6 +769,9 @@ async function searchStorage(
       if (debug) {
         item.previewTried = previewInfo.tried;
         item.previewFound = previewInfo.found;
+        if (previewInfo.scan) {
+          item.previewScan = previewInfo.scan;
+        }
       }
       return item;
     }),
