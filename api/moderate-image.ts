@@ -1,22 +1,10 @@
 // api/moderate-image.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
+import { applyCors, ensureJsonContentType } from './_lib/cors';
+
 // --- Config de serverless: más memoria/tiempo ---
 export const config = { memory: 1024, maxDuration: 60 };
-
-const ALLOWED = new Set([
-  'https://tu-mousepad-personalizado.mgmgamers.store',
-  'http://localhost:5173',
-]);
-
-function setCors(req: VercelRequest, res: VercelResponse) {
-  const origin = (req.headers.origin as string) || '';
-  res.setHeader('Access-Control-Allow-Origin', ALLOWED.has(origin) ? origin : '*');
-  res.setHeader('Vary', 'Origin');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  res.setHeader('Content-Type', 'application/json');
-}
 
 async function readBody(req: VercelRequest) {
   return new Promise<string>((resolve, reject) => {
@@ -29,22 +17,43 @@ async function readBody(req: VercelRequest) {
   });
 }
 
+function sendJson(
+  req: VercelRequest,
+  res: VercelResponse,
+  status: number,
+  body: any,
+) {
+  applyCors(req, res, 'POST, OPTIONS');
+  ensureJsonContentType(res);
+  res.status(status).send(JSON.stringify(body));
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  setCors(req, res);
+  const cors = applyCors(req, res, 'POST, OPTIONS');
   const rid = Date.now().toString(36);
 
   try {
-    if (req.method === 'OPTIONS') return res.status(200).end();
-    if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
+    if (req.method === 'OPTIONS') {
+      res.status(200).end();
+      return;
+    }
+
+    if (req.method !== 'POST') {
+      return sendJson(req, res, 405, { error: 'Method Not Allowed' });
+    }
+
+    if (cors.strict && !cors.allowed) {
+      return sendJson(req, res, 403, { error: 'origin_not_allowed' });
+    }
 
     // Fast mode manual para pruebas
     if (req.query?.debug === '1' || req.headers['x-debug-fast'] === '1') {
-      return res.status(200).json({ ok: true, fast: true, rid });
+      return sendJson(req, res, 200, { ok: true, fast: true, rid });
     }
 
     // Desbloqueo inmediato: desactivar OCR por default con env OCR_ENABLED!=1
     if (process.env.OCR_ENABLED !== '1') {
-      return res.status(200).json({ ok: true, ocr: 'disabled', rid });
+      return sendJson(req, res, 200, { ok: true, ocr: 'disabled', rid });
     }
 
     // Obtener body asegurando JSON válido
@@ -71,12 +80,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (!body || typeof body !== 'object') {
-      return res.status(400).json({ ok: false, reason: 'invalid_body', rid });
+      return sendJson(req, res, 400, { ok: false, reason: 'invalid_body', rid });
     }
 
     const image = body?.image;
     if (!image) {
-      return res.status(400).json({ ok: false, reason: 'missing_image', rid });
+      return sendJson(req, res, 400, { ok: false, reason: 'missing_image', rid });
     }
 
     // ========= OPCIÓN B: OCR con Tesseract usando CDN =========
@@ -102,13 +111,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       await worker.terminate();
     }
 
-    return res.status(200).json({ ok: true, rid /*, text: data.text */ });
+    return sendJson(req, res, 200, { ok: true, rid /*, text: data.text */ });
     // ===========================================================
   } catch (err: any) {
-    try {
-      setCors(req, res);
-    } catch {}
     console.error('moderate-image error', { rid, err: err?.message });
-    return res.status(500).json({ error: err?.message || 'Internal error', rid });
+    return sendJson(req, res, 500, { error: err?.message || 'Internal error', rid });
   }
 }
