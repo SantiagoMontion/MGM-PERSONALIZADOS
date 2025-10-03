@@ -1,4 +1,5 @@
 const SHOPIFY_ENABLED = process.env.SHOPIFY_ENABLED === '1';
+const FRONT_ORIGIN = (process.env.FRONT_ORIGIN || 'https://mgm-app.vercel.app').replace(/\/$/, '');
 
 export const config = { memory: 256, maxDuration: 10 };
 
@@ -59,9 +60,8 @@ function buildMockCartResponse(payload) {
     : `gid://shopify/ProductVariant/${suffix}`;
   const quantity = clampQuantity(payload?.quantity);
   const sku = variantGid.split('/').pop() || `mock-sku-${suffix}`;
-  const baseUrl = 'https://example.test';
-  const cartPath = `/cart/${encodeURIComponent(sku)}:${quantity}`;
-  const checkoutUrl = `${baseUrl}${cartPath}?stub=1`;
+  const rid = cartId;
+  const checkoutUrl = `${FRONT_ORIGIN}/mockup?rid=${encodeURIComponent(rid)}&step=checkout`;
   return {
     ok: true,
     stub: true,
