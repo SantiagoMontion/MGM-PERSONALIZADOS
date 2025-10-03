@@ -990,10 +990,10 @@ export default function Mockup() {
               ×
             </button>
             <h2 id={buyPromptTitleId} className={styles.modalTitle}>
-              ¿Quieres comprarlo en privado o público?
+              Elige cómo publicar tu diseño
             </h2>
             <p id={buyPromptDescriptionId} className={styles.modalDescription}>
-              Público: tu diseño será visible en la tienda. Privado: solo vos verás el producto.
+              🔓 Público: visible en la tienda. <br></br><br></br>🔒 Privado: solo vos lo verás.
             </p>
             <div className={styles.modalActions}>
               <button
@@ -1006,7 +1006,7 @@ export default function Mockup() {
                   handle('checkout');
                 }}
               >
-                Comprar ahora (público)
+                Comprar público
               </button>
               <button
                 type="button"
