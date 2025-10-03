@@ -1543,3 +1543,20 @@ export async function waitForVariantAvailability(
     quantityAvailable: null,
   };
 }
+// --- minimal helper to choose destination url (safe) ---
+export function pickCommerceTarget(
+  json: any,
+  shopifyDomain?: string
+): string | null {
+  const apiUrl =
+    (json && (json.productUrl || json.checkoutUrl || json.url)) || null;
+  if (apiUrl) return String(apiUrl);
+
+  const handle =
+    (json && (json.productHandle || json.handle)) || null;
+
+  if (handle && shopifyDomain) {
+    return `https://${shopifyDomain}/products/${handle}`;
+  }
+  return null;
+}
