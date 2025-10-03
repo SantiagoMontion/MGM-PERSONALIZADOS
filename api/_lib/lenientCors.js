@@ -1,5 +1,5 @@
-const ALLOW_METHODS = 'POST, OPTIONS';
-const ALLOW_HEADERS = 'Content-Type, Authorization, Content-Type: application/json';
+const DEFAULT_ALLOW_HEADERS = 'content-type, authorization';
+const ALLOW_METHODS = 'GET, POST, OPTIONS';
 
 function resolveOrigin(req) {
   if (req && req.headers && typeof req.headers.origin === 'string') {
@@ -11,13 +11,40 @@ function resolveOrigin(req) {
   return '*';
 }
 
+function resolveRequestedHeaders(req) {
+  if (!req || !req.headers) {
+    return DEFAULT_ALLOW_HEADERS;
+  }
+
+  const raw = req.headers['access-control-request-headers'];
+  let headerList = '';
+
+  if (Array.isArray(raw)) {
+    headerList = raw.join(',');
+  } else if (typeof raw === 'string') {
+    headerList = raw;
+  }
+
+  if (!headerList) {
+    return DEFAULT_ALLOW_HEADERS;
+  }
+
+  const names = headerList
+    .split(',')
+    .map((name) => name.split(':')[0].trim())
+    .filter(Boolean);
+
+  return names.length ? names.join(', ') : DEFAULT_ALLOW_HEADERS;
+}
+
 export function applyLenientCors(req, res) {
   const origin = resolveOrigin(req);
+  const reqHeaders = resolveRequestedHeaders(req);
   if (typeof res.setHeader === 'function') {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Vary', 'Origin');
     res.setHeader('Access-Control-Allow-Methods', ALLOW_METHODS);
-    res.setHeader('Access-Control-Allow-Headers', ALLOW_HEADERS);
+    res.setHeader('Access-Control-Allow-Headers', reqHeaders);
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
   }
   return origin;
@@ -30,7 +57,7 @@ export function sendCorsOptions(req, res) {
   } else {
     res.statusCode = 200;
   }
-  res.end('');
+  res.end();
 }
 
 export function sendJsonWithCors(req, res, status, payload) {
