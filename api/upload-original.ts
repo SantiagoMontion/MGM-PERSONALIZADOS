@@ -1,49 +1,139 @@
-// api/upload-original.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { randomBytes } from 'crypto';
 
-const ALLOWED = new Set([
+const ALLOWED_ORIGINS = new Set<`https://${string}` | `http://${string}`>([
   'https://tu-mousepad-personalizado.mgmgamers.store',
   'http://localhost:5173',
 ]);
 
-function cors(req: VercelRequest, res: VercelResponse) {
-  const origin = (req.headers.origin as string) || '';
-  res.setHeader('Access-Control-Allow-Origin', ALLOWED.has(origin) ? origin : '*');
+export const config = { memory: 512, maxDuration: 45 };
+
+type SuccessResponse =
+  | { ok: true; mode: 'passthrough'; publicUrl: string }
+  | { ok: true; mode: 'url'; publicUrl: string }
+  | { ok: true; mode: 'supabase'; publicUrl: string; key: string };
+
+type ErrorResponse = { ok: false; error: string; diagId?: string };
+
+type RequestBody = {
+  url?: unknown;
+  imageBase64?: unknown;
+};
+
+function applyCors(req: VercelRequest, res: VercelResponse) {
+  const origin = req.headers.origin as string | undefined;
+  if (origin && ALLOWED_ORIGINS.has(origin as any)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', 'null');
+  }
   res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.setHeader('Content-Type', 'application/json');
 }
 
-export const config = { memory: 512, maxDuration: 30 };
+function sendJson(
+  req: VercelRequest,
+  res: VercelResponse,
+  status: number,
+  body: SuccessResponse | ErrorResponse,
+) {
+  applyCors(req, res);
+  res.status(status).send(JSON.stringify(body));
+}
+
+function makeDiagId() {
+  return randomBytes(4).toString('hex');
+}
+
+function normalizeBody(raw: unknown): RequestBody | null {
+  if (raw == null) return {};
+  if (typeof raw === 'string') {
+    try {
+      return normalizeBody(JSON.parse(raw));
+    } catch {
+      return null;
+    }
+  }
+  if (typeof raw === 'object') {
+    return raw as RequestBody;
+  }
+  return null;
+}
+
+function resolveImageInfo(imageBase64: string) {
+  let base64Part = imageBase64;
+  let mime = 'image/png';
+
+  const dataUrlMatch = /^data:([^;,]+);base64,/i.exec(imageBase64);
+  if (dataUrlMatch) {
+    mime = dataUrlMatch[1].toLowerCase();
+    base64Part = imageBase64.slice(dataUrlMatch[0].length);
+  }
+
+  const inferredMime = inferMime(mime);
+  return {
+    buffer: Buffer.from(base64Part, 'base64'),
+    mime: inferredMime.mime,
+    ext: inferredMime.ext,
+  };
+}
+
+function inferMime(inputMime: string) {
+  const normalized = inputMime.toLowerCase();
+  switch (normalized) {
+    case 'image/jpeg':
+    case 'image/jpg':
+      return { mime: 'image/jpeg', ext: 'jpg' };
+    case 'image/webp':
+      return { mime: 'image/webp', ext: 'webp' };
+    case 'image/gif':
+      return { mime: 'image/gif', ext: 'gif' };
+    case 'image/png':
+    default:
+      return { mime: 'image/png', ext: 'png' };
+  }
+}
+
+function generateKey(ext: string) {
+  const stamp = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14);
+  const random = randomBytes(6).toString('hex');
+  return `orig/${stamp}-${random}.${ext}`;
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  cors(req, res);
+  applyCors(req, res);
+
+  if (!req.headers.origin || !ALLOWED_ORIGINS.has(req.headers.origin as any)) {
+    return sendJson(req, res, 403, { ok: false, error: 'Origin not allowed' });
+  }
 
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    res.status(200).end();
+    return;
   }
 
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method Not Allowed' });
+    return sendJson(req, res, 405, { ok: false, error: 'Method Not Allowed' });
   }
 
-  let body: any = req.body;
-  if (typeof body === 'string') {
-    try {
-      body = JSON.parse(body);
-    } catch (err) {
-      // ignore JSON parse errors and keep string body
-    }
+  const normalized = normalizeBody(req.body);
+  if (normalized === null) {
+    return sendJson(req, res, 400, { ok: false, error: 'Invalid JSON body' });
   }
 
-  const { url, imageBase64 } = body || {};
+  const { url, imageBase64 } = normalized;
 
   if (process.env.UPLOAD_ENABLED !== '1') {
-    return res.status(200).json({
+    if (typeof url !== 'string' || !url) {
+      return sendJson(req, res, 400, { ok: false, error: 'Missing url' });
+    }
+
+    return sendJson(req, res, 200, {
       ok: true,
       mode: 'passthrough',
-      url: url || null,
+      publicUrl: url,
     });
   }
 
@@ -52,45 +142,57 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const SUPABASE_BUCKET = process.env.SUPABASE_BUCKET || 'uploads';
 
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    return res
-      .status(500)
-      .json({ error: 'Supabase not configured (set UPLOAD_ENABLED=0 or add creds)' });
+    return sendJson(req, res, 500, {
+      ok: false,
+      error: 'Supabase not configured (set UPLOAD_ENABLED to 0 or add credentials)',
+    });
+  }
+
+  if (typeof url === 'string' && url && (imageBase64 == null || imageBase64 === '')) {
+    return sendJson(req, res, 200, { ok: true, mode: 'url', publicUrl: url });
+  }
+
+  if (typeof imageBase64 !== 'string' || !imageBase64) {
+    return sendJson(req, res, 400, {
+      ok: false,
+      error: 'Missing image data (imageBase64 or url required)',
+    });
   }
 
   try {
     const { createClient } = await import('@supabase/supabase-js');
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    if (url && !imageBase64) {
-      return res.status(200).json({ ok: true, mode: 'url', url });
+    const { buffer, mime, ext } = resolveImageInfo(imageBase64);
+    const key = generateKey(ext);
+
+    const uploadResult = await supabase.storage
+      .from(SUPABASE_BUCKET)
+      .upload(key, buffer, {
+        contentType: mime,
+        upsert: false,
+      });
+
+    if (uploadResult.error) {
+      throw uploadResult.error;
     }
 
-    if (!imageBase64) {
-      return res
-        .status(400)
-        .json({ error: 'No image provided (imageBase64 or url required)' });
-    }
+    const { data: publicData } = supabase.storage.from(SUPABASE_BUCKET).getPublicUrl(key);
+    const publicUrl = publicData.publicUrl;
 
-    const comma = imageBase64.indexOf(',');
-    const b64 = comma >= 0 ? imageBase64.slice(comma + 1) : imageBase64;
-    const buffer = Buffer.from(b64, 'base64');
-
-    const ext = 'png';
-    const key = `orig/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-
-    const { error } = await supabase.storage.from(SUPABASE_BUCKET).upload(key, buffer, {
-      contentType: 'image/png',
-      upsert: false,
+    return sendJson(req, res, 200, {
+      ok: true,
+      mode: 'supabase',
+      publicUrl,
+      key,
     });
-
-    if (error) {
-      throw error;
-    }
-
-    const { data } = supabase.storage.from(SUPABASE_BUCKET).getPublicUrl(key);
-
-    return res.status(200).json({ ok: true, mode: 'supabase', url: data.publicUrl });
-  } catch (err: any) {
-    return res.status(500).json({ error: err?.message || 'upload failed' });
+  } catch (error: any) {
+    const diagId = makeDiagId();
+    console.error(`upload-original failure ${diagId}`, error);
+    return sendJson(req, res, 500, {
+      ok: false,
+      error: error?.message || 'Upload failed',
+      diagId,
+    });
   }
 }
