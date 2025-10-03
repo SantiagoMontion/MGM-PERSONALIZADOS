@@ -86,6 +86,31 @@ export function apiFetch(methodOrPath, maybePathOrInit, maybeBody, maybeInitOver
   return fetch(url, maybePathOrInit);
 }
 
+export async function postJSON(url, data, timeoutMs = 20000) {
+  const ctrl = new AbortController();
+  const id = setTimeout(() => ctrl.abort(), timeoutMs);
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data ?? {}),
+      signal: ctrl.signal,
+    });
+
+    const text = await res.text();
+    let json = null;
+    try { json = text ? JSON.parse(text) : null; } catch { /* no JSON */ }
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status} ${res.statusText} | ${text}`);
+    }
+    return json ?? { ok: true };
+  } finally {
+    clearTimeout(id);
+  }
+}
+
 export function getApiBaseUrl() {
   if (IS_DEV && USE_PROXY) {
     return '/api';
