@@ -23,7 +23,7 @@ function sendJson(res: VercelResponse, status: number, body: any) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  applyCors(req, res, 'POST, OPTIONS');
+  applyCors(req, res);
   const rid = Date.now().toString(36);
 
   try {
@@ -104,7 +104,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return sendJson(res, 200, { ok: true, rid /*, text: data.text */ });
     // ===========================================================
   } catch (err: any) {
-    applyCors(req, res, 'POST, OPTIONS');
+    applyCors(req, res);
     const diagId = `mid-${rid}`;
     console.error('moderate-image error', { rid, err: err?.message });
     return sendJson(res, 500, {
