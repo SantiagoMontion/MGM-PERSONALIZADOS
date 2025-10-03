@@ -1,4 +1,4 @@
-const iconModules = import.meta.glob("../icons/*.{svg,png}", {
+const iconModules = import.meta.glob("../icons/*.svg", {
   eager: true,
   import: "default",
 });
