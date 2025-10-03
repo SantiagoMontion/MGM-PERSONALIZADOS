@@ -763,7 +763,14 @@ export async function createJobAndProduct(
           body: JSON.stringify(checkoutPayload),
         });
         const ck = await ckResp.json().catch(() => null);
-        if (!ckResp.ok || !ck?.url) {
+        const checkoutUrlFromResponse =
+          typeof ck?.checkoutUrl === 'string' && ck.checkoutUrl.trim()
+            ? ck.checkoutUrl.trim()
+            : typeof ck?.url === 'string' && ck.url.trim()
+              ? ck.url.trim()
+              : '';
+        const okFromResponse = ckResp.ok && ck?.ok !== false && Boolean(checkoutUrlFromResponse);
+        if (!okFromResponse) {
           const reason = typeof ck?.error === 'string' && ck.error ? ck.error : 'checkout_link_failed';
           const err: Error & {
             reason?: string;
@@ -771,6 +778,7 @@ export async function createJobAndProduct(
             missing?: string[];
             detail?: unknown;
             status?: number;
+            userErrors?: unknown;
           } = new Error(reason);
           err.reason = reason;
           if (Array.isArray(ck?.missing) && ck.missing.length) {
@@ -778,6 +786,9 @@ export async function createJobAndProduct(
           }
           if (ck?.detail) {
             err.detail = ck.detail;
+          }
+          if (Array.isArray(ck?.userErrors) && ck.userErrors.length) {
+            err.userErrors = ck.userErrors;
           }
           const message = typeof ck?.message === 'string' ? ck.message.trim() : '';
           if (message) {
@@ -788,7 +799,16 @@ export async function createJobAndProduct(
           }
           throw err;
         }
-        result.checkoutUrl = ck.url;
+        result.checkoutUrl = checkoutUrlFromResponse;
+        const checkoutIdFromResponse =
+          typeof ck?.checkoutId === 'string' && ck.checkoutId.trim()
+            ? ck.checkoutId.trim()
+            : typeof ck?.checkout_id === 'string' && ck.checkout_id.trim()
+              ? ck.checkout_id.trim()
+              : '';
+        if (checkoutIdFromResponse) {
+          (result as Record<string, unknown>).checkoutId = checkoutIdFromResponse;
+        }
       }
     }
     if (SHOULD_LOG_COMMERCE) {
