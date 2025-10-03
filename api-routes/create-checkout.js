@@ -9,3 +9,5 @@ export default createApiHandler({
   requiredEnv: resolveEnvRequirements('SHOPIFY_STOREFRONT'),
   handler: createCheckout,
 });
+
+export const config = { runtime: 'nodejs' };

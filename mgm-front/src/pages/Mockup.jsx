@@ -12,6 +12,7 @@ import {
   ONLINE_STORE_DISABLED_MESSAGE,
   ONLINE_STORE_MISSING_MESSAGE,
 } from '@/lib/shopify.ts';
+import { pickCommerceTarget } from '../lib/shopify';
 import logger from '../lib/logger';
 
 /** NUEVO: imagen de la sección (reemplazá el path por el tuyo) */
@@ -324,6 +325,20 @@ export default function Mockup() {
         setToast({ message: warningMessages.join(' ') });
       }
 
+      const preferredCartUrl = pickCommerceTarget(result, SHOPIFY_DOMAIN);
+      if (preferredCartUrl) {
+        if (typeof window !== 'undefined' && preferredCartUrl.startsWith(window.location.origin)) {
+          const relativePath = preferredCartUrl.replace(window.location.origin, '') || '/';
+          navigate(relativePath, { replace: false });
+        } else if (typeof window !== 'undefined') {
+          const newTab = window.open(preferredCartUrl, '_blank');
+          if (!newTab) {
+            window.location.assign(preferredCartUrl);
+          }
+        }
+        return;
+      }
+
       const productUrlFromResult =
         typeof result?.productUrl === 'string' && result.productUrl.trim()
           ? result.productUrl.trim()
@@ -462,6 +477,22 @@ export default function Mockup() {
         }
         setToast({ message: warningMessages.join(' ') });
       }
+      if (mode === 'checkout') {
+        const preferredCheckoutUrl = pickCommerceTarget(result, SHOPIFY_DOMAIN);
+        if (preferredCheckoutUrl) {
+          if (typeof window !== 'undefined' && preferredCheckoutUrl.startsWith(window.location.origin)) {
+            const relativePath = preferredCheckoutUrl.replace(window.location.origin, '') || '/';
+            navigate(relativePath, { replace: false });
+          } else if (typeof window !== 'undefined') {
+            const newTab = window.open(preferredCheckoutUrl, '_blank');
+            if (!newTab) {
+              window.location.assign(preferredCheckoutUrl);
+            }
+          }
+          return;
+        }
+      }
+
       if (mode === 'checkout' && result.checkoutUrl) {
         const checkoutUrl = result.checkoutUrl;
         let opened = false;
@@ -622,6 +653,19 @@ export default function Mockup() {
               ? privateJson.checkoutUrl.trim()
               : '';
         if (privateJson.ok === true && checkoutUrlFromResponse) {
+          const preferredPrivateUrl = pickCommerceTarget({ ...privateJson, checkoutUrl: checkoutUrlFromResponse }, SHOPIFY_DOMAIN);
+          if (preferredPrivateUrl) {
+            if (typeof window !== 'undefined' && preferredPrivateUrl.startsWith(window.location.origin)) {
+              const relativePath = preferredPrivateUrl.replace(window.location.origin, '') || '/';
+              navigate(relativePath, { replace: false });
+            } else if (typeof window !== 'undefined') {
+              const newTab = window.open(preferredPrivateUrl, '_blank');
+              if (!newTab) {
+                window.location.assign(preferredPrivateUrl);
+              }
+            }
+            return;
+          }
           result.checkoutUrl = checkoutUrlFromResponse;
           if (privateJson.draftOrderId) {
             result.draftOrderId = String(privateJson.draftOrderId);

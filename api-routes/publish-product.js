@@ -9,3 +9,5 @@ export default createApiHandler({
   requiredEnv: resolveEnvRequirements('SHOPIFY_ADMIN', 'SUPABASE_SERVICE'),
   handler: publishProduct,
 });
+
+export const config = { runtime: 'nodejs' };

@@ -7,3 +7,5 @@ export default createApiHandler({
   context: 'private-checkout',
   handler: privateCheckout,
 });
+
+export const config = { runtime: 'nodejs' };
