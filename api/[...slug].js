@@ -92,12 +92,12 @@ function getPathname(req) {
 export default async function handler(req, res) {
   const method = (req.method || 'GET').toUpperCase();
   const pathname = getPathname(req);
-  const handler = findHandler(method, pathname);
-  if (!handler) {
+  const routeHandler = findHandler(method, pathname);
+  if (!routeHandler) {
     res.statusCode = 404;
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.end(JSON.stringify({ ok: false, error: 'not_found' }));
     return;
   }
-  return handler(req, res);
+  return routeHandler(req, res);
 }

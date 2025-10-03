@@ -1,5 +1,5 @@
 import privateCheckout from '../../../lib/handlers/privateCheckout.js';
-import { createApiHandler } from '../../../../api/_lib/createHandler.js';
+import { createApiHandler } from '../../../api/_lib/createHandler.js';
 
 export default createApiHandler({
   methods: 'POST',

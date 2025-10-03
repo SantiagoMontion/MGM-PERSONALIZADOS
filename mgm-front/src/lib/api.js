@@ -1,15 +1,31 @@
 import logger from './logger';
-const RAW_API_URL = typeof import.meta.env.VITE_API_URL === 'string'
-  ? import.meta.env.VITE_API_URL
-  : '';
-const CLEAN_API_URL = RAW_API_URL.trim().replace(/[/]+$/, '');
-const API_ORIGIN = CLEAN_API_URL.endsWith('/api')
-  ? CLEAN_API_URL.slice(0, -4)
-  : CLEAN_API_URL;
+
+const RAW_API_URL = typeof import.meta.env.VITE_API_URL === 'string' ? import.meta.env.VITE_API_URL : '';
 const USE_PROXY = (import.meta.env.VITE_USE_PROXY || '').trim() === '1';
 const IS_DEV = Boolean(import.meta.env && import.meta.env.DEV);
 
-let hasWarnedAboutMissingApiUrl = false;
+function sanitizeBase(value) {
+  if (!value) return '';
+  return value.trim().replace(/\/+$/, '');
+}
+
+function ensureAbsoluteBase(value) {
+  const trimmed = sanitizeBase(value);
+  if (!trimmed) return '';
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`;
+  }
+  if (trimmed.startsWith('/')) {
+    return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`;
+  }
+  const withProtocol = `https://${trimmed}`;
+  return withProtocol.endsWith('/api') ? withProtocol : `${withProtocol}/api`;
+}
+
+const CONFIGURED_BASE = ensureAbsoluteBase(RAW_API_URL);
+const API_BASE = CONFIGURED_BASE || '/api';
+
+let hasWarnedAboutFallback = false;
 
 function normalizePath(path) {
   if (!path) return '/';
@@ -21,25 +37,15 @@ function resolveRequestUrl(path) {
   if (IS_DEV && USE_PROXY) {
     return normalizedPath;
   }
-  if (!API_ORIGIN) {
-    if (!hasWarnedAboutMissingApiUrl) {
-      hasWarnedAboutMissingApiUrl = true;
-      try {
-        logger.error('[api] missing_api_url', {
-          message: 'VITE_API_URL is not configured. Requests will fail.',
-          path: normalizedPath,
-        });
-      } catch (loggingErr) {
-        if (loggingErr) {
-          // noop
-        }
-      }
-    }
-    const error = new Error('VITE_API_URL is not configured');
-    error.code = 'missing_api_url';
-    throw error;
+  if (!CONFIGURED_BASE && !hasWarnedAboutFallback) {
+    hasWarnedAboutFallback = true;
+    try {
+      logger.warn?.('[api] using_default_base', {
+        message: 'VITE_API_URL not set; defaulting to same-origin /api.',
+      });
+    } catch {}
   }
-  return `${API_ORIGIN}${normalizedPath}`;
+  return `${API_BASE}${normalizedPath}`;
 }
 
 export function apiFetch(methodOrPath, maybePathOrInit, maybeBody, maybeInitOverrides) {
@@ -81,10 +87,7 @@ export function getApiBaseUrl() {
   if (IS_DEV && USE_PROXY) {
     return '/api';
   }
-  if (!API_ORIGIN) {
-    return '';
-  }
-  return `${API_ORIGIN}/api`;
+  return API_BASE;
 }
 
 export function getResolvedApiUrl(path) {
