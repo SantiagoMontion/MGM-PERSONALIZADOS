@@ -1,10 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { randomBytes } from 'crypto';
 
-const ALLOWED_ORIGINS = new Set<`https://${string}` | `http://${string}`>([
-  'https://tu-mousepad-personalizado.mgmgamers.store',
-  'http://localhost:5173',
-]);
+import { applyCors, ensureJsonContentType } from './_lib/cors';
 
 export const config = { memory: 512, maxDuration: 45 };
 
@@ -20,26 +17,14 @@ type RequestBody = {
   imageBase64?: unknown;
 };
 
-function applyCors(req: VercelRequest, res: VercelResponse) {
-  const origin = req.headers.origin as string | undefined;
-  if (origin && ALLOWED_ORIGINS.has(origin as any)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-  } else {
-    res.setHeader('Access-Control-Allow-Origin', 'null');
-  }
-  res.setHeader('Vary', 'Origin');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  res.setHeader('Content-Type', 'application/json');
-}
-
 function sendJson(
   req: VercelRequest,
   res: VercelResponse,
   status: number,
   body: SuccessResponse | ErrorResponse,
 ) {
-  applyCors(req, res);
+  applyCors(req, res, 'POST, OPTIONS');
+  ensureJsonContentType(res);
   res.status(status).send(JSON.stringify(body));
 }
 
@@ -103,11 +88,7 @@ function generateKey(ext: string) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  applyCors(req, res);
-
-  if (!req.headers.origin || !ALLOWED_ORIGINS.has(req.headers.origin as any)) {
-    return sendJson(req, res, 403, { ok: false, error: 'Origin not allowed' });
-  }
+  const cors = applyCors(req, res, 'POST, OPTIONS');
 
   if (req.method === 'OPTIONS') {
     res.status(200).end();
@@ -116,6 +97,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method !== 'POST') {
     return sendJson(req, res, 405, { ok: false, error: 'Method Not Allowed' });
+  }
+
+  if (cors.strict && !cors.allowed) {
+    return sendJson(req, res, 403, { ok: false, error: 'origin_not_allowed' });
   }
 
   const normalized = normalizeBody(req.body);
