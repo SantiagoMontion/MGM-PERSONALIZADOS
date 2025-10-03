@@ -325,16 +325,15 @@ export default function Mockup() {
         setToast({ message: warningMessages.join(' ') });
       }
 
-      const preferredCartUrl = pickCommerceTarget(result, SHOPIFY_DOMAIN);
-      if (preferredCartUrl) {
-        if (typeof window !== 'undefined' && preferredCartUrl.startsWith(window.location.origin)) {
-          const relativePath = preferredCartUrl.replace(window.location.origin, '') || '/';
-          navigate(relativePath, { replace: false });
-        } else if (typeof window !== 'undefined') {
-          const newTab = window.open(preferredCartUrl, '_blank');
-          if (!newTab) {
-            window.location.assign(preferredCartUrl);
-          }
+      const SHOPIFY_DOMAIN = import.meta.env.VITE_SHOPIFY_DOMAIN || '';
+      const tgt = pickCommerceTarget(result, SHOPIFY_DOMAIN);
+      if (tgt) {
+        if (tgt.startsWith(window.location.origin)) {
+          const rel = tgt.replace(window.location.origin, '');
+          navigate(rel, { replace: false });
+        } else {
+          const w = window.open(tgt, '_blank');
+          if (!w) window.location.assign(tgt);
         }
         return;
       }
@@ -478,18 +477,19 @@ export default function Mockup() {
         setToast({ message: warningMessages.join(' ') });
       }
       if (mode === 'checkout') {
-        const preferredCheckoutUrl = pickCommerceTarget(result, SHOPIFY_DOMAIN);
-        if (preferredCheckoutUrl) {
-          if (typeof window !== 'undefined' && preferredCheckoutUrl.startsWith(window.location.origin)) {
-            const relativePath = preferredCheckoutUrl.replace(window.location.origin, '') || '/';
-            navigate(relativePath, { replace: false });
-          } else if (typeof window !== 'undefined') {
-            const newTab = window.open(preferredCheckoutUrl, '_blank');
-            if (!newTab) {
-              window.location.assign(preferredCheckoutUrl);
+        {
+          const SHOPIFY_DOMAIN = import.meta.env.VITE_SHOPIFY_DOMAIN || '';
+          const tgt = pickCommerceTarget(result, SHOPIFY_DOMAIN);
+          if (tgt) {
+            if (tgt.startsWith(window.location.origin)) {
+              const rel = tgt.replace(window.location.origin, '');
+              navigate(rel, { replace: false });
+            } else {
+              const w = window.open(tgt, '_blank');
+              if (!w) window.location.assign(tgt);
             }
+            return;
           }
-          return;
         }
       }
 
@@ -653,18 +653,19 @@ export default function Mockup() {
               ? privateJson.checkoutUrl.trim()
               : '';
         if (privateJson.ok === true && checkoutUrlFromResponse) {
-          const preferredPrivateUrl = pickCommerceTarget({ ...privateJson, checkoutUrl: checkoutUrlFromResponse }, SHOPIFY_DOMAIN);
-          if (preferredPrivateUrl) {
-            if (typeof window !== 'undefined' && preferredPrivateUrl.startsWith(window.location.origin)) {
-              const relativePath = preferredPrivateUrl.replace(window.location.origin, '') || '/';
-              navigate(relativePath, { replace: false });
-            } else if (typeof window !== 'undefined') {
-              const newTab = window.open(preferredPrivateUrl, '_blank');
-              if (!newTab) {
-                window.location.assign(preferredPrivateUrl);
+          {
+            const SHOPIFY_DOMAIN = import.meta.env.VITE_SHOPIFY_DOMAIN || '';
+            const tgt = pickCommerceTarget(privateJson, SHOPIFY_DOMAIN);
+            if (tgt) {
+              if (tgt.startsWith(window.location.origin)) {
+                const rel = tgt.replace(window.location.origin, '');
+                navigate(rel, { replace: false });
+              } else {
+                const w = window.open(tgt, '_blank');
+                if (!w) window.location.assign(tgt);
               }
+              return;
             }
-            return;
           }
           result.checkoutUrl = checkoutUrlFromResponse;
           if (privateJson.draftOrderId) {
