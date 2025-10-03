@@ -11,8 +11,8 @@ import {
   createJobAndProduct,
   ONLINE_STORE_DISABLED_MESSAGE,
   ONLINE_STORE_MISSING_MESSAGE,
+  pickCommerceTarget,
 } from '@/lib/shopify.ts';
-import { pickCommerceTarget } from '../lib/shopify';
 import logger from '../lib/logger';
 
 /** NUEVO: imagen de la sección (reemplazá el path por el tuyo) */

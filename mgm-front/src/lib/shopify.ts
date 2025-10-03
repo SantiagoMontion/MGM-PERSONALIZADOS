@@ -1543,3 +1543,11 @@ export async function waitForVariantAvailability(
     quantityAvailable: null,
   };
 }
+// Preferir URLs que devuelve la API; si no hay, caer a Shopify
+export function pickCommerceTarget(json: any, shopifyDomain?: string): string | null {
+  const apiUrl = (json?.productUrl ?? json?.checkoutUrl ?? json?.url) ?? null;
+  if (apiUrl) return String(apiUrl);
+  const handle = json?.productHandle ?? json?.handle;
+  if (handle && shopifyDomain) return `https://${shopifyDomain}/products/${handle}`;
+  return null;
+}
