@@ -3,6 +3,12 @@ const FRONT_ORIGIN = (process.env.FRONT_ORIGIN || 'https://mgm-app.vercel.app').
 
 export const config = { memory: 256, maxDuration: 10 };
 
+function createRid() {
+  const base = Date.now().toString(36);
+  const random = Math.random().toString(36).slice(2, 8);
+  return `${base}${random}`;
+}
+
 function applyCors(req, res) {
   const origin = typeof req?.headers?.origin === 'string' && req.headers.origin ? req.headers.origin : '*';
   res.setHeader('Access-Control-Allow-Origin', origin);
@@ -58,13 +64,11 @@ function buildMockProduct(payload) {
   const handleBase = design || title || 'mock-product';
   const handle = slugify(handleBase).slice(0, 64) || 'mock-product';
   const now = Date.now();
-  const random = Math.floor(Math.random() * 1_000_000);
-  const numericId = `${now}${random}`.slice(-12);
-  const productId = `mock-product-${numericId}`;
-  const variantNumeric = `${Number(numericId) % 9_000_000 + 1_000_000}`;
+  const rid = createRid();
+  const productId = `mock_${rid}`;
+  const variantNumeric = `${Math.floor(Math.random() * 9_000_000) + 1_000_000}`;
   const variantGid = `gid://shopify/ProductVariant/${variantNumeric}`;
-  const rid = productId;
-  const productUrl = `${FRONT_ORIGIN}/mockup?rid=${encodeURIComponent(rid)}`;
+  const productUrl = `${FRONT_ORIGIN}/mockup?rid=${encodeURIComponent(rid)}&from=publish`;
 
   return {
     ok: true,
@@ -74,6 +78,7 @@ function buildMockProduct(payload) {
     productHandle: handle,
     handle,
     productUrl,
+    url: productUrl,
     publicUrl: productUrl,
     variantId: variantGid,
     variantGid,

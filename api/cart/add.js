@@ -3,6 +3,12 @@ const FRONT_ORIGIN = (process.env.FRONT_ORIGIN || 'https://mgm-app.vercel.app').
 
 export const config = { memory: 256, maxDuration: 10 };
 
+function createRid() {
+  const base = Date.now().toString(36);
+  const random = Math.random().toString(36).slice(2, 8);
+  return `${base}${random}`;
+}
+
 function applyCors(req, res) {
   const origin = typeof req?.headers?.origin === 'string' && req.headers.origin ? req.headers.origin : '*';
   res.setHeader('Access-Control-Allow-Origin', origin);
@@ -49,19 +55,14 @@ function clampQuantity(value) {
 }
 
 function buildMockCartResponse(payload) {
-  const now = Date.now();
-  const random = Math.floor(Math.random() * 1_000_000);
-  const suffix = `${now}${random}`.slice(-12);
-  const cartId = typeof payload?.cartId === 'string' && payload.cartId.trim()
-    ? payload.cartId.trim()
-    : `mock-cart-${suffix}`;
+  const rid = createRid();
+  const cartId = `mock_${rid}`;
   const variantGid = typeof payload?.variantGid === 'string' && payload.variantGid.trim()
     ? payload.variantGid.trim()
-    : `gid://shopify/ProductVariant/${suffix}`;
+    : `gid://shopify/ProductVariant/${Math.floor(Math.random() * 9_000_000) + 1_000_000}`;
   const quantity = clampQuantity(payload?.quantity);
-  const sku = variantGid.split('/').pop() || `mock-sku-${suffix}`;
-  const rid = cartId;
-  const checkoutUrl = `${FRONT_ORIGIN}/mockup?rid=${encodeURIComponent(rid)}&step=checkout`;
+  const sku = variantGid.split('/').pop() || `mock-sku-${rid}`;
+  const checkoutUrl = `${FRONT_ORIGIN}/mockup?rid=${encodeURIComponent(rid)}&step=checkout&from=cart`;
   return {
     ok: true,
     stub: true,
@@ -74,10 +75,11 @@ function buildMockCartResponse(payload) {
     cartWebUrl: checkoutUrl,
     cartPlain: checkoutUrl,
     checkoutUrl,
+    checkout: checkoutUrl,
     checkoutPlain: checkoutUrl,
-    cartToken: `mock-token-${suffix}`,
+    cartToken: `mock-token-${rid}`,
     usedFallback: false,
-    requestId: `mock-request-${suffix}`,
+    requestId: `mock-request-${rid}`,
   };
 }
 
