@@ -82,7 +82,7 @@ function generateKey(ext: string) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  applyCors(req, res, 'POST, OPTIONS');
+  applyCors(req, res);
 
   if (req.method === 'OPTIONS') {
     res.status(200).end();
@@ -164,7 +164,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (error: any) {
     const diagId = makeDiagId();
     console.error(`upload-original failure ${diagId}`, error);
-    applyCors(req, res, 'POST, OPTIONS');
+    applyCors(req, res);
     return sendJson(res, 500, {
       ok: false,
       error: error?.message || 'upload_failed',
