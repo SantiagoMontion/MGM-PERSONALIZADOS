@@ -2,10 +2,16 @@ import { useMemo, useState } from 'react';
 import Calculadora from '../components/Calculadora.jsx';
 import styles from './Calculadora.module.css';
 
+const priceFormatter = new Intl.NumberFormat('es-AR', {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 0,
+});
+
 const CalculadoraPage = () => {
   const [width, setWidth] = useState('');
   const [height, setHeight] = useState('');
   const [material, setMaterial] = useState('Classic');
+  const [transferPrice, setTransferPrice] = useState(0);
 
   const materialOptions = useMemo(
     () => [
@@ -71,24 +77,19 @@ const CalculadoraPage = () => {
           width={width}
           height={height}
           material={material}
-          render={({ valid, transfer, format }) => {
-            const displayMaterial = material || 'Classic';
-            const displayWidth = width || '--';
-            const displayHeight = height || '--';
-
-            return (
-              <div className={styles.result}>
-                <h2 className={styles.resultTitle}>Precio con transferencia</h2>
-                <p className={styles.resultValue}>
-                  {valid && transfer > 0 ? `$${format(transfer)}` : 'Ingresá medidas válidas'}
-                </p>
-                <p className={styles.resultDetails}>
-                  ({`${displayMaterial} / ${displayWidth}x${displayHeight}`})
-                </p>
-              </div>
-            );
-          }}
+          setPrice={setTransferPrice}
+          render={() => null}
         />
+
+        <div className={styles.result}>
+          <h2 className={styles.resultTitle}>Precio con transferencia</h2>
+          <p className={styles.resultValue}>
+            {transferPrice > 0 ? `$${priceFormatter.format(transferPrice)}` : 'Ingresá medidas válidas'}
+          </p>
+          <p className={styles.resultDetails}>
+            ({`${material || 'Classic'} / ${width || '--'}x${height || '--'}`})
+          </p>
+        </div>
       </div>
     </section>
   );
