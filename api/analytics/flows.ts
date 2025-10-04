@@ -139,12 +139,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   applyLenientCors(req, res);
 
   if (req.method === 'OPTIONS') {
+    const requestedHeaders = req.headers['access-control-request-headers'];
+    if (requestedHeaders) {
+      const rawList = Array.isArray(requestedHeaders)
+        ? requestedHeaders.join(',')
+        : requestedHeaders;
+      const names = rawList
+        .split(',')
+        .map((name) => name.split(':')[0].trim().toLowerCase())
+        .filter(Boolean);
+      const headerSet = new Set(names);
+      headerSet.add('content-type');
+      headerSet.add('x-admin-token');
+      res.setHeader('Access-Control-Allow-Headers', Array.from(headerSet).join(', '));
+    } else {
+      res.setHeader('Access-Control-Allow-Headers', 'content-type, x-admin-token');
+    }
     res.status(200).end();
     return;
   }
 
   if (req.method !== 'GET') {
     res.status(405).json({ ok: false, error: 'method_not_allowed', diagId });
+    return;
+  }
+
+  const rawTokenHeader = req.headers['x-admin-token'];
+  const providedToken = Array.isArray(rawTokenHeader) ? rawTokenHeader[0] : rawTokenHeader;
+  const expectedToken = process.env.ANALYTICS_ADMIN_TOKEN;
+
+  if (!providedToken || !expectedToken || providedToken !== expectedToken) {
+    res.status(401).json({ ok: false, error: 'unauthorized', diagId });
     return;
   }
 
