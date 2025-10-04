@@ -26,6 +26,15 @@ if (typeof globalThis !== 'undefined' && typeof globalThis.Buffer === 'undefined
   globalThis.Buffer = Buffer;
 }
 
+if (typeof window !== 'undefined' && typeof window.AdminAnalytics === 'undefined') {
+  window.AdminAnalytics = new Proxy(
+    {},
+    {
+      get: () => () => {},
+    },
+  );
+}
+
 const routes = [
   {
     element: <App />,
