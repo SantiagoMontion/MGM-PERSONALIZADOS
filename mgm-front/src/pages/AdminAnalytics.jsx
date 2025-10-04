@@ -30,7 +30,7 @@ function formatWindowDate(value) {
   return parsed.toLocaleString();
 }
 
-export default function AdminAnalytics() {
+export default function AdminAnalyticsPage() {
   const [token, setToken] = useState(() => {
     if (typeof window === 'undefined') {
       return '';
@@ -43,7 +43,7 @@ export default function AdminAnalytics() {
     }
   });
   const [formToken, setFormToken] = useState('');
-  const [data, setData] = useState(null);
+  const [metrics, setMetrics] = useState(null);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(null);
@@ -62,7 +62,7 @@ export default function AdminAnalytics() {
       }
     }
     setToken('');
-    setData(null);
+    setMetrics(null);
     setLastUpdated(null);
     if (!options.preserveError) {
       setError('');
@@ -109,12 +109,12 @@ export default function AdminAnalytics() {
           : 'No se pudieron cargar las métricas. Intentá nuevamente.';
         setError(message);
         if (!json?.ok) {
-          setData(null);
+          setMetrics(null);
         }
         return;
       }
 
-      setData(json);
+      setMetrics(json);
       setLastUpdated(new Date());
     } catch (err) {
       console.error('[admin-analytics] fetch_failed', err);
@@ -126,7 +126,7 @@ export default function AdminAnalytics() {
 
   useEffect(() => {
     if (!token) {
-      setData(null);
+      setMetrics(null);
       setLastUpdated(null);
       return undefined;
     }
@@ -180,10 +180,12 @@ export default function AdminAnalytics() {
     }
   }, [token, fetchAnalytics]);
 
-  const totals = data?.ok ? data.totals : null;
-  const topDesigns = data?.ok && Array.isArray(data.topDesigns) ? data.topDesigns : [];
-  const windowFrom = data?.ok ? formatWindowDate(data.window?.from) : '';
-  const windowTo = data?.ok ? formatWindowDate(data.window?.to) : '';
+  const totals = metrics?.ok ? metrics.totals : null;
+  const topDesigns = metrics?.ok && Array.isArray(metrics.topDesigns) ? metrics.topDesigns : [];
+  const windowFrom = metrics?.ok ? formatWindowDate(metrics.window?.from) : '';
+  const windowTo = metrics?.ok ? formatWindowDate(metrics.window?.to) : '';
+  const isAwaitingMetrics = token && metrics === null;
+  const showLoadingState = (isLoading || isAwaitingMetrics) && !error;
 
   if (!token) {
     return (
@@ -235,7 +237,7 @@ export default function AdminAnalytics() {
       </div>
 
       {error && <p className={styles.error}>{error}</p>}
-      {isLoading && <p className={styles.status}>Cargando métricas…</p>}
+      {showLoadingState && <p className={styles.status}>Cargando métricas…</p>}
 
       {totals && (
         <section>
