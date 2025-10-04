@@ -40,61 +40,58 @@ const CalculadoraPage = () => {
     [],
   );
 
-  const handleDimensionChange = (setter, { max }) => (event) => {
-    const numericString = event.target.value.replace(/[^0-9]/g, '');
+  const sanitizeNumericInput = (value) => value.replace(/[^0-9]/g, '');
 
-    if (numericString === '') {
-      setter('');
-      return;
+  const clampValue = (value, { min, max }) => {
+    if (value === '') {
+      return '';
     }
 
-    const numericValue = Number(numericString);
-    const clampedValue = Math.min(numericValue, max);
-    setter(String(clampedValue));
+    const numericValue = Number(value);
+
+    if (Number.isNaN(numericValue)) {
+      return '';
+    }
+
+    const clampedValue = Math.min(Math.max(numericValue, min), max);
+    return String(clampedValue);
   };
 
-  const handleDimensionBlur = (setter, { min }) => (event) => {
-    if (event.target.value === '') {
+  const handleDimensionChange = (setter) => (event) => {
+    const numericString = sanitizeNumericInput(event.target.value);
+    setter(numericString);
+  };
+
+  const handleDimensionBlur = (setter, constraint) => (event) => {
+    const clampedValue = clampValue(event.target.value, constraint);
+    setter(clampedValue);
+  };
+
+  const handleDimensionKeyDown = (setter, constraint) => (event) => {
+    if (event.key !== 'Enter') {
       return;
     }
 
-    const numericValue = Number(event.target.value);
-
-    if (Number.isNaN(numericValue) || numericValue >= min) {
-      return;
-    }
-
-    setter(String(min));
+    event.preventDefault();
+    const clampedValue = clampValue(event.currentTarget.value, constraint);
+    setter(clampedValue);
+    event.currentTarget.blur();
   };
 
   const { width: widthConstraint, height: heightConstraint } =
     dimensionConstraints[material];
 
   useEffect(() => {
-    if (width !== '') {
-      const numericWidth = Number(width);
-      const clampedWidth = Math.min(
-        Math.max(numericWidth, widthConstraint.min),
-        widthConstraint.max,
-      );
+    setWidth((current) => {
+      const clamped = clampValue(current, widthConstraint);
+      return clamped === current ? current : clamped;
+    });
 
-      if (clampedWidth !== numericWidth) {
-        setWidth(String(clampedWidth));
-      }
-    }
-
-    if (height !== '') {
-      const numericHeight = Number(height);
-      const clampedHeight = Math.min(
-        Math.max(numericHeight, heightConstraint.min),
-        heightConstraint.max,
-      );
-
-      if (clampedHeight !== numericHeight) {
-        setHeight(String(clampedHeight));
-      }
-    }
-  }, [height, heightConstraint, width, widthConstraint]);
+    setHeight((current) => {
+      const clamped = clampValue(current, heightConstraint);
+      return clamped === current ? current : clamped;
+    });
+  }, [heightConstraint, widthConstraint]);
 
   return (
     <section className={styles.container}>
@@ -114,8 +111,9 @@ const CalculadoraPage = () => {
               step={1}
               inputMode="numeric"
               value={width}
-              onChange={handleDimensionChange(setWidth, widthConstraint)}
+              onChange={handleDimensionChange(setWidth)}
               onBlur={handleDimensionBlur(setWidth, widthConstraint)}
+              onKeyDown={handleDimensionKeyDown(setWidth, widthConstraint)}
               placeholder="Ej: 90"
               className={styles.input}
             />
@@ -130,8 +128,9 @@ const CalculadoraPage = () => {
               step={1}
               inputMode="numeric"
               value={height}
-              onChange={handleDimensionChange(setHeight, heightConstraint)}
+              onChange={handleDimensionChange(setHeight)}
               onBlur={handleDimensionBlur(setHeight, heightConstraint)}
+              onKeyDown={handleDimensionKeyDown(setHeight, heightConstraint)}
               placeholder="Ej: 45"
               className={styles.input}
             />

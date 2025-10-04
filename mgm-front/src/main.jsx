@@ -11,7 +11,6 @@ import DevRenderPreview from './pages/DevRenderPreview.jsx';
 import DevCanvasPreview from './pages/DevCanvasPreview.jsx';
 import Mockup from './pages/Mockup.jsx';
 import CalculadoraPage from './pages/Calculadora.jsx';
-import AdminAnalyticsPage from './pages/AdminAnalytics.jsx';
 import MousepadsPersonalizados from './pages/MousepadsPersonalizados.jsx';
 import ComoFunciona from './pages/ComoFunciona.jsx';
 import PreguntasFrecuentes from './pages/PreguntasFrecuentes.jsx';
