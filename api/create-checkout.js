@@ -260,19 +260,68 @@ function buildAbortController() {
   return { controller, dispose };
 }
 
-async function callShopifyCheckoutCreate({ variantId, quantity, discountCode }) {
+function normalizeAttributeValue(value) {
+  if (typeof value !== 'string') return '';
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  return trimmed.slice(0, 255);
+}
+
+function pickHeaderValue(headers, name) {
+  if (!headers || typeof name !== 'string') return '';
+  const lower = name.toLowerCase();
+  const upper = name.toUpperCase();
+  const raw = headers[name] ?? headers[lower] ?? headers[upper];
+  if (Array.isArray(raw)) {
+    return typeof raw[0] === 'string' ? raw[0] : '';
+  }
+  return typeof raw === 'string' ? raw : '';
+}
+
+function extractTrackingFields(body, headers) {
+  const ridValue =
+    (typeof body?.rid === 'string' && body.rid) ||
+    (typeof body?.rid === 'number' ? String(body.rid) : '') ||
+    pickHeaderValue(headers, 'x-rid');
+  const designSlugValue =
+    (typeof body?.design_slug === 'string' && body.design_slug) ||
+    (typeof body?.designSlug === 'string' && body.designSlug) ||
+    pickHeaderValue(headers, 'x-design-slug');
+
+  const rid = normalizeAttributeValue(ridValue);
+  const designSlug = normalizeAttributeValue(designSlugValue);
+
+  return { rid, designSlug };
+}
+
+function buildLineItemAttributes({ rid, designSlug }) {
+  const customAttributes = [];
+  if (rid) {
+    customAttributes.push({ key: 'rid', value: rid });
+  }
+  if (designSlug) {
+    customAttributes.push({ key: 'design_slug', value: designSlug });
+  }
+  return customAttributes;
+}
+
+async function callShopifyCheckoutCreate({ variantId, quantity, discountCode, rid, designSlug }) {
   const token = resolveStorefrontToken();
   const domain = resolveShopDomain();
   const apiVersionRaw = typeof process.env.SHOPIFY_API_VERSION === 'string' ? process.env.SHOPIFY_API_VERSION.trim() : '';
   const apiVersion = apiVersionRaw || '2024-07';
   const endpoint = `https://${domain}/api/${apiVersion}/graphql.json`;
+  const lineItem = {
+    variantId,
+    quantity,
+  };
+  const customAttributes = buildLineItemAttributes({ rid, designSlug });
+  if (customAttributes.length) {
+    lineItem.customAttributes = customAttributes;
+  }
+
   const input = {
-    lineItems: [
-      {
-        variantId,
-        quantity,
-      },
-    ],
+    lineItems: [lineItem],
   };
   if (discountCode) {
     input.discountCode = discountCode;
@@ -409,6 +458,16 @@ async function handleRealHandler(req, res, diagId) {
       return;
     }
 
+    const { rid, designSlug } = extractTrackingFields(body || {}, req.headers || {});
+    try {
+      console.info('[create-checkout]', {
+        diagId,
+        step: 'attach_rid',
+        rid: rid || null,
+        design_slug: designSlug || null,
+      });
+    } catch {}
+
     const { variantNumeric, variantGid, productHandle } = extractVariantFromBody(body || {});
     if (!variantGid) {
       sendJsonWithCors(req, res, 200, { ok: false, error: 'invalid_variant', diagId });
@@ -426,7 +485,13 @@ async function handleRealHandler(req, res, diagId) {
 
     let result;
     try {
-      result = await callShopifyCheckoutCreate({ variantId: variantGid, quantity, discountCode });
+      result = await callShopifyCheckoutCreate({
+        variantId: variantGid,
+        quantity,
+        discountCode,
+        rid,
+        designSlug,
+      });
     } catch (err) {
       if (err?.code === 'SHOPIFY_TIMEOUT') {
         throw err;
