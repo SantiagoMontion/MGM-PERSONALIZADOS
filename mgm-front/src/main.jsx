@@ -10,7 +10,7 @@ import Result from './pages/Result.jsx';
 import DevRenderPreview from './pages/DevRenderPreview.jsx';
 import DevCanvasPreview from './pages/DevCanvasPreview.jsx';
 import Mockup from './pages/Mockup.jsx';
-import AdminAnalytics from './pages/AdminAnalytics.jsx';
+import CalculadoraPage from './pages/Calculadora.jsx';
 import MousepadsPersonalizados from './pages/MousepadsPersonalizados.jsx';
 import ComoFunciona from './pages/ComoFunciona.jsx';
 import PreguntasFrecuentes from './pages/PreguntasFrecuentes.jsx';
