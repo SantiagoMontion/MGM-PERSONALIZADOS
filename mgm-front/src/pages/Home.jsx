@@ -39,6 +39,7 @@ import { useFlow } from '@/state/flow.js';
 import { apiFetch, postJSON, getResolvedApiUrl } from '@/lib/api.js';
 import { resolveIconAsset } from '@/lib/iconRegistry.js';
 import { sha256Hex } from '@/lib/hash.js';
+import { trackEvent } from '@/lib/tracking';
 
 const CONFIG_ICON_SRC = resolveIconAsset('wheel.svg');
 const CONFIG_ARROW_ICON_SRC = resolveIconAsset('down.svg');
@@ -281,6 +282,25 @@ export default function Home() {
   }
 
   async function handleContinue() {
+    const ridCandidate =
+      uploaded?.upload_diag_id
+      || flow?.uploadDiagId
+      || flow?.editorState?.diag_id
+      || flow?.editorState?.upload_diag_id
+      || flow?.editorState?.job?.rid
+      || flow?.editorState?.job?.diag_id
+      || undefined;
+    const designSlugCandidate =
+      layout?.design?.slug
+      || layout?.design_slug
+      || flow?.editorState?.design?.slug
+      || flow?.editorState?.design_slug
+      || flow?.editorState?.designSlug
+      || undefined;
+    trackEvent('continue_design', {
+      rid: ridCandidate,
+      design_slug: designSlugCandidate,
+    });
     setErr('');
     if (!layout?.image || !canvasRef.current) {
       setErr('Falta imagen o layout');
