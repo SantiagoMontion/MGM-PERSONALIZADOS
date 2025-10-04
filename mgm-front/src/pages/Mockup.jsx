@@ -14,6 +14,7 @@ import {
   pickCommerceTarget,
 } from '@/lib/shopify.ts';
 import logger from '../lib/logger';
+import { trackEvent } from '@/lib/tracking';
 
 /** NUEVO: imagen de la sección (reemplazá el path por el tuyo) */
 const TESTIMONIAL_ICONS = [
@@ -122,6 +123,52 @@ export default function Mockup() {
       return '';
     }
   }, [location.search]);
+
+  const normalizeOptionalString = (value) => {
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      return trimmed ? trimmed : undefined;
+    }
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return String(value);
+    }
+    return undefined;
+  };
+
+  const pickFirstString = (...values) => {
+    for (const value of values) {
+      const normalized = normalizeOptionalString(value);
+      if (normalized) return normalized;
+    }
+    return undefined;
+  };
+
+  const rid = pickFirstString(
+    flow?.uploadDiagId,
+    flow?.editorState?.upload_diag_id,
+    flow?.editorState?.diag_id,
+    flow?.editorState?.job?.rid,
+    flow?.editorState?.job?.diag_id,
+    flow?.editorState?.job?.request_id,
+  );
+
+  const designSlug = pickFirstString(
+    flow?.editorState?.design?.slug,
+    flow?.editorState?.design_slug,
+    flow?.editorState?.designSlug,
+    flow?.editorState?.job?.design_slug,
+    flow?.editorState?.job?.slug,
+    flow?.lastProduct?.productHandle,
+  );
+
+  const lastProduct = flow?.lastProduct || null;
+  const lastProductId = pickFirstString(lastProduct?.productId, lastProduct?.id);
+  const lastVariantId = pickFirstString(
+    lastProduct?.variantId,
+    lastProduct?.variant_id,
+    lastProduct?.variantIdNumeric,
+    lastProduct?.variantIdGid,
+  );
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -1152,7 +1199,15 @@ export default function Mockup() {
               type="button"
               disabled={busy}
               className={`${styles.ctaButton} ${styles.ctaButtonPrimary}`}
-              onClick={() => handle('cart')}
+              onClick={() => {
+                trackEvent('add_to_cart_click', {
+                  rid,
+                  design_slug: designSlug,
+                  product_id: lastProductId,
+                  variant_id: lastVariantId,
+                });
+                handle('cart');
+              }}
             >
               {cartButtonLabel}
             </button>
@@ -1217,7 +1272,15 @@ export default function Mockup() {
           type="button"
           disabled={busy}
           className={styles.hiddenButton}
-          onClick={() => handle('private')}
+          onClick={() => {
+            trackEvent('checkout_private_click', {
+              rid,
+              design_slug: designSlug,
+              product_id: lastProductId,
+              variant_id: lastVariantId,
+            });
+            handle('private');
+          }}
           aria-hidden="true"
           tabIndex={-1}
         >
@@ -1313,6 +1376,12 @@ export default function Mockup() {
                 disabled={busy}
                 className={styles.modalPrimary}
                 onClick={() => {
+                  trackEvent('checkout_public_click', {
+                    rid,
+                    design_slug: designSlug,
+                    product_id: lastProductId,
+                    variant_id: lastVariantId,
+                  });
                   setBuyPromptOpen(false);
                   handle('checkout');
                 }}
@@ -1324,6 +1393,12 @@ export default function Mockup() {
                 disabled={busy}
                 className={styles.modalSecondary}
                 onClick={() => {
+                  trackEvent('checkout_private_click', {
+                    rid,
+                    design_slug: designSlug,
+                    product_id: lastProductId,
+                    variant_id: lastVariantId,
+                  });
                   setBuyPromptOpen(false);
                   handle('private');
                 }}
