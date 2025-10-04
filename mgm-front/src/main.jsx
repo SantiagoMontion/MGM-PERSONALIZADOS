@@ -10,6 +10,7 @@ import Result from './pages/Result.jsx';
 import DevRenderPreview from './pages/DevRenderPreview.jsx';
 import DevCanvasPreview from './pages/DevCanvasPreview.jsx';
 import Mockup from './pages/Mockup.jsx';
+import CalculadoraPage from './pages/Calculadora.jsx';
 import MousepadsPersonalizados from './pages/MousepadsPersonalizados.jsx';
 import ComoFunciona from './pages/ComoFunciona.jsx';
 import PreguntasFrecuentes from './pages/PreguntasFrecuentes.jsx';
@@ -25,6 +26,15 @@ if (typeof globalThis !== 'undefined' && typeof globalThis.Buffer === 'undefined
   globalThis.Buffer = Buffer;
 }
 
+if (typeof window !== 'undefined' && typeof window.AdminAnalytics === 'undefined') {
+  window.AdminAnalytics = new Proxy(
+    {},
+    {
+      get: () => () => {},
+    },
+  );
+}
+
 const routes = [
   {
     element: <App />,
@@ -38,6 +48,7 @@ const routes = [
       { path: '/busqueda', element: <Busqueda /> },
       { path: '/confirm', element: <Confirm /> },
       { path: '/mockup', element: <Mockup /> },
+      { path: '/calculadora', element: <CalculadoraPage /> },
       { path: '/creating/:jobId', element: <Creating /> },
       { path: '/result/:jobId', element: <Result /> },
       { path: '*', element: <NotFound /> }
