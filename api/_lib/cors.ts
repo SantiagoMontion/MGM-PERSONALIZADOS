@@ -1,42 +1,105 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-const ALLOW_HEADERS = 'Content-Type, Authorization, X-Debug-Fast, Accept, X-Requested-With';
+const ALLOW_HEADERS = 'content-type, authorization, x-debug-fast, accept, x-requested-with';
 const ALLOW_METHODS = 'POST, OPTIONS';
-const ALLOW_SUFFIXES = (process.env.CORS_ALLOW_SUFFIXES || '.vercel.app')
-  .split(',')
-  .map((entry) => entry.trim())
-  .filter(Boolean);
 
-function isSuffixAllowed(originHeader: string): boolean {
-  try {
-    const url = new URL(originHeader);
-    if (!/^https?:$/.test(url.protocol)) {
-      return false;
-    }
-    return ALLOW_SUFFIXES.some((suffix) => url.hostname === suffix || url.hostname.endsWith(suffix));
-  } catch {
-    return false;
+type CorsDecision = {
+  requestedOrigin: string | null;
+  normalizedOrigin: string | null;
+  allowedOrigin: string | null;
+  allowed: boolean;
+};
+
+function sanitizeOrigin(value: string | null | undefined): string | null {
+  if (typeof value !== 'string') {
+    return null;
   }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+  return trimmed.replace(/\/+$/, '');
 }
 
-function resolveAllowedOrigin(originHeader: string | undefined): string {
-  if (!originHeader) {
-    return '*';
+export function normalizeOrigin(value: string | null | undefined): string | null {
+  const sanitized = sanitizeOrigin(value);
+  return sanitized ? sanitized.toLowerCase() : null;
+}
+
+export function getAllowedOriginsFromEnv(): string[] {
+  const allowSet = new Map<string, string>();
+
+  const frontOrigin = sanitizeOrigin(process.env.FRONT_ORIGIN);
+  if (frontOrigin) {
+    const normalized = normalizeOrigin(frontOrigin);
+    if (normalized) {
+      allowSet.set(normalized, frontOrigin);
+    }
   }
 
-  const allowList = process.env.CORS_ALLOWLIST
-    ? process.env.CORS_ALLOWLIST.split(',').map((entry) => entry.trim()).filter(Boolean)
+  const envOrigins = typeof process.env.ALLOWED_ORIGINS === 'string'
+    ? process.env.ALLOWED_ORIGINS.split(',')
     : [];
 
-  if (allowList.length === 0) {
-    return isSuffixAllowed(originHeader) ? originHeader : '*';
+  for (const entry of envOrigins) {
+    const sanitized = sanitizeOrigin(entry);
+    if (!sanitized) continue;
+    const normalized = normalizeOrigin(sanitized);
+    if (normalized) {
+      allowSet.set(normalized, sanitized);
+    }
   }
 
-  if (allowList.includes(originHeader) || isSuffixAllowed(originHeader)) {
-    return originHeader;
+  return Array.from(allowSet.values());
+}
+
+export function resolveCorsDecision(originHeader: string | undefined, allowList?: string[]): CorsDecision {
+  const requestedOrigin = sanitizeOrigin(originHeader);
+  const normalizedOrigin = normalizeOrigin(originHeader);
+  const allowedOrigins = allowList && allowList.length ? allowList : getAllowedOriginsFromEnv();
+
+  const allowMap = new Map<string, string>();
+  for (const entry of allowedOrigins) {
+    const sanitized = sanitizeOrigin(entry);
+    const normalized = normalizeOrigin(entry);
+    if (sanitized && normalized) {
+      allowMap.set(normalized, sanitized);
+    }
   }
 
-  return '*';
+  if (normalizedOrigin && allowMap.has(normalizedOrigin)) {
+    return {
+      requestedOrigin,
+      normalizedOrigin,
+      allowedOrigin: allowMap.get(normalizedOrigin) ?? null,
+      allowed: true,
+    };
+  }
+
+  if (normalizedOrigin && normalizedOrigin.startsWith('http://localhost')) {
+    return {
+      requestedOrigin,
+      normalizedOrigin,
+      allowedOrigin: requestedOrigin,
+      allowed: true,
+    };
+  }
+
+  if (normalizedOrigin && normalizedOrigin.startsWith('http://127.0.0.1')) {
+    return {
+      requestedOrigin,
+      normalizedOrigin,
+      allowedOrigin: requestedOrigin,
+      allowed: true,
+    };
+  }
+
+  return {
+    requestedOrigin,
+    normalizedOrigin,
+    allowedOrigin: null,
+    allowed: false,
+  };
 }
 
 export function applyCors(req: VercelRequest, res: VercelResponse): void {
@@ -44,9 +107,11 @@ export function applyCors(req: VercelRequest, res: VercelResponse): void {
     typeof req.headers.origin === 'string' && req.headers.origin.trim().length > 0
       ? req.headers.origin
       : undefined;
-  const headerOrigin = resolveAllowedOrigin(originHeader);
+  const decision = resolveCorsDecision(originHeader);
 
-  res.setHeader('Access-Control-Allow-Origin', headerOrigin);
+  if (decision.allowed && decision.allowedOrigin) {
+    res.setHeader('Access-Control-Allow-Origin', decision.allowedOrigin);
+  }
   res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Methods', ALLOW_METHODS);
   res.setHeader('Access-Control-Allow-Headers', ALLOW_HEADERS);
@@ -61,3 +126,5 @@ export function ensureJsonContentType(res: VercelResponse) {
     res.setHeader('Content-Type', 'application/json');
   }
 }
+
+export type { CorsDecision };

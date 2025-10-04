@@ -3,11 +3,16 @@ const TRACK_URL = API ? `${API}/track` : '';
 const DEDUP_WINDOW_MS = 1500;
 const recentEvents = new Map<string, number>();
 
-const isTrackingDisabled = (() => {
+function resolveTrackingEnabled(): boolean {
   const raw = import.meta.env?.VITE_TRACKING_ENABLED;
-  if (raw == null) return false;
-  return String(raw).trim() === '0';
-})();
+  if (raw == null || String(raw).trim() === '') {
+    return Boolean(import.meta.env?.DEV);
+  }
+  const normalized = String(raw).trim().toLowerCase();
+  return normalized !== '0' && normalized !== 'false';
+}
+
+const isTrackingEnabled = resolveTrackingEnabled();
 
 function toOptionalString(value: unknown): string | undefined {
   if (typeof value === 'string') {
@@ -23,7 +28,7 @@ function toOptionalString(value: unknown): string | undefined {
 export function trackEvent(eventName: string, data?: Record<string, any>) {
   try {
     if (!eventName || typeof eventName !== 'string') return;
-    if (isTrackingDisabled) return;
+    if (!isTrackingEnabled) return;
     if (typeof window === 'undefined') return;
     if (!TRACK_URL) return;
 
@@ -48,6 +53,7 @@ export function trackEvent(eventName: string, data?: Record<string, any>) {
       design_slug: toOptionalString(data?.design_slug) ?? undefined,
       product_id: toOptionalString(data?.product_id) ?? undefined,
       variant_id: toOptionalString(data?.variant_id) ?? undefined,
+      cta: toOptionalString(data?.cta) ?? undefined,
       amount: data?.amount ?? undefined,
       currency: data?.currency ?? undefined,
       order_id: data?.order_id ?? undefined,
@@ -55,17 +61,48 @@ export function trackEvent(eventName: string, data?: Record<string, any>) {
       details: data?.details ?? undefined,
     };
 
-    const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
-    if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+    const debugEnabled = Boolean((window as any)?.__TRACK_DEBUG__ === true);
+    const endpoint = debugEnabled && TRACK_URL ? `${TRACK_URL}?echo=1` : TRACK_URL;
+    if (debugEnabled) {
+      console.debug('[track:fire]', { event: eventName, rid });
+    }
+
+    const bodyJson = JSON.stringify(payload);
+    if (!debugEnabled && typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+      const blob = new Blob([bodyJson], { type: 'application/json' });
       navigator.sendBeacon(TRACK_URL, blob);
       return;
     }
-    fetch(TRACK_URL, {
+    fetch(endpoint, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: bodyJson,
       keepalive: true,
-    }).catch(() => {});
+    })
+      .then(async (response) => {
+        if (!debugEnabled) return;
+        let json: any = null;
+        try {
+          json = await response.clone().json();
+        } catch {
+          json = null;
+        }
+        console.debug('[track]', {
+          event: eventName,
+          rid,
+          status: response.status,
+          json,
+        });
+      })
+      .catch((error) => {
+        if (!debugEnabled) return;
+        console.debug('[track]', {
+          event: eventName,
+          rid,
+          status: 'error',
+          error: error?.message || String(error),
+        });
+      });
   } catch {
     // ignore all tracking errors
   }

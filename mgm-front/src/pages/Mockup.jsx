@@ -236,6 +236,13 @@ export default function Mockup() {
     return generated;
   }
 
+  function debugTrackFire(eventName, ridValue) {
+    if (typeof window === 'undefined') return;
+    if ((window).__TRACK_DEBUG__ === true) {
+      console.debug('[track:fire]', { event: eventName, rid: ridValue });
+    }
+  }
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const resolvedRid = ensureRid();
@@ -253,6 +260,7 @@ export default function Mockup() {
       return;
     }
 
+    debugTrackFire('mockup_view', resolvedRid);
     trackEvent('mockup_view', {
       rid: resolvedRid,
       design_slug: designSlug,
@@ -289,6 +297,7 @@ export default function Mockup() {
       return;
     }
 
+    debugTrackFire('view_purchase_options', resolvedRid);
     trackEvent('view_purchase_options', {
       rid: resolvedRid,
       design_slug: designSlug,
@@ -1331,11 +1340,13 @@ export default function Mockup() {
               disabled={busy}
               className={`${styles.ctaButton} ${styles.ctaButtonPrimary}`}
               onClick={() => {
-                trackEvent('add_to_cart_click', {
+                debugTrackFire('cta_click_cart', rid);
+                trackEvent('cta_click_cart', {
                   rid,
                   design_slug: designSlug,
                   product_id: lastProductId,
                   variant_id: lastVariantId,
+                  cta: 'cart',
                 });
                 handle('cart');
               }}
@@ -1404,11 +1415,13 @@ export default function Mockup() {
           disabled={busy}
           className={styles.hiddenButton}
           onClick={() => {
-            trackEvent('checkout_private_click', {
+            debugTrackFire('cta_click_private', rid);
+            trackEvent('cta_click_private', {
               rid,
               design_slug: designSlug,
               product_id: lastProductId,
               variant_id: lastVariantId,
+              cta: 'private',
             });
             handle('private');
           }}
@@ -1507,11 +1520,13 @@ export default function Mockup() {
                 disabled={busy}
                 className={styles.modalPrimary}
                 onClick={() => {
-                  trackEvent('checkout_public_click', {
+                  debugTrackFire('cta_click_public', rid);
+                  trackEvent('cta_click_public', {
                     rid,
                     design_slug: designSlug,
                     product_id: lastProductId,
                     variant_id: lastVariantId,
+                    cta: 'public',
                   });
                   setBuyPromptOpen(false);
                   handle('checkout');
@@ -1524,11 +1539,13 @@ export default function Mockup() {
                 disabled={busy}
                 className={styles.modalSecondary}
                 onClick={() => {
-                  trackEvent('checkout_private_click', {
+                  debugTrackFire('cta_click_private', rid);
+                  trackEvent('cta_click_private', {
                     rid,
                     design_slug: designSlug,
                     product_id: lastProductId,
                     variant_id: lastVariantId,
+                    cta: 'private',
                   });
                   setBuyPromptOpen(false);
                   handle('private');

@@ -7,9 +7,9 @@ import { applyLenientCors } from '../_lib/lenientCors.js';
 export const config = { maxDuration: 10 };
 
 const EVENT_NAMES = {
-  public: 'checkout_public_click',
-  private: 'checkout_private_click',
-  cart: 'add_to_cart_click',
+  public: 'cta_click_public',
+  private: 'cta_click_private',
+  cart: 'cta_click_cart',
   purchase: 'purchase_completed',
 } as const;
 
@@ -84,11 +84,11 @@ async function fetchRidSet(
   toIso: string,
 ): Promise<Set<string>> {
   const { data, error } = await supabase
-    .from('events')
+    .from('track_events')
     .select('rid')
     .eq('event_name', eventName)
-    .gte('ts', fromIso)
-    .lte('ts', toIso);
+    .gte('created_at', fromIso)
+    .lte('created_at', toIso);
 
   if (error) {
     throw error;
@@ -103,11 +103,11 @@ async function fetchTopDesigns(
   toIso: string,
 ): Promise<TopDesign[]> {
   const { data, error } = await supabase
-    .from('events')
+    .from('track_events')
     .select('design_slug')
     .in('event_name', CTA_EVENTS)
-    .gte('ts', fromIso)
-    .lte('ts', toIso)
+    .gte('created_at', fromIso)
+    .lte('created_at', toIso)
     .not('design_slug', 'is', null);
 
   if (error) {
