@@ -1,61 +1,20 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { logApiError } from './_lib/diag.js';
+import { createDiagId, logApiError } from './_lib/diag.js';
+import { getAllowedOriginsFromEnv, resolveCorsDecision, type CorsDecision } from './_lib/cors.ts';
 
 const ALLOWED_EVENTS = new Set<string>([
   'mockup_view',
-  'view_purchase_options',
   'continue_design',
-  'checkout_public_click',
-  'checkout_private_click',
-  'add_to_cart_click',
-  'publish_product_ok',
-  'checkout_started_ok',
-  'purchase_completed',
+  'view_purchase_options',
+  'cta_click_public',
+  'cta_click_private',
+  'cta_click_cart',
 ]);
 
 const DUPLICATE_WINDOW_MS = 2000;
 
 let cachedClient: SupabaseClient | null = null;
-
-function resolveAllowedOrigin(originHeader: string | undefined): string | undefined {
-  const allowList = new Set<string>();
-
-  const frontOrigin = typeof process.env.FRONT_ORIGIN === 'string' ? process.env.FRONT_ORIGIN.trim() : '';
-  if (frontOrigin) {
-    allowList.add(frontOrigin);
-  }
-
-  const envOrigins = typeof process.env.ALLOWED_ORIGINS === 'string' ? process.env.ALLOWED_ORIGINS.split(',') : [];
-  for (const entry of envOrigins) {
-    const trimmed = entry.trim();
-    if (trimmed) {
-      allowList.add(trimmed);
-    }
-  }
-
-  if (originHeader && allowList.has(originHeader)) {
-    return originHeader;
-  }
-
-  if (frontOrigin) {
-    return frontOrigin;
-  }
-
-  return allowList.values().next().value;
-}
-
-function applyCors(req: VercelRequest, res: VercelResponse): void {
-  const originHeader = typeof req.headers.origin === 'string' ? req.headers.origin : undefined;
-  const allowedOrigin = resolveAllowedOrigin(originHeader);
-
-  if (allowedOrigin) {
-    res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
-  }
-  res.setHeader('Vary', 'Origin');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'content-type, authorization');
-}
 
 function ensureClient(): SupabaseClient {
   if (!cachedClient) {
@@ -71,26 +30,6 @@ function ensureClient(): SupabaseClient {
   return cachedClient;
 }
 
-function parseBody(req: VercelRequest): Record<string, any> {
-  const { body } = req;
-  if (!body) return {};
-
-  if (typeof body === 'string') {
-    try {
-      const parsed = JSON.parse(body);
-      return typeof parsed === 'object' && parsed ? (parsed as Record<string, any>) : {};
-    } catch {
-      return {};
-    }
-  }
-
-  if (typeof body === 'object') {
-    return body as Record<string, any>;
-  }
-
-  return {};
-}
-
 function normalizeString(value: unknown): string | null {
   if (Array.isArray(value)) {
     for (const entry of value) {
@@ -101,48 +40,71 @@ function normalizeString(value: unknown): string | null {
     }
     return null;
   }
+
   if (typeof value === 'string') {
     const trimmed = value.trim();
     return trimmed ? trimmed : null;
   }
-  return null;
-}
 
-function normalizeDetails(value: unknown): Record<string, any> {
-  if (value == null) {
-    return {};
-  }
-
-  if (typeof value === 'string') {
-    try {
-      const parsed = JSON.parse(value);
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        return parsed as Record<string, any>;
-      }
-    } catch {
-      return {};
-    }
-    return {};
-  }
-
-  if (typeof value === 'object' && !Array.isArray(value)) {
-    return value as Record<string, any>;
-  }
-
-  return {};
-}
-
-function normalizeNumber(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) {
-    return value;
+    return String(value);
   }
-  if (typeof value === 'string') {
-    const num = Number(value);
-    if (Number.isFinite(num)) {
-      return num;
-    }
-  }
+
   return null;
+}
+
+function readBodyAsString(body: unknown): string | null {
+  if (typeof body === 'string') {
+    return body;
+  }
+
+  if (typeof Buffer !== 'undefined' && Buffer.isBuffer(body)) {
+    return body.toString('utf8');
+  }
+
+  if (body instanceof Uint8Array) {
+    return Buffer.from(body).toString('utf8');
+  }
+
+  return null;
+}
+
+function parseBody(
+  req: VercelRequest,
+): { payload: Record<string, any> | null; invalid: boolean; rawText: string | null } {
+  const contentTypeHeader = Array.isArray(req.headers['content-type'])
+    ? req.headers['content-type'][0]
+    : req.headers['content-type'];
+  const contentType =
+    typeof contentTypeHeader === 'string'
+      ? contentTypeHeader.split(';')[0].trim().toLowerCase()
+      : '';
+
+  const body = req.body;
+
+  if (body && typeof body === 'object' && !Buffer.isBuffer(body) && !(body instanceof Uint8Array)) {
+    return { payload: body as Record<string, any>, invalid: false, rawText: null };
+  }
+
+  const rawBody = readBodyAsString(body) ?? readBodyAsString((req as any).rawBody);
+  if (!rawBody) {
+    return { payload: null, invalid: false, rawText: null };
+  }
+
+  const shouldParse = !contentType || contentType === 'application/json' || contentType === 'text/plain';
+  if (!shouldParse) {
+    return { payload: null, invalid: false, rawText: rawBody };
+  }
+
+  try {
+    const parsed = JSON.parse(rawBody);
+    if (parsed && typeof parsed === 'object') {
+      return { payload: parsed as Record<string, any>, invalid: false, rawText: rawBody };
+    }
+    return { payload: null, invalid: true, rawText: rawBody };
+  } catch {
+    return { payload: null, invalid: true, rawText: rawBody };
+  }
 }
 
 async function isDuplicateEvent(
@@ -157,11 +119,11 @@ async function isDuplicateEvent(
   const windowStart = new Date(Date.now() - DUPLICATE_WINDOW_MS).toISOString();
   try {
     const { data, error } = await client
-      .from('events')
-      .select('id')
+      .from('track_events')
+      .select('diag_id')
       .eq('rid', rid)
       .eq('event_name', eventName)
-      .gte('ts', windowStart)
+      .gte('created_at', windowStart)
       .limit(1);
 
     if (error) {
@@ -175,51 +137,79 @@ async function isDuplicateEvent(
   }
 }
 
-async function insertEvent(client: SupabaseClient, payload: Record<string, any>, req: VercelRequest) {
-  const eventName = normalizeString(payload.event_name);
-  if (!eventName || !ALLOWED_EVENTS.has(eventName)) {
-    return 'ignored';
-  }
-
-  const rid = normalizeString(payload.rid);
-  const shouldSkip = await isDuplicateEvent(client, rid, eventName);
-  if (shouldSkip) {
-    return 'ignored';
-  }
-
-  const details = normalizeDetails(payload.details);
+function buildInsertPayload(
+  eventName: string,
+  rid: string | null,
+  payload: Record<string, any> | null,
+  req: VercelRequest,
+  decision: CorsDecision,
+  diagId: string,
+) {
+  const designSlug = payload ? normalizeString(payload.design_slug) : null;
+  const cta = payload ? normalizeString(payload.cta) : null;
   const userAgent = normalizeString(req.headers['user-agent']);
   const referer = normalizeString(req.headers.referer || req.headers['referrer']);
+  const origin = decision.allowed && decision.allowedOrigin ? decision.allowedOrigin : null;
 
-  const insertPayload = {
+  return {
     event_name: eventName,
     rid,
-    design_slug: normalizeString(payload.design_slug),
-    product_id: normalizeString(payload.product_id),
-    variant_id: normalizeString(payload.variant_id),
-    amount: normalizeNumber(payload.amount),
-    currency: normalizeString(payload.currency),
-    order_id: normalizeString(payload.order_id),
-    origin: normalizeString(payload.origin),
+    design_slug: designSlug,
+    cta,
     user_agent: userAgent,
     referer,
-    details,
+    origin,
+    diag_id: diagId,
+    created_at: new Date().toISOString(),
   };
+}
 
+function respondEcho(
+  res: VercelResponse,
+  diagId: string,
+  decision: CorsDecision,
+  accepted: boolean,
+  eventName: string | null,
+  rid: string | null,
+) {
+  const origin = decision.allowedOrigin ?? decision.requestedOrigin ?? null;
+  res.status(200).json({ ok: true, diagId, origin, accepted, event_name: eventName, rid });
+}
+
+function logTrack(diagId: string, payload: Record<string, unknown>) {
   try {
-    const { error } = await client.from('events').insert(insertPayload);
-    if (error) {
-      throw error;
-    }
-    return 'inserted';
-  } catch (error) {
-    logApiError('track.insert_failed', { error });
-    return 'error';
-  }
+    console.log('[track]', diagId, payload);
+  } catch {}
+}
+
+function logCors(diagId: string, decision: CorsDecision) {
+  try {
+    console.log('[track:cors]', diagId, {
+      origin: decision.requestedOrigin,
+      allowed: decision.allowed,
+    });
+  } catch {}
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  applyCors(req, res);
+  const diagId = createDiagId();
+  res.setHeader('X-Track-Diag-Id', diagId);
+
+  const originHeader =
+    typeof req.headers.origin === 'string' && req.headers.origin.trim().length > 0
+      ? req.headers.origin
+      : undefined;
+  const allowedOrigins = getAllowedOriginsFromEnv();
+  const corsDecision = resolveCorsDecision(originHeader, allowedOrigins);
+
+  if (corsDecision.allowed && corsDecision.allowedOrigin) {
+    res.setHeader('Access-Control-Allow-Origin', corsDecision.allowedOrigin);
+  }
+  res.setHeader('Vary', 'Origin');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'content-type, authorization');
+
+  logCors(diagId, corsDecision);
 
   if (req.method === 'OPTIONS') {
     res.status(204).end();
@@ -227,12 +217,78 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (req.method !== 'POST') {
-    res.status(405).json({ ok: true });
+    logTrack(diagId, {
+      reason: 'method_not_allowed',
+      origin: corsDecision.requestedOrigin,
+    });
+    res.status(405).json({ ok: false, diagId, error: 'method_not_allowed' });
+    return;
+  }
+
+  const echoMode = String(req.query?.echo ?? '') === '1';
+
+  if (!corsDecision.allowed || !corsDecision.allowedOrigin) {
+    logTrack(diagId, {
+      reason: 'cors_denied',
+      origin: corsDecision.requestedOrigin,
+    });
+    if (echoMode) {
+      respondEcho(res, diagId, corsDecision, false, null, null);
+    } else {
+      res.status(204).end();
+    }
     return;
   }
 
   if (process.env.TRACKING_ENABLED === '0') {
-    res.status(204).end();
+    logTrack(diagId, {
+      reason: 'tracking_disabled',
+      origin: corsDecision.requestedOrigin,
+    });
+    if (echoMode) {
+      respondEcho(res, diagId, corsDecision, false, null, null);
+    } else {
+      res.status(204).end();
+    }
+    return;
+  }
+
+  const { payload, invalid } = parseBody(req);
+  const eventName = normalizeString(payload?.event_name);
+  const rid = normalizeString(payload?.rid);
+
+  if (invalid || !payload) {
+    logTrack(diagId, {
+      reason: invalid ? 'invalid_payload' : 'missing_payload',
+      origin: corsDecision.requestedOrigin,
+      event_name: eventName,
+      rid,
+    });
+    if (echoMode) {
+      respondEcho(res, diagId, corsDecision, false, eventName, rid);
+    } else {
+      res.status(204).end();
+    }
+    return;
+  }
+
+  if (!eventName || !ALLOWED_EVENTS.has(eventName)) {
+    logTrack(diagId, {
+      reason: 'event_not_allowed',
+      origin: corsDecision.requestedOrigin,
+      event_name: eventName,
+      rid,
+    });
+    if (echoMode) {
+      respondEcho(res, diagId, corsDecision, false, eventName, rid);
+    } else {
+      res.status(204).end();
+    }
+    return;
+  }
+
+  if (echoMode) {
+    respondEcho(res, diagId, corsDecision, true, eventName, rid);
     return;
   }
 
@@ -240,24 +296,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     client = ensureClient();
   } catch (error) {
-    logApiError('track.supabase_config_missing', { error });
-    res.status(200).json({ ok: true });
-    return;
-  }
-
-  const body = parseBody(req);
-  const eventName = normalizeString(body.event_name);
-  if (!eventName || !ALLOWED_EVENTS.has(eventName)) {
+    logApiError('track.supabase_config_missing', { diagId, error });
     res.status(204).end();
     return;
   }
 
-  const result = await insertEvent(client, body, req);
-
-  if (result === 'inserted') {
-    res.status(200).json({ ok: true });
+  const duplicate = await isDuplicateEvent(client, rid, eventName);
+  if (duplicate) {
+    logTrack(diagId, {
+      reason: 'dedupe',
+      origin: corsDecision.allowedOrigin,
+      event_name: eventName,
+      rid,
+    });
+    res.status(204).end();
     return;
   }
 
-  res.status(200).json({ ok: true });
+  const insertPayload = buildInsertPayload(eventName, rid, payload, req, corsDecision, diagId);
+
+  try {
+    const { error } = await client.from('track_events').insert(insertPayload);
+    if (error) {
+      throw error;
+    }
+    logTrack(diagId, {
+      reason: 'inserted',
+      origin: corsDecision.allowedOrigin,
+      event_name: eventName,
+      rid,
+    });
+  } catch (error) {
+    logApiError('track.insert_failed', { diagId, error });
+  }
+
+  res.status(204).end();
 }

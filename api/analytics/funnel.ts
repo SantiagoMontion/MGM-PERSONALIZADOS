@@ -16,9 +16,9 @@ const EVENT_NAMES = {
   view: 'mockup_view',
   continue: 'continue_design',
   options: 'view_purchase_options',
-  publicClick: 'checkout_public_click',
-  privateClick: 'checkout_private_click',
-  cartClick: 'add_to_cart_click',
+  publicClick: 'cta_click_public',
+  privateClick: 'cta_click_private',
+  cartClick: 'cta_click_cart',
   purchase: 'purchase_completed',
 } as const;
 
@@ -89,11 +89,11 @@ async function fetchRidSet(
   toIso: string,
 ): Promise<Set<string>> {
   const { data, error } = await supabase
-    .from('events')
+    .from('track_events')
     .select('rid')
     .eq('event_name', eventName)
-    .gte('ts', fromIso)
-    .lte('ts', toIso);
+    .gte('created_at', fromIso)
+    .lte('created_at', toIso);
 
   if (error) {
     throw error;
