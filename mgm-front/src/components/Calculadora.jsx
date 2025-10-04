@@ -5,7 +5,7 @@ const rolloData = {
   Clasic: { width: 140, pricePerMeter: 23820, multiplier: 2.7, baselineArea: 0.36 },
 };
 
-const GLASSPAD_TRANSFER_PRICE = 110000; // con transferencia (fijo)
+const GLASSPAD_TRANSFER_PRICE = 120000; // con transferencia (fijo)
 
 function formatARS(n) {
   return n.toLocaleString("es-AR", { maximumFractionDigits: 0, minimumFractionDigits: 0 });
