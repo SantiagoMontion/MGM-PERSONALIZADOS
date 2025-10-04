@@ -1,10 +1,26 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Calculadora from '../components/Calculadora.jsx';
 import styles from './Calculadora.module.css';
+
+const priceFormatter = new Intl.NumberFormat('es-AR', {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 0,
+});
 
 const CalculadoraPage = () => {
   const [width, setWidth] = useState('');
   const [height, setHeight] = useState('');
+  const [material, setMaterial] = useState('Classic');
+  const [transferPrice, setTransferPrice] = useState(0);
+
+  const materialOptions = useMemo(
+    () => [
+      { label: 'Glasspad', value: 'Glasspad' },
+      { label: 'Pro', value: 'Pro' },
+      { label: 'Classic', value: 'Classic' },
+    ],
+    [],
+  );
 
   return (
     <section className={styles.container}>
@@ -40,21 +56,40 @@ const CalculadoraPage = () => {
               className={styles.input}
             />
           </label>
+
+          <label className={styles.label}>
+            Tipo de material
+            <select
+              className={styles.input}
+              value={material}
+              onChange={(event) => setMaterial(event.target.value)}
+            >
+              {materialOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
         </form>
 
         <Calculadora
           width={width}
           height={height}
-          material="Pro"
-          render={({ valid, transfer, format }) => (
-            <div className={styles.result}>
-              <h2 className={styles.resultTitle}>Precio con transferencia</h2>
-              <p className={styles.resultValue}>
-                {valid && transfer > 0 ? `$${format(transfer)}` : 'Ingresá medidas válidas'}
-              </p>
-            </div>
-          )}
+          material={material}
+          setPrice={setTransferPrice}
+          render={() => null}
         />
+
+        <div className={styles.result}>
+          <h2 className={styles.resultTitle}>Precio con transferencia</h2>
+          <p className={styles.resultValue}>
+            {transferPrice > 0 ? `$${priceFormatter.format(transferPrice)}` : 'Ingresá medidas válidas'}
+          </p>
+          <p className={styles.resultDetails}>
+            ({`${material || 'Classic'} / ${width || '--'}x${height || '--'}`})
+          </p>
+        </div>
       </div>
     </section>
   );
