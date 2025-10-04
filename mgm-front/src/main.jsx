@@ -39,6 +39,7 @@ const routes = [
       { path: '/busqueda', element: <Busqueda /> },
       { path: '/confirm', element: <Confirm /> },
       { path: '/mockup', element: <Mockup /> },
+      { path: '/calculadora', element: <CalculadoraPage /> },
       { path: '/creating/:jobId', element: <Creating /> },
       { path: '/result/:jobId', element: <Result /> },
       { path: '/admin/analytics', element: <AdminAnalytics /> },
