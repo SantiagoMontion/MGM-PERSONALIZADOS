@@ -3,6 +3,8 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { logApiError } from './_lib/diag.js';
 
 const ALLOWED_EVENTS = new Set<string>([
+  'mockup_view',
+  'view_purchase_options',
   'continue_design',
   'checkout_public_click',
   'checkout_private_click',

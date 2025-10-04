@@ -86,6 +86,31 @@ const BENEFITS = [
   },
 ];
 
+function generateRidSuffix(length = 12) {
+  const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  const targetLength = Number.isFinite(length) && length > 0 ? Math.floor(length) : 12;
+  let output = '';
+  const cryptoObj =
+    typeof window !== 'undefined'
+    && window.crypto
+    && typeof window.crypto.getRandomValues === 'function'
+      ? window.crypto
+      : null;
+  if (cryptoObj) {
+    const buffer = new Uint32Array(targetLength);
+    cryptoObj.getRandomValues(buffer);
+    for (const value of buffer) {
+      output += alphabet[value % alphabet.length];
+    }
+    return output;
+  }
+  for (let i = 0; i < targetLength; i += 1) {
+    const index = Math.floor(Math.random() * alphabet.length);
+    output += alphabet[index];
+  }
+  return output;
+}
+
 export default function Mockup() {
   const flow = useFlow();
   const navigate = useNavigate();
@@ -143,14 +168,16 @@ export default function Mockup() {
     return undefined;
   };
 
-  const rid = pickFirstString(
-    flow?.uploadDiagId,
-    flow?.editorState?.upload_diag_id,
-    flow?.editorState?.diag_id,
-    flow?.editorState?.job?.rid,
-    flow?.editorState?.job?.diag_id,
-    flow?.editorState?.job?.request_id,
-  );
+  const rid =
+    pickFirstString(
+      flow?.uploadDiagId,
+      flow?.editorState?.upload_diag_id,
+      flow?.editorState?.diag_id,
+      flow?.editorState?.job?.rid,
+      flow?.editorState?.job?.diag_id,
+      flow?.editorState?.job?.request_id,
+    )
+    || (typeof window !== 'undefined' ? ensureRid() : undefined);
 
   const designSlug = pickFirstString(
     flow?.editorState?.design?.slug,
@@ -169,6 +196,111 @@ export default function Mockup() {
     lastProduct?.variantIdNumeric,
     lastProduct?.variantIdGid,
   );
+
+  const mockupUrl = flow.mockupUrl;
+
+  function ensureRid() {
+    if (typeof window === 'undefined') {
+      return null;
+    }
+
+    const globalRid = typeof window.__RID === 'string' ? window.__RID.trim() : '';
+    if (globalRid) {
+      return globalRid;
+    }
+
+    let storedRid = '';
+    try {
+      if (window.localStorage) {
+        storedRid = window.localStorage.getItem('rid') || '';
+      }
+    } catch (storageErr) {
+      logger.warn('[mockup-rid-storage-read]', storageErr);
+    }
+    const normalizedStored = typeof storedRid === 'string' ? storedRid.trim() : '';
+    if (normalizedStored) {
+      window.__RID = normalizedStored;
+      return normalizedStored;
+    }
+
+    const suffixLength = 12 + Math.floor(Math.random() * 5);
+    const generated = `mgad${generateRidSuffix(suffixLength)}`;
+    window.__RID = generated;
+    try {
+      if (window.localStorage) {
+        window.localStorage.setItem('rid', generated);
+      }
+    } catch (storageErr) {
+      logger.warn('[mockup-rid-storage-write]', storageErr);
+    }
+    return generated;
+  }
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const resolvedRid = ensureRid();
+    if (!resolvedRid) return;
+
+    let storedFlag = '';
+    try {
+      if (window.sessionStorage) {
+        storedFlag = window.sessionStorage.getItem('mockup_view_sent') || '';
+      }
+    } catch (storageErr) {
+      logger.warn('[mockup-view-flag-read]', storageErr);
+    }
+    if (storedFlag === resolvedRid) {
+      return;
+    }
+
+    trackEvent('mockup_view', {
+      rid: resolvedRid,
+      design_slug: designSlug,
+    });
+    try {
+      if (window.sessionStorage) {
+        window.sessionStorage.setItem('mockup_view_sent', resolvedRid);
+      }
+    } catch (storageErr) {
+      logger.warn('[mockup-view-flag-write]', storageErr);
+    }
+  }, [designSlug, rid]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const resolvedRid = ensureRid() || rid;
+    if (!resolvedRid) return;
+
+    const purchaseOptionsVisible = Boolean(mockupUrl);
+    if (!purchaseOptionsVisible) {
+      return;
+    }
+
+    const flagKey = `view_opts_sent_${resolvedRid}`;
+    let storedFlag = '';
+    try {
+      if (window.sessionStorage) {
+        storedFlag = window.sessionStorage.getItem(flagKey) || '';
+      }
+    } catch (storageErr) {
+      logger.warn('[mockup-view-options-flag-read]', storageErr);
+    }
+    if (storedFlag === '1') {
+      return;
+    }
+
+    trackEvent('view_purchase_options', {
+      rid: resolvedRid,
+      design_slug: designSlug,
+    });
+    try {
+      if (window.sessionStorage) {
+        window.sessionStorage.setItem(flagKey, '1');
+      }
+    } catch (storageErr) {
+      logger.warn('[mockup-view-options-flag-write]', storageErr);
+    }
+  }, [designSlug, mockupUrl, rid]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -1146,7 +1278,6 @@ export default function Mockup() {
     }
   };
 
-  const mockupUrl = flow.mockupUrl;
   const hasMockupImage =
     typeof mockupUrl === 'string' ? mockupUrl.trim().length > 0 : Boolean(mockupUrl);
 
