@@ -51,6 +51,7 @@ const routes = [
       { path: '/calculadora', element: <CalculadoraPage /> },
       { path: '/creating/:jobId', element: <Creating /> },
       { path: '/result/:jobId', element: <Result /> },
+      { path: '/admin/analytics', element: <AdminAnalyticsPage /> },
       { path: '*', element: <NotFound /> }
     ]
   }
