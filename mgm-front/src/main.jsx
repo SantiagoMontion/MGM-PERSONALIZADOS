@@ -10,7 +10,7 @@ import Result from './pages/Result.jsx';
 import DevRenderPreview from './pages/DevRenderPreview.jsx';
 import DevCanvasPreview from './pages/DevCanvasPreview.jsx';
 import Mockup from './pages/Mockup.jsx';
-import CalculadoraPage from './pages/Calculadora.jsx';
+import AdminAnalytics from './pages/AdminAnalytics.jsx';
 import MousepadsPersonalizados from './pages/MousepadsPersonalizados.jsx';
 import ComoFunciona from './pages/ComoFunciona.jsx';
 import PreguntasFrecuentes from './pages/PreguntasFrecuentes.jsx';
@@ -42,6 +42,7 @@ const routes = [
       { path: '/calculadora', element: <CalculadoraPage /> },
       { path: '/creating/:jobId', element: <Creating /> },
       { path: '/result/:jobId', element: <Result /> },
+      { path: '/admin/analytics', element: <AdminAnalytics /> },
       { path: '*', element: <NotFound /> }
     ]
   }
