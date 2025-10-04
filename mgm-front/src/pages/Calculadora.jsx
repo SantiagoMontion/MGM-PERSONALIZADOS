@@ -5,7 +5,7 @@ import styles from './Calculadora.module.css';
 const CalculadoraPage = () => {
   const [width, setWidth] = useState('');
   const [height, setHeight] = useState('');
-  const [material, setMaterial] = useState('Pro');
+  const [material, setMaterial] = useState('Classic');
 
   const materialOptions = useMemo(
     () => [
@@ -71,14 +71,23 @@ const CalculadoraPage = () => {
           width={width}
           height={height}
           material={material}
-          render={({ valid, transfer, format }) => (
-            <div className={styles.result}>
-              <h2 className={styles.resultTitle}>Precio con transferencia</h2>
-              <p className={styles.resultValue}>
-                {valid && transfer > 0 ? `$${format(transfer)}` : 'Ingresá medidas válidas'}
-              </p>
-            </div>
-          )}
+          render={({ valid, transfer, format }) => {
+            const displayMaterial = material || 'Classic';
+            const displayWidth = width || '--';
+            const displayHeight = height || '--';
+
+            return (
+              <div className={styles.result}>
+                <h2 className={styles.resultTitle}>Precio con transferencia</h2>
+                <p className={styles.resultValue}>
+                  {valid && transfer > 0 ? `$${format(transfer)}` : 'Ingresá medidas válidas'}
+                </p>
+                <p className={styles.resultDetails}>
+                  ({`${displayMaterial} / ${displayWidth}x${displayHeight}`})
+                </p>
+              </div>
+            );
+          }}
         />
       </div>
     </section>
