@@ -1,4 +1,4 @@
-const DEFAULT_ALLOW_HEADERS = 'content-type, authorization';
+const DEFAULT_ALLOW_HEADERS = 'content-type, authorization, x-admin-token';
 const ALLOW_METHODS = 'GET, POST, OPTIONS';
 
 function resolveOrigin(req) {
@@ -29,12 +29,25 @@ function resolveRequestedHeaders(req) {
     return DEFAULT_ALLOW_HEADERS;
   }
 
-  const names = headerList
+  const requestedNames = headerList
     .split(',')
     .map((name) => name.split(':')[0].trim())
     .filter(Boolean);
 
-  return names.length ? names.join(', ') : DEFAULT_ALLOW_HEADERS;
+  const normalized = new Set(
+    DEFAULT_ALLOW_HEADERS.split(',')
+      .map((name) => name.trim().toLowerCase())
+      .filter(Boolean),
+  );
+
+  for (const name of requestedNames) {
+    normalized.add(name.toLowerCase());
+  }
+
+  normalized.add('x-admin-token');
+  normalized.add('content-type');
+
+  return normalized.size ? Array.from(normalized).join(', ') : DEFAULT_ALLOW_HEADERS;
 }
 
 export function applyLenientCors(req, res) {
