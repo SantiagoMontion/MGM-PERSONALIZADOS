@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import getSupabaseAdmin from '../../lib/_lib/supabaseAdmin.js';
 import { createDiagId, logApiError } from '../_lib/diag.js';
-import { getAllowedOriginsFromEnv, resolveCorsDecision } from '../_lib/cors.ts';
+import { applyAnalyticsCors } from './_lib/cors.ts';
 
 export const config = { maxDuration: 10 };
 
@@ -26,30 +26,6 @@ type TrackEventRow = {
   cta_type: string | null;
   design_slug: string | null;
 };
-
-type CorsResult = {
-  decision: ReturnType<typeof resolveCorsDecision>;
-};
-
-function applyAnalyticsCors(req: VercelRequest, res: VercelResponse): CorsResult {
-  const originHeader =
-    typeof req.headers.origin === 'string' && req.headers.origin.trim().length > 0
-      ? req.headers.origin
-      : undefined;
-  const decision = resolveCorsDecision(originHeader, getAllowedOriginsFromEnv());
-  const allowOrigin =
-    decision.allowedOrigin ?? decision.requestedOrigin ?? '*';
-
-  if (allowOrigin) {
-    res.setHeader('Access-Control-Allow-Origin', allowOrigin);
-  }
-  res.setHeader('Vary', 'Origin');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Admin-Token, x-admin-token');
-  res.setHeader('Content-Type', 'application/json; charset=utf-8');
-
-  return { decision };
-}
 
 function parseDateParam(raw: DateLike): Date | null {
   if (Array.isArray(raw)) {
@@ -111,15 +87,24 @@ function resolveCtaType(eventName: string | null | undefined, rawCta: string | n
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const diagId = createDiagId();
   res.setHeader('X-Diag-Id', diagId);
-  applyAnalyticsCors(req, res);
+  const { decision } = applyAnalyticsCors(req, res);
 
   if (req.method === 'OPTIONS') {
+    if (!decision.allowed) {
+      res.status(403).json({ ok: false, error: 'origin_not_allowed', diagId });
+      return;
+    }
     res.status(204).end();
     return;
   }
 
   if (req.method !== 'GET') {
     res.status(405).json({ ok: false, error: 'method_not_allowed', diagId });
+    return;
+  }
+
+  if (!decision.allowed) {
+    res.status(403).json({ ok: false, error: 'origin_not_allowed', diagId });
     return;
   }
 
