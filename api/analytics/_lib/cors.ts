@@ -2,7 +2,7 @@ import type { VercelRequest } from '@vercel/node';
 import { getAllowedOriginsFromEnv, resolveCorsDecision } from '../../_lib/cors.ts';
 
 const ALLOW_METHODS = 'GET,OPTIONS';
-const ALLOW_HEADERS = 'X-Admin-Token, Content-Type';
+const ALLOW_HEADERS = 'X-Admin-Token, Content-Type, Accept';
 
 export type AnalyticsCorsResult = {
   origin: string | null;
@@ -16,7 +16,26 @@ export function applyAnalyticsCors(req: VercelRequest): AnalyticsCorsResult {
       ? req.headers.origin
       : undefined;
 
-  const decision = resolveCorsDecision(originHeader, getAllowedOriginsFromEnv());
+  const allowedOrigins = getAllowedOriginsFromEnv();
+  const allowAll = allowedOrigins.length === 0;
+
+  if (allowAll) {
+    const headers: Record<string, string> = {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': ALLOW_METHODS,
+      'Access-Control-Allow-Headers': ALLOW_HEADERS,
+      'Access-Control-Expose-Headers': 'X-Diag-Id',
+      Vary: 'Origin',
+    };
+
+    return {
+      origin: '*',
+      headers,
+      isAllowed: true,
+    };
+  }
+
+  const decision = resolveCorsDecision(originHeader, allowedOrigins);
 
   const resolvedOrigin = decision.allowed
     ? decision.allowedOrigin ?? decision.requestedOrigin
@@ -27,6 +46,7 @@ export function applyAnalyticsCors(req: VercelRequest): AnalyticsCorsResult {
     'Access-Control-Allow-Origin': origin ?? 'null',
     'Access-Control-Allow-Methods': ALLOW_METHODS,
     'Access-Control-Allow-Headers': ALLOW_HEADERS,
+    'Access-Control-Expose-Headers': 'X-Diag-Id',
     Vary: 'Origin',
   };
 

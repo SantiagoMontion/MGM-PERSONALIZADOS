@@ -89,6 +89,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('X-Diag-Id', diagId);
   const { origin, headers, isAllowed } = applyAnalyticsCors(req);
 
+  for (const [key, value] of Object.entries(headers)) {
+    if (typeof value === 'string') {
+      res.setHeader(key, value);
+    }
+  }
+
   if (req.method === 'OPTIONS') {
     return sendResponse(
       res,
