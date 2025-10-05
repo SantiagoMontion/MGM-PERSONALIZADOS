@@ -37,13 +37,15 @@ function applyAnalyticsCors(req: VercelRequest, res: VercelResponse): CorsResult
       ? req.headers.origin
       : undefined;
   const decision = resolveCorsDecision(originHeader, getAllowedOriginsFromEnv());
+  const allowOrigin =
+    decision.allowedOrigin ?? decision.requestedOrigin ?? '*';
 
-  if (decision.allowed && decision.allowedOrigin) {
-    res.setHeader('Access-Control-Allow-Origin', decision.allowedOrigin);
+  if (allowOrigin) {
+    res.setHeader('Access-Control-Allow-Origin', allowOrigin);
   }
   res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Admin-Token');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Admin-Token, x-admin-token');
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
 
   return { decision };
