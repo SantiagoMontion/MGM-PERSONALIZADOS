@@ -2,37 +2,94 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import getSupabaseAdmin from '../../lib/_lib/supabaseAdmin.js';
 import { createDiagId, logApiError } from '../_lib/diag.js';
-import { applyLenientCors } from '../_lib/lenientCors.js';
+import { getAllowedOriginsFromEnv, resolveCorsDecision } from '../_lib/cors.ts';
 
 export const config = { maxDuration: 10 };
 
-type DateLike = string | string[] | undefined;
-
-type EventRow = {
-  rid: string | null;
-};
-
 const EVENT_NAMES = {
   view: 'mockup_view',
-  continue: 'continue_design',
   options: 'view_purchase_options',
-  publicClick: 'cta_click_public',
-  privateClick: 'cta_click_private',
-  cartClick: 'cta_click_cart',
+  public: 'cta_click_public',
+  private: 'cta_click_private',
+  cart: 'cta_click_cart',
   purchase: 'purchase_completed',
 } as const;
+
+const CTA_TYPES = new Set(['public', 'private', 'cart']);
+const ALL_EVENTS = Object.values(EVENT_NAMES);
+
+type DateLike = string | string[] | undefined;
+
+type TrackEventRow = {
+  rid: string | null;
+  event_name: string | null;
+  cta_type: string | null;
+};
+
+function applyFunnelCors(req: VercelRequest, res: VercelResponse) {
+  const originHeader =
+    typeof req.headers.origin === 'string' && req.headers.origin.trim().length > 0
+      ? req.headers.origin
+      : undefined;
+  const decision = resolveCorsDecision(originHeader, getAllowedOriginsFromEnv());
+
+  if (decision.allowed && decision.allowedOrigin) {
+    res.setHeader('Access-Control-Allow-Origin', decision.allowedOrigin);
+  }
+  res.setHeader('Vary', 'Origin');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Admin-Token');
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+
+  return decision;
+}
 
 function parseDateParam(raw: DateLike): Date | null {
   if (Array.isArray(raw)) {
     return parseDateParam(raw[0]);
   }
-
   if (typeof raw !== 'string' || !raw.trim()) {
     return null;
   }
-
   const parsed = new Date(raw);
   return Number.isNaN(parsed.valueOf()) ? null : parsed;
+}
+
+function normalizeRid(value: string | null | undefined): string | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
+function resolveCtaType(eventName: string | null | undefined, rawCta: string | null | undefined) {
+  const normalized = typeof rawCta === 'string' ? rawCta.trim().toLowerCase() : '';
+  if (normalized && CTA_TYPES.has(normalized)) {
+    return normalized;
+  }
+
+  if (typeof eventName === 'string' && eventName.startsWith('cta_click_')) {
+    const suffix = eventName.replace('cta_click_', '').trim().toLowerCase();
+    if (CTA_TYPES.has(suffix)) {
+      return suffix;
+    }
+  }
+
+  return null;
+}
+
+function intersectCount(a: Set<string>, b: Set<string>): number {
+  if (!a.size || !b.size) {
+    return 0;
+  }
+  let total = 0;
+  for (const value of a) {
+    if (b.has(value)) {
+      total += 1;
+    }
+  }
+  return total;
 }
 
 function formatRate(numerator: number, denominator: number): number {
@@ -42,89 +99,13 @@ function formatRate(numerator: number, denominator: number): number {
   return Number(((numerator / denominator) * 100).toFixed(2));
 }
 
-function asRidSet(rows: EventRow[] | null | undefined): Set<string> {
-  const result = new Set<string>();
-  if (!rows) {
-    return result;
-  }
-
-  for (const row of rows) {
-    if (typeof row?.rid === 'string' && row.rid.trim()) {
-      result.add(row.rid);
-    }
-  }
-
-  return result;
-}
-
-function unionSets(...sets: Set<string>[]): Set<string> {
-  const result = new Set<string>();
-  for (const set of sets) {
-    for (const value of set) {
-      result.add(value);
-    }
-  }
-  return result;
-}
-
-function intersectCount(a: Set<string>, b: Set<string>): number {
-  let total = 0;
-  if (a.size === 0 || b.size === 0) {
-    return total;
-  }
-
-  for (const value of a) {
-    if (b.has(value)) {
-      total += 1;
-    }
-  }
-
-  return total;
-}
-
-async function fetchRidSet(
-  supabase: SupabaseClient,
-  eventName: string,
-  fromIso: string,
-  toIso: string,
-): Promise<Set<string>> {
-  const { data, error } = await supabase
-    .from('track_events')
-    .select('rid')
-    .eq('event_name', eventName)
-    .gte('created_at', fromIso)
-    .lte('created_at', toIso);
-
-  if (error) {
-    throw error;
-  }
-
-  return asRidSet((data as EventRow[]) ?? []);
-}
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const diagId = createDiagId();
   res.setHeader('X-Diag-Id', diagId);
-  applyLenientCors(req, res);
+  applyFunnelCors(req, res);
 
   if (req.method === 'OPTIONS') {
-    const requestedHeaders = req.headers['access-control-request-headers'];
-    if (requestedHeaders) {
-      const rawList = Array.isArray(requestedHeaders)
-        ? requestedHeaders.join(',')
-        : requestedHeaders;
-      const names = rawList
-        .split(',')
-        .map((name) => name.split(':')[0].trim().toLowerCase())
-        .filter(Boolean);
-      const headerSet = new Set(names);
-      headerSet.add('content-type');
-      headerSet.add('x-admin-token');
-      res.setHeader('Access-Control-Allow-Headers', Array.from(headerSet).join(', '));
-    } else {
-      res.setHeader('Access-Control-Allow-Headers', 'content-type, x-admin-token');
-    }
-    res.status(200).end();
+    res.status(204).end();
     return;
   }
 
@@ -133,7 +114,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const expectedToken = process.env.ANALYTICS_ADMIN_TOKEN;
+  const expectedToken = process.env.ADMIN_ANALYTICS_TOKEN;
   if (!expectedToken) {
     res.status(200).json({ ok: false, error: 'missing_env', diagId });
     return;
@@ -141,7 +122,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const rawTokenHeader = req.headers['x-admin-token'];
   const providedToken = Array.isArray(rawTokenHeader) ? rawTokenHeader[0] : rawTokenHeader;
-
   if (!providedToken || providedToken !== expectedToken) {
     res.status(401).json({ ok: false, error: 'unauthorized', diagId });
     return;
@@ -150,20 +130,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let supabase: SupabaseClient;
   try {
     supabase = getSupabaseAdmin();
-  } catch (err) {
-    logApiError('analytics-funnel', { diagId, step: 'init_supabase', error: err });
+  } catch (error) {
+    logApiError('analytics-funnel', { diagId, step: 'init_supabase', error });
     res.status(200).json({ ok: false, error: 'missing_env', diagId });
     return;
   }
 
   const now = new Date();
-  const rawTo = parseDateParam(req.query?.to);
-  const toDate = rawTo && !Number.isNaN(rawTo.valueOf()) ? rawTo : now;
-  const rawFrom = parseDateParam(req.query?.from);
-  const defaultFrom = new Date(toDate.getTime());
-  defaultFrom.setDate(defaultFrom.getDate() - 30);
-  let fromDate = rawFrom && !Number.isNaN(rawFrom.valueOf()) ? rawFrom : defaultFrom;
-
+  const toParam = parseDateParam(req.query?.to);
+  const toDate = toParam && !Number.isNaN(toParam.valueOf()) ? toParam : now;
+  const fromParam = parseDateParam(req.query?.from);
+  const defaultFrom = new Date(toDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+  let fromDate = fromParam && !Number.isNaN(fromParam.valueOf()) ? fromParam : defaultFrom;
   if (fromDate > toDate) {
     fromDate = defaultFrom;
   }
@@ -172,84 +150,137 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const toIso = toDate.toISOString();
 
   try {
-    const [
-      viewSet,
-      continueSet,
-      optionsSet,
-      publicClickSet,
-      privateClickSet,
-      cartClickSet,
-      purchaseSet,
-    ] = await Promise.all([
-      fetchRidSet(supabase, EVENT_NAMES.view, fromIso, toIso),
-      fetchRidSet(supabase, EVENT_NAMES.continue, fromIso, toIso),
-      fetchRidSet(supabase, EVENT_NAMES.options, fromIso, toIso),
-      fetchRidSet(supabase, EVENT_NAMES.publicClick, fromIso, toIso),
-      fetchRidSet(supabase, EVENT_NAMES.privateClick, fromIso, toIso),
-      fetchRidSet(supabase, EVENT_NAMES.cartClick, fromIso, toIso),
-      fetchRidSet(supabase, EVENT_NAMES.purchase, fromIso, toIso),
-    ]);
+    const { data, error } = await supabase
+      .from('track_events')
+      .select('rid, event_name, cta_type')
+      .in('event_name', ALL_EVENTS)
+      .gte('created_at', fromIso)
+      .lte('created_at', toIso);
 
-    const clickSet = unionSets(publicClickSet, privateClickSet, cartClickSet);
+    if (error) {
+      throw error;
+    }
 
-    const viewCount = viewSet.size;
-    const continueCount = continueSet.size;
-    const optionsCount = optionsSet.size;
-    const clickCount = clickSet.size;
-    const purchaseCount = purchaseSet.size;
+    const rows = Array.isArray(data) ? (data as TrackEventRow[]) : [];
 
-    const publicPurchasers = intersectCount(publicClickSet, purchaseSet);
-    const privatePurchasers = intersectCount(privateClickSet, purchaseSet);
-    const cartPurchasers = intersectCount(cartClickSet, purchaseSet);
+    const viewSet = new Set<string>();
+    const optionsSet = new Set<string>();
+    const clickSet = new Set<string>();
+    const purchaseSet = new Set<string>();
+    const ctaSets: Record<'public' | 'private' | 'cart', Set<string>> = {
+      public: new Set<string>(),
+      private: new Set<string>(),
+      cart: new Set<string>(),
+    };
+
+    for (const row of rows) {
+      const rid = normalizeRid(row?.rid);
+      if (!rid) {
+        continue;
+      }
+
+      const eventName = row?.event_name ?? '';
+      if (eventName === EVENT_NAMES.view) {
+        viewSet.add(rid);
+      } else if (eventName === EVENT_NAMES.options) {
+        optionsSet.add(rid);
+      } else if (eventName === EVENT_NAMES.purchase) {
+        purchaseSet.add(rid);
+      } else if (
+        eventName === EVENT_NAMES.public
+        || eventName === EVENT_NAMES.private
+        || eventName === EVENT_NAMES.cart
+      ) {
+        clickSet.add(rid);
+        const ctaType = resolveCtaType(eventName, row?.cta_type ?? null);
+        if (ctaType && ctaSets[ctaType as 'public' | 'private' | 'cart']) {
+          ctaSets[ctaType as 'public' | 'private' | 'cart'].add(rid);
+        }
+      }
+    }
+
+    const viewToOptions = intersectCount(viewSet, optionsSet);
+    const optionsToClicks = intersectCount(optionsSet, clickSet);
+    const clicksToPurchase = intersectCount(clickSet, purchaseSet);
+    const viewToPurchase = intersectCount(viewSet, purchaseSet);
+
+    const stages = {
+      view: {
+        rids: viewSet.size,
+      },
+      options: {
+        rids: optionsSet.size,
+        progressed_from_view: viewToOptions,
+        rate_from_view: formatRate(viewToOptions, viewSet.size),
+      },
+      clicks: {
+        rids: clickSet.size,
+        progressed_from_options: optionsToClicks,
+        rate_from_options: formatRate(optionsToClicks, optionsSet.size),
+      },
+      purchase: {
+        rids: purchaseSet.size,
+        progressed_from_clicks: clicksToPurchase,
+        progressed_from_view: viewToPurchase,
+        rate_from_clicks: formatRate(clicksToPurchase, clickSet.size),
+        rate_from_view: formatRate(viewToPurchase, viewSet.size),
+      },
+    };
+
+    const publicPurchases = intersectCount(ctaSets.public, purchaseSet);
+    const privatePurchases = intersectCount(ctaSets.private, purchaseSet);
+    const cartPurchases = intersectCount(ctaSets.cart, purchaseSet);
+
+    const cta = {
+      public: {
+        clicks: ctaSets.public.size,
+        purchasers: publicPurchases,
+        rate: formatRate(publicPurchases, ctaSets.public.size),
+      },
+      private: {
+        clicks: ctaSets.private.size,
+        purchasers: privatePurchases,
+        rate: formatRate(privatePurchases, ctaSets.private.size),
+      },
+      cart: {
+        clicks: ctaSets.cart.size,
+        purchasers: cartPurchases,
+        rate: formatRate(cartPurchases, ctaSets.cart.size),
+      },
+    };
+
+    const totals = {
+      view: viewSet.size,
+      options: optionsSet.size,
+      clicks: clickSet.size,
+      purchase: purchaseSet.size,
+      view_to_options: viewToOptions,
+      options_to_clicks: optionsToClicks,
+      clicks_to_purchase: clicksToPurchase,
+      view_to_purchase: viewToPurchase,
+    };
+
+    const rates = {
+      view_to_options: formatRate(viewToOptions, viewSet.size),
+      options_to_clicks: formatRate(optionsToClicks, optionsSet.size),
+      clicks_to_purchase: formatRate(clicksToPurchase, clickSet.size),
+      view_to_purchase: formatRate(viewToPurchase, viewSet.size),
+    };
+
+    console.log('[analytics-funnel]', { diagId });
 
     res.status(200).json({
       ok: true,
-      window: {
-        from: fromIso,
-        to: toIso,
-      },
-      stages: {
-        view: {
-          rids: viewCount,
-        },
-        continue: {
-          rids: continueCount,
-          rate_from_view: formatRate(continueCount, viewCount),
-        },
-        options: {
-          rids: optionsCount,
-          rate_from_continue: formatRate(optionsCount, continueCount),
-        },
-        clicks: {
-          rids: clickCount,
-          rate_from_options: formatRate(clickCount, optionsCount),
-        },
-        purchase: {
-          rids: purchaseCount,
-          rate_from_clicks: formatRate(purchaseCount, clickCount),
-        },
-      },
-      cta: {
-        public: {
-          clicks: publicClickSet.size,
-          purchasers: publicPurchasers,
-          rate: formatRate(publicPurchasers, publicClickSet.size),
-        },
-        private: {
-          clicks: privateClickSet.size,
-          purchasers: privatePurchasers,
-          rate: formatRate(privatePurchasers, privateClickSet.size),
-        },
-        cart: {
-          clicks: cartClickSet.size,
-          purchasers: cartPurchasers,
-          rate: formatRate(cartPurchasers, cartClickSet.size),
-        },
-      },
       diagId,
+      from: fromIso,
+      to: toIso,
+      stages,
+      cta,
+      totals,
+      rates,
     });
-  } catch (err) {
-    logApiError('analytics-funnel', { diagId, step: 'query', error: err });
+  } catch (error) {
+    logApiError('analytics-funnel', { diagId, step: 'query', error });
     res.status(200).json({ ok: false, error: 'funnel_failed', diagId });
   }
 }

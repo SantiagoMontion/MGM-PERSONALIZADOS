@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import styles from './AdminAnalytics.module.css';
 
-const REFRESH_INTERVAL_MS = 60000;
+const REFRESH_INTERVAL_MS = 60_000;
 const DEFAULT_RANGE_DAYS = 30;
-const DAY_MS = 24 * 60 * 60 * 1000;
 const RANGE_OPTIONS = [7, 14, 30];
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 function formatNumber(value) {
   if (typeof value !== 'number' || Number.isNaN(value)) {
@@ -31,19 +31,18 @@ function formatWindowDate(value) {
   return parsed.toLocaleString();
 }
 
+const rawApiBase = typeof import.meta.env.VITE_API_BASE === 'string'
+  ? import.meta.env.VITE_API_BASE
+  : typeof import.meta.env.VITE_API_URL === 'string'
+    ? import.meta.env.VITE_API_URL
+    : '';
+const sanitizedApiBase = rawApiBase.trim().replace(/\/+$/, '');
+const apiBase = sanitizedApiBase || '/api';
+const adminToken = typeof import.meta.env.VITE_ADMIN_ANALYTICS_TOKEN === 'string'
+  ? import.meta.env.VITE_ADMIN_ANALYTICS_TOKEN.trim()
+  : '';
+
 export default function AdminAnalyticsPage() {
-  const [token, setToken] = useState(() => {
-    if (typeof window === 'undefined') {
-      return '';
-    }
-    try {
-      return window.localStorage.getItem('adminToken') || '';
-    } catch (err) {
-      console.warn('[admin-analytics] localStorage_get_failed', err);
-      return '';
-    }
-  });
-  const [formToken, setFormToken] = useState('');
   const [metrics, setMetrics] = useState(null);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -52,12 +51,13 @@ export default function AdminAnalyticsPage() {
   const [funnel, setFunnel] = useState(null);
   const [funnelError, setFunnelError] = useState('');
   const [isFunnelLoading, setIsFunnelLoading] = useState(false);
+  const [lastEvents, setLastEvents] = useState([]);
+  const [lastEventsError, setLastEventsError] = useState('');
+  const [isLastEventsLoading, setIsLastEventsLoading] = useState(false);
 
-  const rawBase = typeof import.meta.env.VITE_API_URL === 'string' ? import.meta.env.VITE_API_URL : '';
-  const sanitizedBase = rawBase.trim().replace(/\/+$/, '');
-  const apiBase = sanitizedBase || '/api';
-  const analyticsEndpoint = useMemo(() => `${apiBase}/analytics/flows`, [apiBase]);
-  const funnelEndpoint = useMemo(() => `${apiBase}/analytics/funnel`, [apiBase]);
+  const analyticsEndpoint = useMemo(() => `${apiBase}/analytics/flows`, []);
+  const funnelEndpoint = useMemo(() => `${apiBase}/analytics/funnel`, []);
+  const lastEventsEndpoint = useMemo(() => `${apiBase}/analytics/last-events`, []);
 
   const buildWindowRange = useCallback(() => {
     const now = new Date();
@@ -66,31 +66,8 @@ export default function AdminAnalyticsPage() {
     return { fromIso, toIso };
   }, [rangeDays]);
 
-  const handleLogout = useCallback((options = {}) => {
-    if (typeof window !== 'undefined') {
-      try {
-        window.localStorage.removeItem('adminToken');
-      } catch (err) {
-        console.warn('[admin-analytics] localStorage_remove_failed', err);
-      }
-    }
-    setToken('');
-    setMetrics(null);
-    setLastUpdated(null);
-    setFunnel(null);
-    if (!options.preserveError) {
-      setError('');
-      setFunnelError('');
-    }
-    if (!options.preserveForm) {
-      setFormToken('');
-    }
-    setIsLoading(false);
-    setIsFunnelLoading(false);
-  }, []);
-
-  const fetchAnalytics = useCallback(async (currentToken, windowRange) => {
-    if (!currentToken) {
+  const fetchAnalytics = useCallback(async (windowRange) => {
+    if (!adminToken) {
       return;
     }
 
@@ -105,27 +82,25 @@ export default function AdminAnalyticsPage() {
       const response = await fetch(url, {
         headers: {
           Accept: 'application/json',
-          'X-Admin-Token': currentToken,
+          'X-Admin-Token': adminToken,
         },
       });
-
-      if (response.status === 401) {
-        setError('Token inválido');
-        handleLogout({ preserveError: true });
-        return;
-      }
 
       const text = await response.text();
       const json = text ? JSON.parse(text) : null;
 
+      if (response.status === 401) {
+        setError('Token inválido');
+        setMetrics(null);
+        return;
+      }
+
       if (!response.ok || !json?.ok) {
         const message = typeof json?.error === 'string' && json.error
           ? json.error
-          : 'No se pudieron cargar las métricas. Intentá nuevamente.';
+          : 'analytics_failed';
         setError(message);
-        if (!json?.ok) {
-          setMetrics(null);
-        }
+        setMetrics(null);
         return;
       }
 
@@ -133,18 +108,20 @@ export default function AdminAnalyticsPage() {
       setLastUpdated(new Date());
     } catch (err) {
       console.error('[admin-analytics] fetch_failed', err);
-      setError('No se pudieron cargar las métricas. Intentá nuevamente.');
+      setError('analytics_failed');
+      setMetrics(null);
     } finally {
       setIsLoading(false);
     }
-  }, [analyticsEndpoint, handleLogout]);
+  }, [adminToken, analyticsEndpoint]);
 
-  const fetchFunnel = useCallback(async (currentToken, windowRange) => {
-    if (!currentToken) {
+  const fetchFunnel = useCallback(async (windowRange) => {
+    if (!adminToken) {
       return;
     }
 
     setIsFunnelLoading(true);
+    setFunnelError('');
 
     try {
       const fromIso = windowRange?.fromIso ?? '';
@@ -154,18 +131,18 @@ export default function AdminAnalyticsPage() {
       const response = await fetch(url, {
         headers: {
           Accept: 'application/json',
-          'X-Admin-Token': currentToken,
+          'X-Admin-Token': adminToken,
         },
       });
 
-      if (response.status === 401) {
-        setFunnelError('Token inválido');
-        handleLogout({ preserveError: true });
-        return;
-      }
-
       const text = await response.text();
       const json = text ? JSON.parse(text) : null;
+
+      if (response.status === 401) {
+        setFunnelError('Token inválido');
+        setFunnel(null);
+        return;
+      }
 
       if (!response.ok || !json) {
         throw new Error('invalid_response');
@@ -184,26 +161,63 @@ export default function AdminAnalyticsPage() {
     } finally {
       setIsFunnelLoading(false);
     }
-  }, [funnelEndpoint, handleLogout]);
+  }, [adminToken, funnelEndpoint]);
+
+  const fetchLastEvents = useCallback(async () => {
+    if (!adminToken) {
+      return;
+    }
+
+    setIsLastEventsLoading(true);
+    setLastEventsError('');
+
+    try {
+      const response = await fetch(`${lastEventsEndpoint}?limit=50`, {
+        headers: {
+          Accept: 'application/json',
+          'X-Admin-Token': adminToken,
+        },
+      });
+
+      const text = await response.text();
+      const json = text ? JSON.parse(text) : null;
+
+      if (response.status === 401) {
+        setLastEventsError('Token inválido');
+        setLastEvents([]);
+        return;
+      }
+
+      if (!response.ok || !json?.ok) {
+        throw new Error('invalid_response');
+      }
+
+      setLastEvents(Array.isArray(json.events) ? json.events : []);
+      setLastEventsError('');
+    } catch (err) {
+      console.error('[admin-analytics] fetch_last_events_failed', err);
+      setLastEvents([]);
+      setLastEventsError('No se pudieron cargar los eventos recientes.');
+    } finally {
+      setIsLastEventsLoading(false);
+    }
+  }, [adminToken, lastEventsEndpoint]);
 
   const loadAll = useCallback(async () => {
-    if (!token) {
+    if (!adminToken) {
       return;
     }
 
     const windowRange = buildWindowRange();
     await Promise.all([
-      fetchAnalytics(token, windowRange),
-      fetchFunnel(token, windowRange),
+      fetchAnalytics(windowRange),
+      fetchFunnel(windowRange),
+      fetchLastEvents(),
     ]);
-  }, [token, buildWindowRange, fetchAnalytics, fetchFunnel]);
+  }, [adminToken, buildWindowRange, fetchAnalytics, fetchFunnel, fetchLastEvents]);
 
   useEffect(() => {
-    if (!token) {
-      setMetrics(null);
-      setLastUpdated(null);
-      setFunnel(null);
-      setFunnelError('');
+    if (!adminToken) {
       return undefined;
     }
 
@@ -229,32 +243,13 @@ export default function AdminAnalyticsPage() {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [token, loadAll]);
-
-  const handleSubmit = (event) => {
-    event.preventDefault();
-    const value = formToken.trim();
-    if (!value) {
-      setError('Ingresá el token de administrador.');
-      return;
-    }
-    if (typeof window !== 'undefined') {
-      try {
-        window.localStorage.setItem('adminToken', value);
-      } catch (err) {
-        console.warn('[admin-analytics] localStorage_set_failed', err);
-      }
-    }
-    setToken(value);
-    setFormToken('');
-    setError('');
-  };
+  }, [adminToken, loadAll]);
 
   const handleRefresh = useCallback(() => {
-    if (token) {
+    if (adminToken) {
       loadAll();
     }
-  }, [token, loadAll]);
+  }, [adminToken, loadAll]);
 
   const handleRangeChange = (event) => {
     const value = Number(event.target.value);
@@ -262,55 +257,92 @@ export default function AdminAnalyticsPage() {
       return;
     }
     setRangeDays(value);
+    setMetrics(null);
+    setError('');
     setFunnel(null);
     setFunnelError('');
+    setLastEvents([]);
+    setLastEventsError('');
   };
 
+  const handleRetryMetrics = useCallback(() => {
+    if (!adminToken) {
+      return;
+    }
+    const windowRange = buildWindowRange();
+    fetchAnalytics(windowRange);
+  }, [adminToken, buildWindowRange, fetchAnalytics]);
+
   const handleRetryFunnel = useCallback(() => {
-    if (!token) {
+    if (!adminToken) {
       return;
     }
     const windowRange = buildWindowRange();
     setFunnelError('');
     setFunnel(null);
-    fetchFunnel(token, windowRange);
-  }, [token, buildWindowRange, fetchFunnel]);
+    fetchFunnel(windowRange);
+  }, [adminToken, buildWindowRange, fetchFunnel]);
 
-  const totals = metrics?.ok ? metrics.totals : null;
-  const topDesigns = metrics?.ok && Array.isArray(metrics.topDesigns) ? metrics.topDesigns : [];
-  const windowFrom = metrics?.ok ? formatWindowDate(metrics.window?.from) : '';
-  const windowTo = metrics?.ok ? formatWindowDate(metrics.window?.to) : '';
-  const isAwaitingMetrics = token && metrics === null;
-  const showLoadingState = (isLoading || isAwaitingMetrics) && !error;
-  const showFunnelSkeleton = funnel === null && !funnelError;
-  const funnelStages = funnel?.ok ? funnel.stages ?? {} : {};
-  const funnelCta = funnel?.ok ? funnel.cta ?? {} : {};
+  const handleRetryLastEvents = useCallback(() => {
+    if (!adminToken) {
+      return;
+    }
+    fetchLastEvents();
+  }, [adminToken, fetchLastEvents]);
 
-  if (!token) {
+  if (!adminToken) {
     return (
       <div className={styles.loginCard}>
         <h1 className={styles.loginTitle}>Panel de Analytics</h1>
-        <form className={styles.loginForm} onSubmit={handleSubmit}>
-          <label className={styles.loginLabel}>
-            Token de administrador
-            <input
-              type="password"
-              className={styles.loginInput}
-              value={formToken}
-              onChange={(event) => setFormToken(event.target.value)}
-              placeholder="Ingresá tu token"
-              autoFocus
-            />
-          </label>
-          <button type="submit" className={styles.loginButton}>
-            Entrar
-          </button>
-        </form>
-        {error && <p className={styles.error}>{error}</p>}
-        <p className={styles.loginHint}>Ingresá el token de administrador para ver las métricas.</p>
+        <p className={styles.loginHint}>
+          Configurá <code>VITE_ADMIN_ANALYTICS_TOKEN</code> para habilitar este panel.
+        </p>
       </div>
     );
   }
+
+  const totals = metrics?.ok ? metrics.totals ?? {} : {};
+  const rates = metrics?.ok ? metrics.rates ?? {} : {};
+  const ctas = metrics?.ok ? metrics.ctas ?? {} : {};
+  const topDesigns = metrics?.ok && Array.isArray(metrics.topDesigns) ? metrics.topDesigns : [];
+  const windowFrom = metrics?.ok ? formatWindowDate(metrics.from) : '';
+  const windowTo = metrics?.ok ? formatWindowDate(metrics.to) : '';
+  const showLoadingState = isLoading && !metrics && !error;
+  const showFunnelSkeleton = funnel === null && !funnelError && isFunnelLoading;
+
+  const stageCards = [
+    {
+      key: 'view',
+      label: 'Views',
+      value: formatNumber(totals.view ?? 0),
+      subtitle: null,
+    },
+    {
+      key: 'options',
+      label: 'Opciones',
+      value: formatNumber(totals.options ?? 0),
+      subtitle: `View → Options: ${formatPercentage(rates.view_to_options ?? 0)}`,
+    },
+    {
+      key: 'clicks',
+      label: 'Clicks CTA',
+      value: formatNumber(totals.clicks ?? 0),
+      subtitle: `Options → Clicks: ${formatPercentage(rates.options_to_clicks ?? 0)}`,
+    },
+    {
+      key: 'purchase',
+      label: 'Compras',
+      value: formatNumber(totals.purchase ?? 0),
+      subtitle: `Clicks → Purchase: ${formatPercentage(rates.clicks_to_purchase ?? 0)}`,
+      extra: `View → Purchase: ${formatPercentage(rates.view_to_purchase ?? 0)}`,
+    },
+  ];
+
+  const ctaRows = [
+    { key: 'public', label: 'Public', data: ctas.public },
+    { key: 'private', label: 'Private', data: ctas.private },
+    { key: 'cart', label: 'Cart', data: ctas.cart },
+  ];
 
   return (
     <div className={styles.container}>
@@ -319,18 +351,11 @@ export default function AdminAnalyticsPage() {
         <div className={styles.actions}>
           <button
             type="button"
-            className={`${styles.secondaryButton}`}
+            className={styles.secondaryButton}
             onClick={handleRefresh}
             disabled={isLoading}
           >
             Actualizar
-          </button>
-          <button
-            type="button"
-            className={styles.primaryButton}
-            onClick={() => handleLogout()}
-          >
-            Salir
           </button>
         </div>
       </div>
@@ -353,22 +378,43 @@ export default function AdminAnalyticsPage() {
         </label>
       </div>
 
-      {error && <p className={styles.error}>{error}</p>}
+      {error && (
+        <div className={styles.inlineError}>
+          <span>{error}</span>
+          <button
+            type="button"
+            className={styles.secondaryButton}
+            onClick={handleRetryMetrics}
+            disabled={isLoading}
+          >
+            Reintentar
+          </button>
+        </div>
+      )}
+
       {showLoadingState && <p className={styles.status}>Cargando métricas…</p>}
 
-      {totals && (
+      {metrics?.ok && (
         <section>
           <div className={styles.cards}>
-            {[
-              { key: 'public', label: 'Public', data: totals.public },
-              { key: 'private', label: 'Private', data: totals.private },
-              { key: 'cart', label: 'Cart', data: totals.cart },
-            ].map(({ key, label, data: cardData }) => (
+            {stageCards.map(({ key, label, value, subtitle, extra }) => (
               <article key={key} className={styles.card}>
                 <span className={styles.cardTitle}>{label}</span>
-                <p className={styles.cardMetric}>{formatNumber(cardData?.clicks ?? 0)}</p>
+                <p className={styles.cardMetric}>{value}</p>
+                {subtitle && <span className={styles.cardSubmetric}>{subtitle}</span>}
+                {extra && <span className={styles.cardSubmetric}>{extra}</span>}
+              </article>
+            ))}
+          </div>
+
+          <div className={styles.cards}>
+            {ctaRows.map(({ key, label, data }) => (
+              <article key={key} className={styles.card}>
+                <span className={styles.cardTitle}>{label}</span>
+                <p className={styles.cardMetric}>{formatNumber(data?.clicks ?? 0)}</p>
                 <span className={styles.cardSubmetric}>
-                  Compradores: {formatNumber(cardData?.purchasers ?? 0)} · Conversión: {formatPercentage(cardData?.rate ?? 0)}
+                  Compradores: {formatNumber(data?.purchases ?? 0)} · Conversión:{' '}
+                  {formatPercentage(data?.rate ?? 0)}
                 </span>
               </article>
             ))}
@@ -409,28 +455,23 @@ export default function AdminAnalyticsPage() {
               {[{
                 key: 'view',
                 label: 'View',
-                value: formatNumber(funnelStages?.view?.rids ?? 0),
+                value: formatNumber(funnel?.stages?.view?.rids ?? 0),
                 subtitle: null,
-              }, {
-                key: 'continue',
-                label: 'Continue',
-                value: formatNumber(funnelStages?.continue?.rids ?? 0),
-                subtitle: `Conversión desde View: ${formatPercentage(funnelStages?.continue?.rate_from_view ?? 0)}`,
               }, {
                 key: 'options',
                 label: 'Options',
-                value: formatNumber(funnelStages?.options?.rids ?? 0),
-                subtitle: `Conversión desde Continue: ${formatPercentage(funnelStages?.options?.rate_from_continue ?? 0)}`,
+                value: formatNumber(funnel?.stages?.options?.rids ?? 0),
+                subtitle: `View → Options: ${formatPercentage(funnel?.stages?.options?.rate_from_view ?? 0)}`,
               }, {
                 key: 'clicks',
                 label: 'Clicks',
-                value: formatNumber(funnelStages?.clicks?.rids ?? 0),
-                subtitle: `Conversión desde Options: ${formatPercentage(funnelStages?.clicks?.rate_from_options ?? 0)}`,
+                value: formatNumber(funnel?.stages?.clicks?.rids ?? 0),
+                subtitle: `Options → Clicks: ${formatPercentage(funnel?.stages?.clicks?.rate_from_options ?? 0)}`,
               }, {
                 key: 'purchase',
                 label: 'Purchase',
-                value: formatNumber(funnelStages?.purchase?.rids ?? 0),
-                subtitle: `Conversión desde Clicks: ${formatPercentage(funnelStages?.purchase?.rate_from_clicks ?? 0)}`,
+                value: formatNumber(funnel?.stages?.purchase?.rids ?? 0),
+                subtitle: `Clicks → Purchase: ${formatPercentage(funnel?.stages?.purchase?.rate_from_clicks ?? 0)}`,
               }].map(({ key, label, value, subtitle }) => (
                 <article key={key} className={styles.card}>
                   <span className={styles.cardTitle}>{label}</span>
@@ -452,23 +493,11 @@ export default function AdminAnalyticsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {[{
-                    key: 'public',
-                    label: 'Public',
-                    data: funnelCta.public,
-                  }, {
-                    key: 'private',
-                    label: 'Private',
-                    data: funnelCta.private,
-                  }, {
-                    key: 'cart',
-                    label: 'Cart',
-                    data: funnelCta.cart,
-                  }].map(({ key, label, data }) => (
+                  {ctaRows.map(({ key, label, data }) => (
                     <tr key={key}>
                       <td>{label}</td>
                       <td>{formatNumber(data?.clicks ?? 0)}</td>
-                      <td>{formatNumber(data?.purchasers ?? 0)}</td>
+                      <td>{formatNumber(data?.purchases ?? data?.purchasers ?? 0)}</td>
                       <td>{formatPercentage(data?.rate ?? 0)}</td>
                     </tr>
                   ))}
@@ -501,6 +530,46 @@ export default function AdminAnalyticsPage() {
         ) : (
           <p className={styles.emptyState}>Todavía no hay datos de diseños destacados.</p>
         )}
+      </section>
+
+      <section className={styles.tableWrapper}>
+        <div className={styles.sectionHeader}>
+          <h2 className={styles.sectionTitle}>Últimos eventos</h2>
+          <button
+            type="button"
+            className={styles.secondaryButton}
+            onClick={handleRetryLastEvents}
+            disabled={isLastEventsLoading}
+          >
+            Refrescar
+          </button>
+        </div>
+
+        {lastEventsError && <p className={styles.error}>{lastEventsError}</p>}
+        {isLastEventsLoading && !lastEventsError && <p className={styles.status}>Cargando eventos…</p>}
+
+        {lastEvents.length ? (
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>RID</th>
+                <th>Evento</th>
+                <th>Fecha</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lastEvents.map((event) => (
+                <tr key={`${event.rid}-${event.created_at}-${event.event_name}`}>
+                  <td>{event.rid || '—'}</td>
+                  <td>{event.event_name || '—'}</td>
+                  <td>{formatWindowDate(event.created_at) || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (!isLastEventsLoading && !lastEventsError ? (
+          <p className={styles.emptyState}>Sin eventos recientes.</p>
+        ) : null)}
       </section>
     </div>
   );

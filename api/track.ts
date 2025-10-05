@@ -5,14 +5,12 @@ import { getAllowedOriginsFromEnv, resolveCorsDecision, type CorsDecision } from
 
 const ALLOWED_EVENTS = new Set<string>([
   'mockup_view',
-  'continue_design',
   'view_purchase_options',
   'cta_click_public',
   'cta_click_private',
   'cta_click_cart',
+  'purchase_completed',
 ]);
-
-const DUPLICATE_WINDOW_MS = 2000;
 
 let cachedClient: SupabaseClient | null = null;
 
@@ -69,9 +67,52 @@ function readBodyAsString(body: unknown): string | null {
   return null;
 }
 
+function parseFormUrlencoded(rawBody: string | null): Record<string, any> | null {
+  if (!rawBody) {
+    return null;
+  }
+
+  const params = new URLSearchParams(rawBody);
+  const result: Record<string, any> = {};
+  for (const [key, value] of params.entries()) {
+    if (!key) continue;
+    result[key] = value;
+  }
+  return Object.keys(result).length ? result : null;
+}
+
+function parseMultipartFormData(rawBody: string | null, contentType: string): Record<string, any> | null {
+  if (!rawBody) {
+    return null;
+  }
+
+  const boundaryMatch = contentType.match(/boundary=(.+)$/i);
+  const boundary = boundaryMatch ? boundaryMatch[1] : null;
+  if (!boundary) {
+    return null;
+  }
+
+  const parts = rawBody.split(`--${boundary}`);
+  const result: Record<string, any> = {};
+
+  for (const part of parts) {
+    if (!part || part === '--' || part === '--\r\n') continue;
+    const [rawHeaders, ...bodyParts] = part.split('\r\n\r\n');
+    if (!rawHeaders || !bodyParts.length) continue;
+    const content = bodyParts.join('\r\n\r\n');
+    const nameMatch = rawHeaders.match(/name="([^"]+)"/i);
+    if (!nameMatch) continue;
+    const name = nameMatch[1];
+    const value = content.replace(/\r?\n--$/, '').replace(/\r?\n$/, '');
+    result[name] = value;
+  }
+
+  return Object.keys(result).length ? result : null;
+}
+
 function parseBody(
   req: VercelRequest,
-): { payload: Record<string, any> | null; invalid: boolean; rawText: string | null } {
+): { payload: Record<string, any> | null; invalid: boolean; rawText: string | null; contentType: string } {
   const contentTypeHeader = Array.isArray(req.headers['content-type'])
     ? req.headers['content-type'][0]
     : req.headers['content-type'];
@@ -83,84 +124,165 @@ function parseBody(
   const body = req.body;
 
   if (body && typeof body === 'object' && !Buffer.isBuffer(body) && !(body instanceof Uint8Array)) {
-    return { payload: body as Record<string, any>, invalid: false, rawText: null };
+    return { payload: body as Record<string, any>, invalid: false, rawText: null, contentType };
   }
 
   const rawBody = readBodyAsString(body) ?? readBodyAsString((req as any).rawBody);
   if (!rawBody) {
-    return { payload: null, invalid: false, rawText: null };
+    return { payload: null, invalid: false, rawText: null, contentType };
+  }
+
+  if (contentType === 'application/x-www-form-urlencoded') {
+    const parsed = parseFormUrlencoded(rawBody);
+    if (parsed) {
+      return { payload: parsed, invalid: false, rawText: rawBody, contentType };
+    }
+    return { payload: null, invalid: true, rawText: rawBody, contentType };
+  }
+
+  if (contentType.startsWith('multipart/form-data')) {
+    const parsed = parseMultipartFormData(rawBody, contentTypeHeader as string);
+    if (parsed) {
+      return { payload: parsed, invalid: false, rawText: rawBody, contentType };
+    }
+    return { payload: null, invalid: true, rawText: rawBody, contentType };
   }
 
   const shouldParse = !contentType || contentType === 'application/json' || contentType === 'text/plain';
   if (!shouldParse) {
-    return { payload: null, invalid: false, rawText: rawBody };
+    return { payload: null, invalid: false, rawText: rawBody, contentType };
   }
 
   try {
     const parsed = JSON.parse(rawBody);
     if (parsed && typeof parsed === 'object') {
-      return { payload: parsed as Record<string, any>, invalid: false, rawText: rawBody };
+      return { payload: parsed as Record<string, any>, invalid: false, rawText: rawBody, contentType };
     }
-    return { payload: null, invalid: true, rawText: rawBody };
+    return { payload: null, invalid: true, rawText: rawBody, contentType };
   } catch {
-    return { payload: null, invalid: true, rawText: rawBody };
+    return { payload: null, invalid: true, rawText: rawBody, contentType };
   }
 }
 
-async function isDuplicateEvent(
-  client: SupabaseClient,
-  rid: string | null,
-  eventName: string,
-): Promise<boolean> {
-  if (!rid) {
-    return false;
+type NormalizedEvent = {
+  eventName: string | null;
+  rid: string | null;
+  ctaType: string | null;
+  designSlug: string | null;
+  productHandle: string | null;
+  extra: Record<string, any> | null;
+};
+
+function normalizeEvent(payload: Record<string, any> | null): NormalizedEvent {
+  if (!payload) {
+    return {
+      eventName: null,
+      rid: null,
+      ctaType: null,
+      designSlug: null,
+      productHandle: null,
+      extra: null,
+    };
   }
 
-  const windowStart = new Date(Date.now() - DUPLICATE_WINDOW_MS).toISOString();
-  try {
-    const { data, error } = await client
-      .from('track_events')
-      .select('diag_id')
-      .eq('rid', rid)
-      .eq('event_name', eventName)
-      .gte('created_at', windowStart)
-      .limit(1);
+  const eventName =
+    normalizeString(payload.event)
+    || normalizeString(payload.event_name)
+    || normalizeString(payload.eventName);
+  const rid = normalizeString(payload.rid);
+  const designSlug =
+    normalizeString(payload.design_slug)
+    || normalizeString(payload.designSlug);
+  const productHandle =
+    normalizeString(payload.product_handle)
+    || normalizeString(payload.productHandle)
+    || normalizeString(payload.product_handle_slug);
+  let rawCtaType =
+    normalizeString(payload.cta_type)
+    || normalizeString(payload.ctaType)
+    || normalizeString(payload.cta);
 
-    if (error) {
-      throw error;
+  if (!rawCtaType && eventName && eventName.startsWith('cta_click_')) {
+    rawCtaType = eventName.replace('cta_click_', '');
+  }
+
+  const extra: Record<string, any> = {};
+  for (const [key, value] of Object.entries(payload)) {
+    const lowered = key.toLowerCase();
+    if (
+      lowered === 'event'
+      || lowered === 'event_name'
+      || lowered === 'eventname'
+      || lowered === 'rid'
+      || lowered === 'design_slug'
+      || lowered === 'designslug'
+      || lowered === 'cta'
+      || lowered === 'cta_type'
+      || lowered === 'ctatype'
+      || lowered === 'product_handle'
+      || lowered === 'producthandle'
+      || lowered === 'product_handle_slug'
+      || lowered === 'extra'
+    ) {
+      continue;
     }
-
-    return Array.isArray(data) && data.length > 0;
-  } catch (error) {
-    logApiError('track.dedupe_failed', { error });
-    return false;
+    extra[key] = value;
   }
+
+  if (payload.extra) {
+    if (typeof payload.extra === 'string') {
+      try {
+        const parsed = JSON.parse(payload.extra);
+        if (parsed && typeof parsed === 'object') {
+          Object.assign(extra, parsed as Record<string, any>);
+        }
+      } catch {
+        extra.extra = payload.extra;
+      }
+    } else if (typeof payload.extra === 'object') {
+      Object.assign(extra, payload.extra);
+    }
+  }
+
+  const normalizedExtra = Object.keys(extra).length ? extra : null;
+
+  return {
+    eventName,
+    rid,
+    ctaType: rawCtaType,
+    designSlug,
+    productHandle,
+    extra: normalizedExtra,
+  };
 }
 
 function buildInsertPayload(
-  eventName: string,
-  rid: string | null,
-  payload: Record<string, any> | null,
+  normalized: NormalizedEvent,
   req: VercelRequest,
   decision: CorsDecision,
   diagId: string,
 ) {
-  const designSlug = payload ? normalizeString(payload.design_slug) : null;
-  const cta = payload ? normalizeString(payload.cta) : null;
   const userAgent = normalizeString(req.headers['user-agent']);
   const referer = normalizeString(req.headers.referer || req.headers['referrer']);
   const origin = decision.allowed && decision.allowedOrigin ? decision.allowedOrigin : null;
+  const forwarded = req.headers['x-forwarded-for'];
+  const rawIp = Array.isArray(forwarded) ? forwarded[0] : forwarded;
+  const ip = normalizeString(rawIp?.split(',')[0]);
+  const createdAt = new Date(Math.floor(Date.now() / 1000) * 1000).toISOString();
 
   return {
-    event_name: eventName,
-    rid,
-    design_slug: designSlug,
-    cta,
+    event_name: normalized.eventName,
+    rid: normalized.rid,
+    cta_type: normalized.ctaType,
+    design_slug: normalized.designSlug,
+    product_handle: normalized.productHandle,
+    extra: normalized.extra,
     user_agent: userAgent,
     referer,
     origin,
+    ip,
     diag_id: diagId,
-    created_at: new Date().toISOString(),
+    created_at: createdAt,
   };
 }
 
@@ -176,9 +298,17 @@ function respondEcho(
   res.status(200).json({ ok: true, diagId, origin, accepted, event_name: eventName, rid });
 }
 
-function logTrack(diagId: string, payload: Record<string, unknown>) {
+function logTrack(
+  diagId: string,
+  payload: { event_name?: string | null; rid?: string | null; reason?: string } = {},
+) {
   try {
-    console.log('[track]', diagId, payload);
+    const { event_name: eventName = null, rid = null, reason = undefined } = payload;
+    const logPayload: Record<string, unknown> = { diagId, rid, event: eventName };
+    if (reason) {
+      logPayload.reason = reason;
+    }
+    console.log('[track]', logPayload);
   } catch {}
 }
 
@@ -206,8 +336,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader('Access-Control-Allow-Origin', corsDecision.allowedOrigin);
   }
   res.setHeader('Vary', 'Origin');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'content-type, authorization');
+  res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'content-type');
 
   logCors(diagId, corsDecision);
 
@@ -253,9 +383,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const { payload, invalid } = parseBody(req);
-  const eventName = normalizeString(payload?.event_name);
-  const rid = normalizeString(payload?.rid);
+  const { payload, invalid, rawText, contentType } = parseBody(req);
+  const normalized = normalizeEvent(payload);
+  let { eventName, rid } = normalized;
+
+  if (!eventName && typeof rawText === 'string' && rawText.trim()) {
+    const fallback = normalizeString(rawText);
+    if (fallback && ALLOWED_EVENTS.has(fallback)) {
+      eventName = fallback;
+    }
+  }
+
+  if (!eventName && contentType === 'text/plain') {
+    eventName = normalizeString(payload?.event);
+  }
+
+  if (!eventName && payload && typeof payload === 'object') {
+    const eventKey = Object.keys(payload).find((key) => key.toLowerCase() === 'event');
+    if (eventKey) {
+      eventName = normalizeString((payload as Record<string, any>)[eventKey]);
+    }
+  }
+
+  if (!rid && payload && typeof payload === 'object') {
+    const ridKey = Object.keys(payload).find((key) => key.toLowerCase() === 'request_id');
+    if (ridKey) {
+      rid = normalizeString((payload as Record<string, any>)[ridKey]);
+    }
+  }
+
+  normalized.eventName = eventName;
+  normalized.rid = rid;
 
   if (invalid || !payload) {
     logTrack(diagId, {
@@ -301,31 +459,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const duplicate = await isDuplicateEvent(client, rid, eventName);
-  if (duplicate) {
-    logTrack(diagId, {
-      reason: 'dedupe',
-      origin: corsDecision.allowedOrigin,
-      event_name: eventName,
-      rid,
-    });
-    res.status(204).end();
-    return;
-  }
-
-  const insertPayload = buildInsertPayload(eventName, rid, payload, req, corsDecision, diagId);
+  const insertPayload = buildInsertPayload(normalized, req, corsDecision, diagId);
 
   try {
     const { error } = await client.from('track_events').insert(insertPayload);
-    if (error) {
+    if (error && error.code !== '23505') {
       throw error;
     }
-    logTrack(diagId, {
-      reason: 'inserted',
-      origin: corsDecision.allowedOrigin,
-      event_name: eventName,
-      rid,
-    });
+    if (error && error.code === '23505') {
+      logTrack(diagId, {
+        reason: 'duplicate',
+        origin: corsDecision.allowedOrigin,
+        event_name: eventName,
+        rid,
+      });
+    } else {
+      logTrack(diagId, {
+        reason: 'inserted',
+        origin: corsDecision.allowedOrigin,
+        event_name: eventName,
+        rid,
+      });
+    }
   } catch (error) {
     logApiError('track.insert_failed', { diagId, error });
   }
