@@ -16,7 +16,26 @@ export function applyAnalyticsCors(req: VercelRequest): AnalyticsCorsResult {
       ? req.headers.origin
       : undefined;
 
-  const decision = resolveCorsDecision(originHeader, getAllowedOriginsFromEnv());
+  const allowedOrigins = getAllowedOriginsFromEnv();
+  const allowAll = allowedOrigins.length === 0;
+
+  if (allowAll) {
+    const headers: Record<string, string> = {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': ALLOW_METHODS,
+      'Access-Control-Allow-Headers': ALLOW_HEADERS,
+      'Access-Control-Expose-Headers': 'X-Diag-Id',
+      Vary: 'Origin',
+    };
+
+    return {
+      origin: '*',
+      headers,
+      isAllowed: true,
+    };
+  }
+
+  const decision = resolveCorsDecision(originHeader, allowedOrigins);
 
   const resolvedOrigin = decision.allowed
     ? decision.allowedOrigin ?? decision.requestedOrigin
