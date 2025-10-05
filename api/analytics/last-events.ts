@@ -33,52 +33,75 @@ function parseLimit(value: string | string[] | undefined): number {
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const diagId = createDiagId();
   res.setHeader('X-Diag-Id', diagId);
-  const { decision } = applyAnalyticsCors(req, res);
+  const { origin, headers, isAllowed } = applyAnalyticsCors(req);
 
   if (req.method === 'OPTIONS') {
-    if (!decision.allowed) {
-      res.status(403).json({ ok: false, error: 'origin_not_allowed', diagId });
-      return;
-    }
-    res.status(204).end();
-    return;
+    return sendResponse(
+      res,
+      new Response(null, { status: isAllowed ? 204 : 403, headers }),
+    );
   }
 
   if (req.method !== 'GET') {
-    res.status(405).json({ ok: false, error: 'method_not_allowed', diagId });
-    return;
+    return sendResponse(
+      res,
+      Response.json(
+        { ok: false, error: 'method_not_allowed', diagId },
+        { status: 405, headers },
+      ),
+    );
   }
 
-  if (!decision.allowed) {
-    res.status(403).json({ ok: false, error: 'origin_not_allowed', diagId });
-    return;
+  if (!isAllowed) {
+    return sendResponse(
+      res,
+      Response.json(
+        { ok: false, error: 'forbidden_origin', diagId },
+        { status: 403, headers },
+      ),
+    );
   }
-
-  const expectedToken = process.env.ADMIN_ANALYTICS_TOKEN;
-  if (!expectedToken) {
-    res.status(200).json({ ok: false, error: 'missing_env', diagId });
-    return;
-  }
-
-  const rawToken = req.headers['x-admin-token'];
-  const providedToken = Array.isArray(rawToken) ? rawToken[0] : rawToken;
-  if (!providedToken || providedToken !== expectedToken) {
-    res.status(401).json({ ok: false, error: 'unauthorized', diagId });
-    return;
-  }
-
-  let supabase: SupabaseClient;
-  try {
-    supabase = getSupabaseAdmin();
-  } catch (error) {
-    logApiError('analytics-last-events', { diagId, step: 'init_supabase', error });
-    res.status(200).json({ ok: false, error: 'missing_env', diagId });
-    return;
-  }
-
-  const limit = parseLimit(req.query?.limit);
 
   try {
+    const expectedToken = process.env.ADMIN_ANALYTICS_TOKEN;
+    if (!expectedToken) {
+      return sendResponse(
+        res,
+        Response.json(
+          { ok: false, error: 'missing_env', diagId },
+          { status: 200, headers },
+        ),
+      );
+    }
+
+    const rawToken = req.headers['x-admin-token'];
+    const providedToken = Array.isArray(rawToken) ? rawToken[0] : rawToken;
+    if (!providedToken || providedToken !== expectedToken) {
+      return sendResponse(
+        res,
+        Response.json(
+          { ok: false, error: 'unauthorized', diagId },
+          { status: 401, headers },
+        ),
+      );
+    }
+
+    let supabase: SupabaseClient;
+    try {
+      supabase = getSupabaseAdmin();
+    } catch (error) {
+      logApiError('analytics-last-events', { diagId, step: 'init_supabase', error });
+      return sendResponse(
+        res,
+        Response.json(
+          { ok: false, error: 'missing_env', diagId },
+          { status: 200, headers },
+        ),
+      );
+    }
+
+    const limit = parseLimit(req.query?.limit);
+
     const { data, error } = await supabase
       .from('track_events')
       .select('rid, event_name, origin, created_at')
@@ -86,13 +109,52 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .limit(limit);
 
     if (error) {
-      throw error;
+      const queryError =
+        error instanceof Error
+          ? Object.assign(error, { step: 'fetch' as const })
+          : Object.assign(new Error(JSON.stringify(error)), { step: 'fetch' as const });
+      throw queryError;
     }
 
     const events = Array.isArray(data) ? (data as LastEventRow[]) : [];
-    res.status(200).json({ ok: true, diagId, events });
+    console.log('[analytics-last-events]', { diagId, origin });
+
+    return sendResponse(
+      res,
+      Response.json(
+        { ok: true, diagId, events },
+        { status: 200, headers },
+      ),
+    );
   } catch (error) {
-    logApiError('analytics-last-events', { diagId, step: 'fetch', error });
-    res.status(200).json({ ok: false, error: 'query_failed', diagId });
+    const step =
+      typeof error === 'object' && error && 'step' in error
+        ? String((error as { step: string }).step)
+        : 'unhandled';
+    logApiError('analytics-last-events', { diagId, step, error });
+    return sendResponse(
+      res,
+      Response.json(
+        { ok: false, error: String(error), diagId },
+        { status: 500, headers },
+      ),
+    );
+  }
+}
+
+async function sendResponse(res: VercelResponse, response: Response) {
+  res.status(response.status);
+  response.headers.forEach((value, key) => {
+    res.setHeader(key, value);
+  });
+  if (response.status === 204) {
+    res.end();
+    return;
+  }
+  const body = await response.text();
+  if (body.length > 0) {
+    res.send(body);
+  } else {
+    res.end();
   }
 }
