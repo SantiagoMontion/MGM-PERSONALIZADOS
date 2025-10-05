@@ -2,7 +2,7 @@ import type { VercelRequest } from '@vercel/node';
 import { getAllowedOriginsFromEnv, resolveCorsDecision } from '../../_lib/cors.ts';
 
 const ALLOW_METHODS = 'GET,OPTIONS';
-const ALLOW_HEADERS = 'X-Admin-Token, Content-Type';
+const ALLOW_HEADERS = 'X-Admin-Token, Content-Type, Accept';
 
 export type AnalyticsCorsResult = {
   origin: string | null;
@@ -27,6 +27,7 @@ export function applyAnalyticsCors(req: VercelRequest): AnalyticsCorsResult {
     'Access-Control-Allow-Origin': origin ?? 'null',
     'Access-Control-Allow-Methods': ALLOW_METHODS,
     'Access-Control-Allow-Headers': ALLOW_HEADERS,
+    'Access-Control-Expose-Headers': 'X-Diag-Id',
     Vary: 'Origin',
   };
 
