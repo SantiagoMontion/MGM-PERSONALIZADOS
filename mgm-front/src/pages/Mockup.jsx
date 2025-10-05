@@ -14,7 +14,7 @@ import {
   pickCommerceTarget,
 } from '@/lib/shopify.ts';
 import logger from '../lib/logger';
-import { trackEvent } from '@/lib/tracking';
+import { ensureTrackingRid, trackEvent } from '@/lib/tracking';
 
 /** NUEVO: imagen de la sección (reemplazá el path por el tuyo) */
 const TESTIMONIAL_ICONS = [
@@ -86,31 +86,6 @@ const BENEFITS = [
   },
 ];
 
-function generateRidSuffix(length = 12) {
-  const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
-  const targetLength = Number.isFinite(length) && length > 0 ? Math.floor(length) : 12;
-  let output = '';
-  const cryptoObj =
-    typeof window !== 'undefined'
-    && window.crypto
-    && typeof window.crypto.getRandomValues === 'function'
-      ? window.crypto
-      : null;
-  if (cryptoObj) {
-    const buffer = new Uint32Array(targetLength);
-    cryptoObj.getRandomValues(buffer);
-    for (const value of buffer) {
-      output += alphabet[value % alphabet.length];
-    }
-    return output;
-  }
-  for (let i = 0; i < targetLength; i += 1) {
-    const index = Math.floor(Math.random() * alphabet.length);
-    output += alphabet[index];
-  }
-  return output;
-}
-
 export default function Mockup() {
   const flow = useFlow();
   const navigate = useNavigate();
@@ -177,7 +152,7 @@ export default function Mockup() {
       flow?.editorState?.job?.diag_id,
       flow?.editorState?.job?.request_id,
     )
-    || (typeof window !== 'undefined' ? ensureRid() : undefined);
+    || (typeof window !== 'undefined' ? ensureTrackingRid() ?? undefined : undefined);
 
   const designSlug = pickFirstString(
     flow?.editorState?.design?.slug,
@@ -199,43 +174,6 @@ export default function Mockup() {
 
   const mockupUrl = flow.mockupUrl;
 
-  function ensureRid() {
-    if (typeof window === 'undefined') {
-      return null;
-    }
-
-    const globalRid = typeof window.__RID === 'string' ? window.__RID.trim() : '';
-    if (globalRid) {
-      return globalRid;
-    }
-
-    let storedRid = '';
-    try {
-      if (window.localStorage) {
-        storedRid = window.localStorage.getItem('rid') || '';
-      }
-    } catch (storageErr) {
-      logger.warn('[mockup-rid-storage-read]', storageErr);
-    }
-    const normalizedStored = typeof storedRid === 'string' ? storedRid.trim() : '';
-    if (normalizedStored) {
-      window.__RID = normalizedStored;
-      return normalizedStored;
-    }
-
-    const suffixLength = 12 + Math.floor(Math.random() * 5);
-    const generated = `mgad${generateRidSuffix(suffixLength)}`;
-    window.__RID = generated;
-    try {
-      if (window.localStorage) {
-        window.localStorage.setItem('rid', generated);
-      }
-    } catch (storageErr) {
-      logger.warn('[mockup-rid-storage-write]', storageErr);
-    }
-    return generated;
-  }
-
   function debugTrackFire(eventName, ridValue) {
     if (typeof window === 'undefined') return;
     if ((window).__TRACK_DEBUG__ === true) {
@@ -245,7 +183,7 @@ export default function Mockup() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const resolvedRid = ensureRid();
+    const resolvedRid = ensureTrackingRid();
     if (!resolvedRid) return;
 
     let storedFlag = '';
@@ -264,6 +202,7 @@ export default function Mockup() {
     trackEvent('mockup_view', {
       rid: resolvedRid,
       design_slug: designSlug,
+      product_handle: lastProduct?.productHandle,
     });
     try {
       if (window.sessionStorage) {
@@ -276,7 +215,7 @@ export default function Mockup() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const resolvedRid = ensureRid() || rid;
+    const resolvedRid = ensureTrackingRid() || rid;
     if (!resolvedRid) return;
 
     const purchaseOptionsVisible = Boolean(mockupUrl);
@@ -301,6 +240,7 @@ export default function Mockup() {
     trackEvent('view_purchase_options', {
       rid: resolvedRid,
       design_slug: designSlug,
+      product_handle: lastProduct?.productHandle,
     });
     try {
       if (window.sessionStorage) {
@@ -949,7 +889,7 @@ export default function Mockup() {
           if (missingApiUrl) {
             const err = new Error('private_checkout_missing_api_url');
             err.reason = 'private_checkout_missing_api_url';
-            err.friendlyMessage = 'Configurá VITE_API_URL para conectar con la API.';
+            err.friendlyMessage = 'Configurá VITE_API_BASE para conectar con la API.';
             throw err;
           }
           const err = new Error('private_checkout_network_error');
@@ -1346,7 +1286,8 @@ export default function Mockup() {
                   design_slug: designSlug,
                   product_id: lastProductId,
                   variant_id: lastVariantId,
-                  cta: 'cart',
+                  cta_type: 'cart',
+                  product_handle: lastProduct?.productHandle,
                 });
                 handle('cart');
               }}
@@ -1421,7 +1362,8 @@ export default function Mockup() {
               design_slug: designSlug,
               product_id: lastProductId,
               variant_id: lastVariantId,
-              cta: 'private',
+              cta_type: 'private',
+              product_handle: lastProduct?.productHandle,
             });
             handle('private');
           }}
@@ -1526,7 +1468,8 @@ export default function Mockup() {
                     design_slug: designSlug,
                     product_id: lastProductId,
                     variant_id: lastVariantId,
-                    cta: 'public',
+                    cta_type: 'public',
+                    product_handle: lastProduct?.productHandle,
                   });
                   setBuyPromptOpen(false);
                   handle('checkout');
@@ -1545,7 +1488,8 @@ export default function Mockup() {
                     design_slug: designSlug,
                     product_id: lastProductId,
                     variant_id: lastVariantId,
-                    cta: 'private',
+                    cta_type: 'private',
+                    product_handle: lastProduct?.productHandle,
                   });
                   setBuyPromptOpen(false);
                   handle('private');

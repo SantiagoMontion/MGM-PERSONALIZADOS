@@ -691,7 +691,7 @@ export async function createJobAndProduct(
             err.friendlyMessage = 'No pudimos generar el checkout privado, probá de nuevo.';
           }
           if (reason === 'private_checkout_missing_api_url') {
-            err.friendlyMessage = 'Configurá VITE_API_URL para conectar con la API.';
+            err.friendlyMessage = 'Configurá VITE_API_BASE para conectar con la API.';
           }
           if (!err.detail && typeof rawBody === 'string' && rawBody) {
             err.detail = rawBody.slice(0, 200);
