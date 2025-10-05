@@ -1,6 +1,10 @@
 ﻿import logger from './logger';
 
-const RAW_API_URL = typeof import.meta.env.VITE_API_URL === 'string' ? import.meta.env.VITE_API_URL : '';
+const RAW_API_URL = typeof import.meta.env.VITE_API_BASE === 'string'
+  ? import.meta.env.VITE_API_BASE
+  : typeof import.meta.env.VITE_API_URL === 'string'
+    ? import.meta.env.VITE_API_URL
+    : '';
 const USE_PROXY = (import.meta.env.VITE_USE_PROXY || '').trim() === '1';
 const IS_DEV = Boolean(import.meta.env && import.meta.env.DEV);
 
@@ -42,7 +46,7 @@ function resolveRequestUrl(path) {
       hasWarnedAboutFallback = true;
       try {
         logger.warn?.('[api] using_default_base', {
-          message: 'VITE_API_URL not set; defaulting to same-origin.',
+          message: 'VITE_API_BASE not set; defaulting to same-origin.',
         });
       } catch {}
     }

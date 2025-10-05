@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import getSupabaseAdmin from '../../lib/_lib/supabaseAdmin.js';
 import { createDiagId, logApiError } from '../_lib/diag.js';
-import { applyLenientCors } from '../_lib/lenientCors.js';
+import { getAllowedOriginsFromEnv, resolveCorsDecision } from '../_lib/cors.ts';
 
 export const config = { maxDuration: 10 };
 
@@ -33,10 +33,24 @@ function parseLimit(value: string | string[] | undefined): number {
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const diagId = createDiagId();
   res.setHeader('X-Diag-Id', diagId);
-  applyLenientCors(req, res);
+  const originHeader =
+    typeof req.headers.origin === 'string' && req.headers.origin.trim().length > 0
+      ? req.headers.origin
+      : undefined;
+  const decision = resolveCorsDecision(originHeader, getAllowedOriginsFromEnv());
+  const allowOrigin =
+    decision.allowedOrigin ?? decision.requestedOrigin ?? '*';
+
+  if (allowOrigin) {
+    res.setHeader('Access-Control-Allow-Origin', allowOrigin);
+  }
+  res.setHeader('Vary', 'Origin');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Admin-Token, x-admin-token');
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
 
   if (req.method === 'OPTIONS') {
-    res.status(200).end();
+    res.status(204).end();
     return;
   }
 
@@ -45,7 +59,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const expectedToken = process.env.ANALYTICS_ADMIN_TOKEN;
+  const expectedToken = process.env.ADMIN_ANALYTICS_TOKEN;
   if (!expectedToken) {
     res.status(200).json({ ok: false, error: 'missing_env', diagId });
     return;
