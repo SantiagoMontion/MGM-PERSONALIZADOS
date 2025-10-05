@@ -37,7 +37,16 @@ const rawApiBase = typeof import.meta.env.VITE_API_BASE === 'string'
     ? import.meta.env.VITE_API_URL
     : '';
 const sanitizedApiBase = rawApiBase.trim().replace(/\/+$/, '');
-const apiBase = sanitizedApiBase || '/api';
+
+const rawAnalyticsBase = typeof import.meta.env.VITE_ANALYTICS_API_BASE === 'string'
+  ? import.meta.env.VITE_ANALYTICS_API_BASE
+  : sanitizedApiBase
+    ? `${sanitizedApiBase}/analytics`
+    : '/api/analytics';
+const sanitizedAnalyticsBase = rawAnalyticsBase.trim().replace(/\/+$/, '');
+const analyticsApiBase = /\/analytics$/i.test(sanitizedAnalyticsBase)
+  ? sanitizedAnalyticsBase
+  : `${sanitizedAnalyticsBase}/analytics`;
 const adminToken = typeof import.meta.env.VITE_ADMIN_ANALYTICS_TOKEN === 'string'
   ? import.meta.env.VITE_ADMIN_ANALYTICS_TOKEN.trim()
   : '';
@@ -55,9 +64,9 @@ export default function AdminAnalyticsPage() {
   const [lastEventsError, setLastEventsError] = useState('');
   const [isLastEventsLoading, setIsLastEventsLoading] = useState(false);
 
-  const analyticsEndpoint = useMemo(() => `${apiBase}/analytics/flows`, []);
-  const funnelEndpoint = useMemo(() => `${apiBase}/analytics/funnel`, []);
-  const lastEventsEndpoint = useMemo(() => `${apiBase}/analytics/last-events`, []);
+  const analyticsEndpoint = useMemo(() => `${analyticsApiBase}/flows`, [analyticsApiBase]);
+  const funnelEndpoint = useMemo(() => `${analyticsApiBase}/funnel`, [analyticsApiBase]);
+  const lastEventsEndpoint = useMemo(() => `${analyticsApiBase}/last-events`, [analyticsApiBase]);
 
   const buildWindowRange = useCallback(() => {
     const now = new Date();
