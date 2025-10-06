@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import getSupabaseAdmin from '../../lib/_lib/supabaseAdmin.js';
 import { createDiagId, logApiError } from '../_lib/diag.js';
-import { applyAnalyticsCors } from './_lib/cors.ts';
+import { getAllowedOriginsFromEnv, resolveCorsDecision } from '../_lib/cors.ts';
 
 export const config = { maxDuration: 10 };
 
@@ -31,41 +31,61 @@ function parseLimit(value: string | string[] | undefined): number {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const diagId = createDiagId();
-  res.setHeader('X-Diag-Id', diagId);
-  const { origin, headers, isAllowed } = applyAnalyticsCors(req);
-
-  for (const [key, value] of Object.entries(headers)) {
-    if (typeof value === 'string') {
-      res.setHeader(key, value);
-    }
-  }
+  const headersWithGet = req.headers as VercelRequest['headers'] & {
+    get?: (name: string) => string | null;
+  };
+  const originHeader =
+    headersWithGet.get?.('origin') ??
+    (Array.isArray(headersWithGet.origin) ? headersWithGet.origin[0] : headersWithGet.origin);
+  const origin = originHeader ?? '*';
+  const baseHeaders: Record<string, string> = {
+    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Methods': 'GET,OPTIONS',
+    'Access-Control-Allow-Headers': 'X-Admin-Token, Content-Type',
+    'Access-Control-Expose-Headers': 'X-Diag-Id',
+    Vary: 'Origin',
+  };
 
   if (req.method === 'OPTIONS') {
-    return sendResponse(
-      res,
-      new Response(null, { status: isAllowed ? 204 : 403, headers }),
-    );
+    for (const [key, value] of Object.entries(baseHeaders)) {
+      res.setHeader(key, value);
+    }
+    res.status(204).end();
+    return;
   }
+
+  const diagId = createDiagId();
+  res.setHeader('X-Diag-Id', diagId);
 
   if (req.method !== 'GET') {
     return sendResponse(
       res,
       Response.json(
         { ok: false, error: 'method_not_allowed', diagId },
-        { status: 405, headers },
+        { status: 405, headers: baseHeaders },
       ),
     );
   }
+
+  const allowList = getAllowedOriginsFromEnv();
+  const allowAll = allowList.length === 0;
+  const decision = allowAll
+    ? null
+    : resolveCorsDecision(typeof originHeader === 'string' ? originHeader : undefined, allowList);
+  const isAllowed = allowAll || Boolean(decision?.allowed);
 
   if (!isAllowed) {
     return sendResponse(
       res,
       Response.json(
         { ok: false, error: 'forbidden_origin', diagId },
-        { status: 403, headers },
+        { status: 403, headers: baseHeaders },
       ),
     );
+  }
+
+  for (const [key, value] of Object.entries(baseHeaders)) {
+    res.setHeader(key, value);
   }
 
   try {
@@ -75,7 +95,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         res,
         Response.json(
           { ok: false, error: 'missing_env', diagId },
-          { status: 200, headers },
+          { status: 200, headers: baseHeaders },
         ),
       );
     }
@@ -87,7 +107,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         res,
         Response.json(
           { ok: false, error: 'unauthorized', diagId },
-          { status: 401, headers },
+          { status: 401, headers: baseHeaders },
         ),
       );
     }
@@ -101,7 +121,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         res,
         Response.json(
           { ok: false, error: 'missing_env', diagId },
-          { status: 200, headers },
+          { status: 200, headers: baseHeaders },
         ),
       );
     }
@@ -129,7 +149,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       res,
       Response.json(
         { ok: true, diagId, events },
-        { status: 200, headers },
+        { status: 200, headers: baseHeaders },
       ),
     );
   } catch (error) {
@@ -142,7 +162,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       res,
       Response.json(
         { ok: false, error: String(error), diagId },
-        { status: 500, headers },
+        { status: 500, headers: baseHeaders },
       ),
     );
   }
