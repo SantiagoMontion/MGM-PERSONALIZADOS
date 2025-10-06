@@ -58,9 +58,13 @@ const MODERATION_REASON_MESSAGES = {
   blocked: 'Bloqueado por moderación.',
 };
 
-const MOD_PREVIEW_THRESHOLD_BYTES = 3_500_000;
-const MOD_PREVIEW_MAX_DIMENSION = 2048;
-const MOD_PREVIEW_QUALITY = 0.9;
+const MOD_PREVIEW_LIMIT_BYTES = 2_000_000;
+const MOD_PREVIEW_THRESHOLD_BYTES = 2_000_000;
+const MOD_PREVIEW_DEFAULT_MAX_DIMENSION = null;
+const MOD_PREVIEW_DEFAULT_QUALITY = 0.9;
+const MOD_PREVIEW_FALLBACK_FORMATS = ['image/jpeg'];
+const MOD_PREVIEW_RETRY_QUALITIES = [0.8, 0.7, 0.6];
+const MOD_PREVIEW_RETRY_DIMENSIONS = [2560, 2048];
 
 function moderationReasonMessage(reason) {
   if (typeof reason === 'string' && MODERATION_REASON_MESSAGES[reason]) {
@@ -89,14 +93,24 @@ async function blobToDataUrl(blob) {
   });
 }
 
-async function createPreviewFromImage(image) {
+async function createPreviewFromImage(image, options = {}) {
   const width = image?.naturalWidth || image?.width || 0;
   const height = image?.naturalHeight || image?.height || 0;
   if (!width || !height) {
     throw new Error('La imagen no tiene dimensiones válidas.');
   }
+  const {
+    maxDimension = MOD_PREVIEW_DEFAULT_MAX_DIMENSION,
+    quality = MOD_PREVIEW_DEFAULT_QUALITY,
+    format = 'image/webp',
+    fallbackFormats = MOD_PREVIEW_FALLBACK_FORMATS,
+  } = options || {};
+
   const largest = Math.max(width, height);
-  const scale = largest > MOD_PREVIEW_MAX_DIMENSION ? MOD_PREVIEW_MAX_DIMENSION / largest : 1;
+  const appliedMaxDimension = typeof maxDimension === 'number' && maxDimension > 0
+    ? Math.min(maxDimension, largest)
+    : largest;
+  const scale = largest > 0 ? Math.min(1, appliedMaxDimension / largest) : 1;
   const targetWidth = Math.max(1, Math.round(width * scale));
   const targetHeight = Math.max(1, Math.round(height * scale));
   const canvas = document.createElement('canvas');
@@ -110,17 +124,30 @@ async function createPreviewFromImage(image) {
   }
   ctx.drawImage(image, 0, 0, targetWidth, targetHeight);
 
-  const toBlob = type => new Promise(resolve => {
+  const formatCandidates = [];
+  if (typeof format === 'string' && format) {
+    formatCandidates.push(format);
+  }
+  if (Array.isArray(fallbackFormats)) {
+    for (const candidate of fallbackFormats) {
+      if (typeof candidate === 'string' && candidate && !formatCandidates.includes(candidate)) {
+        formatCandidates.push(candidate);
+      }
+    }
+  }
+
+  const toBlob = (type) => new Promise((resolve) => {
     try {
-      canvas.toBlob(resolve, type, MOD_PREVIEW_QUALITY);
+      canvas.toBlob(resolve, type, quality);
     } catch (err) {
       resolve(null);
     }
   });
 
-  let blob = await toBlob('image/webp');
-  if (!blob) {
-    blob = await toBlob('image/jpeg');
+  let blob = null;
+  for (const candidate of formatCandidates) {
+    blob = await toBlob(candidate);
+    if (blob) break;
   }
   if (!blob) {
     canvas.width = 0;
@@ -138,6 +165,12 @@ async function createPreviewFromImage(image) {
     mime: blob.type || 'image/webp',
     width: targetWidth,
     height: targetHeight,
+    bytes: blob.size,
+    options: {
+      format: blob.type || formatCandidates[0] || 'image/webp',
+      quality,
+      maxDimension: appliedMaxDimension,
+    },
   };
 }
 
@@ -196,6 +229,7 @@ export default function Home() {
   const ackCheckboxRef = useRef(null);
   const ackLowErrorDescriptionId = useId();
   const [err, setErr] = useState('');
+  const [moderationNotice, setModerationNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const navigate = useNavigate();
   const canvasRef = useRef(null);
@@ -221,6 +255,7 @@ export default function Home() {
     setDesignNameError('');
     setAckLow(false);
     setErr('');
+    setModerationNotice('');
     setPriceAmount(0);
   }, []);
 
@@ -393,6 +428,7 @@ export default function Home() {
       return;
     }
     try {
+      setModerationNotice('');
       setBusy(true);
       const master = canvasRef.current.exportPadDataURL?.(2);
       if (!master) {
@@ -436,52 +472,149 @@ export default function Home() {
         designName: trimmedDesignName,
         lowQualityAck: level === 'bad' ? Boolean(ackLow) : false,
         approxDpi: effDpi || undefined,
+        rid: ridCandidate || undefined,
+      };
+      const defaultPreviewOptions = {
+        maxDimension: MOD_PREVIEW_DEFAULT_MAX_DIMENSION,
+        quality: MOD_PREVIEW_DEFAULT_QUALITY,
+        format: 'image/webp',
+        fallbackFormats: MOD_PREVIEW_FALLBACK_FORMATS,
       };
 
-      let cachedPreviewPromise = null;
-      const ensurePreview = () => {
-        if (!cachedPreviewPromise) {
-          cachedPreviewPromise = (async () => {
+      const previewCache = new Map();
+      const ensurePreview = (options = defaultPreviewOptions) => {
+        const key = JSON.stringify({
+          maxDimension: options?.maxDimension ?? null,
+          quality: options?.quality ?? null,
+          format: options?.format || 'image/webp',
+          fallback: Array.isArray(options?.fallbackFormats) ? options.fallbackFormats : [],
+        });
+        if (!previewCache.has(key)) {
+          const promise = (async () => {
             const image = await masterImagePromise;
-            return createPreviewFromImage(image);
-          })().catch(err => {
-            cachedPreviewPromise = null;
+            return createPreviewFromImage(image, options);
+          })().catch((err) => {
+            previewCache.delete(key);
             throw err;
           });
+          previewCache.set(key, promise);
         }
-        return cachedPreviewPromise;
+        return previewCache.get(key);
       };
 
-      const sendModerationRequest = async (usePreview) => {
-        if (usePreview) {
-          const preview = await ensurePreview();
-          return postJSON(
-            getResolvedApiUrl('/api/moderate-image?preview=1&debug=1'),
-            { ...baseModerationPayload, imageBase64: preview.base64 },
-            60000,
-            { headers: { 'X-Preview': '1' } },
-          );
-        }
+      const sendPreviewModerationRequest = async (preview) => {
         return postJSON(
-          getResolvedApiUrl('/api/moderate-image?debug=1'),
-          { ...baseModerationPayload, dataUrl: master },
+          getResolvedApiUrl('/api/moderate-image?preview=1&debug=1'),
+          { ...baseModerationPayload, imageBase64: preview.base64 },
           60000,
+          { headers: { 'X-Preview': '1' } },
         );
       };
+
+      const sendOriginalModerationRequest = () => postJSON(
+        getResolvedApiUrl('/api/moderate-image?debug=1'),
+        { ...baseModerationPayload, dataUrl: master },
+        60000,
+      );
 
       const uploadedSize = uploaded?.file?.size || 0;
       const usePreviewFirst = uploadedSize > MOD_PREVIEW_THRESHOLD_BYTES;
 
+      const performPreviewFallback = async (limitHint) => {
+        let previewLimit = Number(limitHint) || MOD_PREVIEW_LIMIT_BYTES;
+        if (!Number.isFinite(previewLimit) || previewLimit <= 0) {
+          previewLimit = MOD_PREVIEW_LIMIT_BYTES;
+        }
+        let lastError = null;
+        let adjustmentsMade = true;
+        let previewAttempts = 0;
+
+        const trySend = async (options) => {
+          const preview = await ensurePreview(options);
+          if (previewLimit && Number.isFinite(previewLimit) && preview.bytes > previewLimit) {
+            adjustmentsMade = true;
+            return null;
+          }
+          if (previewAttempts >= 2) {
+            return null;
+          }
+          previewAttempts += 1;
+          try {
+            const response = await sendPreviewModerationRequest(preview);
+            if (adjustmentsMade) {
+              setModerationNotice('Tu imagen es grande, ajustamos la vista previa; el archivo original se mantiene intacto.');
+            }
+            return response;
+          } catch (err) {
+            if (err?.status === 413) {
+              adjustmentsMade = true;
+              lastError = err;
+              const nextLimit = Number(err?.json?.limitBytes ?? err?.json?.limit ?? err?.json?.limit_bytes);
+              if (Number.isFinite(nextLimit) && nextLimit > 0) {
+                previewLimit = nextLimit;
+              }
+              return null;
+            }
+            throw err;
+          }
+        };
+
+        const qualityOptions = MOD_PREVIEW_RETRY_QUALITIES.map((quality) => ({
+          maxDimension: MOD_PREVIEW_DEFAULT_MAX_DIMENSION,
+          quality,
+          format: 'image/jpeg',
+          fallbackFormats: ['image/jpeg'],
+        }));
+        const dimensionOptions = MOD_PREVIEW_RETRY_DIMENSIONS.map((maxDimension) => ({
+          maxDimension,
+          quality: 0.6,
+          format: 'image/jpeg',
+          fallbackFormats: ['image/jpeg'],
+        }));
+
+        for (const options of [...qualityOptions, ...dimensionOptions]) {
+          const response = await trySend(options);
+          if (response) {
+            return response;
+          }
+        }
+
+        if (lastError) {
+          throw lastError;
+        }
+        throw new Error('preview_optimization_failed');
+      };
+
       let moderationResponse;
       try {
         if (usePreviewFirst) {
-          moderationResponse = await sendModerationRequest(true);
+          try {
+            const preview = await ensurePreview(defaultPreviewOptions);
+            moderationResponse = await sendPreviewModerationRequest(preview);
+          } catch (previewErr) {
+            if (previewErr?.status === 413) {
+              const limitHint = previewErr?.json?.limitBytes ?? previewErr?.json?.limit ?? previewErr?.json?.limit_bytes;
+              moderationResponse = await performPreviewFallback(limitHint);
+            } else {
+              throw previewErr;
+            }
+          }
         } else {
           try {
-            moderationResponse = await sendModerationRequest(false);
+            moderationResponse = await sendOriginalModerationRequest();
           } catch (moderationErr) {
             if (moderationErr?.status === 413) {
-              moderationResponse = await sendModerationRequest(true);
+              const preview = await ensurePreview(defaultPreviewOptions);
+              try {
+                moderationResponse = await sendPreviewModerationRequest(preview);
+              } catch (previewErr) {
+                if (previewErr?.status === 413) {
+                  const limitHint = previewErr?.json?.limitBytes ?? previewErr?.json?.limit ?? previewErr?.json?.limit_bytes;
+                  moderationResponse = await performPreviewFallback(limitHint);
+                } else {
+                  throw previewErr;
+                }
+              }
             } else {
               throw moderationErr;
             }
@@ -1234,6 +1367,11 @@ export default function Home() {
                 >
                   Continuar
                 </button>
+              )}
+              {moderationNotice && (
+                <div className={styles.canvasFeedback}>
+                  <p className={styles.infoMessage} role="status">{moderationNotice}</p>
+                </div>
               )}
               {err && (
                 <div className={styles.canvasFeedback}>

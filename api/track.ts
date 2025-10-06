@@ -341,7 +341,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
   res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'content-type');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'Content-Type, Authorization, X-Preview, X-Debug, X-Requested-With',
+  );
 
   logCors(diagId, corsDecision);
 

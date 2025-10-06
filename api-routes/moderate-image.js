@@ -14,3 +14,10 @@ export default function handler(req, res) {
   }
   return postHandler(req, res);
 }
+
+export const config = {
+  api: {
+    bodyParser: false,
+    sizeLimit: '8mb',
+  },
+};
