@@ -58,6 +58,10 @@ const MODERATION_REASON_MESSAGES = {
   blocked: 'Bloqueado por moderación.',
 };
 
+const MOD_PREVIEW_THRESHOLD_BYTES = 3_500_000;
+const MOD_PREVIEW_MAX_DIMENSION = 2048;
+const MOD_PREVIEW_QUALITY = 0.9;
+
 function moderationReasonMessage(reason) {
   if (typeof reason === 'string' && MODERATION_REASON_MESSAGES[reason]) {
     return MODERATION_REASON_MESSAGES[reason];
@@ -66,6 +70,75 @@ function moderationReasonMessage(reason) {
     return `Bloqueado por moderación (código: ${reason}).`;
   }
   return 'Bloqueado por moderación.';
+}
+
+async function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result);
+      } else {
+        reject(new Error('No se pudo leer el blob.'));
+      }
+    };
+    reader.onerror = () => {
+      reject(reader.error || new Error('Error leyendo el blob.'));
+    };
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function createPreviewFromImage(image) {
+  const width = image?.naturalWidth || image?.width || 0;
+  const height = image?.naturalHeight || image?.height || 0;
+  if (!width || !height) {
+    throw new Error('La imagen no tiene dimensiones válidas.');
+  }
+  const largest = Math.max(width, height);
+  const scale = largest > MOD_PREVIEW_MAX_DIMENSION ? MOD_PREVIEW_MAX_DIMENSION / largest : 1;
+  const targetWidth = Math.max(1, Math.round(width * scale));
+  const targetHeight = Math.max(1, Math.round(height * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    canvas.width = 0;
+    canvas.height = 0;
+    throw new Error('No se pudo crear el contexto para la previsualización.');
+  }
+  ctx.drawImage(image, 0, 0, targetWidth, targetHeight);
+
+  const toBlob = type => new Promise(resolve => {
+    try {
+      canvas.toBlob(resolve, type, MOD_PREVIEW_QUALITY);
+    } catch (err) {
+      resolve(null);
+    }
+  });
+
+  let blob = await toBlob('image/webp');
+  if (!blob) {
+    blob = await toBlob('image/jpeg');
+  }
+  if (!blob) {
+    canvas.width = 0;
+    canvas.height = 0;
+    throw new Error('No se pudo generar la previsualización.');
+  }
+  const dataUrl = await blobToDataUrl(blob);
+  canvas.width = 0;
+  canvas.height = 0;
+  const base64 = dataUrl.includes(',') ? dataUrl.split(',')[1] : '';
+  return {
+    blob,
+    base64,
+    dataUrl,
+    mime: blob.type || 'image/webp',
+    width: targetWidth,
+    height: targetHeight,
+  };
 }
 
 
@@ -351,20 +424,69 @@ export default function Home() {
         logger.error('[continue] nudity scan failed', scanErr?.message || scanErr);
       }
 
-      const moderationPayload = {
-        dataUrl: master,
+      const masterImagePromise = (async () => {
+        const img = new Image();
+        img.src = master;
+        await img.decode();
+        return img;
+      })();
+
+      const baseModerationPayload = {
         filename: uploaded?.file?.name || 'image.png',
         designName: trimmedDesignName,
         lowQualityAck: level === 'bad' ? Boolean(ackLow) : false,
         approxDpi: effDpi || undefined,
       };
-      let moderationResponse;
-      try {
-        moderationResponse = await postJSON(
+
+      let cachedPreviewPromise = null;
+      const ensurePreview = () => {
+        if (!cachedPreviewPromise) {
+          cachedPreviewPromise = (async () => {
+            const image = await masterImagePromise;
+            return createPreviewFromImage(image);
+          })().catch(err => {
+            cachedPreviewPromise = null;
+            throw err;
+          });
+        }
+        return cachedPreviewPromise;
+      };
+
+      const sendModerationRequest = async (usePreview) => {
+        if (usePreview) {
+          const preview = await ensurePreview();
+          return postJSON(
+            getResolvedApiUrl('/api/moderate-image?preview=1&debug=1'),
+            { ...baseModerationPayload, imageBase64: preview.base64 },
+            60000,
+            { headers: { 'X-Preview': '1' } },
+          );
+        }
+        return postJSON(
           getResolvedApiUrl('/api/moderate-image?debug=1'),
-          moderationPayload,
+          { ...baseModerationPayload, dataUrl: master },
           60000,
         );
+      };
+
+      const uploadedSize = uploaded?.file?.size || 0;
+      const usePreviewFirst = uploadedSize > MOD_PREVIEW_THRESHOLD_BYTES;
+
+      let moderationResponse;
+      try {
+        if (usePreviewFirst) {
+          moderationResponse = await sendModerationRequest(true);
+        } else {
+          try {
+            moderationResponse = await sendModerationRequest(false);
+          } catch (moderationErr) {
+            if (moderationErr?.status === 413) {
+              moderationResponse = await sendModerationRequest(true);
+            } else {
+              throw moderationErr;
+            }
+          }
+        }
       } catch (moderationErr) {
         console.error('moderate-image failed', moderationErr);
         setErr('No se pudo validar la imagen. Intentá nuevamente.');
@@ -376,9 +498,7 @@ export default function Home() {
         return;
       }
 
-      const img = new Image();
-      img.src = master;
-      await img.decode();
+      const img = await masterImagePromise;
       const blob = await renderMockup1080({
         productType: material === 'Glasspad' ? 'glasspad' : 'mousepad',
         image: img,

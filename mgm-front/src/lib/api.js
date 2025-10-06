@@ -90,16 +90,26 @@ export function apiFetch(methodOrPath, maybePathOrInit, maybeBody, maybeInitOver
   return fetch(url, maybePathOrInit);
 }
 
-export async function postJSON(url, data, timeoutMs = 60000) {
+export async function postJSON(url, data, timeoutMs = 60000, initOverrides = {}) {
   const ctrl = new AbortController();
   const id = setTimeout(() => ctrl.abort(), timeoutMs);
 
   try {
+    const {
+      headers: overrideHeaders = {},
+      signal: _ignoredSignal,
+      ...restInit
+    } = initOverrides || {};
+    const headers = {
+      'Content-Type': 'application/json',
+      ...overrideHeaders,
+    };
     const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify(data ?? {}),
       signal: ctrl.signal,
+      ...restInit,
     });
 
     const text = await res.text();
@@ -109,7 +119,11 @@ export async function postJSON(url, data, timeoutMs = 60000) {
     if (!res.ok) {
       const message = typeof json?.error === 'string' && json.error ? json.error : text;
       const formatted = `HTTP ${res.status}${message ? ` ${message}` : ''}`.trim();
-      throw new Error(formatted);
+      const error = new Error(formatted);
+      error.status = res.status;
+      error.bodyText = text;
+      error.json = json;
+      throw error;
     }
     return json ?? { ok: true };
   } catch (err) {
