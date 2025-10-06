@@ -351,9 +351,20 @@ export default function Busqueda() {
                   const key = item.id || item.path || item.fileName;
                   const measurement = formatMeasurement(item.widthCm, item.heightCm);
                   const filename = item.name || item.fileName || 'archivo.pdf';
-                  const downloadHref = item.publicUrl
-                    ? buildDownloadUrl(item.publicUrl, filename)
-                    : '';
+                  const rawDownloadUrl = item.downloadUrl || item.url || item.publicUrl || '';
+                  let downloadHref = '';
+                  if (rawDownloadUrl) {
+                    try {
+                      downloadHref = buildDownloadUrl(rawDownloadUrl, filename);
+                    } catch (error) {
+                      if (import.meta.env?.DEV && typeof console !== 'undefined') {
+                        console.warn('[prints] invalid download URL', {
+                          error,
+                          rawDownloadUrl,
+                        });
+                      }
+                    }
+                  }
                   if (import.meta.env?.DEV && typeof console !== 'undefined') {
                     console.debug('[prints] preview', {
                       name: item.fileName || item.name,
