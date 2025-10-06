@@ -298,6 +298,10 @@ function respondEcho(
   res.status(200).json({ ok: true, diagId, origin, accepted, event_name: eventName, rid });
 }
 
+function respondIgnored(res: VercelResponse) {
+  res.status(204).json({ ok: true, ignored: true });
+}
+
 function logTrack(
   diagId: string,
   payload: { event_name?: string | null; rid?: string | null; reason?: string } = {},
@@ -337,7 +341,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
   res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'content-type');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'Content-Type, Authorization, X-Preview, X-Debug, X-Requested-With',
+  );
 
   logCors(diagId, corsDecision);
 
@@ -355,135 +362,166 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const echoMode = String(req.query?.echo ?? '') === '1';
+  const processRequest = async () => {
+    const echoMode = String(req.query?.echo ?? '') === '1';
 
-  if (!corsDecision.allowed || !corsDecision.allowedOrigin) {
-    logTrack(diagId, {
-      reason: 'cors_denied',
-      origin: corsDecision.requestedOrigin,
-    });
-    if (echoMode) {
-      respondEcho(res, diagId, corsDecision, false, null, null);
-    } else {
-      res.status(204).end();
-    }
-    return;
-  }
+    const respondIgnoredOrEcho = (
+      accepted: boolean,
+      eventNameValue: string | null,
+      ridValue: string | null,
+    ) => {
+      if (echoMode) {
+        respondEcho(res, diagId, corsDecision, accepted, eventNameValue, ridValue);
+      } else {
+        respondIgnored(res);
+      }
+    };
 
-  if (process.env.TRACKING_ENABLED === '0') {
-    logTrack(diagId, {
-      reason: 'tracking_disabled',
-      origin: corsDecision.requestedOrigin,
-    });
-    if (echoMode) {
-      respondEcho(res, diagId, corsDecision, false, null, null);
-    } else {
-      res.status(204).end();
-    }
-    return;
-  }
-
-  const { payload, invalid, rawText, contentType } = parseBody(req);
-  const normalized = normalizeEvent(payload);
-  let { eventName, rid } = normalized;
-
-  if (!eventName && typeof rawText === 'string' && rawText.trim()) {
-    const fallback = normalizeString(rawText);
-    if (fallback && ALLOWED_EVENTS.has(fallback)) {
-      eventName = fallback;
-    }
-  }
-
-  if (!eventName && contentType === 'text/plain') {
-    eventName = normalizeString(payload?.event);
-  }
-
-  if (!eventName && payload && typeof payload === 'object') {
-    const eventKey = Object.keys(payload).find((key) => key.toLowerCase() === 'event');
-    if (eventKey) {
-      eventName = normalizeString((payload as Record<string, any>)[eventKey]);
-    }
-  }
-
-  if (!rid && payload && typeof payload === 'object') {
-    const ridKey = Object.keys(payload).find((key) => key.toLowerCase() === 'request_id');
-    if (ridKey) {
-      rid = normalizeString((payload as Record<string, any>)[ridKey]);
-    }
-  }
-
-  normalized.eventName = eventName;
-  normalized.rid = rid;
-
-  if (invalid || !payload) {
-    logTrack(diagId, {
-      reason: invalid ? 'invalid_payload' : 'missing_payload',
-      origin: corsDecision.requestedOrigin,
-      event_name: eventName,
-      rid,
-    });
-    if (echoMode) {
-      respondEcho(res, diagId, corsDecision, false, eventName, rid);
-    } else {
-      res.status(204).end();
-    }
-    return;
-  }
-
-  if (!eventName || !ALLOWED_EVENTS.has(eventName)) {
-    logTrack(diagId, {
-      reason: 'event_not_allowed',
-      origin: corsDecision.requestedOrigin,
-      event_name: eventName,
-      rid,
-    });
-    if (echoMode) {
-      respondEcho(res, diagId, corsDecision, false, eventName, rid);
-    } else {
-      res.status(204).end();
-    }
-    return;
-  }
-
-  if (echoMode) {
-    respondEcho(res, diagId, corsDecision, true, eventName, rid);
-    return;
-  }
-
-  let client: SupabaseClient;
-  try {
-    client = ensureClient();
-  } catch (error) {
-    logApiError('track.supabase_config_missing', { diagId, error });
-    res.status(204).end();
-    return;
-  }
-
-  const insertPayload = buildInsertPayload(normalized, req, corsDecision, diagId);
-
-  try {
-    const { error } = await client.from('track_events').insert(insertPayload);
-    if (error && error.code !== '23505') {
-      throw error;
-    }
-    if (error && error.code === '23505') {
+    if (!corsDecision.allowed || !corsDecision.allowedOrigin) {
       logTrack(diagId, {
-        reason: 'duplicate',
-        origin: corsDecision.allowedOrigin,
+        reason: 'cors_denied',
+        origin: corsDecision.requestedOrigin,
+      });
+      respondIgnoredOrEcho(false, null, null);
+      return;
+    }
+
+    if (process.env.TRACKING_ENABLED === '0') {
+      logTrack(diagId, {
+        reason: 'tracking_disabled',
+        origin: corsDecision.requestedOrigin,
+      });
+      respondIgnoredOrEcho(false, null, null);
+      return;
+    }
+
+    const { payload, invalid, rawText, contentType } = parseBody(req);
+    const normalized = normalizeEvent(payload);
+    let { eventName, rid } = normalized;
+
+    if (!eventName && typeof rawText === 'string' && rawText.trim()) {
+      const fallback = normalizeString(rawText);
+      if (fallback && ALLOWED_EVENTS.has(fallback)) {
+        eventName = fallback;
+      }
+    }
+
+    if (!eventName && contentType === 'text/plain') {
+      eventName = normalizeString(payload?.event);
+    }
+
+    if (!eventName && payload && typeof payload === 'object') {
+      const eventKey = Object.keys(payload).find((key) => key.toLowerCase() === 'event');
+      if (eventKey) {
+        eventName = normalizeString((payload as Record<string, any>)[eventKey]);
+      }
+    }
+
+    if (!rid && payload && typeof payload === 'object') {
+      const ridKey = Object.keys(payload).find((key) => key.toLowerCase() === 'request_id');
+      if (ridKey) {
+        rid = normalizeString((payload as Record<string, any>)[ridKey]);
+      }
+    }
+
+    normalized.eventName = eventName;
+    normalized.rid = rid;
+
+    if (invalid || !payload) {
+      logTrack(diagId, {
+        reason: invalid ? 'invalid_payload' : 'missing_payload',
+        origin: corsDecision.requestedOrigin,
         event_name: eventName,
         rid,
       });
-    } else {
+      respondIgnoredOrEcho(false, eventName ?? null, rid ?? null);
+      return;
+    }
+
+    if (!eventName) {
+      respondIgnoredOrEcho(false, null, rid ?? null);
+      return;
+    }
+
+    if (!ALLOWED_EVENTS.has(eventName)) {
       logTrack(diagId, {
-        reason: 'inserted',
-        origin: corsDecision.allowedOrigin,
+        reason: 'event_not_allowed',
+        origin: corsDecision.requestedOrigin,
         event_name: eventName,
         rid,
       });
+      respondIgnoredOrEcho(false, eventName, rid ?? null);
+      return;
     }
-  } catch (error) {
-    logApiError('track.insert_failed', { diagId, error });
-  }
 
-  res.status(204).end();
+    if (!rid) {
+      respondIgnoredOrEcho(false, eventName, null);
+      return;
+    }
+
+    if (echoMode) {
+      respondEcho(res, diagId, corsDecision, true, eventName, rid);
+      return;
+    }
+
+    let client: SupabaseClient;
+    try {
+      client = ensureClient();
+    } catch (error) {
+      logApiError('track.supabase_config_missing', { diagId, error });
+      respondIgnoredOrEcho(false, eventName, rid);
+      return;
+    }
+
+    const insertPayload = buildInsertPayload(normalized, req, corsDecision, diagId);
+
+    try {
+      const { error } = await client.from('track_events').insert(insertPayload);
+      if (error && error.code !== '23505') {
+        throw error;
+      }
+      if (error && error.code === '23505') {
+        logTrack(diagId, {
+          reason: 'duplicate',
+          origin: corsDecision.allowedOrigin,
+          event_name: eventName,
+          rid,
+        });
+      } else {
+        logTrack(diagId, {
+          reason: 'inserted',
+          origin: corsDecision.allowedOrigin,
+          event_name: eventName,
+          rid,
+        });
+      }
+    } catch (error) {
+      const errorName = (error as any)?.name;
+      if (errorName === 'AbortError' || errorName === 'TypeError') {
+        respondIgnoredOrEcho(false, eventName, rid);
+        return;
+      }
+      logApiError('track.insert_failed', { diagId, error });
+    }
+
+    if (!res.headersSent) {
+      res.status(204).end();
+    }
+  };
+
+  try {
+    await processRequest();
+  } catch (error) {
+    const errorName = (error as any)?.name;
+    if (errorName === 'AbortError' || errorName === 'TypeError') {
+      if (!res.headersSent) {
+        respondIgnored(res);
+      }
+      return;
+    }
+    logApiError('track.unhandled_error', { diagId, error });
+    if (!res.headersSent) {
+      res.status(500).json({ ok: false, diagId, error: 'handler_error' });
+    }
+  }
 }
