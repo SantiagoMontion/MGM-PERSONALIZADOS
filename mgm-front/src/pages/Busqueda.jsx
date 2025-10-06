@@ -95,6 +95,14 @@ function formatMeasurement(width, height) {
   return `${normalize(w)}x${normalize(h)} cm`;
 }
 
+function buildDownloadUrl(publicUrl, filename) {
+  const url = new URL(publicUrl);
+  if (!url.searchParams.has('download')) {
+    url.searchParams.set('download', filename || '');
+  }
+  return url.toString();
+}
+
 export default function Busqueda() {
   const [gateReady, setGateReady] = useState(typeof window === 'undefined');
   const [hasAccess, setHasAccess] = useState(false);
@@ -342,6 +350,10 @@ export default function Busqueda() {
                 results.map((item) => {
                   const key = item.id || item.path || item.fileName;
                   const measurement = formatMeasurement(item.widthCm, item.heightCm);
+                  const filename = item.name || item.fileName || 'archivo.pdf';
+                  const downloadHref = item.publicUrl
+                    ? buildDownloadUrl(item.publicUrl, filename)
+                    : '';
                   if (import.meta.env?.DEV && typeof console !== 'undefined') {
                     console.debug('[prints] preview', {
                       name: item.fileName || item.name,
@@ -365,12 +377,13 @@ export default function Busqueda() {
                       <td className={styles.sizeCell}>{formatBytes(item.sizeBytes ?? item.size)}</td>
                       <td className={styles.dateCell}>{formatDate(item.createdAt)}</td>
                       <td>
-                        {item.downloadUrl ? (
+                        {downloadHref ? (
                           <a
                             className={styles.downloadLink}
-                            href={item.downloadUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                            href={downloadHref}
+                            download={filename}
+                            target="_self"
+                            rel="nofollow"
                           >
                             Descargar PDF
                           </a>
