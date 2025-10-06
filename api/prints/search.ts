@@ -76,11 +76,42 @@ type StorageSearchResult = {
 
 type StorageSearchFailure = 'storage_list_failed' | 'timeout';
 
-const MATCH_NORMALIZER = (value: string) =>
-  value
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLowerCase();
+type SearchTerms = {
+  qRaw: string;
+  qBase: string;
+  qLoose: string;
+  tokens: string[];
+};
+
+function normalizeForSearch(str: string): string {
+  if (typeof str !== 'string') {
+    return '';
+  }
+  const lower = str.toLowerCase();
+  const trimmed = lower.trim();
+  if (!trimmed) {
+    return '';
+  }
+  const withoutAccents = trimmed.normalize('NFD').replace(/\p{Diacritic}/gu, '');
+  const withHyphenSeparators = withoutAccents.replace(/[._\s]+/g, '-');
+  const collapsedHyphens = withHyphenSeparators.replace(/-+/g, '-');
+  return collapsedHyphens.replace(/^-+|-+$/g, '');
+}
+
+function stripSeparators(str: string): string {
+  if (typeof str !== 'string' || !str) {
+    return '';
+  }
+  return str.replace(/[-_.\s]+/g, '');
+}
+
+function buildSearchTerms(query: string): SearchTerms {
+  const qRaw = typeof query === 'string' ? query : '';
+  const qBase = normalizeForSearch(qRaw);
+  const qLoose = stripSeparators(qBase);
+  const tokens = qBase.split('-').filter(Boolean);
+  return { qRaw, qBase, qLoose, tokens };
+}
 
 const PREVIEW_BUCKET =
   process.env.PREVIEW_STORAGE_BUCKET ||
@@ -292,20 +323,41 @@ function isPdfFile(name: string): boolean {
   return name.toLowerCase().endsWith('.pdf');
 }
 
-function filterStorageFiles(files: StorageFileEntry[], query: string): StorageFileEntry[] {
-  const normalizedQuery = MATCH_NORMALIZER(query);
+function getFileBaseName(name: string): string {
+  if (!name) {
+    return '';
+  }
+  const dotIndex = name.lastIndexOf('.');
+  if (dotIndex === -1) {
+    return name;
+  }
+  return name.slice(0, dotIndex);
+}
+
+function filterStorageFiles(files: StorageFileEntry[], terms: SearchTerms): StorageFileEntry[] {
+  const { qRaw, qBase, qLoose, tokens } = terms;
+  const qRawLower = qRaw.toLowerCase();
+  const hasQuery = Boolean(qRawLower || qBase || qLoose || tokens.length);
+
   return files.filter((file) => {
     if (!isPdfFile(file.name)) {
       return false;
     }
-    if (!normalizedQuery) {
+    if (!hasQuery) {
       return true;
     }
-    try {
-      return MATCH_NORMALIZER(file.name).includes(normalizedQuery);
-    } catch (err) {
-      return file.name.toLowerCase().includes(normalizedQuery);
-    }
+
+    const baseName = getFileBaseName(file.name);
+    const nameRaw = baseName.toLowerCase();
+    const nameBase = normalizeForSearch(baseName);
+    const nameLoose = stripSeparators(nameBase);
+
+    const matchesRaw = qRawLower ? nameRaw.includes(qRawLower) : false;
+    const matchesBase = qBase ? nameBase.includes(qBase) : false;
+    const matchesLoose = qLoose ? nameLoose.includes(qLoose) : false;
+    const matchesTokens = tokens.length ? tokens.every((token) => nameBase.includes(token)) : false;
+
+    return matchesRaw || matchesBase || matchesLoose || matchesTokens;
   });
 }
 
@@ -659,6 +711,7 @@ async function searchStorage(
   limit: number,
   offset: number,
   debug: boolean,
+  terms?: SearchTerms,
 ): Promise<StorageSearchResult | StorageSearchFailure> {
   const bucket = process.env.SEARCH_STORAGE_BUCKET || DEFAULT_BUCKET;
   const root = normalizeStorageRoot(process.env.SEARCH_STORAGE_ROOT ?? DEFAULT_ROOT);
@@ -743,7 +796,8 @@ async function searchStorage(
     return 'storage_list_failed';
   }
 
-  const filtered = filterStorageFiles(collected, query);
+  const searchTerms = terms ?? buildSearchTerms(query);
+  const filtered = filterStorageFiles(collected, searchTerms);
   const sorted = sortStorageFiles(filtered);
   const total = sorted.length;
   const sliced = sorted.slice(offset, offset + limit);
@@ -804,6 +858,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const limit = parseLimit(req.query?.limit);
   const offset = parseOffset(req.query?.offset);
   const debug = parseDebug(req.query?.debug);
+  const searchTerms = buildSearchTerms(rawQuery);
+
+  if (debug) {
+    try {
+      console.log('[prints-search]', { diagId, ...searchTerms });
+    } catch {}
+  }
 
   const supabaseConfigured = hasSupabaseConfig();
 
@@ -867,7 +928,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const storageResult = await searchStorage(client, rawQuery, limit, offset, debug);
+  const storageResult = await searchStorage(client, rawQuery, limit, offset, debug, searchTerms);
   if (storageResult === 'timeout') {
     logApiError('prints-search', { diagId, step: 'storage_timeout' });
     sendJsonResponse(req, res, 200, { ok: false, error: 'timeout', diagId });
