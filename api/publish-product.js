@@ -1,12 +1,25 @@
 import { resolveEnvRequirements, collectMissingEnv } from './_lib/envChecks.js';
 import { createDiagId, logApiError } from './_lib/diag.js';
+import { getAllowedOriginsFromEnv, resolveCorsDecision } from '../lib/cors.js';
 
 const SHOPIFY_ENABLED = process.env.SHOPIFY_ENABLED === '1';
 const FRONT_ORIGIN = (process.env.FRONT_ORIGIN || 'https://mgm-app.vercel.app').replace(/\/$/, '');
 const REQUIRED_ENV = resolveEnvRequirements('SHOPIFY_ADMIN', 'SUPABASE_SERVICE');
 const SHOPIFY_TIMEOUT_STATUS = 504;
+const MAX_PAYLOAD_BYTES = 20 * 1024 * 1024;
+const MAX_PAYLOAD_SIZE_LIMIT = '20mb';
+const CORS_ALLOW_HEADERS = 'content-type, authorization, x-diag';
+const CORS_ALLOW_METHODS = 'POST, OPTIONS';
+const CORS_MAX_AGE = '86400';
 
-export const config = { memory: 256, maxDuration: 60 };
+export const config = {
+  memory: 256,
+  maxDuration: 60,
+  api: {
+    bodyParser: true,
+    sizeLimit: MAX_PAYLOAD_SIZE_LIMIT,
+  },
+};
 
 function createRid() {
   const base = Date.now().toString(36);
@@ -14,52 +27,49 @@ function createRid() {
   return `${base}${random}`;
 }
 
-function resolveCorsOrigin(req) {
-  if (typeof req?.headers?.origin === 'string') {
-    const value = req.headers.origin.trim();
-    if (value) {
-      return value;
-    }
+function resolveRequestedOrigin(req) {
+  const header = req?.headers?.origin;
+  if (Array.isArray(header)) {
+    return header.find((value) => typeof value === 'string' && value.trim().length > 0);
   }
-  return '*';
-}
-
-function resolveRequestedHeaders(req) {
-  const raw = req?.headers?.['access-control-request-headers'];
-  let headerList = '';
-
-  if (Array.isArray(raw)) {
-    headerList = raw.join(',');
-  } else if (typeof raw === 'string') {
-    headerList = raw;
-  }
-
-  if (!headerList) {
-    return 'content-type, authorization';
-  }
-
-  const names = headerList
-    .split(',')
-    .map((name) => name.split(':')[0].trim())
-    .filter(Boolean);
-
-  return names.length ? names.join(', ') : 'content-type, authorization';
+  return typeof header === 'string' ? header : undefined;
 }
 
 function applyCors(req, res) {
-  const origin = resolveCorsOrigin(req);
-  const allowHeaders = resolveRequestedHeaders(req);
-  res.setHeader('Access-Control-Allow-Origin', origin);
-  res.setHeader('Vary', 'Origin');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', allowHeaders);
-  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  const requestedOrigin = resolveRequestedOrigin(req);
+  const allowList = getAllowedOriginsFromEnv();
+  const decision = resolveCorsDecision(requestedOrigin, allowList);
+  const resolvedOrigin = decision.allowed
+    ? decision.allowedOrigin ?? decision.requestedOrigin ?? FRONT_ORIGIN
+    : decision.allowedOrigin ?? FRONT_ORIGIN;
+
+  if (typeof res.setHeader === 'function') {
+    res.setHeader('Access-Control-Allow-Origin', resolvedOrigin || FRONT_ORIGIN);
+    res.setHeader('Access-Control-Allow-Methods', CORS_ALLOW_METHODS);
+    res.setHeader('Access-Control-Allow-Headers', CORS_ALLOW_HEADERS);
+    res.setHeader('Access-Control-Max-Age', CORS_MAX_AGE);
+    res.setHeader('Vary', 'Origin');
+  }
+  return { decision, origin: resolvedOrigin };
 }
 
-function sendJson(req, res, status, payload) {
+function sendJsonWithCors(req, res, status, payload) {
   applyCors(req, res);
-  res.statusCode = status;
-  res.end(JSON.stringify(payload ?? {}));
+  if (typeof res.setHeader === 'function' && !res.getHeader?.('Content-Type')) {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  }
+  if (typeof res.status === 'function') {
+    res.status(status);
+  } else {
+    res.statusCode = status;
+  }
+  const body = payload == null ? {} : payload;
+  const json = JSON.stringify(body);
+  if (typeof res.json === 'function' && res.json !== sendJsonWithCors) {
+    res.json(body);
+  } else {
+    res.end(json);
+  }
 }
 
 function resolveShopDomain() {
@@ -77,14 +87,14 @@ function validateRealConfig(req, res, diagId) {
   const missing = collectMissingEnv(REQUIRED_ENV);
   if (missing.length) {
     logApiError('publish-product', { diagId, step: 'missing_env', error: `missing_env:${missing.join(',')}` });
-    sendJson(req, res, 400, { ok: false, error: 'missing_env', missing, diagId });
+    sendJsonWithCors(req, res, 400, { ok: false, error: 'missing_env', missing, diagId });
     return null;
   }
 
   const domain = resolveShopDomain();
   if (!domain || !/\.myshopify\.com$/i.test(domain)) {
     logApiError('publish-product', { diagId, step: 'invalid_shop_domain', error: domain || 'missing_domain' });
-    sendJson(req, res, 400, { ok: false, error: 'invalid_shop_domain', diagId });
+    sendJsonWithCors(req, res, 400, { ok: false, error: 'invalid_shop_domain', diagId });
     return null;
   }
 
@@ -100,27 +110,167 @@ function slugify(value) {
     .toLowerCase() || 'mock-product';
 }
 
-async function readJsonBody(req) {
-  return new Promise((resolve, reject) => {
-    let body = '';
-    req.on('data', (chunk) => {
-      body += chunk;
-      if (body.length > 1_000_000) {
-        reject(new Error('payload_too_large'));
+function getContentLengthHeader(req) {
+  const raw = req?.headers?.['content-length'];
+  const values = Array.isArray(raw) ? raw : typeof raw === 'string' ? [raw] : [];
+  for (const value of values) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed) && parsed >= 0) {
+      return parsed;
+    }
+  }
+  return null;
+}
+
+function estimateDataUrlBytes(dataUrl) {
+  if (typeof dataUrl !== 'string') return null;
+  const [, encodedPart] = dataUrl.split(',');
+  const base64 = (encodedPart || '').trim();
+  if (!base64) return null;
+  const sanitized = base64.replace(/\s+/g, '');
+  const padding = (sanitized.match(/=+$/) || [''])[0].length;
+  if (sanitized.length === 0) return 0;
+  const estimated = Math.floor((sanitized.length * 3) / 4) - padding;
+  return estimated >= 0 ? estimated : 0;
+}
+
+function resolveBinaryLength(value) {
+  if (!value) return null;
+  if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
+    return value;
+  }
+  if (typeof value === 'string') {
+    return Buffer.byteLength(value);
+  }
+  if (Buffer.isBuffer(value)) {
+    return value.length;
+  }
+  if (ArrayBuffer.isView(value)) {
+    return value.byteLength;
+  }
+  if (value instanceof ArrayBuffer) {
+    return value.byteLength;
+  }
+  if (Array.isArray(value)) {
+    return value.length;
+  }
+  if (value && typeof value === 'object' && typeof value.length === 'number') {
+    return Number.isFinite(value.length) ? value.length : null;
+  }
+  return null;
+}
+
+function estimatePayloadBytes(body) {
+  if (!body || typeof body !== 'object') return null;
+
+  if (typeof body.mockupDataUrl === 'string') {
+    const bytes = estimateDataUrlBytes(body.mockupDataUrl);
+    if (bytes != null) {
+      return bytes;
+    }
+  }
+
+  const candidates = [
+    body.mockupBytes,
+    body.mockupBuffer,
+    body.mockupData,
+    body.mockupBinary,
+    body.buffer,
+  ];
+
+  for (const candidate of candidates) {
+    const length = resolveBinaryLength(candidate);
+    if (typeof length === 'number' && length >= 0) {
+      return length;
+    }
+  }
+
+  return null;
+}
+
+function respondPayloadTooLarge(req, res, diagId, estimatedBytes) {
+  const payload = {
+    ok: false,
+    code: 'payload_too_large',
+    limitBytes: MAX_PAYLOAD_BYTES,
+    estimatedBytes: typeof estimatedBytes === 'number' ? estimatedBytes : null,
+    hint: 'El dataURL base64 agrega ~33% de tamaño. Subí el archivo original < 15 MB o usá /api/upload-original.',
+    diagId,
+  };
+  sendJsonWithCors(req, res, 413, payload);
+}
+
+async function obtainJsonBody(req) {
+  if (req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body)) {
+    return { body: req.body, bytesRead: getContentLengthHeader(req) };
+  }
+
+  if (typeof req.body === 'string') {
+    try {
+      const raw = req.body;
+      const parsed = JSON.parse(raw);
+      req.body = parsed;
+      return { body: parsed, bytesRead: Buffer.byteLength(raw, 'utf8') };
+    } catch (err) {
+      const invalid = new Error('invalid_body');
+      invalid.code = 'invalid_body';
+      throw invalid;
+    }
+  }
+
+  return await new Promise((resolve, reject) => {
+    let accumulated = '';
+    let bytes = 0;
+
+    const onData = (chunk) => {
+      const buf = typeof chunk === 'string' ? Buffer.from(chunk) : chunk;
+      bytes += buf.length;
+      if (bytes > MAX_PAYLOAD_BYTES) {
+        cleanup();
+        const err = new Error('payload_too_large');
+        err.code = 'payload_too_large';
+        err.estimatedBytes = bytes;
+        reject(err);
+        return;
       }
-    });
-    req.on('end', () => {
-      if (!body) {
-        resolve(null);
+      accumulated += buf.toString('utf8');
+    };
+
+    const onEnd = () => {
+      cleanup();
+      if (!accumulated) {
+        const empty = {};
+        req.body = empty;
+        resolve({ body: empty, bytesRead: bytes });
         return;
       }
       try {
-        resolve(JSON.parse(body));
+        const parsed = JSON.parse(accumulated);
+        req.body = parsed;
+        resolve({ body: parsed, bytesRead: bytes });
       } catch (err) {
-        reject(err);
+        const invalid = new Error('invalid_body');
+        invalid.code = 'invalid_body';
+        reject(invalid);
       }
-    });
-    req.on('error', reject);
+    };
+
+    const onError = (err) => {
+      cleanup();
+      reject(err);
+    };
+
+    const cleanup = () => {
+      if (typeof req.removeListener === 'function') {
+        req.removeListener('data', onData);
+        req.removeListener('end', onEnd);
+        req.removeListener('error', onError);
+      }
+    };
+
+    req.on('data', onData);
+    req.on('end', onEnd);
+    req.on('error', onError);
   });
 }
 
@@ -158,27 +308,72 @@ function buildMockProduct(payload) {
 
 export default async function handler(req, res) {
   const diagId = createDiagId();
-  applyCors(req, res);
-  if (req.method === 'OPTIONS') {
-    res.statusCode = 200;
+  const method = String(req.method || '').toUpperCase();
+
+  if (method === 'OPTIONS') {
+    applyCors(req, res);
+    if (typeof res.setHeader === 'function') {
+      res.setHeader('Allow', CORS_ALLOW_METHODS);
+    }
+    if (typeof res.status === 'function') {
+      res.status(204);
+    } else {
+      res.statusCode = 204;
+    }
     res.end();
     return;
   }
-  if ((req.method || '').toUpperCase() !== 'POST') {
-    res.setHeader('Allow', 'POST, OPTIONS');
-    sendJson(req, res, 405, { ok: false, error: 'method_not_allowed', diagId });
+
+  if (method !== 'POST') {
+    if (typeof res.setHeader === 'function') {
+      res.setHeader('Allow', 'POST, OPTIONS');
+    }
+    sendJsonWithCors(req, res, 405, { ok: false, error: 'method_not_allowed', diagId });
+    return;
+  }
+
+  let parsedBody = {};
+  let bytesRead = getContentLengthHeader(req);
+
+  try {
+    const { body, bytesRead: totalBytes } = await obtainJsonBody(req);
+    if (body && typeof body === 'object') {
+      parsedBody = body;
+    }
+    if (typeof totalBytes === 'number') {
+      bytesRead = totalBytes;
+    }
+  } catch (err) {
+    if (err?.code === 'payload_too_large') {
+      const estimated = typeof err?.estimatedBytes === 'number' ? err.estimatedBytes : bytesRead ?? getContentLengthHeader(req);
+      logApiError('publish-product', { diagId, step: 'payload_too_large', error: err });
+      respondPayloadTooLarge(req, res, diagId, estimated);
+      return;
+    }
+    logApiError('publish-product', { diagId, step: 'invalid_body', error: err });
+    sendJsonWithCors(req, res, 400, { ok: false, error: 'invalid_body', diagId });
+    return;
+  }
+
+  req.body = parsedBody;
+
+  const estimatedBytes = estimatePayloadBytes(parsedBody);
+  const headerBytes = typeof bytesRead === 'number' ? bytesRead : getContentLengthHeader(req);
+  const effectiveEstimate = typeof estimatedBytes === 'number' ? estimatedBytes : headerBytes;
+
+  if (typeof effectiveEstimate === 'number' && effectiveEstimate > MAX_PAYLOAD_BYTES) {
+    logApiError('publish-product', {
+      diagId,
+      step: 'payload_too_large',
+      error: `estimated_bytes:${effectiveEstimate}`,
+    });
+    respondPayloadTooLarge(req, res, diagId, effectiveEstimate);
     return;
   }
 
   if (!SHOPIFY_ENABLED) {
-    let body = null;
-    try {
-      body = await readJsonBody(req);
-    } catch (err) {
-      body = null;
-    }
-    const payload = { ...buildMockProduct(body || {}), diagId };
-    sendJson(req, res, 200, payload);
+    const payload = { ...buildMockProduct(parsedBody || {}), diagId };
+    sendJsonWithCors(req, res, 200, payload);
     return;
   }
 
@@ -192,7 +387,7 @@ export default async function handler(req, res) {
     const realHandler = mod?.default || mod;
     if (typeof realHandler !== 'function') {
       logApiError('publish-product', { diagId, step: 'handler_missing', error: 'handler_not_found' });
-      sendJson(req, res, 200, { ok: true, stub: true, message: 'not_implemented', diagId });
+      sendJsonWithCors(req, res, 200, { ok: true, stub: true, message: 'not_implemented', diagId });
       return;
     }
     req.mgmDiagId = diagId;
@@ -202,7 +397,7 @@ export default async function handler(req, res) {
     logApiError('publish-product', { diagId, step, error: err });
     if (!res.headersSent) {
       if (err?.code === 'SHOPIFY_TIMEOUT') {
-        sendJson(req, res, SHOPIFY_TIMEOUT_STATUS, {
+        sendJsonWithCors(req, res, SHOPIFY_TIMEOUT_STATUS, {
           ok: false,
           error: 'shopify_timeout',
           diagId,
@@ -210,7 +405,7 @@ export default async function handler(req, res) {
         });
         return;
       }
-      sendJson(req, res, 502, {
+      sendJsonWithCors(req, res, 502, {
         ok: false,
         error: 'publish_failed',
         diagId,
