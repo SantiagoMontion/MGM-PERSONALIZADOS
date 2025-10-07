@@ -1,11 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import {
-  applyCors,
-  ensureCors,
-  handlePreflight,
-  respondCorsDenied,
-  type CorsDecision,
-} from './_lib/cors.js';
+import { applyCors, ensureCors, type CorsDecision } from './_lib/cors.js';
 import { createDiagId } from './_lib/diag.js';
 import logger from '../lib/_lib/logger.js';
 import { normalizeLabels } from './_lib/moderation/labels.js';
@@ -36,6 +30,8 @@ const BLOCK_EXTREMISM = new Set([
 ]);
 const ALLOW_CURRENCY = new Set(['currency', 'banknote', 'bank_note', 'money', 'bill']);
 const BODY_LIMIT_BYTES = 8 * 1024 * 1024;
+const MODERATION_ALLOW_METHODS = 'POST, OPTIONS';
+const REQUIRED_MODERATION_HEADERS = ['content-type', 'x-preview', 'x-diag', 'authorization'] as const;
 
 class PayloadTooLargeError extends Error {
   bytes: number;
@@ -122,6 +118,39 @@ function computeBase64Bytes(value: unknown): number {
   }
 }
 
+function applyModerationCors(
+  req: VercelRequest,
+  res: VercelResponse,
+  decision?: CorsDecision,
+): CorsDecision {
+  const resolved = applyCors(req, res, decision);
+  res.setHeader('Access-Control-Allow-Methods', MODERATION_ALLOW_METHODS);
+  const existing = res.getHeader('Access-Control-Allow-Headers');
+  const headerSet = new Set<string>();
+  const push = (value: unknown) => {
+    if (typeof value !== 'string') return;
+    const segments = value
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0);
+    for (const segment of segments) {
+      headerSet.add(segment.toLowerCase());
+    }
+  };
+  if (Array.isArray(existing)) {
+    for (const value of existing) {
+      push(value);
+    }
+  } else if (existing) {
+    push(existing);
+  }
+  for (const header of REQUIRED_MODERATION_HEADERS) {
+    headerSet.add(header);
+  }
+  res.setHeader('Access-Control-Allow-Headers', Array.from(headerSet).join(', '));
+  return resolved;
+}
+
 function respondJson(
   req: VercelRequest,
   res: VercelResponse,
@@ -130,7 +159,7 @@ function respondJson(
   payload: Record<string, unknown>,
 ): void {
   const body: Record<string, unknown> = payload ?? {};
-  applyCors(req, res, corsDecision);
+  applyModerationCors(req, res, corsDecision);
   const diagValue = typeof (body as Record<string, unknown>).diagId === 'string'
     ? ((body as Record<string, unknown>).diagId as string)
     : null;
@@ -264,15 +293,26 @@ export const config = {
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   const diagId = createDiagId();
-  const corsDecision = ensureCors(req, res);
+  const ensuredCors = ensureCors(req, res);
+  const corsDecision = applyModerationCors(req, res, ensuredCors);
 
   if (!corsDecision.allowed || !corsDecision.allowedOrigin) {
-    respondCorsDenied(req, res, corsDecision, diagId);
+    respondJson(req, res, corsDecision, 403, {
+      ok: false,
+      error: 'origin_not_allowed',
+      diagId,
+    });
     return;
   }
 
   if (req.method === 'OPTIONS') {
-    handlePreflight(req, res, corsDecision);
+    applyModerationCors(req, res, corsDecision);
+    if (typeof res.status === 'function') {
+      res.status(204);
+    } else {
+      res.statusCode = 204;
+    }
+    res.end();
     return;
   }
 
