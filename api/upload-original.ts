@@ -10,12 +10,11 @@ import type { CorsDecision } from './_lib/cors.js';
 
 const PASSTHROUGH_PLACEHOLDER_URL = 'https://picsum.photos/seed/mgm/800/600';
 const DEFAULT_MAX_BYTES = 40 * 1024 * 1024;
-const BODY_SIZE_LIMIT = '32mb';
-
 export const config = {
   api: {
     bodyParser: false,
-    sizeLimit: BODY_SIZE_LIMIT,
+    // NOTE: Vercel requires a literal here when statically analyzing the route.
+    sizeLimit: '32mb',
   },
   maxDuration: 60,
 };
