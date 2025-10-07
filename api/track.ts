@@ -1,7 +1,13 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { createDiagId, logApiError } from './_lib/diag.js';
-import { getAllowedOriginsFromEnv, resolveCorsDecision, type CorsDecision } from './_lib/cors.ts';
+import {
+  applyCorsHeaders,
+  ensureCors,
+  handlePreflight,
+  respondCorsDenied,
+  type CorsDecision,
+} from './_lib/cors.js';
 
 const ALLOWED_EVENTS = new Set<string>([
   'mockup_view',
@@ -287,6 +293,7 @@ function buildInsertPayload(
 }
 
 function respondEcho(
+  req: VercelRequest,
   res: VercelResponse,
   diagId: string,
   decision: CorsDecision,
@@ -295,22 +302,37 @@ function respondEcho(
   rid: string | null,
 ) {
   const origin = decision.allowedOrigin ?? decision.requestedOrigin ?? null;
+  applyCorsHeaders(req, res, decision);
   res.status(200).json({ ok: true, diagId, origin, accepted, event_name: eventName, rid });
 }
 
-function respondIgnored(res: VercelResponse) {
-  res.status(204).json({ ok: true, ignored: true });
+function respondIgnored(req: VercelRequest, res: VercelResponse, decision: CorsDecision) {
+  applyCorsHeaders(req, res, decision);
+  res.status(204).end();
 }
 
 function logTrack(
   diagId: string,
-  payload: { event_name?: string | null; rid?: string | null; reason?: string } = {},
+  payload: {
+    event_name?: string | null;
+    rid?: string | null;
+    reason?: string;
+    origin?: string | null;
+  } = {},
 ) {
   try {
-    const { event_name: eventName = null, rid = null, reason = undefined } = payload;
+    const {
+      event_name: eventName = null,
+      rid = null,
+      reason = undefined,
+      origin = undefined,
+    } = payload;
     const logPayload: Record<string, unknown> = { diagId, rid, event: eventName };
     if (reason) {
       logPayload.reason = reason;
+    }
+    if (origin) {
+      logPayload.origin = origin;
     }
     console.log('[track]', logPayload);
   } catch {}
@@ -329,27 +351,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const diagId = createDiagId();
   res.setHeader('X-Track-Diag-Id', diagId);
 
-  const originHeader =
-    typeof req.headers.origin === 'string' && req.headers.origin.trim().length > 0
-      ? req.headers.origin
-      : undefined;
-  const allowedOrigins = getAllowedOriginsFromEnv();
-  const corsDecision = resolveCorsDecision(originHeader, allowedOrigins);
+  const corsDecision = ensureCors(req, res);
 
-  if (corsDecision.allowed && corsDecision.allowedOrigin) {
-    res.setHeader('Access-Control-Allow-Origin', corsDecision.allowedOrigin);
+  if (!corsDecision.allowed || !corsDecision.allowedOrigin) {
+    logTrack(diagId, {
+      reason: 'cors_denied',
+      origin: corsDecision.requestedOrigin,
+    });
+    respondCorsDenied(req, res, corsDecision, diagId);
+    return;
   }
-  res.setHeader('Vary', 'Origin');
-  res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'Content-Type, Authorization, X-Preview, X-Debug, X-Requested-With',
-  );
 
   logCors(diagId, corsDecision);
 
   if (req.method === 'OPTIONS') {
-    res.status(204).end();
+    handlePreflight(req, res, corsDecision);
     return;
   }
 
@@ -358,6 +374,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       reason: 'method_not_allowed',
       origin: corsDecision.requestedOrigin,
     });
+    applyCorsHeaders(req, res, corsDecision);
     res.status(405).json({ ok: false, diagId, error: 'method_not_allowed' });
     return;
   }
@@ -366,32 +383,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const echoMode = String(req.query?.echo ?? '') === '1';
 
     const respondIgnoredOrEcho = (
+      request: VercelRequest,
       accepted: boolean,
       eventNameValue: string | null,
       ridValue: string | null,
     ) => {
       if (echoMode) {
-        respondEcho(res, diagId, corsDecision, accepted, eventNameValue, ridValue);
+        respondEcho(request, res, diagId, corsDecision, accepted, eventNameValue, ridValue);
       } else {
-        respondIgnored(res);
+        respondIgnored(request, res, corsDecision);
       }
     };
-
-    if (!corsDecision.allowed || !corsDecision.allowedOrigin) {
-      logTrack(diagId, {
-        reason: 'cors_denied',
-        origin: corsDecision.requestedOrigin,
-      });
-      respondIgnoredOrEcho(false, null, null);
-      return;
-    }
 
     if (process.env.TRACKING_ENABLED === '0') {
       logTrack(diagId, {
         reason: 'tracking_disabled',
         origin: corsDecision.requestedOrigin,
       });
-      respondIgnoredOrEcho(false, null, null);
+      respondIgnoredOrEcho(req, false, null, null);
       return;
     }
 
@@ -434,12 +443,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         event_name: eventName,
         rid,
       });
-      respondIgnoredOrEcho(false, eventName ?? null, rid ?? null);
+      respondIgnoredOrEcho(req, false, eventName ?? null, rid ?? null);
       return;
     }
 
     if (!eventName) {
-      respondIgnoredOrEcho(false, null, rid ?? null);
+      respondIgnoredOrEcho(req, false, null, rid ?? null);
       return;
     }
 
@@ -450,17 +459,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         event_name: eventName,
         rid,
       });
-      respondIgnoredOrEcho(false, eventName, rid ?? null);
+      respondIgnoredOrEcho(req, false, eventName, rid ?? null);
       return;
     }
 
     if (!rid) {
-      respondIgnoredOrEcho(false, eventName, null);
+      respondIgnoredOrEcho(req, false, eventName, null);
       return;
     }
 
     if (echoMode) {
-      respondEcho(res, diagId, corsDecision, true, eventName, rid);
+      respondEcho(req, res, diagId, corsDecision, true, eventName, rid);
       return;
     }
 
@@ -469,7 +478,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       client = ensureClient();
     } catch (error) {
       logApiError('track.supabase_config_missing', { diagId, error });
-      respondIgnoredOrEcho(false, eventName, rid);
+      respondIgnoredOrEcho(req, false, eventName, rid);
       return;
     }
 
@@ -498,13 +507,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } catch (error) {
       const errorName = (error as any)?.name;
       if (errorName === 'AbortError' || errorName === 'TypeError') {
-        respondIgnoredOrEcho(false, eventName, rid);
+        respondIgnoredOrEcho(req, false, eventName, rid);
         return;
       }
       logApiError('track.insert_failed', { diagId, error });
     }
 
     if (!res.headersSent) {
+      applyCorsHeaders(req, res, corsDecision);
       res.status(204).end();
     }
   };
@@ -515,12 +525,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const errorName = (error as any)?.name;
     if (errorName === 'AbortError' || errorName === 'TypeError') {
       if (!res.headersSent) {
-        respondIgnored(res);
+        respondIgnored(req, res, corsDecision);
       }
       return;
     }
     logApiError('track.unhandled_error', { diagId, error });
     if (!res.headersSent) {
+      applyCorsHeaders(req, res, corsDecision);
       res.status(500).json({ ok: false, diagId, error: 'handler_error' });
     }
   }

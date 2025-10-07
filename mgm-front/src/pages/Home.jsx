@@ -507,7 +507,6 @@ export default function Home() {
           getResolvedApiUrl('/api/moderate-image?preview=1&debug=1'),
           { ...baseModerationPayload, imageBase64: preview.base64 },
           60000,
-          { headers: { 'X-Preview': '1' } },
         );
       };
 
