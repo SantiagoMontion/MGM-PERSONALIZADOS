@@ -1,12 +1,32 @@
 import { resolveEnvRequirements, collectMissingEnv } from './_lib/envChecks.js';
 import { createDiagId, logApiError } from './_lib/diag.js';
+import {
+  applyCors as applySharedCors,
+  ensureCors,
+  respondCorsDenied,
+} from './_lib/cors.js';
 
 const SHOPIFY_ENABLED = process.env.SHOPIFY_ENABLED === '1';
 const FRONT_ORIGIN = (process.env.FRONT_ORIGIN || 'https://mgm-app.vercel.app').replace(/\/$/, '');
 const REQUIRED_ENV = resolveEnvRequirements('SHOPIFY_ADMIN', 'SUPABASE_SERVICE');
 const SHOPIFY_TIMEOUT_STATUS = 504;
 
-export const config = { memory: 256, maxDuration: 60 };
+const ALLOWED_METHODS = 'POST, OPTIONS';
+const ALLOWED_HEADERS = 'content-type, authorization, x-diag';
+const BODY_LIMIT_BYTES = 10 * 1024 * 1024; // 10mb
+const DATA_IMAGE_REGEX = /^data:image\//i;
+const BASE64_FIELD_NAMES = new Set(['imagebase64', 'previewdataurl']);
+const URL_REGEX = /^https?:\/\//i;
+
+export const config = {
+  memory: 256,
+  maxDuration: 60,
+  api: {
+    bodyParser: {
+      sizeLimit: '10mb',
+    },
+  },
+};
 
 function createRid() {
   const base = Date.now().toString(36);
@@ -14,50 +34,18 @@ function createRid() {
   return `${base}${random}`;
 }
 
-function resolveCorsOrigin(req) {
-  if (typeof req?.headers?.origin === 'string') {
-    const value = req.headers.origin.trim();
-    if (value) {
-      return value;
-    }
+function applyCors(req, res, decision) {
+  const resolved = applySharedCors(req, res, decision);
+  res.setHeader('Access-Control-Allow-Methods', ALLOWED_METHODS);
+  res.setHeader('Access-Control-Allow-Headers', ALLOWED_HEADERS);
+  if (!res.getHeader('Content-Type')) {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
   }
-  return '*';
+  return resolved;
 }
 
-function resolveRequestedHeaders(req) {
-  const raw = req?.headers?.['access-control-request-headers'];
-  let headerList = '';
-
-  if (Array.isArray(raw)) {
-    headerList = raw.join(',');
-  } else if (typeof raw === 'string') {
-    headerList = raw;
-  }
-
-  if (!headerList) {
-    return 'content-type, authorization';
-  }
-
-  const names = headerList
-    .split(',')
-    .map((name) => name.split(':')[0].trim())
-    .filter(Boolean);
-
-  return names.length ? names.join(', ') : 'content-type, authorization';
-}
-
-function applyCors(req, res) {
-  const origin = resolveCorsOrigin(req);
-  const allowHeaders = resolveRequestedHeaders(req);
-  res.setHeader('Access-Control-Allow-Origin', origin);
-  res.setHeader('Vary', 'Origin');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', allowHeaders);
-  res.setHeader('Content-Type', 'application/json; charset=utf-8');
-}
-
-function sendJson(req, res, status, payload) {
-  applyCors(req, res);
+function sendJson(req, res, decision, status, payload) {
+  applyCors(req, res, decision);
   res.statusCode = status;
   res.end(JSON.stringify(payload ?? {}));
 }
@@ -73,18 +61,18 @@ function resolveShopDomain() {
   return '';
 }
 
-function validateRealConfig(req, res, diagId) {
+function validateRealConfig(req, res, diagId, decision) {
   const missing = collectMissingEnv(REQUIRED_ENV);
   if (missing.length) {
     logApiError('publish-product', { diagId, step: 'missing_env', error: `missing_env:${missing.join(',')}` });
-    sendJson(req, res, 400, { ok: false, error: 'missing_env', missing, diagId });
+    sendJson(req, res, decision, 400, { ok: false, error: 'missing_env', missing, diagId });
     return null;
   }
 
   const domain = resolveShopDomain();
   if (!domain || !/\.myshopify\.com$/i.test(domain)) {
     logApiError('publish-product', { diagId, step: 'invalid_shop_domain', error: domain || 'missing_domain' });
-    sendJson(req, res, 400, { ok: false, error: 'invalid_shop_domain', diagId });
+    sendJson(req, res, decision, 400, { ok: false, error: 'invalid_shop_domain', diagId });
     return null;
   }
 
@@ -102,26 +90,120 @@ function slugify(value) {
 
 async function readJsonBody(req) {
   return new Promise((resolve, reject) => {
-    let body = '';
-    req.on('data', (chunk) => {
-      body += chunk;
-      if (body.length > 1_000_000) {
-        reject(new Error('payload_too_large'));
+    const chunks = [];
+    let total = 0;
+    let finished = false;
+
+    const cleanup = () => {
+      req.off?.('data', onData);
+      req.off?.('end', onEnd);
+      req.off?.('error', onError);
+    };
+
+    const abort = (err) => {
+      if (finished) return;
+      finished = true;
+      cleanup();
+      try {
+        req.pause?.();
+        req.destroy?.();
+      } catch {}
+      reject(err);
+    };
+
+    const onData = (chunk) => {
+      if (finished) return;
+      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      total += buf.length;
+      if (BODY_LIMIT_BYTES > 0 && total > BODY_LIMIT_BYTES) {
+        const err = new Error('payload_too_large');
+        err.code = 'payload_too_large';
+        abort(err);
+        return;
       }
-    });
-    req.on('end', () => {
-      if (!body) {
+      chunks.push(buf);
+    };
+
+    const onEnd = () => {
+      if (finished) return;
+      finished = true;
+      cleanup();
+      if (total === 0) {
         resolve(null);
         return;
       }
       try {
-        resolve(JSON.parse(body));
+        const text = Buffer.concat(chunks, total).toString('utf8');
+        resolve(JSON.parse(text));
       } catch (err) {
+        err.code = err.code || 'invalid_json';
         reject(err);
       }
-    });
-    req.on('error', reject);
+    };
+
+    const onError = (err) => {
+      abort(err);
+    };
+
+    req.on('data', onData);
+    req.on('end', onEnd);
+    req.on('error', onError);
   });
+}
+
+function sanitizeBase64Payload(value) {
+  if (!value || typeof value !== 'object') {
+    return { sanitized: value, removed: [], hasUrl: false };
+  }
+
+  const removed = new Set();
+  let hasUrl = false;
+
+  const visit = (current, path) => {
+    if (current == null) {
+      return current;
+    }
+
+    if (typeof current === 'string') {
+      if (URL_REGEX.test(current)) {
+        hasUrl = true;
+      }
+      if (DATA_IMAGE_REGEX.test(current)) {
+        removed.add(path.join('.'));
+        return undefined;
+      }
+      return current;
+    }
+
+    if (Array.isArray(current)) {
+      const next = [];
+      current.forEach((entry, index) => {
+        const result = visit(entry, path.concat(String(index)));
+        if (result !== undefined) {
+          next.push(result);
+        }
+      });
+      return next;
+    }
+
+    const next = {};
+    for (const [key, rawValue] of Object.entries(current)) {
+      const lowered = key.toLowerCase();
+      const nextPath = path.concat(key);
+      if (BASE64_FIELD_NAMES.has(lowered)) {
+        removed.add(nextPath.join('.'));
+        continue;
+      }
+      const result = visit(rawValue, nextPath);
+      if (result !== undefined) {
+        next[key] = result;
+      }
+    }
+    return next;
+  };
+
+  const sanitized = visit(value, []);
+  return { sanitized, removed: Array.from(removed), hasUrl };
 }
 
 function buildMockProduct(payload) {
@@ -158,31 +240,67 @@ function buildMockProduct(payload) {
 
 export default async function handler(req, res) {
   const diagId = createDiagId();
-  applyCors(req, res);
-  if (req.method === 'OPTIONS') {
-    res.statusCode = 200;
+  const corsDecision = ensureCors(req, res);
+  const appliedDecision = applyCors(req, res, corsDecision);
+
+  if (!appliedDecision.allowed || !appliedDecision.allowedOrigin) {
+    respondCorsDenied(req, res, appliedDecision, diagId);
+    return;
+  }
+
+  if ((req.method || '').toUpperCase() === 'OPTIONS') {
+    res.setHeader('Allow', ALLOWED_METHODS);
+    applyCors(req, res, appliedDecision);
+    res.statusCode = 204;
     res.end();
     return;
   }
+
   if ((req.method || '').toUpperCase() !== 'POST') {
-    res.setHeader('Allow', 'POST, OPTIONS');
-    sendJson(req, res, 405, { ok: false, error: 'method_not_allowed', diagId });
+    res.setHeader('Allow', ALLOWED_METHODS);
+    sendJson(req, res, appliedDecision, 405, { ok: false, error: 'method_not_allowed', diagId });
     return;
   }
+
+  let incomingBody = null;
+  try {
+    incomingBody = await readJsonBody(req);
+  } catch (err) {
+    if (err?.code === 'payload_too_large') {
+      sendJson(req, res, appliedDecision, 413, { ok: false, error: 'payload_too_large', diagId });
+      return;
+    }
+    logApiError('publish-product', { diagId, step: 'invalid_body', error: err });
+    sendJson(req, res, appliedDecision, 400, { ok: false, error: 'invalid_body', diagId });
+    return;
+  }
+
+  const { sanitized: sanitizedBody, removed: removedPaths, hasUrl } = sanitizeBase64Payload(
+    incomingBody && typeof incomingBody === 'object' ? incomingBody : {},
+  );
+
+  if (removedPaths.length) {
+    logApiError('publish-product', {
+      diagId,
+      step: 'base64_removed',
+      removed: removedPaths,
+    });
+  }
+
+  if (!hasUrl) {
+    sendJson(req, res, appliedDecision, 400, { ok: false, error: 'send_urls_only', diagId });
+    return;
+  }
+
+  req.body = sanitizedBody;
 
   if (!SHOPIFY_ENABLED) {
-    let body = null;
-    try {
-      body = await readJsonBody(req);
-    } catch (err) {
-      body = null;
-    }
-    const payload = { ...buildMockProduct(body || {}), diagId };
-    sendJson(req, res, 200, payload);
+    const payload = { ...buildMockProduct(sanitizedBody || {}), diagId };
+    sendJson(req, res, appliedDecision, 200, payload);
     return;
   }
 
-  const configOk = validateRealConfig(req, res, diagId);
+  const configOk = validateRealConfig(req, res, diagId, appliedDecision);
   if (!configOk) {
     return;
   }
@@ -192,7 +310,7 @@ export default async function handler(req, res) {
     const realHandler = mod?.default || mod;
     if (typeof realHandler !== 'function') {
       logApiError('publish-product', { diagId, step: 'handler_missing', error: 'handler_not_found' });
-      sendJson(req, res, 200, { ok: true, stub: true, message: 'not_implemented', diagId });
+      sendJson(req, res, appliedDecision, 200, { ok: true, stub: true, message: 'not_implemented', diagId });
       return;
     }
     req.mgmDiagId = diagId;
@@ -202,7 +320,7 @@ export default async function handler(req, res) {
     logApiError('publish-product', { diagId, step, error: err });
     if (!res.headersSent) {
       if (err?.code === 'SHOPIFY_TIMEOUT') {
-        sendJson(req, res, SHOPIFY_TIMEOUT_STATUS, {
+        sendJson(req, res, appliedDecision, SHOPIFY_TIMEOUT_STATUS, {
           ok: false,
           error: 'shopify_timeout',
           diagId,
@@ -210,7 +328,7 @@ export default async function handler(req, res) {
         });
         return;
       }
-      sendJson(req, res, 502, {
+      sendJson(req, res, appliedDecision, 502, {
         ok: false,
         error: 'publish_failed',
         diagId,
