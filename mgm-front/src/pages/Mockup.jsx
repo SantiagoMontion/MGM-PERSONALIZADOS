@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { PDFDocument } from 'pdf-lib';
 import Toast from '@/components/Toast.jsx';
@@ -16,7 +16,7 @@ import {
 import logger from '../lib/logger';
 import { ensureTrackingRid, trackEvent } from '@/lib/tracking';
 
-/** NUEVO: imagen de la sección (reemplazá el path por el tuyo) */
+/** NUEVO: imagen de la secciÃ³n (reemplazÃ¡ el path por el tuyo) */
 const TESTIMONIAL_ICONS = [
   '/icons/testimonio1.png',
   '/icons/testimonio2.png',
@@ -25,8 +25,8 @@ const TESTIMONIAL_ICONS = [
 const COMMUNITY_HERO_IMAGE = '/icons/community-hero.png';
 const CART_STATUS_LABELS = {
   idle: 'Agregar al carrito',
-  creating: 'Creando producto…',
-  opening: 'Abriendo producto…',
+  creating: 'Creando productoâ€¦',
+  opening: 'Abriendo productoâ€¦',
 };
 
 const CTA_BUTTON_CONTENT_STYLE = {
@@ -64,7 +64,7 @@ function CtaButton({
     }
   };
 
-  const loadingLabel = typeof busyLabel !== 'undefined' ? busyLabel : 'Procesando…';
+  const loadingLabel = typeof busyLabel !== 'undefined' ? busyLabel : 'Procesandoâ€¦';
 
   return (
     <button
@@ -138,18 +138,18 @@ const SHOULD_LOG_COMMERCE = (() => {
 const BENEFITS = [
   {
     icon: '',
-    title: '🎁 Regalos sorpresa en cada pedido',
+    title: 'ðŸŽ Regalos sorpresa en cada pedido',
     description: 'Cada compra merece un mimo extra <3',
   },
   {
     icon: '',
-    title: '✅ Durabilidad y calidad garantizada',
-    description: 'Materiales seleccionados, costuras reforzadas y tests reales. Tu pad está hecho para durar.',
+    title: 'âœ… Durabilidad y calidad garantizada',
+    description: 'Materiales seleccionados, costuras reforzadas y tests reales. Tu pad estÃ¡ hecho para durar.',
   },
   {
     icon: '',
-    title: '🎨 Un mousepad que se adapta perfecto a tu setup',
-    description: 'Material, diseño y medida elegidos por vos.',
+    title: 'ðŸŽ¨ Un mousepad que se adapta perfecto a tu setup',
+    description: 'Material, diseÃ±o y medida elegidos por vos.',
   },
 ];
 
@@ -432,52 +432,48 @@ export default function Mockup() {
       ? error.friendlyMessage
       : String(error?.message || 'Error');
     let friendly = messageRaw;
-    if (reasonRaw === 'missing_mockup') friendly = 'No se encontró el mockup para publicar.';
+    if (reasonRaw === 'missing_mockup') friendly = 'No se encontrÃ³ el mockup para publicar.';
     else if (reasonRaw === 'missing_variant') friendly = 'No se pudo obtener la variante del producto creado en Shopify.';
-    else if (reasonRaw === 'cart_link_failed') friendly = 'No se pudo generar el enlace del carrito. Revisá la configuración de Shopify.';
+    else if (reasonRaw === 'cart_link_failed') friendly = 'No se pudo generar el enlace del carrito. RevisÃ¡ la configuraciÃ³n de Shopify.';
     else if (reasonRaw === 'checkout_link_failed') friendly = 'No se pudo generar el enlace de compra.';
     else if (reasonRaw === 'private_checkout_failed' || reasonRaw === 'draft_order_failed' || reasonRaw === 'draft_order_http_error' || reasonRaw === 'missing_invoice_url') {
-      friendly = 'No pudimos generar el checkout privado, probá de nuevo.';
+      friendly = 'No pudimos generar el checkout privado, probÃ¡ de nuevo.';
     }
-    else if (reasonRaw === 'missing_customer_email' || reasonRaw === 'missing_email') friendly = 'Completá un correo electrónico válido para comprar en privado.';
-    else if (reasonRaw.startsWith('publish_failed')) friendly = 'Shopify rechazó la creación del producto. Revisá los datos enviados.';
-    else if (reasonRaw === 'shopify_error') friendly = 'Shopify devolvió un error al crear el producto.';
-    else if (reasonRaw === 'product_not_active') friendly = 'El producto quedó como borrador en Shopify. Verificá la visibilidad y reintentá.';
-    else if (reasonRaw === 'product_missing_variant') friendly = 'Shopify no devolvió variantes para el producto creado.';
+    else if (reasonRaw === 'missing_customer_email' || reasonRaw === 'missing_email') friendly = 'CompletÃ¡ un correo electrÃ³nico vÃ¡lido para comprar en privado.';
+    else if (reasonRaw.startsWith('publish_failed')) friendly = 'Shopify rechazÃ³ la creaciÃ³n del producto. RevisÃ¡ los datos enviados.';
+    else if (reasonRaw === 'shopify_error') friendly = 'Shopify devolviÃ³ un error al crear el producto.';
+    else if (reasonRaw === 'product_not_active') friendly = 'El producto quedÃ³ como borrador en Shopify. VerificÃ¡ la visibilidad y reintentÃ¡.';
+    else if (reasonRaw === 'product_missing_variant') friendly = 'Shopify no devolviÃ³ variantes para el producto creado.';
     else if (reasonRaw === 'missing_product_handle') friendly = 'No pudimos confirmar la URL del producto en Shopify.';
     else if (reasonRaw === 'shopify_env_missing') {
       const missing = Array.isArray(error?.missing) && error.missing.length
         ? error.missing.join(', ')
         : 'SHOPIFY_STORE_DOMAIN, SHOPIFY_ADMIN_TOKEN';
-      friendly = `La integración con Shopify no está configurada. Faltan las variables: ${missing}.`;
+      friendly = `La integraciÃ³n con Shopify no estÃ¡ configurada. Faltan las variables: ${missing}.`;
     } else if (reasonRaw === 'shopify_scope_missing') {
       const missing = Array.isArray(error?.missing) && error.missing.length
         ? error.missing.join(', ')
         : 'write_products';
-      friendly = `La app de Shopify no tiene permisos suficientes. Reinstalá la app concediendo los scopes: ${missing}.`;
+      friendly = `La app de Shopify no tiene permisos suficientes. ReinstalÃ¡ la app concediendo los scopes: ${missing}.`;
     } else if (reasonRaw === 'shopify_storefront_env_missing') {
       const missing = Array.isArray(error?.missing) && error.missing.length
         ? error.missing.join(', ')
         : 'SHOPIFY_STOREFRONT_TOKEN, SHOPIFY_STOREFRONT_DOMAIN';
-      friendly = `La API Storefront de Shopify no está configurada. Faltan las variables: ${missing}.`;
+      friendly = `La API Storefront de Shopify no estÃ¡ configurada. Faltan las variables: ${missing}.`;
     } else if (reasonRaw === 'shopify_cart_user_error') {
       if (Array.isArray(error?.userErrors) && error.userErrors.length) {
-        friendly = `Shopify rechazó el carrito generado: ${error.userErrors.join(' | ')}`;
+        friendly = `Shopify rechazÃ³ el carrito generado: ${error.userErrors.join(' | ')}`;
       } else if (messageRaw && messageRaw !== 'Error') {
         friendly = messageRaw;
       } else {
-        friendly = 'Shopify rechazó el carrito generado. Intentá nuevamente en unos segundos.';
+        friendly = 'Shopify rechazÃ³ el carrito generado. IntentÃ¡ nuevamente en unos segundos.';
       }
     }
     alert(friendly);
   }
 
   function finalizeCartSuccess(message, options = {}) {
-    const {
-      preserveLastProduct = false,
-      lastProductOverride = null,
-      skipNavigate = false,
-    } = options;
+    const {\r\n      preserveLastProduct = false,\r\n      lastProductOverride = null,\r\n    } = options;
     const lastProductToPreserve = preserveLastProduct
       ? lastProductOverride || flow.lastProduct || null
       : null;
@@ -500,13 +496,7 @@ export default function Mockup() {
     if (lastProductToPreserve) {
       flow.set({ lastProduct: lastProductToPreserve });
     }
-    if (!skipNavigate) {
-      try {
-        navigate('/', { replace: true });
-      } catch (navErr) {
-        logger.warn('[mockup] cart_success_navigate_failed', navErr);
-      }
-    }
+    try {\r\n      navigate('/', { replace: true });\r\n    } catch (navErr) {\r\n      logger.warn('[mockup] cart_success_navigate_failed', navErr);\r\n    }
   }
 
   function openCommerceTarget(targetUrl) {
@@ -695,7 +685,7 @@ export default function Mockup() {
         }
       }
 
-      finalizeCartSuccess('Abrimos la página del producto para que lo agregues al carrito.', {
+      finalizeCartSuccess('Abrimos la pÃ¡gina del producto para que lo agregues al carrito.', {
         skipNavigate: didOpenTarget,
       });
       return;
@@ -727,12 +717,12 @@ export default function Mockup() {
       let emailRaw = typeof flow.customerEmail === 'string' ? flow.customerEmail.trim() : '';
       if (!emailPattern.test(emailRaw)) {
         if (typeof window === 'undefined') {
-          alert('Ingresá un correo electrónico válido para comprar en privado.');
+          alert('IngresÃ¡ un correo electrÃ³nico vÃ¡lido para comprar en privado.');
           return;
         }
         const promptDefault = typeof flow.customerEmail === 'string' ? flow.customerEmail : '';
         const provided = window.prompt(
-          'Ingresá tu correo electrónico para continuar con la compra privada:',
+          'IngresÃ¡ tu correo electrÃ³nico para continuar con la compra privada:',
           promptDefault,
         );
         if (provided == null) {
@@ -740,7 +730,7 @@ export default function Mockup() {
         }
         const normalized = provided.trim();
         if (!emailPattern.test(normalized)) {
-          alert('Ingresá un correo electrónico válido para comprar en privado.');
+          alert('IngresÃ¡ un correo electrÃ³nico vÃ¡lido para comprar en privado.');
           return;
         }
         emailRaw = normalized;
@@ -762,13 +752,13 @@ export default function Mockup() {
       if (mode === 'private') {
         const stageCallback = (stage) => {
           if (stage === 'creating_product') {
-            setToast({ message: 'Creando producto privado…' });
+            setToast({ message: 'Creando producto privadoâ€¦' });
           } else if (stage === 'creating_checkout') {
-            setToast({ message: 'Generando checkout privado…' });
+            setToast({ message: 'Generando checkout privadoâ€¦' });
           }
         };
         privateStageCallback = stageCallback;
-        setToast({ message: 'Creando producto privado…' });
+        setToast({ message: 'Creando producto privadoâ€¦' });
         jobOptions = { ...options, onPrivateStageChange: stageCallback, skipPrivateCheckout: true };
       }
       const normalizedDiscountCode = discountCode || '';
@@ -876,7 +866,7 @@ export default function Mockup() {
             if (popup == null) {
               try {
                 window.location.assign(primaryTarget);
-                return finalizeCartSuccess('Listo. Abrimos tu checkout en otra pestaña.', {
+                return finalizeCartSuccess('Listo. Abrimos tu checkout en otra pestaÃ±a.', {
                   skipNavigate: true,
                 });
               } catch (assignErr) {
@@ -884,7 +874,7 @@ export default function Mockup() {
               }
             }
           }
-          finalizeCartSuccess('Listo. Abrimos tu checkout en otra pestaña.', {
+          finalizeCartSuccess('Listo. Abrimos tu checkout en otra pestaÃ±a.', {
             skipNavigate: true,
           });
           return;
@@ -908,7 +898,7 @@ export default function Mockup() {
             navigationError.reason = 'checkout_navigation_failed';
             throw navigationError;
           }
-          finalizeCartSuccess('Listo. Abrimos tu checkout en otra pestaña.', {
+          finalizeCartSuccess('Listo. Abrimos tu checkout en otra pestaÃ±a.', {
             skipNavigate: true,
           });
           return;
@@ -964,12 +954,12 @@ export default function Mockup() {
           if (missingApiUrl) {
             const err = new Error('private_checkout_missing_api_url');
             err.reason = 'private_checkout_missing_api_url';
-            err.friendlyMessage = 'Configurá VITE_API_BASE para conectar con la API.';
+            err.friendlyMessage = 'ConfigurÃ¡ VITE_API_BASE para conectar con la API.';
             throw err;
           }
           const err = new Error('private_checkout_network_error');
           err.reason = 'private_checkout_network_error';
-          err.friendlyMessage = 'No pudimos generar el checkout privado. Probá de nuevo en unos segundos.';
+          err.friendlyMessage = 'No pudimos generar el checkout privado. ProbÃ¡ de nuevo en unos segundos.';
           err.detail = requestErr?.message || null;
           throw err;
         }
@@ -1026,9 +1016,9 @@ export default function Mockup() {
               err.requestIds = privateJson.requestIds;
             }
             const message = typeof privateJson?.message === 'string' ? privateJson.message.trim() : '';
-            err.friendlyMessage = message || 'No pudimos generar el checkout privado, probá de nuevo.';
+            err.friendlyMessage = message || 'No pudimos generar el checkout privado, probÃ¡ de nuevo.';
           } else {
-            err.friendlyMessage = 'No pudimos generar el checkout privado, probá de nuevo.';
+            err.friendlyMessage = 'No pudimos generar el checkout privado, probÃ¡ de nuevo.';
           }
           if (!err.detail && typeof rawBody === 'string' && rawBody) {
             err.detail = rawBody.slice(0, 200);
@@ -1117,7 +1107,7 @@ export default function Mockup() {
               ? { warningMessages: result.warningMessages }
               : {}),
           };
-          finalizeCartSuccess('Listo. Abrimos tu checkout privado en otra pestaña.', {
+          finalizeCartSuccess('Listo. Abrimos tu checkout privado en otra pestaÃ±a.', {
             preserveLastProduct: true,
             lastProductOverride: lastProductPayload,
             skipNavigate: true,
@@ -1137,7 +1127,7 @@ export default function Mockup() {
         openCommerceTarget(result.productUrl);
         return;
       }
-      alert('El producto se creó pero no se pudo obtener un enlace.');
+      alert('El producto se creÃ³ pero no se pudo obtener un enlace.');
     } catch (error) {
       const reason = typeof error?.reason === 'string' ? error.reason : '';
       if (reason === 'online_store_publication_missing' || reason === 'online_store_publication_empty') {
@@ -1153,7 +1143,7 @@ export default function Mockup() {
             setToast(null);
             handle(mode, { reuseLastProduct: true });
           },
-          secondaryActionLabel: 'Omitir publicación (avanzado)',
+          secondaryActionLabel: 'Omitir publicaciÃ³n (avanzado)',
           secondaryAction: () => {
             setToast(null);
             handle(mode, { reuseLastProduct: true, skipPublication: true });
@@ -1175,7 +1165,7 @@ export default function Mockup() {
         const baseMessage =
           typeof error?.friendlyMessage === 'string' && error.friendlyMessage
             ? error.friendlyMessage
-            : 'No pudimos generar el checkout privado. Probá de nuevo en unos segundos.';
+            : 'No pudimos generar el checkout privado. ProbÃ¡ de nuevo en unos segundos.';
         const extraParts = [];
         if (userErrors.length) {
           extraParts.push(userErrors.join(' | '));
@@ -1237,7 +1227,7 @@ export default function Mockup() {
     const widthCmRaw = Number(flow.editorState?.size_cm?.w);
     const heightCmRaw = Number(flow.editorState?.size_cm?.h);
     if (!Number.isFinite(widthCmRaw) || !Number.isFinite(heightCmRaw) || widthCmRaw <= 0 || heightCmRaw <= 0) {
-      alert('No se pudieron obtener las dimensiones del diseño.');
+      alert('No se pudieron obtener las dimensiones del diseÃ±o.');
       return;
     }
     try {
@@ -1298,7 +1288,7 @@ export default function Mockup() {
     }
   }
 
-  /** NUEVO: scroll-to-top suave para el botón “volver” de la sección */
+  /** NUEVO: scroll-to-top suave para el botÃ³n â€œvolverâ€ de la secciÃ³n */
   const scrollToTop = () => {
     try {
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1324,7 +1314,7 @@ export default function Mockup() {
               hasMockupImage ? styles.previewTitleOverlay : ''
             }`}
           >
-            ¿Te gustó cómo quedó?
+            Â¿Te gustÃ³ cÃ³mo quedÃ³?
           </h1>
           {hasMockupImage ? (
             <img
@@ -1351,7 +1341,7 @@ export default function Mockup() {
               Volver y cancelar
             </button>
             <p className={styles.ctaHint}>
-              Volvé al editor para crear <br></br>nuevamente tu modelo ✏️
+              VolvÃ© al editor para crear <br></br>nuevamente tu modelo âœï¸
             </p>
           </div>
           <div className={styles.ctaCard}>
@@ -1376,7 +1366,7 @@ export default function Mockup() {
               }}
             />
             <p className={styles.ctaHint}>
-              Arma un carrito con todo lo que te guste <br></br> y obtené envío gratis ❤️
+              Arma un carrito con todo lo que te guste <br></br> y obtenÃ© envÃ­o gratis â¤ï¸
             </p>
             
              
@@ -1386,7 +1376,7 @@ export default function Mockup() {
               className={`${styles.ctaButton} ${styles.ctaButtonPrimary1}`}
               type="button"
               label="Comprar ahora"
-              isBusy={busy}
+              isBusy={false}
               disabled={busy}
               buttonRef={buyNowButtonRef}
               ariaLabel="Comprar ahora"
@@ -1396,15 +1386,15 @@ export default function Mockup() {
               }}
             />
             <p className={styles.ctaHint}>
-              Finalizá tu compra para que tu creación <br></br>se haga realidad ✨
+              FinalizÃ¡ tu compra para que tu creaciÃ³n <br></br>se haga realidad âœ¨
             </p>
           </div>
         </div>
         <section className={styles.communitySection}>
           <h2 className={styles.communityTitle}>
-            Nos encantaría que formes parte de nuestra comunidad
+            Nos encantarÃ­a que formes parte de nuestra comunidad
           </h2>
-          <p className={styles.communitySubtitle}>por eso vamos a convencerte<br></br>✨</p>
+          <p className={styles.communitySubtitle}>por eso vamos a convencerte<br></br>âœ¨</p>
           <div className={styles.communityGrid}>
   {BENEFITS.map((item, i) => (
     <article key={i} className={styles.communityItem}>
@@ -1420,7 +1410,7 @@ export default function Mockup() {
       </figure>
 
       <div className={styles.communityCopy}>
-        {/* Reutilizo tus clases de tipografía */}
+        {/* Reutilizo tus clases de tipografÃ­a */}
         <h3 className={styles.benefitTitle}>
           {item.icon && <span className={styles.benefitIcon}>{item.icon}</span>}
           {item.title}
@@ -1473,14 +1463,14 @@ export default function Mockup() {
         <div className={styles.showcaseImageWrapper}>
           <img
             src={COMMUNITY_HERO_IMAGE}
-            alt="Galería de setups de la comunidad MgM"
+            alt="GalerÃ­a de setups de la comunidad MgM"
             className={styles.showcaseImage}
             loading="lazy"
           />
          <a href='https://www.instagram.com/stories/highlights/18057726377123944/' style={{ textDecoration: 'none' }} target='_blank'>
           <div className={styles.showcaseOverlay}>
             <p className={styles.showcaseOverlayText}>
-              Conocé a los +2000 que ya lo hicieron
+              ConocÃ© a los +2000 que ya lo hicieron
             </p>
           </div>
           </a>
@@ -1494,7 +1484,7 @@ export default function Mockup() {
   aria-label="Volver arriba"
 >
   <span className={styles.backLabel}>Volver</span>
-  <span className={styles.backArrow} aria-hidden="true">↑</span>
+  <span className={styles.backArrow} aria-hidden="true">â†‘</span>
 </button>
         </div>
       </section>
@@ -1528,20 +1518,20 @@ export default function Mockup() {
               aria-label="Cerrar"
               className={styles.modalClose}
             >
-              ×
+              Ã—
             </button>
             <h2 id={buyPromptTitleId} className={styles.modalTitle}>
-              Elige cómo publicar tu diseño
+              Elige cÃ³mo publicar tu diseÃ±o
             </h2>
             <p id={buyPromptDescriptionId} className={styles.modalDescription}>
-              🔓 Público: visible en la tienda. <br></br><br></br>🔒 Privado: solo vos lo verás.
+              ðŸ”“ PÃºblico: visible en la tienda. <br></br><br></br>ðŸ”’ Privado: solo vos lo verÃ¡s.
             </p>
             <div className={styles.modalActions}>
               <CtaButton
                 buttonRef={firstActionButtonRef}
                 className={styles.modalPrimary}
-                label="Comprar público"
-                busyLabel="Procesando…"
+                label="Comprar pÃºblico"
+                busyLabel="Procesandoâ€¦"
                 isBusy={publicBusy}
                 disabled={busy}
                 onClick={() => {
@@ -1562,7 +1552,7 @@ export default function Mockup() {
               <CtaButton
                 className={styles.modalSecondary}
                 label="Comprar en privado"
-                busyLabel="Procesando…"
+                busyLabel="Procesandoâ€¦"
                 isBusy={privateBusy}
                 disabled={busy}
                 onClick={() => {
@@ -1597,3 +1587,10 @@ export default function Mockup() {
     </div>
   );
 }
+
+
+
+
+
+
+
