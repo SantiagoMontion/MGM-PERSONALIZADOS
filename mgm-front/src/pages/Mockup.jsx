@@ -29,6 +29,73 @@ const CART_STATUS_LABELS = {
   opening: 'Abriendo producto…',
 };
 
+const CTA_BUTTON_CONTENT_STYLE = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: '8px',
+  minHeight: '1em',
+};
+
+const CTA_BUTTON_SPINNER_STYLE = {
+  width: '18px',
+  height: '18px',
+};
+
+function CtaButton({
+  label,
+  busyLabel,
+  isBusy,
+  className,
+  disabled = false,
+  onClick,
+  type = 'button',
+  buttonRef,
+  ariaLabel,
+  title,
+}) {
+  const handleClick = (event) => {
+    if (disabled || isBusy) {
+      event.preventDefault();
+      return;
+    }
+    if (onClick) {
+      onClick(event);
+    }
+  };
+
+  const loadingLabel = typeof busyLabel !== 'undefined' ? busyLabel : 'Procesando…';
+
+  return (
+    <button
+      type={type}
+      ref={buttonRef}
+      className={className}
+      disabled={disabled || isBusy}
+      aria-disabled={disabled || isBusy ? 'true' : undefined}
+      aria-busy={isBusy ? 'true' : undefined}
+      onClick={handleClick}
+      aria-label={ariaLabel}
+      title={title}
+    >
+      <span style={CTA_BUTTON_CONTENT_STYLE}>
+        {isBusy ? (
+          <>
+            <span
+              className="spinner"
+              aria-hidden="true"
+              style={CTA_BUTTON_SPINNER_STYLE}
+            />
+            <span>{loadingLabel}</span>
+          </>
+        ) : (
+          label
+        )}
+      </span>
+    </button>
+  );
+}
+
 const SHOPIFY_DOMAIN = (() => {
   const fromImportMeta =
     typeof import.meta !== 'undefined'
@@ -92,6 +159,8 @@ export default function Mockup() {
   const location = useLocation();
   const [busy, setBusy] = useState(false);
   const [cartStatus, setCartStatus] = useState('idle');
+  const [publicBusy, setPublicBusy] = useState(false);
+  const [privateBusy, setPrivateBusy] = useState(false);
   const [toast, setToast] = useState(null);
   const [isBuyPromptOpen, setBuyPromptOpen] = useState(false);
   const buyNowButtonRef = useRef(null);
@@ -101,6 +170,7 @@ export default function Mockup() {
   const successToastTimeoutRef = useRef(null);
 
   const cartButtonLabel = CART_STATUS_LABELS[cartStatus] || CART_STATUS_LABELS.idle;
+  const cartBusy = cartStatus !== 'idle';
   const buyPromptTitleId = 'buy-choice-title';
   const buyPromptDescriptionId = 'buy-choice-description';
   const discountCode = useMemo(() => {
@@ -682,6 +752,11 @@ export default function Mockup() {
     }
 
     try {
+      if (mode === 'checkout') {
+        setPublicBusy(true);
+      } else if (mode === 'private') {
+        setPrivateBusy(true);
+      }
       setBusy(true);
       let jobOptions = options;
       if (mode === 'private') {
@@ -1136,6 +1211,11 @@ export default function Mockup() {
       }
       showFriendlyError(error);
     } finally {
+      if (mode === 'checkout') {
+        setPublicBusy(false);
+      } else if (mode === 'private') {
+        setPrivateBusy(false);
+      }
       setBusy(false);
     }
   }
@@ -1275,11 +1355,14 @@ export default function Mockup() {
             </p>
           </div>
           <div className={styles.ctaCard}>
-            <button
-              type="button"
-              disabled={busy}
+            <CtaButton
               className={`${styles.ctaButton} ${styles.ctaButtonPrimary}`}
+              label={CART_STATUS_LABELS.idle}
+              busyLabel={cartButtonLabel}
+              isBusy={cartBusy}
+              disabled={busy}
               onClick={() => {
+                if (busy || cartBusy) return;
                 debugTrackFire('cta_click_cart', rid);
                 trackEvent('cta_click_cart', {
                   rid,
@@ -1291,9 +1374,7 @@ export default function Mockup() {
                 });
                 handle('cart');
               }}
-            >
-              {cartButtonLabel}
-            </button>
+            />
             <p className={styles.ctaHint}>
               Arma un carrito con todo lo que te guste <br></br> y obtené envío gratis ❤️
             </p>
@@ -1456,12 +1537,15 @@ export default function Mockup() {
               🔓 Público: visible en la tienda. <br></br><br></br>🔒 Privado: solo vos lo verás.
             </p>
             <div className={styles.modalActions}>
-              <button
-                type="button"
-                ref={firstActionButtonRef}
-                disabled={busy}
+              <CtaButton
+                buttonRef={firstActionButtonRef}
                 className={styles.modalPrimary}
+                label="Comprar público"
+                busyLabel="Procesando…"
+                isBusy={publicBusy}
+                disabled={busy}
                 onClick={() => {
+                  if (busy || publicBusy) return;
                   debugTrackFire('cta_click_public', rid);
                   trackEvent('cta_click_public', {
                     rid,
@@ -1474,14 +1558,15 @@ export default function Mockup() {
                   setBuyPromptOpen(false);
                   handle('checkout');
                 }}
-              >
-                Comprar público
-              </button>
-              <button
-                type="button"
-                disabled={busy}
+              />
+              <CtaButton
                 className={styles.modalSecondary}
+                label="Comprar en privado"
+                busyLabel="Procesando…"
+                isBusy={privateBusy}
+                disabled={busy}
                 onClick={() => {
+                  if (busy || privateBusy) return;
                   debugTrackFire('cta_click_private', rid);
                   trackEvent('cta_click_private', {
                     rid,
@@ -1494,9 +1579,7 @@ export default function Mockup() {
                   setBuyPromptOpen(false);
                   handle('private');
                 }}
-              >
-                Comprar en privado
-              </button>
+              />
             </div>
           </div>
         </div>
