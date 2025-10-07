@@ -1382,19 +1382,19 @@ export default function Mockup() {
              
           </div>
           <div className={styles.ctaCard}>
-            <button
-              type="button"
-              disabled={busy}
-              
+            <CtaButton
               className={`${styles.ctaButton} ${styles.ctaButtonPrimary1}`}
-              ref={buyNowButtonRef}
+              type="button"
+              label="Comprar ahora"
+              isBusy={busy}
+              disabled={busy}
+              buttonRef={buyNowButtonRef}
+              ariaLabel="Comprar ahora"
               onClick={() => {
                 if (busy) return;
                 setBuyPromptOpen(true);
               }}
-            >
-              Comprar ahora
-            </button>
+            />
             <p className={styles.ctaHint}>
               Finalizá tu compra para que tu creación <br></br>se haga realidad ✨
             </p>
