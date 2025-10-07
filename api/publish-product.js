@@ -7,6 +7,7 @@ const FRONT_ORIGIN = (process.env.FRONT_ORIGIN || 'https://mgm-app.vercel.app').
 const REQUIRED_ENV = resolveEnvRequirements('SHOPIFY_ADMIN', 'SUPABASE_SERVICE');
 const SHOPIFY_TIMEOUT_STATUS = 504;
 const MAX_PAYLOAD_BYTES = 20 * 1024 * 1024;
+const MAX_REQUEST_BODY_BYTES = 32 * 1024 * 1024;
 const CORS_ALLOW_HEADERS = 'content-type, authorization, x-diag';
 const CORS_ALLOW_METHODS = 'POST, OPTIONS';
 const CORS_MAX_AGE = '86400';
@@ -16,7 +17,7 @@ export const config = {
   maxDuration: 60,
   api: {
     bodyParser: true,
-    sizeLimit: '20mb',
+    sizeLimit: '32mb',
   },
 };
 
@@ -193,7 +194,6 @@ function respondPayloadTooLarge(req, res, diagId, estimatedBytes) {
     code: 'payload_too_large',
     limitBytes: MAX_PAYLOAD_BYTES,
     estimatedBytes: typeof estimatedBytes === 'number' ? estimatedBytes : null,
-    hint: 'El dataURL base64 agrega ~33% de tamaño. Subí el archivo original < 15 MB o usá /api/upload-original.',
     diagId,
   };
   sendJsonWithCors(req, res, 413, payload);
@@ -224,7 +224,7 @@ async function obtainJsonBody(req) {
     const onData = (chunk) => {
       const buf = typeof chunk === 'string' ? Buffer.from(chunk) : chunk;
       bytes += buf.length;
-      if (bytes > MAX_PAYLOAD_BYTES) {
+      if (bytes > MAX_REQUEST_BODY_BYTES) {
         cleanup();
         const err = new Error('payload_too_large');
         err.code = 'payload_too_large';
