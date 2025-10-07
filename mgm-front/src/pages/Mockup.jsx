@@ -473,7 +473,10 @@ export default function Mockup() {
   }
 
   function finalizeCartSuccess(message, options = {}) {
-    const {\r\n      preserveLastProduct = false,\r\n      lastProductOverride = null,\r\n    } = options;
+    const {
+      preserveLastProduct = false,
+      lastProductOverride = null,
+    } = options;
     const lastProductToPreserve = preserveLastProduct
       ? lastProductOverride || flow.lastProduct || null
       : null;
@@ -496,7 +499,11 @@ export default function Mockup() {
     if (lastProductToPreserve) {
       flow.set({ lastProduct: lastProductToPreserve });
     }
-    try {\r\n      navigate('/', { replace: true });\r\n    } catch (navErr) {\r\n      logger.warn('[mockup] cart_success_navigate_failed', navErr);\r\n    }
+    try {
+      navigate('/', { replace: true });
+    } catch (navErr) {
+      logger.warn('[mockup] cart_success_navigate_failed', navErr);
+    }
   }
 
   function openCommerceTarget(targetUrl) {
@@ -1587,6 +1594,9 @@ export default function Mockup() {
     </div>
   );
 }
+
+
+
 
 
 
