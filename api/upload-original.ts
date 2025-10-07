@@ -10,6 +10,7 @@ import type { CorsDecision } from './_lib/cors.js';
 
 const PASSTHROUGH_PLACEHOLDER_URL = 'https://picsum.photos/seed/mgm/800/600';
 const DEFAULT_MAX_BYTES = 40 * 1024 * 1024;
+const ALLOWED_METHODS = 'POST, OPTIONS';
 export const config = {
   api: {
     bodyParser: false,
@@ -539,7 +540,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const diagId = randomUUID();
   res.setHeader('X-Upload-Diag-Id', diagId);
 
-  const corsDecision = ensureCors(req, res);
+  let corsDecision = ensureCors(req, res);
+  corsDecision = applyCorsHeaders(req, res, { ...corsDecision, allowMethods: ALLOWED_METHODS });
 
   if (!corsDecision.allowed || !corsDecision.allowedOrigin) {
     respondCorsDenied(req, res, corsDecision, diagId);
