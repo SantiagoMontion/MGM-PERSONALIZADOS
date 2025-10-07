@@ -16,7 +16,27 @@ const ALLOWED_HEADERS = 'content-type, authorization, x-diag';
 const BODY_LIMIT_BYTES = 10 * 1024 * 1024; // 10mb
 const DATA_IMAGE_REGEX = /^data:image\//i;
 const BASE64_FIELD_NAMES = new Set(['imagebase64', 'previewdataurl']);
-const URL_REGEX = /^https?:\/\//i;
+
+function normalizePathSegment(segment) {
+  if (typeof segment !== 'string') return '';
+  return segment.trim().toLowerCase();
+}
+
+function isAllowedDataUrlPath(path) {
+  if (!Array.isArray(path) || path.length === 0) {
+    return false;
+  }
+  const normalized = path.map((segment) => normalizePathSegment(segment));
+  const last = normalized[normalized.length - 1];
+  if (!last) {
+    return false;
+  }
+  const sanitizedLast = last.replace(/[^a-z0-9]+/g, '');
+  if (!sanitizedLast.endsWith('dataurl')) {
+    return false;
+  }
+  return normalized.some((segment) => segment.includes('mockup'));
+}
 
 export const config = {
   memory: 256,
@@ -153,11 +173,10 @@ async function readJsonBody(req) {
 
 function sanitizeBase64Payload(value) {
   if (!value || typeof value !== 'object') {
-    return { sanitized: value, removed: [], hasUrl: false };
+    return { sanitized: value, removed: [] };
   }
 
   const removed = new Set();
-  let hasUrl = false;
 
   const visit = (current, path) => {
     if (current == null) {
@@ -165,10 +184,10 @@ function sanitizeBase64Payload(value) {
     }
 
     if (typeof current === 'string') {
-      if (URL_REGEX.test(current)) {
-        hasUrl = true;
-      }
       if (DATA_IMAGE_REGEX.test(current)) {
+        if (isAllowedDataUrlPath(path)) {
+          return current;
+        }
         removed.add(path.join('.'));
         return undefined;
       }
@@ -203,7 +222,7 @@ function sanitizeBase64Payload(value) {
   };
 
   const sanitized = visit(value, []);
-  return { sanitized, removed: Array.from(removed), hasUrl };
+  return { sanitized, removed: Array.from(removed) };
 }
 
 function buildMockProduct(payload) {
@@ -275,7 +294,7 @@ export default async function handler(req, res) {
     return;
   }
 
-  const { sanitized: sanitizedBody, removed: removedPaths, hasUrl } = sanitizeBase64Payload(
+  const { sanitized: sanitizedBody, removed: removedPaths } = sanitizeBase64Payload(
     incomingBody && typeof incomingBody === 'object' ? incomingBody : {},
   );
 
@@ -285,11 +304,6 @@ export default async function handler(req, res) {
       step: 'base64_removed',
       removed: removedPaths,
     });
-  }
-
-  if (!hasUrl) {
-    sendJson(req, res, appliedDecision, 400, { ok: false, error: 'send_urls_only', diagId });
-    return;
   }
 
   req.body = sanitizedBody;
