@@ -322,34 +322,69 @@ export async function createJobAndProduct(
       }
     }
 
+    const publishPayload: Record<string, unknown> = {
+      productType,
+      mockupDataUrl,
+      designName,
+      title: productTitle,
+      material: materialLabel,
+      widthCm,
+      heightCm,
+      approxDpi,
+      priceTransfer: priceTransferRaw,
+      priceCurrency,
+      lowQualityAck: Boolean(flow.lowQualityAck),
+      imageAlt,
+      filename,
+      tags: extraTags,
+      description: '',
+      seoDescription: metaDescription,
+      visibility: requestedVisibility,
+      isPrivate,
+      jobId: jobIdForPdf || undefined,
+      printSourceUrl: printSourceUrl || undefined,
+      printDataUrl: printDataUrl || undefined,
+      printBackgroundColor: printBackgroundHex,
+      printDpi: approxDpi ?? undefined,
+    };
+
+    const originalUrl = typeof (flow as any)?.fileOriginalUrl === 'string'
+      ? (flow as any).fileOriginalUrl.trim()
+      : '';
+    const previewUrl = typeof (flow as any)?.mockupUrl === 'string'
+      ? (flow as any).mockupUrl.trim()
+      : '';
+
+    const assets: Record<string, string> = {};
+    if (originalUrl.startsWith('http')) {
+      assets.originalUrl = originalUrl;
+    }
+    if (previewUrl.startsWith('http')) {
+      assets.previewUrl = previewUrl;
+    }
+    if (Object.keys(assets).length) {
+      publishPayload.assets = assets;
+    }
+
+    delete publishPayload.imageBase64;
+    delete publishPayload.previewDataUrl;
+
+    const removeIfDataImage = (key: string) => {
+      const value = publishPayload[key];
+      if (typeof value === 'string' && value.trim().toLowerCase().startsWith('data:image')) {
+        delete publishPayload[key];
+      }
+    };
+
+    removeIfDataImage('image');
+    removeIfDataImage('mockupDataUrl');
+    removeIfDataImage('printDataUrl');
+    removeIfDataImage('previewImage');
+
     const publishResp = await apiFetch('/api/publish-product', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        productType,
-        mockupDataUrl,
-        designName,
-        title: productTitle,
-        material: materialLabel,
-        widthCm,
-        heightCm,
-        approxDpi,
-        priceTransfer: priceTransferRaw,
-        priceCurrency,
-        lowQualityAck: Boolean(flow.lowQualityAck),
-        imageAlt,
-        filename,
-        tags: extraTags,
-        description: '',
-        seoDescription: metaDescription,
-        visibility: requestedVisibility,
-        isPrivate,
-        jobId: jobIdForPdf || undefined,
-        printSourceUrl: printSourceUrl || undefined,
-        printDataUrl: printDataUrl || undefined,
-        printBackgroundColor: printBackgroundHex,
-        printDpi: (approxDpi ?? undefined),
-      }),
+      body: JSON.stringify(publishPayload),
     });
     publishStatus = Number.isFinite(publishResp.status) ? publishResp.status : null;
     const publishData = await publishResp.json().catch(() => null);
