@@ -7,7 +7,6 @@ const FRONT_ORIGIN = (process.env.FRONT_ORIGIN || 'https://mgm-app.vercel.app').
 const REQUIRED_ENV = resolveEnvRequirements('SHOPIFY_ADMIN', 'SUPABASE_SERVICE');
 const SHOPIFY_TIMEOUT_STATUS = 504;
 const MAX_PAYLOAD_BYTES = 20 * 1024 * 1024;
-const MAX_PAYLOAD_SIZE_LIMIT = '20mb';
 const CORS_ALLOW_HEADERS = 'content-type, authorization, x-diag';
 const CORS_ALLOW_METHODS = 'POST, OPTIONS';
 const CORS_MAX_AGE = '86400';
@@ -17,7 +16,7 @@ export const config = {
   maxDuration: 60,
   api: {
     bodyParser: true,
-    sizeLimit: MAX_PAYLOAD_SIZE_LIMIT,
+    sizeLimit: '20mb',
   },
 };
 
