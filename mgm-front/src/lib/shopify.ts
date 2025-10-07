@@ -246,11 +246,21 @@ export async function createJobAndProduct(
 
   const customerEmail = typeof flow.customerEmail === 'string' ? flow.customerEmail.trim() : '';
   const jobIdForPdf = readJobId(flow);
-  const printSourceUrl = typeof (flow as any)?.fileOriginalUrl === 'string'
-    ? (flow as any).fileOriginalUrl.trim()
-    : '';
-  const printDataUrl = typeof flow.printFullResDataUrl === 'string'
-    ? flow.printFullResDataUrl
+  const printSourceUrlRaw = (() => {
+    if (typeof flow.fileOriginalUrl === 'string') {
+      const trimmed = flow.fileOriginalUrl.trim();
+      if (trimmed) return trimmed;
+    }
+    if (typeof (flow as any)?.fileOriginalUrl === 'string') {
+      const trimmed = (flow as any).fileOriginalUrl.trim();
+      if (trimmed) return trimmed;
+    }
+    return '';
+  })();
+  const hasPrintSourceUrl = Boolean(printSourceUrlRaw);
+  const printSourceUrl = hasPrintSourceUrl ? printSourceUrlRaw : '';
+  const printDataUrl = !hasPrintSourceUrl && typeof flow.printFullResDataUrl === 'string'
+    ? flow.printFullResDataUrl.trim()
     : '';
   const printBackgroundHex = (flow.editorState as any)?.background || '#ffffff';
 
@@ -345,8 +355,8 @@ export async function createJobAndProduct(
         visibility: requestedVisibility,
         isPrivate,
         jobId: jobIdForPdf || undefined,
-        printSourceUrl: printSourceUrl || undefined,
-        printDataUrl: printDataUrl || undefined,
+        ...(printSourceUrl ? { printSourceUrl } : {}),
+        ...(printDataUrl ? { printDataUrl } : {}),
         printBackgroundColor: printBackgroundHex,
         printDpi: (approxDpi ?? undefined),
       }),
