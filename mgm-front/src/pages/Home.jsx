@@ -354,11 +354,29 @@ export default function Home() {
   }
 
   async function uploadOriginal(payload) {
-    const response = await apiFetch('/api/upload-original', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
+    const { file, ...rest } = payload || {};
+    let response;
+
+    const isBlob = typeof Blob !== 'undefined' && file instanceof Blob;
+    if (isBlob) {
+      const formData = new FormData();
+      const filename = typeof file.name === 'string' && file.name ? file.name : 'upload.bin';
+      formData.append('file', file, filename);
+      for (const [key, value] of Object.entries(rest)) {
+        if (value === undefined || value === null) continue;
+        if (Array.isArray(value)) {
+          for (const entry of value) {
+            if (entry === undefined || entry === null) continue;
+            formData.append(key, typeof entry === 'string' ? entry : String(entry));
+          }
+          continue;
+        }
+        formData.append(key, typeof value === 'string' ? value : String(value));
+      }
+      response = await apiFetch('POST', '/api/upload-original', formData);
+    } else {
+      response = await apiFetch('POST', '/api/upload-original', rest);
+    }
 
     const text = await response.text();
     let json = null;
@@ -650,6 +668,11 @@ export default function Home() {
 
       let uploadData = null;
       try {
+        const uploadFilename = uploaded?.file?.name || 'design.png';
+        const uploadFile =
+          typeof File !== 'undefined'
+            ? new File([designBlob], uploadFilename, { type: designMime })
+            : null;
         const uploadPayload = {
           design_name: trimmedDesignName,
           material,
@@ -657,9 +680,9 @@ export default function Home() {
           h_cm: activeHcm,
           size_bytes: designBlob.size,
           mime: designMime,
-          data_url: master,
           sha256: designSha,
-          filename: uploaded?.file?.name || 'design.png',
+          filename: uploadFilename,
+          ...(uploadFile ? { file: uploadFile } : { data_url: master }),
         };
         const uploadResult = await uploadOriginal(uploadPayload);
         uploadData = { ...uploadResult.json, publicUrl: uploadResult.publicUrl };
