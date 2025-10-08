@@ -1,16 +1,14 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { randomUUID } from 'node:crypto';
-import {
-  ensureCors,
-  handlePreflight,
-  respondCorsDenied,
-  applyCorsHeaders,
-} from './_lib/cors.js';
+import { ensureCors, applyCorsHeaders } from './_lib/cors.js';
 import type { CorsDecision } from './_lib/cors.js';
 
 const PASSTHROUGH_PLACEHOLDER_URL = 'https://picsum.photos/seed/mgm/800/600';
 const DEFAULT_MAX_BYTES = 40 * 1024 * 1024;
 const DIRECT_UPLOAD_THRESHOLD_BYTES = 5 * 1024 * 1024;
+const UPLOAD_ALLOW_METHODS = 'POST, OPTIONS';
+const UPLOAD_ALLOW_HEADERS = 'content-type, authorization, x-diag';
+const UPLOAD_CORS_MAX_AGE = '86400';
 export const config = {
   api: {
     bodyParser: true,
@@ -126,6 +124,76 @@ function getContentLength(req: VercelRequest): number | null {
   return toNumber(header);
 }
 
+function getFirstHeaderValue(value: string | string[] | undefined): string | null {
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      if (typeof entry === 'string' && entry.trim()) {
+        return entry;
+      }
+    }
+    return null;
+  }
+  if (typeof value === 'string' && value.trim()) {
+    return value;
+  }
+  return null;
+}
+
+function getApproxImageBase64Bytes(req: VercelRequest): number | null {
+  const headerCandidates = [
+    'x-image-base64-bytes',
+    'x-image-base64-size',
+    'x-image-base64-length',
+    'x-image-bytes',
+    'x-image-size',
+    'x-image-length',
+    'x-base64-bytes',
+    'x-base64-size',
+    'x-base64-length',
+    'x-payload-bytes',
+    'x-request-bytes',
+    'x-body-bytes',
+  ];
+
+  for (const headerName of headerCandidates) {
+    const raw = getFirstHeaderValue(req.headers?.[headerName]);
+    const parsed = toNumber(raw);
+    if (parsed && parsed > 0) {
+      return parsed;
+    }
+  }
+
+  const queryCandidates = [
+    'imageBase64Bytes',
+    'image_base64_bytes',
+    'imageBase64Size',
+    'image_base64_size',
+    'imageBase64Length',
+    'image_base64_length',
+  ];
+  const query: Record<string, unknown> | undefined = (req as any)?.query;
+  if (query && typeof query === 'object') {
+    for (const key of queryCandidates) {
+      const value = (query as Record<string, unknown>)[key];
+      if (Array.isArray(value)) {
+        for (const entry of value) {
+          const parsed = toNumber(entry as any);
+          if (parsed && parsed > 0) {
+            return parsed;
+          }
+        }
+      } else {
+        const parsed = toNumber(value as any);
+        if (parsed && parsed > 0) {
+          return parsed;
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
 function getContentType(req: VercelRequest): string {
   const header = req.headers['content-type'] || req.headers['Content-Type'];
   if (Array.isArray(header)) {
@@ -137,6 +205,24 @@ function getContentType(req: VercelRequest): string {
 function getBaseContentType(contentTypeHeader: string): string {
   if (!contentTypeHeader) return '';
   return contentTypeHeader.split(';')[0].trim().toLowerCase();
+}
+
+function applyUploadCors(
+  req: VercelRequest,
+  res: VercelResponse,
+  corsDecision?: CorsDecision,
+): CorsDecision {
+  const resolved = applyCorsHeaders(req, res, corsDecision);
+  try {
+    res.setHeader('Access-Control-Allow-Methods', UPLOAD_ALLOW_METHODS);
+  } catch {}
+  try {
+    res.setHeader('Access-Control-Allow-Headers', UPLOAD_ALLOW_HEADERS);
+  } catch {}
+  try {
+    res.setHeader('Access-Control-Max-Age', UPLOAD_CORS_MAX_AGE);
+  } catch {}
+  return resolved;
 }
 
 function respondJson(
@@ -156,7 +242,7 @@ function respondJson(
         }
       : payload;
 
-  applyCorsHeaders(req, res, corsDecision);
+  applyUploadCors(req, res, corsDecision);
   if (typeof res.status === 'function') {
     res.status(statusCode);
     if (typeof res.json === 'function') {
@@ -592,6 +678,24 @@ function calculateEffectiveReceivedBytes(
   return Math.max(fallback, bufferSize, fileSize);
 }
 
+function respondUploadCorsDenied(
+  req: VercelRequest,
+  res: VercelResponse,
+  decision: CorsDecision,
+  diagId: string,
+): void {
+  applyUploadCors(req, res, decision);
+  if (typeof res.status === 'function') {
+    res.status(403);
+  } else {
+    res.statusCode = 403;
+  }
+  try {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  } catch {}
+  res.end(JSON.stringify({ ok: false, error: 'origin_not_allowed', code: 'origin_not_allowed', diagId }));
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const diagId = randomUUID();
   res.setHeader('X-Upload-Diag-Id', diagId);
@@ -599,14 +703,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const corsDecision = ensureCors(req, res);
 
   if (!corsDecision.allowed || !corsDecision.allowedOrigin) {
-    respondCorsDenied(req, res, corsDecision, diagId);
+    respondUploadCorsDenied(req, res, corsDecision, diagId);
     return;
   }
 
   if (req.method === 'OPTIONS') {
-    handlePreflight(req, res, corsDecision);
+    applyUploadCors(req, res, corsDecision);
+    if (typeof res.status === 'function') {
+      res.status(204);
+    } else {
+      res.statusCode = 204;
+    }
+    res.end();
     return;
   }
+
+  applyUploadCors(req, res, corsDecision);
 
   if (req.method !== 'POST') {
     respondJson(req, res, corsDecision, 405, { ok: false, error: 'method_not_allowed', diagId });
@@ -622,6 +734,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
   if (contentLength && contentLength > directThreshold) {
     respondUseDirectUpload(req, res, corsDecision, diagId, directThreshold, contentLength);
+    return;
+  }
+
+  const approxBase64Bytes = getApproxImageBase64Bytes(req);
+  if (approxBase64Bytes && approxBase64Bytes > directThreshold) {
+    respondUseDirectUpload(req, res, corsDecision, diagId, directThreshold, approxBase64Bytes);
     return;
   }
 
