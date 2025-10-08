@@ -72,7 +72,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const supabase = getSupabaseAdmin();
     const { data, error } = await supabase
       .from('publish_refs')
-      .select('rid,original_object_key,original_url,mockup_url,product_id')
+      .select('rid,product_id,original_object_key,original_url,mockup_url,design_slug,size_mm,material,margin_mm,original_mime')
       .eq('rid', normalizedRid)
       .maybeSingle();
 
@@ -85,10 +85,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const reference = data
       ? {
           rid: data.rid ?? null,
+          productId: data.product_id ?? null,
           originalObjectKey: data.original_object_key ?? null,
           originalUrl: data.original_url ?? null,
           mockupUrl: data.mockup_url ?? null,
-          productId: data.product_id ?? null,
+          designSlug: data.design_slug ?? null,
+          sizeMm: data.size_mm ?? null,
+          material: data.material ?? null,
+          marginMm: data.margin_mm ?? null,
+          originalMime: data.original_mime ?? null,
         }
       : null;
 
