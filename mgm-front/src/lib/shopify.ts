@@ -450,6 +450,16 @@ export async function createJobAndProduct(
       }
     }
 
+    const ridForPublish = readFlowRid(flow);
+    const designSlugForPublish = slugify(designName || productTitle);
+    const originalObjectKeyRaw = typeof (flow as any)?.uploadObjectKey === 'string'
+      ? (flow as any).uploadObjectKey.trim()
+      : '';
+    const sizeMmPayload = typeof widthCm === 'number' && Number.isFinite(widthCm)
+      && typeof heightCm === 'number' && Number.isFinite(heightCm)
+      ? { w: widthCm * 10, h: heightCm * 10 }
+      : undefined;
+
     const publishPayload: Record<string, unknown> = {
       productType,
       designName,
@@ -457,6 +467,10 @@ export async function createJobAndProduct(
       material: materialLabel,
       widthCm,
       heightCm,
+      rid: ridForPublish || undefined,
+      design_slug: designSlugForPublish,
+      size_mm: sizeMmPayload,
+      originalObjectKey: originalObjectKeyRaw || null,
       approxDpi,
       priceTransfer: priceTransferRaw,
       priceCurrency,
@@ -513,7 +527,6 @@ export async function createJobAndProduct(
 
     if (SHOULD_LOG_PUBLISH_PAYLOAD) {
       try {
-        const rid = readFlowRid(flow);
         const hasMockupUrl = typeof publishPayload.mockupUrl === 'string'
           && Boolean((publishPayload.mockupUrl as string).trim());
         const hasMockupDataUrl = typeof publishPayload.mockupDataUrl === 'string'
@@ -521,7 +534,7 @@ export async function createJobAndProduct(
         console.debug('[publish] send', {
           hasMockupUrl,
           hasMockupDataUrl,
-          rid: rid || null,
+          rid: ridForPublish || null,
         });
       } catch (payloadLogErr) {
         logger.debug('[createJobAndProduct] publish_payload_log_failed', payloadLogErr);
@@ -570,6 +583,43 @@ export async function createJobAndProduct(
     const initialWarningMessages = sanitizeWarningMessages(publishData?.warningMessages);
     if (initialWarningMessages.length) {
       collectedWarningMessages = initialWarningMessages;
+    }
+    const warningCodesFromEntries = Array.isArray(publishData?.warnings)
+      ? (publishData.warnings as Array<{ code?: unknown }>).map((entry) => {
+          if (!entry || typeof entry !== 'object') return '';
+          const code = (entry as { code?: unknown }).code;
+          return typeof code === 'string' ? code : '';
+        }).filter((code): code is string => Boolean(code))
+      : [];
+    const warningCodesFromList = Array.isArray(publishData?.warningCodes)
+      ? (publishData.warningCodes as unknown[]).filter((code): code is string => typeof code === 'string')
+      : [];
+    const blockingCodes = new Set<string>([
+      ...warningCodesFromEntries,
+      ...warningCodesFromList,
+    ]);
+    if (typeof publishData?.code === 'string' && publishData.code.trim()) {
+      blockingCodes.add(publishData.code.trim());
+    }
+    const blockingOrder: Array<'original_not_found' | 'suspicious_output'> = [
+      'original_not_found',
+      'suspicious_output',
+    ];
+    const matchedBlockingCode = blockingOrder.find((code) => blockingCodes.has(code));
+    if (matchedBlockingCode) {
+      const err: Error & { reason?: string; friendlyMessage?: string } = new Error(matchedBlockingCode);
+      err.reason = matchedBlockingCode;
+      const warningMessage = Array.isArray(publishData?.warnings)
+        ? (publishData.warnings as Array<{ code?: unknown; message?: unknown }>).find(
+            (entry) => entry && typeof entry === 'object' && entry.code === matchedBlockingCode,
+          )?.message
+        : undefined;
+      if (typeof warningMessage === 'string' && warningMessage.trim()) {
+        err.friendlyMessage = warningMessage.trim();
+      } else if (typeof publishData?.message === 'string' && publishData.message.trim()) {
+        err.friendlyMessage = publishData.message.trim();
+      }
+      throw err;
     }
     if (!publishResp.ok || !publish?.ok) {
       const reason = publish?.reason || publish?.error || `publish_failed_${publishResp.status}`;
