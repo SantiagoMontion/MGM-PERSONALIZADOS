@@ -112,6 +112,8 @@ create table if not exists public.publish_refs (
   id uuid primary key default gen_random_uuid(),
   rid text not null unique,
   product_id text not null,
+  product_handle text,
+  product_url text,
   design_slug text,
   size_mm jsonb,
   material text,
