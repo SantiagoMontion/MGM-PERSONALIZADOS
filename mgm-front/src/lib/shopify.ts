@@ -475,10 +475,18 @@ export async function createJobAndProduct(
       printDpi: approxDpi ?? undefined,
     };
 
-    if (mockupUploadUrl) {
-      publishPayload.mockupUrl = mockupUploadUrl;
-    } else if (mockupDataUrl) {
-      publishPayload.mockupDataUrl = mockupDataUrl;
+    const normalizedMockupUrl = typeof mockupUploadUrl === 'string'
+      ? mockupUploadUrl.trim()
+      : '';
+    const normalizedMockupDataUrl = typeof mockupDataUrl === 'string'
+      ? mockupDataUrl.trim()
+      : '';
+
+    if (normalizedMockupUrl) {
+      publishPayload.mockupUrl = normalizedMockupUrl;
+      delete publishPayload.mockupDataUrl;
+    } else if (normalizedMockupDataUrl) {
+      publishPayload.mockupDataUrl = normalizedMockupDataUrl;
     } else {
       const err: Error & { reason?: string } = new Error('missing_mockup');
       err.reason = 'missing_mockup';
@@ -510,7 +518,7 @@ export async function createJobAndProduct(
           && Boolean((publishPayload.mockupUrl as string).trim());
         const hasMockupDataUrl = typeof publishPayload.mockupDataUrl === 'string'
           && Boolean((publishPayload.mockupDataUrl as string).trim());
-        console.debug('[publish] sending', {
+        console.debug('[publish] send', {
           hasMockupUrl,
           hasMockupDataUrl,
           rid: rid || null,
@@ -531,7 +539,6 @@ export async function createJobAndProduct(
     };
 
     removeIfDataImage('image');
-    removeIfDataImage('mockupDataUrl');
     removeIfDataImage('printDataUrl');
     removeIfDataImage('previewImage');
 
