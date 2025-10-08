@@ -355,56 +355,166 @@ export default function Home() {
 
   async function uploadOriginal(payload) {
     const { file, ...rest } = payload || {};
-    let response;
-
     const isBlob = typeof Blob !== 'undefined' && file instanceof Blob;
-    if (isBlob) {
-      const formData = new FormData();
-      const filename = typeof file.name === 'string' && file.name ? file.name : 'upload.bin';
-      formData.append('file', file, filename);
-      for (const [key, value] of Object.entries(rest)) {
-        if (value === undefined || value === null) continue;
-        if (Array.isArray(value)) {
-          for (const entry of value) {
-            if (entry === undefined || entry === null) continue;
-            formData.append(key, typeof entry === 'string' ? entry : String(entry));
-          }
-          continue;
-        }
-        formData.append(key, typeof value === 'string' ? value : String(value));
+    const filename =
+      (isBlob && typeof file.name === 'string' && file.name) || rest.filename || rest.file_name || rest.fileName || 'upload.bin';
+    const declaredMime =
+      typeof rest.content_type === 'string' && rest.content_type.trim()
+        ? rest.content_type.trim()
+        : typeof rest.mime === 'string' && rest.mime.trim()
+          ? rest.mime.trim()
+          : typeof rest.file_content_type === 'string' && rest.file_content_type.trim()
+            ? rest.file_content_type.trim()
+            : isBlob && typeof file.type === 'string' && file.type
+              ? file.type
+              : 'application/octet-stream';
+    const declaredSize = Number(
+      rest.size_bytes ?? rest.sizeBytes ?? rest.file_size ?? rest.fileSize ?? (isBlob ? file.size : undefined),
+    );
+    const sizeBytes = Number.isFinite(declaredSize) && declaredSize > 0 ? declaredSize : isBlob ? file.size : null;
+    const sha256 = typeof rest.sha256 === 'string' && rest.sha256 ? rest.sha256 : undefined;
+    const ridValue = typeof rest.rid === 'string' && rest.rid ? rest.rid : undefined;
+
+    const baseJsonPayload: Record<string, unknown> = {
+      ...rest,
+      filename,
+      mime: declaredMime,
+      content_type: declaredMime,
+      file_content_type: declaredMime,
+      ...(sizeBytes ? { size_bytes: sizeBytes } : {}),
+    };
+    delete baseJsonPayload.file;
+
+    const startPayload: Record<string, unknown> = {
+      filename,
+      contentType: declaredMime,
+      ...(sizeBytes ? { sizeBytes } : {}),
+      ...(ridValue ? { rid: ridValue } : {}),
+      ...(sha256 ? { sha256 } : {}),
+      designName: rest.design_name ?? rest.designName,
+      material: rest.material,
+      w_cm: rest.w_cm ?? rest.width_cm ?? rest.widthCm,
+      h_cm: rest.h_cm ?? rest.height_cm ?? rest.heightCm,
+    };
+
+    async function attemptDirectUpload() {
+      if (!isBlob) {
+        throw new Error('direct_upload_unavailable');
       }
-      response = await apiFetch('POST', '/api/upload-original', formData);
-    } else {
-      response = await apiFetch('POST', '/api/upload-original', rest);
+
+      try {
+        const startJson = await postJSON(
+          getResolvedApiUrl('/api/upload-original/start'),
+          startPayload,
+          45_000,
+        );
+        if (!startJson?.ok || typeof startJson.uploadUrl !== 'string' || !startJson.uploadUrl) {
+          throw new Error('direct_upload_start_failed');
+        }
+
+        const uploadHeaders: Record<string, string> = {};
+        if (declaredMime) {
+          uploadHeaders['Content-Type'] = declaredMime;
+        }
+        const uploadResponse = await fetch(startJson.uploadUrl, {
+          method: 'PUT',
+          headers: uploadHeaders,
+          body: file,
+        });
+        if (!uploadResponse.ok) {
+          const detail = await uploadResponse.text().catch(() => '');
+          const uploadError = new Error(`direct_upload_failed ${uploadResponse.status}`);
+          uploadError.detail = detail;
+          throw uploadError;
+        }
+
+        const finalizePayload: Record<string, unknown> = {
+          sessionId: startJson.sessionId,
+          objectKey: startJson.objectKey,
+          rid: startJson.rid ?? ridValue ?? undefined,
+          contentType: declaredMime,
+          sizeBytes: sizeBytes ?? file.size ?? undefined,
+        };
+        const finalizeJson = await postJSON(
+          getResolvedApiUrl('/api/upload-original/finalize'),
+          finalizePayload,
+          45_000,
+        );
+        const directUrl =
+          finalizeJson?.originalUrl
+          || finalizeJson?.publicUrl
+          || finalizeJson?.file_original_url
+          || null;
+        if (!directUrl) {
+          const missingError = new Error('direct_finalize_missing_url');
+          missingError.json = finalizeJson;
+          throw missingError;
+        }
+        return { publicUrl: directUrl, json: finalizeJson ?? {} };
+      } catch (err) {
+        logger.warn('[upload-original] direct-upload failed', {
+          message: err?.message || String(err),
+        });
+        throw err;
+      }
     }
 
-    const text = await response.text();
-    let json = null;
-    try {
-      json = text ? JSON.parse(text) : null;
-    } catch {
-      json = null;
+    async function sendFallbackRequest() {
+      const response = await apiFetch('POST', '/api/upload-original', baseJsonPayload);
+      const text = await response.text();
+      let json: any = null;
+      try {
+        json = text ? JSON.parse(text) : null;
+      } catch {
+        json = null;
+      }
+
+      const maybeDirect =
+        json
+        && json.ok === false
+        && (json.code === 'use_direct_upload' || json.error === 'use_direct_upload');
+
+      if (!response.ok) {
+        if (maybeDirect && isBlob) {
+          return attemptDirectUpload();
+        }
+        const message = typeof json?.error === 'string' && json.error ? json.error : text;
+        const error = new Error(`HTTP ${response.status}${message ? ` ${message}` : ''}`.trim());
+        error.status = response.status;
+        error.bodyText = text;
+        error.json = json;
+        throw error;
+      }
+
+      if (maybeDirect && isBlob) {
+        return attemptDirectUpload();
+      }
+
+      if (json && json.ok === false) {
+        const error = new Error(json.error || 'upload_original_failed');
+        error.status = response.status;
+        error.bodyText = text;
+        error.json = json;
+        throw error;
+      }
+
+      const publicUrl =
+        json?.publicUrl
+        ?? json?.url
+        ?? json?.supabase?.publicUrl
+        ?? json?.file_original_url
+        ?? null;
+      if (!publicUrl) {
+        const error = new Error('upload-original: missing publicUrl');
+        error.status = response.status;
+        error.bodyText = text;
+        error.json = json;
+        throw error;
+      }
+      return { publicUrl, json: json ?? {} };
     }
 
-    if (!response.ok) {
-      const message = typeof json?.error === 'string' && json.error ? json.error : text;
-      const error = new Error(`HTTP ${response.status}${message ? ` ${message}` : ''}`.trim());
-      error.status = response.status;
-      error.bodyText = text;
-      error.json = json;
-      throw error;
-    }
-
-    const publicUrl = json?.publicUrl ?? json?.url ?? json?.supabase?.publicUrl ?? null;
-    if (!publicUrl) {
-      const error = new Error('upload-original: missing publicUrl');
-      error.status = response.status;
-      error.bodyText = text;
-      error.json = json;
-      throw error;
-    }
-
-    return { publicUrl, json: json ?? {} };
+    return sendFallbackRequest();
   }
 
   async function handleContinue() {

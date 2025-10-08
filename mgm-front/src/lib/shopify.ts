@@ -1,6 +1,7 @@
-import { apiFetch, getResolvedApiUrl } from './api';
+import { apiFetch, getResolvedApiUrl, postJSON } from './api';
 import { FlowState } from '@/state/flow';
 import logger from './logger';
+import { ensureTrackingRid } from '@/lib/tracking';
 
 const DEFAULT_STORE_BASE = 'https://kw0f4u-ji.myshopify.com';
 const IS_DEV = Boolean(
@@ -10,6 +11,8 @@ const IS_DEV = Boolean(
 );
 const DEFAULT_STOREFRONT_API_VERSION = '2024-07';
 const PRIVATE_CHECKOUT_PATH = '/api/private/checkout';
+const INLINE_MOCKUP_MAX_BYTES = 900_000;
+const MOCKUP_UPLOAD_TIMEOUT_MS = 45_000;
 
 const RAW_LOG_COMMERCE = readEnv(['VITE_LOG_COMMERCE']);
 const SHOULD_LOG_COMMERCE = (() => {
@@ -263,6 +266,16 @@ export async function createJobAndProduct(
   let visibilityResult: 'public' | 'private' = requestedVisibility;
   let collectedWarnings: any[] | undefined;
   let collectedWarningMessages: string[] | undefined;
+  const trackingRid = flow.trackingRid || ensureTrackingRid();
+  if (!flow.trackingRid && typeof flow.set === 'function') {
+    flow.set({ trackingRid });
+  }
+
+  let uploadedMockupUrl: string | null = null;
+  let uploadedMockupObjectKey: string | null = null;
+  let uploadedMockupBucket: string | null = null;
+  let uploadedMockupSizeBytes: number | null = null;
+  let uploadedMockupContentType: string | null = null;
 
   let mockupDataUrl = '';
   let productType: 'glasspad' | 'mousepad' = flow.productType === 'glasspad' ? 'glasspad' : 'mousepad';
@@ -303,7 +316,48 @@ export async function createJobAndProduct(
 
   if (!canReuse) {
     if (!flow.mockupBlob) throw new Error('missing_mockup');
+    const shouldUploadMockup =
+      typeof Blob !== 'undefined'
+      && flow.mockupBlob instanceof Blob
+      && flow.mockupBlob.size > INLINE_MOCKUP_MAX_BYTES;
     mockupDataUrl = await blobToBase64(flow.mockupBlob);
+
+    if (shouldUploadMockup) {
+      try {
+        const uploadJson: Record<string, any> = await postJSON(
+          getResolvedApiUrl('/api/upload-mockup'),
+          {
+            dataUrl: mockupDataUrl,
+            filename,
+            rid: trackingRid,
+          },
+          MOCKUP_UPLOAD_TIMEOUT_MS,
+        );
+        if (uploadJson?.ok && typeof uploadJson.mockupUrl === 'string') {
+          uploadedMockupUrl = uploadJson.mockupUrl;
+          uploadedMockupObjectKey =
+            typeof uploadJson.objectKey === 'string'
+              ? uploadJson.objectKey
+              : typeof uploadJson.object_key === 'string'
+                ? uploadJson.object_key
+                : null;
+          uploadedMockupBucket = typeof uploadJson.bucket === 'string' ? uploadJson.bucket : null;
+          const reportedSize = Number(uploadJson.sizeBytes ?? uploadJson.size_bytes);
+          uploadedMockupSizeBytes = Number.isFinite(reportedSize)
+            ? reportedSize
+            : flow.mockupBlob.size ?? null;
+          uploadedMockupContentType =
+            typeof uploadJson.contentType === 'string' && uploadJson.contentType
+              ? uploadJson.contentType
+              : null;
+          mockupDataUrl = '';
+        } else {
+          logger.warn('[createJobAndProduct] mockup_upload_unexpected', uploadJson);
+        }
+      } catch (mockupErr) {
+        logger.warn('[createJobAndProduct] mockup_upload_failed', mockupErr);
+      }
+    }
 
     if (isPrivate) {
       const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

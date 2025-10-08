@@ -22,6 +22,7 @@ const defaultState = {
   priceNormal: 0,
   priceCurrency: 'ARS',
   customerEmail: '',
+  trackingRid: null,
   lastProduct: null,
 };
 

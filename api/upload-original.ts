@@ -10,9 +10,10 @@ import type { CorsDecision } from './_lib/cors.js';
 
 const PASSTHROUGH_PLACEHOLDER_URL = 'https://picsum.photos/seed/mgm/800/600';
 const DEFAULT_MAX_BYTES = 40 * 1024 * 1024;
+const DIRECT_UPLOAD_THRESHOLD_BYTES = 5 * 1024 * 1024;
 export const config = {
   api: {
-    bodyParser: false,
+    bodyParser: true,
     // NOTE: Vercel requires a literal here when statically analyzing the route.
     sizeLimit: '32mb',
   },
@@ -63,6 +64,13 @@ type NormalizedPayload = {
         buffer: Buffer;
         contentType: string | null;
       };
+};
+
+type Base64Candidate = {
+  raw: string;
+  base64: string;
+  contentType: string | null;
+  approxBytes: number | null;
 };
 
 class PayloadTooLargeError extends Error {
@@ -138,11 +146,21 @@ function respondJson(
   statusCode: number,
   payload: Record<string, any>,
 ): void {
+  const body =
+    payload && typeof payload === 'object'
+      ? {
+          ...payload,
+          ...(typeof payload.error === 'string' && !payload.code
+            ? { code: payload.error }
+            : {}),
+        }
+      : payload;
+
   applyCorsHeaders(req, res, corsDecision);
   if (typeof res.status === 'function') {
     res.status(statusCode);
     if (typeof res.json === 'function') {
-      res.json(payload);
+      res.json(body);
       return;
     }
   }
@@ -150,7 +168,7 @@ function respondJson(
   try {
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
   } catch {}
-  res.end(JSON.stringify(payload));
+  res.end(JSON.stringify(body));
 }
 
 function respondPayloadTooLarge(
@@ -164,9 +182,28 @@ function respondPayloadTooLarge(
   respondJson(req, res, corsDecision, 413, {
     ok: false,
     error: 'payload_too_large',
+    code: 'payload_too_large',
     limitBytes,
     receivedBytes,
     diagId,
+  });
+}
+
+function respondUseDirectUpload(
+  req: VercelRequest,
+  res: VercelResponse,
+  corsDecision: CorsDecision,
+  diagId: string,
+  thresholdBytes: number,
+  sizeBytes: number | null,
+): void {
+  respondJson(req, res, corsDecision, 200, {
+    ok: false,
+    error: 'use_direct_upload',
+    code: 'use_direct_upload',
+    diagId,
+    thresholdBytes,
+    sizeBytes,
   });
 }
 
@@ -303,57 +340,71 @@ function normalizeString(value: unknown): string {
 
 function decodeBase64(value: string): Buffer | null {
   try {
-    return Buffer.from(value, 'base64');
+    const sanitized = value.replace(/\s+/g, '');
+    if (!sanitized) return null;
+    return Buffer.from(sanitized, 'base64');
   } catch {
     return null;
   }
 }
 
-function parseDataUrl(value: string): { buffer: Buffer; contentType: string | null } | null {
+function resolveBase64Components(value: string): { base64: string; contentType: string | null } | null {
+  if (typeof value !== 'string') return null;
   const trimmed = value.trim();
-  const match = /^data:([^;,]+);base64,(.+)$/i.exec(trimmed);
-  if (!match) {
+  if (!trimmed) return null;
+
+  const dataUrlMatch = /^data:([^;,]+);base64,(.+)$/i.exec(trimmed);
+  if (dataUrlMatch) {
+    const contentType = dataUrlMatch[1]?.trim() || null;
+    const payload = dataUrlMatch[2]?.trim() || '';
+    if (!payload) return null;
+    return { base64: payload, contentType };
+  }
+
+  if (/^data:/i.test(trimmed)) {
+    // Data URL without explicit base64 component, skip to avoid mis-parsing.
     return null;
   }
-  const [, mime, base64Payload] = match;
-  const buffer = decodeBase64(base64Payload);
-  if (!buffer) return null;
-  return {
-    buffer,
-    contentType: mime?.trim() || null,
-  };
+
+  const sanitized = trimmed.replace(/\s+/g, '');
+  if (!sanitized) return null;
+  return { base64: sanitized, contentType: null };
 }
 
-function extractBase64Payload(payload: Record<string, any> | null): {
-  buffer: Buffer;
-  contentType: string | null;
-} | null {
+function estimateBase64Bytes(base64: string): number | null {
+  if (typeof base64 !== 'string' || !base64) return null;
+  const sanitized = base64.replace(/\s+/g, '');
+  if (!sanitized) return null;
+  const length = sanitized.length;
+  if (!length) return null;
+  const padding = sanitized.endsWith('==') ? 2 : sanitized.endsWith('=') ? 1 : 0;
+  const estimated = Math.floor((length * 3) / 4) - padding;
+  return estimated >= 0 ? estimated : 0;
+}
+
+function findBase64Candidate(payload: Record<string, any> | null): Base64Candidate | null {
   if (!payload) return null;
-  const candidates: Array<{ value: unknown; isDataUrl?: boolean }> = [
-    { value: payload.imageBase64 },
-    { value: payload.image_base64 },
-    { value: payload.file_base64 },
-    { value: payload.base64 },
-    { value: payload.data_url, isDataUrl: true },
+  const candidates: Array<{ value: unknown }> = [
+    { value: (payload as any).imageBase64 },
+    { value: (payload as any).image_base64 },
+    { value: (payload as any).file_base64 },
+    { value: (payload as any).base64 },
+    { value: (payload as any).data_url },
   ];
 
-  for (const candidate of candidates) {
-    if (typeof candidate.value !== 'string') continue;
-    const trimmed = candidate.value.trim();
+  for (const entry of candidates) {
+    if (typeof entry.value !== 'string') continue;
+    const trimmed = entry.value.trim();
     if (!trimmed) continue;
-
-    if (candidate.isDataUrl || trimmed.startsWith('data:')) {
-      const parsed = parseDataUrl(trimmed);
-      if (parsed?.buffer?.length) {
-        return parsed;
-      }
-      continue;
-    }
-
-    const buffer = decodeBase64(trimmed);
-    if (buffer?.length) {
-      return { buffer, contentType: null };
-    }
+    const components = resolveBase64Components(trimmed);
+    if (!components) continue;
+    const approxBytes = estimateBase64Bytes(components.base64);
+    return {
+      raw: trimmed,
+      base64: components.base64,
+      contentType: components.contentType,
+      approxBytes,
+    };
   }
 
   return null;
@@ -434,15 +485,21 @@ async function parseRequest(
   };
 }
 
-function normalizePayload(parsed: ParsedRequest): NormalizedPayload {
+function normalizePayload(parsed: ParsedRequest, base64Candidate?: Base64Candidate): NormalizedPayload {
   const urlCandidate = parsed.kind === 'json' && parsed.json ? normalizeString(parsed.json.url) : '';
   const url = urlCandidate || null;
 
   let buffer: NormalizedPayload['buffer'] = null;
   if (parsed.kind === 'json' && parsed.json) {
-    const base64 = extractBase64Payload(parsed.json);
-    if (base64?.buffer?.length) {
-      buffer = base64;
+    const candidate = base64Candidate ?? findBase64Candidate(parsed.json);
+    if (candidate) {
+      const decoded = decodeBase64(candidate.base64);
+      if (decoded?.length) {
+        buffer = {
+          buffer: decoded,
+          contentType: candidate.contentType,
+        };
+      }
     }
   }
 
@@ -557,9 +614,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const maxBytes = parseMaxBytes();
+  const directThreshold = DIRECT_UPLOAD_THRESHOLD_BYTES;
   const contentLength = getContentLength(req);
   if (contentLength && contentLength > maxBytes) {
     respondPayloadTooLarge(req, res, corsDecision, diagId, maxBytes, contentLength);
+    return;
+  }
+  if (contentLength && contentLength > directThreshold) {
+    respondUseDirectUpload(req, res, corsDecision, diagId, directThreshold, contentLength);
     return;
   }
 
@@ -576,7 +638,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const normalized = normalizePayload(parsed);
+  let base64Candidate: Base64Candidate | null = null;
+  if (parsed.kind === 'json' && parsed.json) {
+    base64Candidate = findBase64Candidate(parsed.json);
+    if (base64Candidate?.approxBytes && base64Candidate.approxBytes > directThreshold) {
+      respondUseDirectUpload(
+        req,
+        res,
+        corsDecision,
+        diagId,
+        directThreshold,
+        base64Candidate.approxBytes,
+      );
+      return;
+    }
+  }
+
+  const normalized = normalizePayload(parsed, base64Candidate ?? undefined);
+  const payloadBufferBytes = normalized.buffer?.buffer?.length ?? 0;
+  const payloadFileBytes = normalized.file?.size ?? 0;
+  if (
+    payloadFileBytes > directThreshold ||
+    payloadBufferBytes > directThreshold
+  ) {
+    const sizeBytes = Math.max(
+      payloadFileBytes,
+      payloadBufferBytes,
+      parsed.receivedBytes ?? 0,
+      contentLength ?? 0,
+    );
+    respondUseDirectUpload(
+      req,
+      res,
+      corsDecision,
+      diagId,
+      directThreshold,
+      sizeBytes || null,
+    );
+    return;
+  }
+
   const effectiveBytes = calculateEffectiveReceivedBytes(normalized, parsed.receivedBytes);
 
   if (effectiveBytes > maxBytes) {

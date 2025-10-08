@@ -22,6 +22,7 @@ export type FlowState = {
   priceNormal?: number;
   priceCurrency?: string;
   customerEmail?: string;
+  trackingRid?: string | null;
   lastProduct?: {
     productId?: string;
     variantId?: string;
@@ -63,6 +64,7 @@ const defaultState: Omit<FlowState, 'set' | 'reset'> = {
   priceNormal: 0,
   priceCurrency: 'ARS',
   customerEmail: '',
+  trackingRid: null,
   lastProduct: undefined,
 };
 
