@@ -36,6 +36,10 @@ El build compila el cliente de Vite y deja los assets listos para que Vercel los
 - Set `API_PUBLIC_ORIGIN` to your public domain (for example `https://www.mgmgamers.store`) and include any additional custom domains that serve the SPA.
 - Local development continues to use `http://localhost:5173` or `http://127.0.0.1:5173`.
 
+Serverless handlers created via `api/_lib/createHandler.js` (including
+`api-routes/publish-product.js`) are automatically wrapped with `withCors`, so
+all responses — success or error — include the correct headers.
+
 ## Upload de archivos
 
 El endpoint `/api/upload-original` realiza la carga del diseño final usando el Service Role de Supabase. El backend genera el `object_key` (por ejemplo `original/<anio>/<mes>/<slug>-<size>-<material>-<hash>.png`) dentro del bucket `uploads`, registra logs con `{ bucketName, path, size, type }` antes de llamar a Storage y responde con la URL canónica (`file_original_url`) y un `signed_url` temporal (TTL 3600 s).
