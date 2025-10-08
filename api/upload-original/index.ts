@@ -5,8 +5,8 @@ import {
   handlePreflight,
   respondCorsDenied,
   applyCorsHeaders,
-} from './_lib/cors.js';
-import type { CorsDecision } from './_lib/cors.js';
+} from '../_lib/cors.js';
+import type { CorsDecision } from '../_lib/cors.js';
 
 const PASSTHROUGH_PLACEHOLDER_URL = 'https://picsum.photos/seed/mgm/800/600';
 const DEFAULT_MAX_BYTES = 40 * 1024 * 1024;
@@ -691,7 +691,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (shouldCallHandler) {
     try {
-      const module = await import('../lib/handlers/uploadOriginal.js');
+      const module = await import('../../lib/handlers/uploadOriginal.js');
       const realHandler = module?.default;
       if (typeof realHandler !== 'function') {
         throw new Error('upload_handler_unavailable');
