@@ -20,6 +20,15 @@ const SHOULD_LOG_COMMERCE = (() => {
     || normalized === 'yes'
     || normalized === 'on';
 })();
+const RAW_LOG_PUBLISH_PAYLOAD = readEnv(['VITE_LOG_PUBLISH_PAYLOAD']);
+const SHOULD_LOG_PUBLISH_PAYLOAD = (() => {
+  if (!RAW_LOG_PUBLISH_PAYLOAD) return false;
+  const normalized = RAW_LOG_PUBLISH_PAYLOAD.trim().toLowerCase();
+  return normalized === '1'
+    || normalized === 'true'
+    || normalized === 'yes'
+    || normalized === 'on';
+})();
 
 const PRODUCT_LABELS = {
   mousepad: 'Mousepad',
@@ -199,6 +208,117 @@ function sanitizeWarningMessages(value: unknown): string[] {
     .filter((msg): msg is string => Boolean(msg));
 }
 
+const UNSUPPORTED_MOCKUP_URL_PREFIX = /^(data:|blob:|file:)/i;
+const URL_KEY_CANDIDATES = [
+  'mockupUploadUrl',
+  'mockup_upload_url',
+  'mockupUrl',
+  'mockup_url',
+  'url',
+  'publicUrl',
+  'public_url',
+  'signedUrl',
+  'signed_url',
+  'downloadUrl',
+  'download_url',
+];
+const NESTED_OBJECT_KEYS_FOR_UPLOAD = [
+  'mockupUploadResult',
+  'mockup_upload_result',
+  'mockupUpload',
+  'mockup_upload',
+  'mockupUploadResponse',
+  'mockup_upload_response',
+  'uploadMockupResult',
+  'upload_mockup_result',
+  'uploadMockup',
+  'upload_mockup',
+  'mockup',
+  'assets',
+  'upload',
+  'data',
+  'json',
+  'result',
+  'payload',
+  'response',
+  'body',
+  'value',
+  'details',
+  'output',
+  'job',
+  'editorState',
+  'editor_state',
+];
+
+function normalizeMockupUploadUrlValue(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  if (UNSUPPORTED_MOCKUP_URL_PREFIX.test(trimmed)) return '';
+  return trimmed;
+}
+
+function resolveMockupUploadUrl(flow: FlowState): string {
+  const visited = new Set<object>();
+  const queue: unknown[] = [flow];
+
+  const enqueue = (value: unknown) => {
+    if (!value) return;
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        enqueue(entry);
+      }
+      return;
+    }
+    if (typeof value === 'object') {
+      queue.push(value);
+    }
+  };
+  while (queue.length) {
+    const current = queue.shift();
+    if (!current || typeof current !== 'object') continue;
+    const objectCurrent = current as object;
+    if (visited.has(objectCurrent)) continue;
+    visited.add(objectCurrent);
+    const record = current as Record<string, unknown>;
+
+    for (const key of URL_KEY_CANDIDATES) {
+      const candidate = normalizeMockupUploadUrlValue(record[key]);
+      if (candidate) return candidate;
+    }
+
+    for (const key of NESTED_OBJECT_KEYS_FOR_UPLOAD) {
+      const next = record[key];
+      if (!next) continue;
+      if (typeof next === 'string') {
+        const candidate = normalizeMockupUploadUrlValue(next);
+        if (candidate) return candidate;
+      }
+      enqueue(next);
+    }
+  }
+
+  return '';
+}
+
+function readFlowRid(flow: FlowState): string {
+  const candidates: unknown[] = [
+    (flow as any)?.uploadDiagId,
+    (flow as any)?.editorState?.upload_diag_id,
+    (flow as any)?.editorState?.diag_id,
+    (flow as any)?.editorState?.job?.rid,
+    (flow as any)?.editorState?.job?.diag_id,
+    (flow as any)?.editorState?.job?.request_id,
+  ];
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string') {
+      const trimmed = candidate.trim();
+      if (trimmed) return trimmed;
+    }
+  }
+  return '';
+}
+
 function deriveWarningMessagesFromWarnings(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return (value as unknown[])
@@ -265,6 +385,7 @@ export async function createJobAndProduct(
   let collectedWarningMessages: string[] | undefined;
 
   let mockupDataUrl = '';
+  let mockupUploadUrl = resolveMockupUploadUrl(flow);
   let productType: 'glasspad' | 'mousepad' = flow.productType === 'glasspad' ? 'glasspad' : 'mousepad';
   let productLabel = PRODUCT_LABELS[productType];
   let designName = (flow.designName || '').trim();
@@ -302,8 +423,15 @@ export async function createJobAndProduct(
   let imageAlt = `Mockup ${productTitle}`;
 
   if (!canReuse) {
-    if (!flow.mockupBlob) throw new Error('missing_mockup');
-    mockupDataUrl = await blobToBase64(flow.mockupBlob);
+    if (!mockupUploadUrl) {
+      if (!flow.mockupBlob) throw new Error('missing_mockup');
+      mockupDataUrl = await blobToBase64(flow.mockupBlob);
+      if (!mockupDataUrl) {
+        const err: Error & { reason?: string } = new Error('missing_mockup');
+        err.reason = 'missing_mockup';
+        throw err;
+      }
+    }
 
     if (isPrivate) {
       const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -324,7 +452,6 @@ export async function createJobAndProduct(
 
     const publishPayload: Record<string, unknown> = {
       productType,
-      mockupDataUrl,
       designName,
       title: productTitle,
       material: materialLabel,
@@ -348,6 +475,16 @@ export async function createJobAndProduct(
       printDpi: approxDpi ?? undefined,
     };
 
+    if (mockupUploadUrl) {
+      publishPayload.mockupUrl = mockupUploadUrl;
+    } else if (mockupDataUrl) {
+      publishPayload.mockupDataUrl = mockupDataUrl;
+    } else {
+      const err: Error & { reason?: string } = new Error('missing_mockup');
+      err.reason = 'missing_mockup';
+      throw err;
+    }
+
     const originalUrl = typeof (flow as any)?.fileOriginalUrl === 'string'
       ? (flow as any).fileOriginalUrl.trim()
       : '';
@@ -364,6 +501,23 @@ export async function createJobAndProduct(
     }
     if (Object.keys(assets).length) {
       publishPayload.assets = assets;
+    }
+
+    if (SHOULD_LOG_PUBLISH_PAYLOAD) {
+      try {
+        const rid = readFlowRid(flow);
+        const hasMockupUrl = typeof publishPayload.mockupUrl === 'string'
+          && Boolean((publishPayload.mockupUrl as string).trim());
+        const hasMockupDataUrl = typeof publishPayload.mockupDataUrl === 'string'
+          && Boolean((publishPayload.mockupDataUrl as string).trim());
+        console.debug('[publish] sending', {
+          hasMockupUrl,
+          hasMockupDataUrl,
+          rid: rid || null,
+        });
+      } catch (payloadLogErr) {
+        logger.debug('[createJobAndProduct] publish_payload_log_failed', payloadLogErr);
+      }
     }
 
     delete publishPayload.imageBase64;
