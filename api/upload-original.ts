@@ -10,10 +10,63 @@ import type { CorsDecision } from './_lib/cors.js';
 
 const PASSTHROUGH_PLACEHOLDER_URL = 'https://picsum.photos/seed/mgm/800/600';
 const DEFAULT_MAX_BYTES = 40 * 1024 * 1024;
+const DIRECT_UPLOAD_THRESHOLD_BYTES = 5 * 1024 * 1024;
+
+const BASE64_BYTES_HEADER_HINTS = [
+  'x-image-base64-bytes',
+  'x-image_base64_bytes',
+  'x-image-bytes',
+  'x-image_bytes',
+  'x-upload-bytes',
+  'x-upload-size-bytes',
+  'x-payload-bytes',
+  'x-payload_size_bytes',
+  'x-size-bytes',
+  'x-size_bytes',
+  'x-body-bytes',
+  'x-body_bytes',
+  'x-data-url-bytes',
+  'x-data_url_bytes',
+];
+
+const BASE64_LENGTH_HEADER_HINTS = [
+  'x-image-base64-length',
+  'x-image_base64_length',
+  'x-imagebase64-length',
+  'x-imagebase64length',
+  'x-base64-length',
+  'x-data-url-length',
+  'x-data_url_length',
+];
+
+const BASE64_BYTES_QUERY_HINTS = [
+  'imageBase64Bytes',
+  'image_base64_bytes',
+  'imageBytes',
+  'image_bytes',
+  'imageSizeBytes',
+  'image_size_bytes',
+  'payloadBytes',
+  'payload_bytes',
+  'sizeBytes',
+  'size_bytes',
+  'payloadSizeBytes',
+  'payload_size_bytes',
+  'bodyBytes',
+  'body_bytes',
+];
+
+const BASE64_LENGTH_QUERY_HINTS = [
+  'imageBase64Length',
+  'image_base64_length',
+  'imageLength',
+  'image_length',
+  'dataUrlLength',
+  'data_url_length',
+];
 export const config = {
   api: {
-    bodyParser: false,
-    // NOTE: Vercel requires a literal here when statically analyzing the route.
+    bodyParser: true,
     sizeLimit: '32mb',
   },
   maxDuration: 60,
@@ -118,6 +171,92 @@ function getContentLength(req: VercelRequest): number | null {
   return toNumber(header);
 }
 
+function getHeaderString(req: VercelRequest, name: string): string | null {
+  const headers = req.headers as Record<string, string | string[] | undefined>;
+  const header = headers?.[name.toLowerCase()];
+  if (Array.isArray(header)) {
+    for (const value of header) {
+      if (typeof value === 'string' && value.trim()) {
+        return value;
+      }
+    }
+    return null;
+  }
+  if (typeof header === 'string' && header.trim()) {
+    return header;
+  }
+  return null;
+}
+
+function getQueryString(req: VercelRequest, name: string): string | null {
+  const query: Record<string, unknown> | undefined = (req as any)?.query;
+  if (!query) return null;
+  const value = query[name];
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      if (typeof entry === 'string' && entry.trim()) {
+        return entry;
+      }
+      if (typeof entry === 'number' && Number.isFinite(entry)) {
+        return String(entry);
+      }
+    }
+    return null;
+  }
+  if (typeof value === 'string' && value.trim()) {
+    return value;
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(value);
+  }
+  return null;
+}
+
+function estimateBytesFromBase64Length(length: number | null): number | null {
+  if (!length || !Number.isFinite(length) || length <= 0) {
+    return null;
+  }
+  return Math.floor((length * 3) / 4);
+}
+
+function getEstimatedImageBase64Bytes(req: VercelRequest): number | null {
+  for (const key of BASE64_BYTES_HEADER_HINTS) {
+    const header = getHeaderString(req, key);
+    const parsed = toNumber(header);
+    if (parsed && parsed > 0) {
+      return parsed;
+    }
+  }
+
+  for (const key of BASE64_LENGTH_HEADER_HINTS) {
+    const header = getHeaderString(req, key);
+    const parsed = toNumber(header);
+    const estimated = estimateBytesFromBase64Length(parsed);
+    if (estimated && estimated > 0) {
+      return estimated;
+    }
+  }
+
+  for (const key of BASE64_BYTES_QUERY_HINTS) {
+    const queryValue = getQueryString(req, key);
+    const parsed = toNumber(queryValue);
+    if (parsed && parsed > 0) {
+      return parsed;
+    }
+  }
+
+  for (const key of BASE64_LENGTH_QUERY_HINTS) {
+    const queryValue = getQueryString(req, key);
+    const parsed = toNumber(queryValue);
+    const estimated = estimateBytesFromBase64Length(parsed);
+    if (estimated && estimated > 0) {
+      return estimated;
+    }
+  }
+
+  return null;
+}
+
 function getContentType(req: VercelRequest): string {
   const header = req.headers['content-type'] || req.headers['Content-Type'];
   if (Array.isArray(header)) {
@@ -170,10 +309,47 @@ function respondPayloadTooLarge(
   });
 }
 
+function respondUseDirectUpload(
+  req: VercelRequest,
+  res: VercelResponse,
+  corsDecision: CorsDecision,
+): void {
+  respondJson(req, res, corsDecision, 200, { ok: false, code: 'use_direct_upload' });
+}
+
 function readRequestBody(
   req: VercelRequest,
   limitBytes: number,
 ): Promise<{ buffer: Buffer; bytes: number }> {
+  const existingBody: unknown = (req as any)?.body;
+  if (existingBody != null) {
+    let buffer: Buffer | null = null;
+    if (Buffer.isBuffer(existingBody)) {
+      buffer = existingBody;
+    } else if (typeof existingBody === 'string') {
+      buffer = Buffer.from(existingBody);
+    } else if (existingBody instanceof ArrayBuffer) {
+      buffer = Buffer.from(existingBody);
+    } else if (ArrayBuffer.isView(existingBody)) {
+      const view = existingBody as ArrayBufferView;
+      buffer = Buffer.from(view.buffer, view.byteOffset, view.byteLength);
+    } else if (typeof existingBody === 'object') {
+      try {
+        const json = JSON.stringify(existingBody);
+        buffer = Buffer.from(json);
+      } catch {
+        buffer = null;
+      }
+    }
+
+    if (buffer) {
+      if (limitBytes > 0 && buffer.length > limitBytes) {
+        return Promise.reject(new PayloadTooLargeError(buffer.length));
+      }
+      return Promise.resolve({ buffer, bytes: buffer.length });
+    }
+  }
+
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     let total = 0;
@@ -558,6 +734,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const maxBytes = parseMaxBytes();
   const contentLength = getContentLength(req);
+  const hintedBase64Bytes = getEstimatedImageBase64Bytes(req);
+  if (
+    (contentLength && contentLength > DIRECT_UPLOAD_THRESHOLD_BYTES)
+    || (hintedBase64Bytes && hintedBase64Bytes > DIRECT_UPLOAD_THRESHOLD_BYTES)
+  ) {
+    respondUseDirectUpload(req, res, corsDecision);
+    return;
+  }
+
   if (contentLength && contentLength > maxBytes) {
     respondPayloadTooLarge(req, res, corsDecision, diagId, maxBytes, contentLength);
     return;
