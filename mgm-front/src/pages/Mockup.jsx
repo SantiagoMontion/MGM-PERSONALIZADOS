@@ -591,11 +591,13 @@ export default function Mockup() {
       const warningMessages = extractWarningMessages(result?.warnings, result?.warningMessages);
       if (warningMessages.length) {
         try {
-          logger.warn('[mockup] cart_flow_warnings', warningMessages);
+          logger.info('[mockup] cart_flow_warnings', warningMessages);
         } catch (warnErr) {
           logger.debug('[mockup] cart_flow_warn_log_failed', warnErr);
         }
-        setToast({ message: warningMessages.join(' ') });
+        if (typeof console !== 'undefined' && typeof console.info === 'function') {
+          console.info('[mockup] cart_flow_warnings', warningMessages);
+        }
       }
 
       const jsonCandidates = [];
@@ -780,11 +782,13 @@ export default function Mockup() {
       const warningMessages = extractWarningMessages(result?.warnings, result?.warningMessages);
       if (warningMessages.length) {
         try {
-          logger.warn(`[${mode}-flow] warnings`, warningMessages);
+          logger.info(`[${mode}-flow] warnings`, warningMessages);
         } catch (warnErr) {
           logger.debug('[handle] warn_log_failed', warnErr);
         }
-        setToast({ message: warningMessages.join(' ') });
+        if (typeof console !== 'undefined' && typeof console.info === 'function') {
+          console.info(`[${mode}-flow] warnings`, warningMessages);
+        }
       }
       const jsonCandidates = [];
       if (result && typeof result === 'object') {
