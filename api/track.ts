@@ -19,6 +19,15 @@ const ALLOWED_EVENTS = new Set<string>([
 ]);
 
 let cachedClient: SupabaseClient | null = null;
+const trackEventsDisabledEnv = String(process.env.TRACK_EVENTS_DISABLED ?? '').trim().toLowerCase();
+const TRACK_EVENTS_DISABLED =
+  trackEventsDisabledEnv === '0'
+    ? false
+    : trackEventsDisabledEnv === '1' ||
+      trackEventsDisabledEnv === 'true' ||
+      trackEventsDisabledEnv === 'yes' ||
+      trackEventsDisabledEnv === 'on';
+let trackEventsUnavailable = false;
 
 function ensureClient(): SupabaseClient {
   if (!cachedClient) {
@@ -468,6 +477,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
+    if (TRACK_EVENTS_DISABLED || trackEventsUnavailable) {
+      logTrack(diagId, {
+        reason: TRACK_EVENTS_DISABLED ? 'track_events_disabled' : 'track_events_unavailable',
+        origin: corsDecision.requestedOrigin,
+        event_name: eventName,
+        rid,
+      });
+      respondIgnoredOrEcho(req, false, eventName, rid);
+      return;
+    }
+
     if (echoMode) {
       respondEcho(req, res, diagId, corsDecision, true, eventName, rid);
       return;
@@ -486,9 +506,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     try {
       const { error } = await client.from('track_events').insert(insertPayload);
-      if (error && error.code !== '23505') {
-        throw error;
-      }
       if (error && error.code === '23505') {
         logTrack(diagId, {
           reason: 'duplicate',
@@ -496,6 +513,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           event_name: eventName,
           rid,
         });
+      } else if (error && error.code === '42P01') {
+        trackEventsUnavailable = true;
+        logTrack(diagId, {
+          reason: 'track_events_unavailable',
+          origin: corsDecision.allowedOrigin,
+          event_name: eventName,
+          rid,
+        });
+        respondIgnoredOrEcho(req, false, eventName, rid);
+        return;
+      } else if (error) {
+        throw error;
       } else {
         logTrack(diagId, {
           reason: 'inserted',
@@ -507,6 +536,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } catch (error) {
       const errorName = (error as any)?.name;
       if (errorName === 'AbortError' || errorName === 'TypeError') {
+        respondIgnoredOrEcho(req, false, eventName, rid);
+        return;
+      }
+      if ((error as any)?.code === '42P01') {
+        trackEventsUnavailable = true;
         respondIgnoredOrEcho(req, false, eventName, rid);
         return;
       }
