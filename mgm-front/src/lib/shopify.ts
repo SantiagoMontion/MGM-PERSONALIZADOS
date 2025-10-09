@@ -1,8 +1,14 @@
 import { apiFetch, getResolvedApiUrl } from './api';
+import { supa } from './supa.js';
 import { FlowState } from '@/state/flow';
 import logger from './logger';
 
 const DEFAULT_STORE_BASE = 'https://kw0f4u-ji.myshopify.com';
+const RAW_PUBLISH_MAX_PAYLOAD_KB = readEnv(['VITE_PUBLISH_MAX_PAYLOAD_KB']);
+const PUBLISH_MAX_PAYLOAD_KB = (() => {
+  const parsed = Number(RAW_PUBLISH_MAX_PAYLOAD_KB);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 200;
+})();
 const IS_DEV = Boolean(
   typeof import.meta !== 'undefined'
     && (import.meta as { env?: { DEV?: boolean } }).env
@@ -65,6 +71,51 @@ function formatMeasurement(width?: number | null, height?: number | null): strin
   const h = formatDimension(height);
   if (!w || !h) return undefined;
   return `${w}x${h}`;
+}
+
+function isDataUrl(value: unknown): value is string {
+  return typeof value === 'string' && value.startsWith('data:');
+}
+
+async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
+  const response = await fetch(dataUrl);
+  return await response.blob();
+}
+
+async function signUpload({ bucket, contentType }: { bucket: string; contentType: string; }) {
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timeout = controller ? setTimeout(() => controller.abort(), 30000) : null;
+  try {
+    const res = await apiFetch(
+      'POST',
+      '/api/storage/sign',
+      { bucket, contentType },
+      controller ? { signal: controller.signal } : undefined,
+    );
+    const json = await res.json().catch(() => null);
+    if (!res.ok || !json) {
+      const err = new Error('sign_upload_failed');
+      (err as Error & { status?: number }).status = res.status;
+      throw err;
+    }
+    return json as { bucket?: string; path: string; token: string; publicUrl?: string };
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+
+async function uploadBlobWithSignedUrl(
+  { bucket, path, token }: { bucket?: string; path: string; token: string },
+  blob: Blob,
+  filename: string,
+) {
+  const file = new File([blob], filename, { type: blob.type });
+  const result = await supa
+    .storage.from(bucket || 'preview')
+    .uploadToSignedUrl(path, token, file, { upsert: false, contentType: blob.type });
+  if (result?.error) {
+    throw result.error;
+  }
 }
 
 function readJobId(flow: FlowState): string {
@@ -264,7 +315,7 @@ export async function createJobAndProduct(
   let collectedWarnings: any[] | undefined;
   let collectedWarningMessages: string[] | undefined;
 
-  let mockupDataUrl = '';
+  let mockupUrlForPayload = '';
   let productType: 'glasspad' | 'mousepad' = flow.productType === 'glasspad' ? 'glasspad' : 'mousepad';
   let productLabel = PRODUCT_LABELS[productType];
   let designName = (flow.designName || '').trim();
@@ -302,8 +353,34 @@ export async function createJobAndProduct(
   let imageAlt = `Mockup ${productTitle}`;
 
   if (!canReuse) {
-    if (!flow.mockupBlob) throw new Error('missing_mockup');
-    mockupDataUrl = await blobToBase64(flow.mockupBlob);
+    let mockupBlob = flow.mockupBlob;
+    const mockupUrlCandidate = typeof flow.mockupUrl === 'string' ? flow.mockupUrl : '';
+    const mockupDataUrlCandidate = typeof (flow as any)?.mockupDataUrl === 'string'
+      ? (flow as any).mockupDataUrl
+      : '';
+    if (!mockupBlob && isDataUrl(mockupUrlCandidate)) {
+      mockupBlob = await dataUrlToBlob(mockupUrlCandidate);
+    }
+    if (!mockupBlob && isDataUrl(mockupDataUrlCandidate)) {
+      mockupBlob = await dataUrlToBlob(mockupDataUrlCandidate);
+    }
+    if (!mockupBlob) throw new Error('missing_mockup');
+
+    const approxKb = Math.ceil(mockupBlob.size / 1024);
+    if (approxKb > PUBLISH_MAX_PAYLOAD_KB) {
+      const contentType = mockupBlob.type || 'image/jpeg';
+      const sign = await signUpload({ bucket: 'preview', contentType });
+      const name = contentType.includes('png') ? 'mockup.png' : 'mockup.jpg';
+      await uploadBlobWithSignedUrl(sign, mockupBlob, name);
+      mockupUrlForPayload = String(sign?.publicUrl || '');
+    } else {
+      const dataUrl = await blobToBase64(mockupBlob);
+      mockupUrlForPayload = dataUrl;
+    }
+
+    if (!mockupUrlForPayload) {
+      throw new Error('missing_mockup_url');
+    }
 
     if (isPrivate) {
       const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -322,34 +399,36 @@ export async function createJobAndProduct(
       }
     }
 
+    const payload = {
+      productType,
+      mockupUrl: mockupUrlForPayload,
+      designName,
+      title: productTitle,
+      material: materialLabel,
+      widthCm,
+      heightCm,
+      approxDpi,
+      priceTransfer: priceTransferRaw,
+      priceCurrency,
+      lowQualityAck: Boolean(flow.lowQualityAck),
+      imageAlt,
+      filename,
+      tags: extraTags,
+      description: '',
+      seoDescription: metaDescription,
+      visibility: requestedVisibility,
+      isPrivate,
+      jobId: jobIdForPdf || undefined,
+      printSourceUrl: printSourceUrl || undefined,
+      printDataUrl: printDataUrl || undefined,
+      printBackgroundColor: printBackgroundHex,
+      printDpi: (approxDpi ?? undefined),
+    };
+
     const publishResp = await apiFetch('/api/publish-product', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        productType,
-        mockupDataUrl,
-        designName,
-        title: productTitle,
-        material: materialLabel,
-        widthCm,
-        heightCm,
-        approxDpi,
-        priceTransfer: priceTransferRaw,
-        priceCurrency,
-        lowQualityAck: Boolean(flow.lowQualityAck),
-        imageAlt,
-        filename,
-        tags: extraTags,
-        description: '',
-        seoDescription: metaDescription,
-        visibility: requestedVisibility,
-        isPrivate,
-        jobId: jobIdForPdf || undefined,
-        printSourceUrl: printSourceUrl || undefined,
-        printDataUrl: printDataUrl || undefined,
-        printBackgroundColor: printBackgroundHex,
-        printDpi: (approxDpi ?? undefined),
-      }),
+      body: JSON.stringify(payload),
     });
     publishStatus = Number.isFinite(publishResp.status) ? publishResp.status : null;
     const publishData = await publishResp.json().catch(() => null);
