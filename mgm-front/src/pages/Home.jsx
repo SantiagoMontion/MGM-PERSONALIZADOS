@@ -710,7 +710,7 @@ export default function Home() {
           setErr('No se pudo subir el PDF.');
           return;
         }
-        nextPdfUrl = pdfSign.publicUrl;
+        nextPdfUrl = String(pdfSign.publicUrl || '');
         const masterSign = await postJSON(
           getResolvedApiUrl('/api/storage/sign'),
           { bucket: 'outputs', contentType: designMime },
@@ -729,7 +729,7 @@ export default function Home() {
           setErr('No se pudo subir la imagen.');
           return;
         }
-        nextMasterUrl = masterSign.publicUrl;
+        nextMasterUrl = String(masterSign.publicUrl || '');
         console.log('[diag] pdfPublicUrl', nextPdfUrl);
       }
       setDesignHashState(designHash);

@@ -12,13 +12,28 @@ export async function renderMockup1080(opts) {
 
   ctx.clearRect(0, 0, size, size);
 
-  const image = opts.image || (opts.composition && opts.composition.image);
+  const compositionSource = opts?.composition?.canvas
+    || opts?.composition?.image
+    || null;
+  const image = compositionSource || opts.image || (opts.composition && opts.composition.image);
   if (!image) {
     return new Promise((res) => canvas.toBlob(res, 'image/png', 1));
   }
 
-  const compWidth = Number(opts?.composition?.widthPx);
-  const compHeight = Number(opts?.composition?.heightPx);
+  const compWidth = Number(
+    opts?.composition?.widthPx ??
+    opts?.composition?.width_px ??
+    compositionSource?.width ??
+    compositionSource?.naturalWidth ??
+    0,
+  );
+  const compHeight = Number(
+    opts?.composition?.heightPx ??
+    opts?.composition?.height_px ??
+    compositionSource?.height ??
+    compositionSource?.naturalHeight ??
+    0,
+  );
   if (Number.isFinite(compWidth) && Number.isFinite(compHeight) && compWidth > 0 && compHeight > 0) {
     const longest = Math.max(compWidth, compHeight);
     const scale = longest > 0 ? Math.min(1, 1080 / longest) : 1;
@@ -31,7 +46,7 @@ export async function renderMockup1080(opts) {
     if (!directCtx) throw new Error('2d context unavailable');
     directCtx.imageSmoothingEnabled = true;
     directCtx.imageSmoothingQuality = 'high';
-    directCtx.drawImage(image, 0, 0, targetWidth, targetHeight);
+    directCtx.drawImage(compositionSource || image, 0, 0, targetWidth, targetHeight);
     const jpegBlob = await new Promise((res) => directCanvas.toBlob(res, 'image/jpeg', 0.82));
     return jpegBlob || new Blob([], { type: 'image/jpeg' });
   }
