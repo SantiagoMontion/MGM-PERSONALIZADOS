@@ -118,6 +118,22 @@ async function uploadBlobWithSignedUrl(
   }
 }
 
+function jsonByteLength(value: unknown): number {
+  try {
+    const json = JSON.stringify(value ?? null);
+    if (!json) return 0;
+    if (typeof TextEncoder !== 'undefined') {
+      return new TextEncoder().encode(json).length;
+    }
+    if (typeof Blob !== 'undefined') {
+      return new Blob([json]).size;
+    }
+    return json.length;
+  } catch {
+    return Infinity;
+  }
+}
+
 function readJobId(flow: FlowState): string {
   const candidates = [
     (flow as any)?.jobId,
@@ -300,10 +316,19 @@ export async function createJobAndProduct(
   const printSourceUrl = typeof (flow as any)?.fileOriginalUrl === 'string'
     ? (flow as any).fileOriginalUrl.trim()
     : '';
-  const printDataUrl = typeof flow.printFullResDataUrl === 'string'
-    ? flow.printFullResDataUrl
-    : '';
   const printBackgroundHex = (flow.editorState as any)?.background || '#ffffff';
+  const pdfPublicUrl = typeof (flow as any)?.pdfPublicUrl === 'string'
+    ? (flow as any).pdfPublicUrl.trim()
+    : '';
+  const masterPublicUrl = typeof (flow as any)?.masterPublicUrl === 'string'
+    ? (flow as any).masterPublicUrl.trim()
+    : '';
+  const designHashRaw = typeof (flow as any)?.designHash === 'string'
+    ? (flow as any).designHash.trim().toLowerCase()
+    : '';
+  const masterWidthPx = safeNumber((flow as any)?.masterWidthPx);
+  const masterHeightPx = safeNumber((flow as any)?.masterHeightPx);
+  const priceNormal = safeNumber(flow.priceNormal);
 
   let publish: any = null;
   let publishStatus: number | null = null;
@@ -331,6 +356,24 @@ export async function createJobAndProduct(
     ? buildGlasspadTitle(designName, measurementLabel)
     : buildDefaultTitle(productLabel, designName, measurementLabel, materialLabel);
   let metaDescription = buildMetaDescription(productLabel, designName, measurementLabel, materialLabel);
+
+  if (!pdfPublicUrl) {
+    const err: Error & { reason?: string } = new Error('missing_pdf_public_url');
+    err.reason = 'missing_pdf_public_url';
+    throw err;
+  }
+
+  if (!masterPublicUrl) {
+    const err: Error & { reason?: string } = new Error('missing_master_public_url');
+    err.reason = 'missing_master_public_url';
+    throw err;
+  }
+
+  if (!/^[a-f0-9]{64}$/.test(designHashRaw)) {
+    const err: Error & { reason?: string } = new Error('invalid_design_hash');
+    err.reason = 'invalid_design_hash';
+    throw err;
+  }
 
   const privateDraftOrder = isPrivate
     ? buildPrivateDraftOrderMetadata({
@@ -366,8 +409,9 @@ export async function createJobAndProduct(
     }
     if (!mockupBlob) throw new Error('missing_mockup');
 
-    const approxKb = Math.ceil(mockupBlob.size / 1024);
-    if (approxKb > PUBLISH_MAX_PAYLOAD_KB) {
+    const approxBase64Bytes = Math.ceil((mockupBlob.size * 4) / 3);
+    const approxBase64Kb = Math.ceil(approxBase64Bytes / 1024);
+    if (approxBase64Kb > PUBLISH_MAX_PAYLOAD_KB) {
       const contentType = mockupBlob.type || 'image/jpeg';
       const sign = await signUpload({ bucket: 'preview', contentType });
       const name = contentType.includes('png') ? 'mockup.png' : 'mockup.jpg';
@@ -410,6 +454,7 @@ export async function createJobAndProduct(
       approxDpi,
       priceTransfer: priceTransferRaw,
       priceCurrency,
+      ...(priceNormal != null ? { price: priceNormal } : {}),
       lowQualityAck: Boolean(flow.lowQualityAck),
       imageAlt,
       filename,
@@ -418,12 +463,30 @@ export async function createJobAndProduct(
       seoDescription: metaDescription,
       visibility: requestedVisibility,
       isPrivate,
+      mode,
       jobId: jobIdForPdf || undefined,
       printSourceUrl: printSourceUrl || undefined,
-      printDataUrl: printDataUrl || undefined,
       printBackgroundColor: printBackgroundHex,
       printDpi: (approxDpi ?? undefined),
+      pdfPublicUrl,
+      masterPublicUrl,
+      designHash: designHashRaw,
+      masterWidthPx: masterWidthPx ?? undefined,
+      masterHeightPx: masterHeightPx ?? undefined,
+      customerEmail: customerEmail || undefined,
+      options: materialLabel ? { material: materialLabel } : undefined,
     };
+
+    const payloadBytes = jsonByteLength(payload);
+    try {
+      logger.debug('[publish] payload_bytes', { bytes: payloadBytes });
+    } catch {}
+    if (!Number.isFinite(payloadBytes) || payloadBytes > PUBLISH_MAX_PAYLOAD_KB * 1024) {
+      const err: Error & { reason?: string; detail?: unknown } = new Error('publish_payload_too_large');
+      err.reason = 'publish_payload_too_large';
+      err.detail = { bytes: payloadBytes };
+      throw err;
+    }
 
     const publishResp = await apiFetch('/api/publish-product', {
       method: 'POST',

@@ -408,6 +408,19 @@ export default async function handler(req, res) {
   delete parsedBody.mockupBinary;
   delete parsedBody.mockupData;
 
+  try {
+    const serialized = JSON.stringify(parsedBody ?? {});
+    if (serialized && Buffer.byteLength(serialized, 'utf8') > 300_000) {
+      logApiError('publish-product', { diagId, step: 'payload_json_too_large', error: 'payload_json_too_large' });
+      sendJsonWithCors(req, res, 413, { ok: false, error: 'payload_too_large_defense', diagId });
+      return;
+    }
+  } catch (stringifyErr) {
+    logApiError('publish-product', { diagId, step: 'payload_stringify_failed', error: stringifyErr });
+    sendJsonWithCors(req, res, 400, { ok: false, error: 'invalid_body', diagId });
+    return;
+  }
+
   const estimatedBytes = estimatePayloadBytes(parsedBody);
   const headerBytes = typeof bytesRead === 'number' ? bytesRead : getContentLengthHeader(req);
   const effectiveEstimate = typeof estimatedBytes === 'number' ? estimatedBytes : headerBytes;
