@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { ensureCors, respondCorsDenied } from '../../lib/cors.js';
-import { createSignedUploadUrl } from '../../lib/handlers/uploadUrl.js';
+import getSupabaseAdmin from '../../lib/_lib/supabaseAdmin.js';
 
 const ALLOWED_BUCKETS = new Set(['outputs', 'preview', 'uploads']);
 const DEFAULT_BUCKET = 'outputs';
@@ -58,23 +58,38 @@ export default async function handler(req, res) {
       ? Math.min(Math.round(Number(body.expiresIn)), 60 * 60 * 24)
       : DEFAULT_EXPIRES;
 
-    const signed = await createSignedUploadUrl({
-      bucket,
-      objectKey: body.path,
-      contentType,
-      expiresIn: expiresInRaw,
-    });
+    const extension = (() => {
+      if (/pdf/i.test(contentType)) return '.pdf';
+      if (/png/i.test(contentType)) return '.png';
+      if (/jpe?g/i.test(contentType)) return '.jpg';
+      return '';
+    })();
+    const objectKey = typeof body.path === 'string' && body.path.trim()
+      ? body.path.trim()
+      : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}${extension}`;
+
+    const supabase = getSupabaseAdmin();
+    const { data: signedData, error: signError } = await supabase
+      .storage
+      .from(bucket)
+      .createSignedUploadUrl(objectKey, expiresInRaw);
+    if (signError) {
+      console.error('[diag] signed upload failed', { diagId, bucket, objectKey, signError });
+      throw signError;
+    }
+
+    const { data: publicData } = supabase.storage.from(bucket).getPublicUrl(objectKey);
 
     res.setHeader?.('Content-Type', 'application/json; charset=utf-8');
     res.status(200).json({
       ok: true,
-      bucket: signed.bucket,
-      path: signed.objectKey,
-      uploadUrl: signed.uploadUrl,
-      publicUrl: signed.publicUrl,
-      expiresIn: signed.expiresIn,
-      token: signed.token,
-      signedUrl: signed.signedUrl,
+      bucket,
+      path: objectKey,
+      uploadUrl: signedData?.signedUrl || null,
+      publicUrl: publicData?.publicUrl || null,
+      expiresIn: expiresInRaw,
+      token: signedData?.token || null,
+      signedUrl: signedData?.signedUrl || null,
       diagId,
     });
   } catch (err) {
