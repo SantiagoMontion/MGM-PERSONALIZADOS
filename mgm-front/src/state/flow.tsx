@@ -41,11 +41,18 @@ export type FlowState = {
     warnings?: any[];
     warningMessages?: string[];
   };
+  original?: {
+    bucket?: string | null;
+    objectKey?: string | null;
+    publicUrl?: string | null;
+    mime?: string | null;
+  } | null;
   set: (p: Partial<FlowState>) => void;
+  setOriginal: (original: FlowState['original']) => void;
   reset: () => void;
 };
 
-const defaultState: Omit<FlowState, 'set' | 'reset'> = {
+const defaultState: Omit<FlowState, 'set' | 'setOriginal' | 'reset'> = {
   productType: 'mousepad',
   editorState: {},
   mockupBlob: undefined,
@@ -72,11 +79,13 @@ const defaultState: Omit<FlowState, 'set' | 'reset'> = {
   priceCurrency: 'ARS',
   customerEmail: '',
   lastProduct: undefined,
+  original: null,
 };
 
 const FlowContext = createContext<FlowState>({
   ...defaultState,
   set: () => {},
+  setOriginal: () => {},
   reset: () => {},
 });
 
@@ -102,6 +111,7 @@ export function FlowProvider({ children }: { children: ReactNode }) {
       }
       return { ...s, ...p };
     }),
+    setOriginal: (original) => setState((s) => ({ ...s, original })),
     reset: () => {
       revokeIfObjectUrl(state.mockupUrl || undefined);
       setState(defaultState);
