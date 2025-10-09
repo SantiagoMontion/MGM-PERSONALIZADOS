@@ -371,6 +371,26 @@ export default function Mockup() {
   const flowState = typeof flow?.get === 'function' ? flow.get() : flow;
   const navigate = useNavigate();
   const location = useLocation();
+  const frontTitle = useMemo(() => {
+    const designNameRaw = typeof flow?.designName === 'string' ? flow.designName : '';
+    const designName = designNameRaw.trim() || 'Personalizado';
+    const materialLabel = String(flow?.material || 'Classic');
+    const isGlass = materialLabel.toLowerCase().includes('glass');
+    const baseCategory = isGlass ? 'Glasspad' : 'Mousepad';
+    const widthCandidate = Number(flow?.editorState?.size_cm?.w ?? flow?.widthCm);
+    const heightCandidate = Number(flow?.editorState?.size_cm?.h ?? flow?.heightCm);
+    const widthCm = Number.isFinite(widthCandidate) && widthCandidate > 0 ? Math.round(widthCandidate) : null;
+    const heightCm = Number.isFinite(heightCandidate) && heightCandidate > 0 ? Math.round(heightCandidate) : null;
+    const hasDims = widthCm != null && heightCm != null;
+    if (isGlass) {
+      return hasDims
+        ? `${baseCategory} ${designName} ${widthCm}x${heightCm} | PERSONALIZADO`
+        : `${baseCategory} ${designName} | PERSONALIZADO`;
+    }
+    return hasDims
+      ? `${baseCategory} ${designName} ${widthCm}x${heightCm} ${materialLabel} | PERSONALIZADO`
+      : `${baseCategory} ${designName} ${materialLabel} | PERSONALIZADO`;
+  }, [flow]);
   const [busy, setBusy] = useState(false);
   const [cartStatus, setCartStatus] = useState('idle');
   const [publicBusy, setPublicBusy] = useState(false);
@@ -415,6 +435,16 @@ export default function Mockup() {
   const cartInteractionBusy = cartBtnBusy || cartBusy;
   const buyPromptTitleId = 'buy-choice-title';
   const buyPromptDescriptionId = 'buy-choice-description';
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    if (!frontTitle) return;
+    try {
+      document.title = frontTitle;
+    } catch (err) {
+      logger.debug?.('[mockup] title_update_failed', err);
+    }
+  }, [frontTitle]);
+
   const mockupSrc = useMemo(() => {
     const state = flowState && typeof flowState === 'object' ? flowState : {};
     if (typeof state.mockupPublicUrl === 'string' && state.mockupPublicUrl) {

@@ -454,10 +454,18 @@ export default async function handler(req, res) {
   const designNameNorm = normalizeDesignNameKeepSpaces(designNameRaw);
   const designName = designNameNorm.length ? designNameNorm : 'Personalizado';
   const baseCategory = materialLabel === 'Glasspad' ? 'Glasspad' : 'Mousepad';
-  // Formato EXACTO: "Mousepad {Nombre} {WxH} {Material} | PERSONALIZADO"
-  const finalTitle = Number.isFinite(widthCmSafe) && Number.isFinite(heightCmSafe) && widthCmSafe > 0 && heightCmSafe > 0
-    ? `${baseCategory} ${designName} ${widthCmSafe}x${heightCmSafe} ${materialLabel} | PERSONALIZADO`
-    : `${baseCategory} ${designName} ${materialLabel} | PERSONALIZADO`;
+  const isGlass = baseCategory === 'Glasspad';
+  const hasDims = Number.isFinite(widthCmSafe) && Number.isFinite(heightCmSafe) && widthCmSafe > 0 && heightCmSafe > 0;
+  // Formato EXACTO:
+  // - Mousepad: "Mousepad {Nombre} {WxH} {Material} | PERSONALIZADO"
+  // - Glasspad: "Glasspad {Nombre} {WxH} | PERSONALIZADO"
+  const finalTitle = isGlass
+    ? (hasDims
+      ? `${baseCategory} ${designName} ${widthCmSafe}x${heightCmSafe} | PERSONALIZADO`
+      : `${baseCategory} ${designName} | PERSONALIZADO`)
+    : (hasDims
+      ? `${baseCategory} ${designName} ${widthCmSafe}x${heightCmSafe} ${materialLabel} | PERSONALIZADO`
+      : `${baseCategory} ${designName} ${materialLabel} | PERSONALIZADO`);
   const toNumber = (value) => {
     if (typeof value === 'number') {
       return Number.isFinite(value) ? value : NaN;
