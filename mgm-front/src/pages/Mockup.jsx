@@ -247,7 +247,15 @@ function buildShopifyPayload(flowState, mode) {
   const source = typeof flowState?.get === 'function' ? flowState.get() : flowState || {};
   const designNameRaw = (source?.designName ?? '').toString();
   const designName = designNameRaw.trim();
-  let { widthCm, heightCm } = buildDimsFromFlowState(source);
+  // *** FUENTE ÚNICA DE VERDAD: lo que guardamos al “Continuar” ***
+  let widthCm = Number(source?.widthCm ?? source?.composition?.widthCm);
+  let heightCm = Number(source?.heightCm ?? source?.composition?.heightCm);
+  if (!Number.isFinite(widthCm) || widthCm <= 0 || !Number.isFinite(heightCm) || heightCm <= 0) {
+    // Fallback (no debe pasar, pero evitamos valores raros)
+    const dims = buildDimsFromFlowState(source);
+    widthCm = dims.widthCm;
+    heightCm = dims.heightCm;
+  }
   const materialLabel = normalizeMaterialLabel(source?.material || source?.options?.material);
   // Glasspad SIEMPRE 49x42 cm (independiente del canvas)
   if (materialLabel === 'Glasspad') {
@@ -258,7 +266,8 @@ function buildShopifyPayload(flowState, mode) {
   const priceTransfer = source?.priceTransfer;
   const priceNormal = source?.priceNormal;
   const currency = source?.priceCurrency;
-  const mockupUrl = source?.mockupPublicUrl || source?.mockupUrl || undefined;
+  // Enviar SIEMPRE URL pública del mockup (nunca dataURL) para que REST lo adjunte
+  const mockupUrl = source?.mockupPublicUrl || source?.mockupUrl || null;
   const payload = {
     designName,
     widthCm,
@@ -1778,6 +1787,7 @@ export default function Mockup() {
                   cta_type: 'cart',
                   product_handle: lastProduct?.productHandle,
                 });
+                // Igual que en comprar: nos aseguramos de tener mockup público antes
                 await ensureMockupPublicReady(flow);
                 return handle('cart', { payloadOverrides: buildShopifyPayload(flow, 'cart') });
               })}
@@ -1964,6 +1974,7 @@ export default function Mockup() {
                     product_handle: lastProduct?.productHandle,
                   });
                   setBuyPromptOpen(false);
+                  // Asegurar URL pública antes de publicar
                   await ensureMockupPublicReady(flow);
                   return handle('checkout', { payloadOverrides: buildShopifyPayload(flow, 'checkout') });
                 })}
