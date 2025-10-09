@@ -58,6 +58,19 @@ function safeNumber(value: unknown): number | undefined {
   return Number.isFinite(num) ? num : undefined;
 }
 
+function parsePrice(value: unknown): number | undefined {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : undefined;
+  }
+  if (typeof value === 'string') {
+    const normalized = value.replace(/\./g, '').replace(/,/g, '.').trim();
+    if (!normalized) return undefined;
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+}
+
 function formatDimension(value?: number | null): string | undefined {
   if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return undefined;
   const rounded = Math.round(value * 10) / 10;
@@ -481,7 +494,6 @@ export async function createJobAndProduct(
     : '';
   const masterWidthPx = safeNumber((flow as any)?.masterWidthPx);
   const masterHeightPx = safeNumber((flow as any)?.masterHeightPx);
-  const priceNormal = safeNumber(flow.priceNormal);
 
   let publish: any = null;
   let publishStatus: number | null = null;
@@ -496,14 +508,36 @@ export async function createJobAndProduct(
   let mockupUrlForPayload = '';
   let productType: 'glasspad' | 'mousepad' = flow.productType === 'glasspad' ? 'glasspad' : 'mousepad';
   let productLabel = PRODUCT_LABELS[productType];
-  let designName = (flow.designName || '').trim();
+  let designName = String((flow as any)?.designName ?? '').trim();
   let materialLabel = (flow.material || '').trim() || (productType === 'glasspad' ? 'Glasspad' : '');
   let widthCm = safeNumber((flow.editorState as any)?.size_cm?.w);
   let heightCm = safeNumber((flow.editorState as any)?.size_cm?.h);
   let approxDpi = safeNumber(flow.approxDpi);
-  let priceTransferRaw = safeNumber(flow.priceTransfer);
+  const dpiForCm = approxDpi && approxDpi > 0 ? approxDpi : 300;
+  const mmToCm = (mm?: number) => (typeof mm === 'number' && Number.isFinite(mm) && mm > 0 ? Math.round(mm / 10) : undefined);
+  const pxToCm = (px?: number) => (typeof px === 'number' && Number.isFinite(px) && px > 0
+    ? Math.round((px / dpiForCm) * 2.54)
+    : undefined);
+  const pickDimension = (...values: (number | undefined)[]) => {
+    for (const value of values) {
+      if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+        return Math.round(value);
+      }
+    }
+    return undefined;
+  };
+  const widthFromFlow = safeNumber((flow as any)?.widthCm);
+  const heightFromFlow = safeNumber((flow as any)?.heightCm);
+  const widthFromMm = mmToCm(safeNumber((flow as any)?.masterWidthMm ?? (flow.editorState as any)?.size_mm?.w));
+  const heightFromMm = mmToCm(safeNumber((flow as any)?.masterHeightMm ?? (flow.editorState as any)?.size_mm?.h));
+  const widthFromPx = pxToCm(masterWidthPx);
+  const heightFromPx = pxToCm(masterHeightPx);
+  widthCm = pickDimension(widthCm, widthFromFlow, widthFromMm, widthFromPx);
+  heightCm = pickDimension(heightCm, heightFromFlow, heightFromMm, heightFromPx);
+  let priceTransferRaw = parsePrice(flow.priceTransfer);
   const priceCurrencyRaw = typeof flow.priceCurrency === 'string' ? flow.priceCurrency : 'ARS';
   let priceCurrency = priceCurrencyRaw.trim() || 'ARS';
+  const priceNormal = parsePrice(flow.priceNormal);
   let measurementLabel = formatMeasurement(widthCm, heightCm);
   let productTitle = productType === 'glasspad'
     ? buildGlasspadTitle(designName, measurementLabel)
