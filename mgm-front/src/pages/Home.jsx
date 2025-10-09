@@ -85,6 +85,72 @@ async function nextPaint(hops = 2) {
   await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
+// ====== Workers (lazy) para offthread ======
+let mockupWorker = null;
+let shaWorker = null;
+function getMockupWorker() {
+  try {
+    if (!mockupWorker) {
+      mockupWorker = new Worker(new URL('../workers/mockup.worker.js', import.meta.url), { type: 'module' });
+    }
+    return mockupWorker;
+  } catch {
+    return null;
+  }
+}
+function getShaWorker() {
+  try {
+    if (!shaWorker) {
+      shaWorker = new Worker(new URL('../workers/sha.worker.js', import.meta.url), { type: 'module' });
+    }
+    return shaWorker;
+  } catch {
+    return null;
+  }
+}
+
+async function generateMockupOffthread(imageBlob, opts) {
+  const worker = getMockupWorker();
+  if (!worker || !imageBlob) return null;
+  const arrBuf = await imageBlob.arrayBuffer();
+  return new Promise((resolve) => {
+    const timeoutId = setTimeout(() => resolve(null), 12000);
+    const onMessage = (event) => {
+      clearTimeout(timeoutId);
+      worker.removeEventListener('message', onMessage);
+      const data = event.data || {};
+      if (data.ok && data.type === 'mockup' && data.buffer) {
+        resolve(new Blob([data.buffer], { type: 'image/png' }));
+      } else {
+        resolve(null);
+      }
+    };
+    worker.addEventListener('message', onMessage);
+    worker.postMessage({ cmd: 'mockup', buffer: arrBuf, opts }, [arrBuf]);
+  });
+}
+
+async function sha256Offthread(blob) {
+  const worker = getShaWorker();
+  if (!worker || !blob) return null;
+  const arrBuf = await blob.arrayBuffer();
+  return new Promise((resolve) => {
+    const timeoutId = setTimeout(() => resolve(null), 8000);
+    const onMessage = (event) => {
+      clearTimeout(timeoutId);
+      worker.removeEventListener('message', onMessage);
+      const data = event.data || {};
+      if (data.ok && data.type === 'sha256' && typeof data.hex === 'string') {
+        resolve(data.hex);
+      } else {
+        resolve(null);
+      }
+    };
+    worker.addEventListener('message', onMessage);
+    worker.postMessage({ cmd: 'sha256', buffer: arrBuf }, [arrBuf]);
+  });
+}
+
 function moderationReasonMessage(reason) {
   if (typeof reason === 'string' && MODERATION_REASON_MESSAGES[reason]) {
     return MODERATION_REASON_MESSAGES[reason];
@@ -480,7 +546,11 @@ export default function Home() {
         setErr('No se pudo generar la imagen');
         return;
       }
-      const designShaPromise = sha256Hex(designBlob);
+      const designShaPromise = (async () => {
+        const workerHash = await sha256Offthread(designBlob);
+        if (workerHash) return workerHash;
+        return sha256Hex(designBlob);
+      })();
       const masterDataUrl = await blobToDataUrl(designBlob);
       await nextPaint(1);
 
@@ -686,23 +756,43 @@ export default function Home() {
       const masterWidthMm = activeWcm * 10;
       const masterHeightMm = activeHcm * 10;
       const dpiForMockup = layout?.dpi || effDpi || 300;
-      const blob = await renderMockup1080(img, {
-        material,
-        materialLabel: material,
-        approxDpi: dpiForMockup,
-        composition: {
-          widthPx: masterWidthExact,
-          heightPx: masterHeightExact,
-          widthCm: activeWcm,
-          heightCm: activeHcm,
-          widthMm: masterWidthMm,
-          heightMm: masterHeightMm,
-          dpi: dpiForMockup,
+      let mockupBlob = null;
+      try {
+        const flowState = (typeof flow?.get === 'function' ? flow.get() : flow) || {};
+        mockupBlob = await generateMockupOffthread(designBlob, {
+          composition: {
+            widthPx: flowState?.masterWidthPx || masterWidthExact,
+            heightPx: flowState?.masterHeightPx || masterHeightExact,
+            widthCm: flowState?.widthCm || activeWcm,
+            heightCm: flowState?.heightCm || activeHcm,
+          },
+          material: flowState?.material || material,
+          options: { material: flowState?.material || material },
+          materialLabel: flowState?.material || material,
+          radiusPx: Number(import.meta.env?.VITE_MOCKUP_PAD_RADIUS_PX) || 8,
+        });
+      } catch {
+        mockupBlob = null;
+      }
+      if (!mockupBlob) {
+        mockupBlob = await renderMockup1080(img, {
           material,
-        },
-      });
+          materialLabel: material,
+          approxDpi: dpiForMockup,
+          composition: {
+            widthPx: masterWidthExact,
+            heightPx: masterHeightExact,
+            widthCm: activeWcm,
+            heightCm: activeHcm,
+            widthMm: masterWidthMm,
+            heightMm: masterHeightMm,
+            dpi: dpiForMockup,
+            material,
+          },
+        });
+      }
       await nextPaint(1);
-      const mockupUrl = URL.createObjectURL(blob);
+      const mockupUrl = URL.createObjectURL(mockupBlob);
       const designMime = designBlob.type || 'image/png';
       const designSha = await designShaPromise;
       console.log('[diag] master dims', { width: masterWidthExact, height: masterHeightExact });
@@ -720,6 +810,7 @@ export default function Home() {
           heightMm: masterHeightMm,
           maxBytes: maxPdfBytes,
         });
+        await nextPaint(1);
         console.log('[diag] pdf bytes', pdfBytes?.byteLength || pdfBytes?.length || 0);
         const sanitizeForFileName = (value, fallback = 'Design') =>
           String(value ?? '').replace(/[\\/:*?"<>|]+/g, '').trim() || fallback;
@@ -851,7 +942,7 @@ export default function Home() {
       flow.set({
         productType: material === 'Glasspad' ? 'glasspad' : 'mousepad',
         editorState: layout,
-        mockupBlob: blob,
+        mockupBlob,
         mockupUrl,
         printFullResDataUrl: masterDataUrl,
         masterPublicUrl: nextMasterUrl,
