@@ -363,12 +363,6 @@ export async function createJobAndProduct(
     throw err;
   }
 
-  if (!masterPublicUrl) {
-    const err: Error & { reason?: string } = new Error('missing_master_public_url');
-    err.reason = 'missing_master_public_url';
-    throw err;
-  }
-
   if (!/^[a-f0-9]{64}$/.test(designHashRaw)) {
     const err: Error & { reason?: string } = new Error('invalid_design_hash');
     err.reason = 'invalid_design_hash';
@@ -396,30 +390,41 @@ export async function createJobAndProduct(
   let imageAlt = `Mockup ${productTitle}`;
 
   if (!canReuse) {
+    const mockupPublicUrlCandidate = typeof (flow as any)?.mockupPublicUrl === 'string'
+      ? (flow as any).mockupPublicUrl.trim()
+      : '';
+    if (mockupPublicUrlCandidate) {
+      mockupUrlForPayload = mockupPublicUrlCandidate;
+    }
     let mockupBlob = flow.mockupBlob;
     const mockupUrlCandidate = typeof flow.mockupUrl === 'string' ? flow.mockupUrl : '';
     const mockupDataUrlCandidate = typeof (flow as any)?.mockupDataUrl === 'string'
       ? (flow as any).mockupDataUrl
       : '';
-    if (!mockupBlob && isDataUrl(mockupUrlCandidate)) {
+    if (!mockupBlob && !mockupUrlForPayload && isDataUrl(mockupUrlCandidate)) {
       mockupBlob = await dataUrlToBlob(mockupUrlCandidate);
     }
-    if (!mockupBlob && isDataUrl(mockupDataUrlCandidate)) {
+    if (!mockupBlob && !mockupUrlForPayload && isDataUrl(mockupDataUrlCandidate)) {
       mockupBlob = await dataUrlToBlob(mockupDataUrlCandidate);
     }
-    if (!mockupBlob) throw new Error('missing_mockup');
+    if (!mockupBlob && !mockupUrlForPayload && mockupUrlCandidate && !mockupUrlCandidate.startsWith('blob:')) {
+      mockupUrlForPayload = mockupUrlCandidate.trim();
+    }
+    if (!mockupBlob && !mockupUrlForPayload) throw new Error('missing_mockup');
 
-    const approxBase64Bytes = Math.ceil((mockupBlob.size * 4) / 3);
-    const approxBase64Kb = Math.ceil(approxBase64Bytes / 1024);
-    if (approxBase64Kb > PUBLISH_MAX_PAYLOAD_KB) {
-      const contentType = mockupBlob.type || 'image/jpeg';
-      const sign = await signUpload({ bucket: 'preview', contentType });
-      const name = contentType.includes('png') ? 'mockup.png' : 'mockup.jpg';
-      await uploadBlobWithSignedUrl(sign, mockupBlob, name);
-      mockupUrlForPayload = String(sign?.publicUrl || '');
-    } else {
-      const dataUrl = await blobToBase64(mockupBlob);
-      mockupUrlForPayload = dataUrl;
+    if (!mockupUrlForPayload && mockupBlob) {
+      const approxBase64Bytes = Math.ceil((mockupBlob.size * 4) / 3);
+      const approxBase64Kb = Math.ceil(approxBase64Bytes / 1024);
+      if (approxBase64Kb > PUBLISH_MAX_PAYLOAD_KB) {
+        const contentType = mockupBlob.type || 'image/jpeg';
+        const sign = await signUpload({ bucket: 'preview', contentType });
+        const name = contentType.includes('png') ? 'mockup.png' : 'mockup.jpg';
+        await uploadBlobWithSignedUrl(sign, mockupBlob, name);
+        mockupUrlForPayload = String(sign?.publicUrl || '');
+      } else {
+        const dataUrl = await blobToBase64(mockupBlob);
+        mockupUrlForPayload = dataUrl;
+      }
     }
 
     if (!mockupUrlForPayload) {
@@ -469,7 +474,7 @@ export async function createJobAndProduct(
       printBackgroundColor: printBackgroundHex,
       printDpi: (approxDpi ?? undefined),
       pdfPublicUrl,
-      masterPublicUrl,
+      masterPublicUrl: masterPublicUrl || undefined,
       designHash: designHashRaw,
       masterWidthPx: masterWidthPx ?? undefined,
       masterHeightPx: masterHeightPx ?? undefined,
