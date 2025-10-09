@@ -20,6 +20,8 @@ export async function renderMockup1080(opts) {
     return new Promise((res) => canvas.toBlob(res, 'image/png', 1));
   }
 
+  const drawSource = compositionSource || image;
+
   const compWidth = Number(
     opts?.composition?.widthPx ??
     opts?.composition?.width_px ??
@@ -46,7 +48,7 @@ export async function renderMockup1080(opts) {
     if (!directCtx) throw new Error('2d context unavailable');
     directCtx.imageSmoothingEnabled = true;
     directCtx.imageSmoothingQuality = 'high';
-    directCtx.drawImage(compositionSource || image, 0, 0, targetWidth, targetHeight);
+    directCtx.drawImage(drawSource, 0, 0, targetWidth, targetHeight);
     const jpegBlob = await new Promise((res) => directCanvas.toBlob(res, 'image/jpeg', 0.82));
     return jpegBlob || new Blob([], { type: 'image/jpeg' });
   }
@@ -151,7 +153,7 @@ export async function renderMockup1080(opts) {
       const blurPx = 1;
 
       glassCtx.filter = `blur(${blurPx}px)`;
-      glassCtx.drawImage(image, 0, 0, drawW, drawH);
+      glassCtx.drawImage(drawSource, 0, 0, drawW, drawH);
       glassCtx.filter = 'none';
 
       ctx.drawImage(glassCanvas, dx, dy, drawW, drawH);
@@ -160,7 +162,7 @@ export async function renderMockup1080(opts) {
   }
 
   if (!drewGlassEffect) {
-    ctx.drawImage(image, dx, dy, drawW, drawH);
+    ctx.drawImage(drawSource, dx, dy, drawW, drawH);
   }
 
   ctx.restore();
