@@ -40,11 +40,7 @@ export default async function handler(req, res) {
     }
 
     const bucketRaw = typeof body.bucket === 'string' ? body.bucket.trim() : DEFAULT_BUCKET;
-    const bucket = ALLOWED_BUCKETS.has(bucketRaw) ? bucketRaw : null;
-    if (!bucket) {
-      res.status(400).json({ ok: false, error: 'bucket_not_allowed', diagId });
-      return;
-    }
+    const requestedBucket = ALLOWED_BUCKETS.has(bucketRaw) ? bucketRaw : DEFAULT_BUCKET;
 
     const contentType = typeof body.contentType === 'string' && body.contentType.trim()
       ? body.contentType.trim()
@@ -69,16 +65,67 @@ export default async function handler(req, res) {
       : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}${extension}`;
 
     const supabase = getSupabaseAdmin();
-    const { data: signedData, error: signError } = await supabase
-      .storage
-      .from(bucket)
-      .createSignedUploadUrl(objectKey, expiresInRaw);
-    if (signError) {
-      console.error('[diag] signed upload failed', { diagId, bucket, objectKey, signError });
-      throw signError;
+
+    const ensureBucketExists = async (bucketName) => {
+      try {
+        const { data: bucketInfo } = await supabase.storage.getBucket(bucketName);
+        if (!bucketInfo) {
+          const { error: createError } = await supabase.storage.createBucket(bucketName, {
+            public: bucketName !== 'uploads',
+          });
+          if (createError) {
+            return createError;
+          }
+        }
+        return null;
+      } catch (error) {
+        return error;
+      }
+    };
+
+    const signInBucket = async (bucketName) => {
+      const ensureError = await ensureBucketExists(bucketName);
+      if (ensureError) {
+        return { error: ensureError };
+      }
+      const { data, error } = await supabase
+        .storage
+        .from(bucketName)
+        .createSignedUploadUrl(objectKey, expiresInRaw);
+      if (error) {
+        return { error };
+      }
+      const { data: publicData } = supabase.storage.from(bucketName).getPublicUrl(objectKey);
+      return { data, publicData };
+    };
+
+    let bucket = requestedBucket;
+    let signResult = await signInBucket(bucket);
+    if (signResult.error && bucket !== DEFAULT_BUCKET) {
+      console.warn('[diag] signed upload failed, retrying with default bucket', {
+        diagId,
+        requestedBucket,
+        bucket,
+        objectKey,
+        error: signResult.error?.message || signResult.error,
+      });
+      bucket = DEFAULT_BUCKET;
+      signResult = await signInBucket(bucket);
     }
 
-    const { data: publicData } = supabase.storage.from(bucket).getPublicUrl(objectKey);
+    if (signResult.error) {
+      console.error('[diag] signed upload failed', {
+        diagId,
+        bucket,
+        requestedBucket,
+        objectKey,
+        signError: signResult.error,
+      });
+      throw signResult.error;
+    }
+
+    const signedData = signResult.data;
+    const publicData = signResult.publicData;
 
     res.setHeader?.('Content-Type', 'application/json; charset=utf-8');
     res.status(200).json({
@@ -91,6 +138,7 @@ export default async function handler(req, res) {
       token: signedData?.token || null,
       signedUrl: signedData?.signedUrl || null,
       diagId,
+      requestedBucket,
     });
   } catch (err) {
     res.setHeader?.('Content-Type', 'application/json; charset=utf-8');
