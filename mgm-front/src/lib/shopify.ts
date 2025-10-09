@@ -570,13 +570,14 @@ export async function createJobAndProduct(
     const payload = {
       productType,
       mockupUrl: mockupUrlForPayload,
-      designName,
+      designName, // usar este para armar el título en el server
       title: productTitle,
       material: materialLabel,
       widthCm,
       heightCm,
       approxDpi,
-      priceTransfer: priceTransferRaw,
+      priceTransfer: priceTransferRaw, // SIEMPRE transferencia
+      currency: priceCurrency,
       priceCurrency,
       ...(priceNormal != null ? { price: priceNormal } : {}),
       lowQualityAck: Boolean(flow.lowQualityAck),
