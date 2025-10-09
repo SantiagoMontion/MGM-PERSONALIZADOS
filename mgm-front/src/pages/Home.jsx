@@ -365,11 +365,13 @@ export default function Home() {
     const sizeBytes = Number(rest?.size_bytes) && Number.isFinite(Number(rest.size_bytes))
       ? Number(rest.size_bytes)
       : blob.size;
-    const contentType = typeof rest?.mime === 'string' && rest.mime
-      ? rest.mime
-      : typeof rest?.content_type === 'string' && rest.content_type
-        ? rest.content_type
-        : blob.type || 'application/octet-stream';
+    const fileType = typeof blob.type === 'string' && blob.type ? blob.type : '';
+    const contentType = fileType
+      || (typeof rest?.mime === 'string' && rest.mime
+        ? rest.mime
+        : typeof rest?.content_type === 'string' && rest.content_type
+          ? rest.content_type
+          : 'application/octet-stream');
 
     const startPayload = {
       ...rest,
@@ -380,6 +382,13 @@ export default function Home() {
       mime: contentType,
       content_type: contentType,
       uploadStrategy: 'direct',
+      ...(fileType
+        ? {
+            file: { type: fileType },
+            fileType,
+            file_type: fileType,
+          }
+        : {}),
     };
 
     const startResponse = await apiFetch('POST', '/api/upload-original/start', startPayload, {
@@ -410,7 +419,12 @@ export default function Home() {
     })();
 
     const resolvedUploadContentType =
-      startJson?.contentType
+      fileType
+      || startJson?.expectedMime
+      || startJson?.expected_mime
+      || uploadInfo?.expectedMime
+      || uploadInfo?.expected_mime
+      || startJson?.contentType
       || startJson?.content_type
       || uploadInfo?.contentType
       || contentType;
@@ -468,7 +482,7 @@ export default function Home() {
         .storage
         .from(signedUploadBucket)
         .uploadToSignedUrl(sanitizedObjectKey, signedUploadToken, blob, {
-          contentType: resolvedUploadContentType,
+          contentType: fileType || undefined,
           upsert: true,
         });
       if (signedUploadError) {
@@ -563,6 +577,8 @@ export default function Home() {
       objectKey: startJson?.objectKey || uploadInfo?.objectKey || uploadInfo?.object_key || undefined,
       uploadToken: startJson?.uploadToken || uploadInfo?.uploadToken || undefined,
       ...(typeof startJson?.finalizePayload === 'object' && startJson.finalizePayload ? startJson.finalizePayload : {}),
+      expectedMime: startJson?.expectedMime || uploadInfo?.expectedMime || undefined,
+      expected_mime: startJson?.expected_mime || uploadInfo?.expected_mime || undefined,
     };
 
     const finalizePayload = Object.entries(finalizePayloadBase).reduce((acc, [key, value]) => {

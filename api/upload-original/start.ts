@@ -136,7 +136,22 @@ function inferExtension({
 }: {
   body: NormalizedBody;
   req: VercelRequest;
-}): { ext: string; source: 'filename' | 'mime' | 'header' | 'unknown' } {
+}): {
+  ext: string;
+  source: 'file_type' | 'filename' | 'mime' | 'header' | 'unknown';
+} {
+  const fileType = pickFirstString(
+    (body.file as { type?: unknown })?.type,
+    body.fileType,
+    body.file_type,
+  );
+  if (fileType) {
+    const ext = EXTENSION_BY_MIME[fileType.toLowerCase()];
+    if (ext) {
+      return { ext, source: 'file_type' };
+    }
+  }
+
   const fileName = extractFileName(body, req);
   if (fileName) {
     const match = /\.([a-zA-Z0-9]{1,10})$/.exec(fileName);
@@ -348,14 +363,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     body.file_content_type,
     body.fileMime,
     body.file_mime,
+    body.expectedMime,
+    body.expected_mime,
   );
-  const contentType = resolveMime(ext, declaredMime);
+  const expectedMime = resolveMime(ext, declaredMime);
 
   logger.info('upload-original start', {
     diagId,
     rid,
     fileName: fileName || null,
-    contentType,
+    contentType: expectedMime,
+    expectedMime,
     ext,
     extSource,
     objectKey,
@@ -368,7 +386,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const storage = supa.storage.from(UPLOAD_BUCKET);
     const { data: signed, error } = await storage.createSignedUploadUrl(storageKey, expiresIn, {
       upsert: true,
-      contentType,
+      contentType: expectedMime,
     });
 
     if (error || !signed) {
@@ -415,9 +433,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       path: objectKey,
       bucket: UPLOAD_BUCKET,
       originalObjectKey: objectKey,
-      contentType,
-      content_type: contentType,
-      mime: contentType,
+      contentType: expectedMime,
+      content_type: expectedMime,
+      mime: expectedMime,
+      expectedMime,
+      expected_mime: expectedMime,
       diagId,
       rid,
       publicUrl,
@@ -426,7 +446,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         url: directUrl,
         method: 'PUT',
         headers: uploadHeaders,
-        contentType,
+        contentType: expectedMime,
+        expected_mime: expectedMime,
+        expectedMime,
         objectKey,
         storageKey,
         bucket: UPLOAD_BUCKET,
