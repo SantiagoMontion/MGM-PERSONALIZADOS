@@ -33,6 +33,7 @@ import {
 } from '../lib/dpi';
 import styles from './Home.module.css';
 import { renderMockup1080 } from '../lib/mockup.js';
+import { buildPdfFromMaster } from '../lib/buildPdf.js';
 import { quickHateSymbolCheck } from '@/lib/moderation.ts';
 import { scanNudityClient } from '@/lib/moderation/nsfw.client.js';
 import { useFlow } from '@/state/flow.js';
@@ -231,6 +232,11 @@ export default function Home() {
   const [err, setErr] = useState('');
   const [moderationNotice, setModerationNotice] = useState('');
   const [busy, setBusy] = useState(false);
+  const [masterPublicUrl, setMasterPublicUrl] = useState(null);
+  const [masterWidthPx, setMasterWidthPx] = useState(null);
+  const [masterHeightPx, setMasterHeightPx] = useState(null);
+  const [designHashState, setDesignHashState] = useState(null);
+  const [pdfPublicUrl, setPdfPublicUrl] = useState(null);
   const navigate = useNavigate();
   const canvasRef = useRef(null);
   const designNameInputRef = useRef(null);
@@ -448,11 +454,12 @@ export default function Home() {
     try {
       setModerationNotice('');
       setBusy(true);
-      const master = canvasRef.current.exportPadDataURL?.(2);
-      if (!master) {
+      const designBlob = await canvasRef.current.exportPadAsBlob?.();
+      if (!designBlob || !designBlob.size) {
         setErr('No se pudo generar la imagen');
         return;
       }
+      const masterDataUrl = await blobToDataUrl(designBlob);
 
       // client-side gate: filename keywords
       const metaForCheck = [uploaded?.file?.name, trimmedDesignName].filter(Boolean).join(' ');
@@ -463,7 +470,7 @@ export default function Home() {
 
       // client-side gate: NSFW scan in browser (no server TFJS)
       try {
-        const res = await scanNudityClient(master);
+        const res = await scanNudityClient(masterDataUrl);
         if (res?.blocked) {
           let message = 'Contenido adulto detectado.';
           if (res.reason === 'client_real_nudity') {
@@ -480,7 +487,7 @@ export default function Home() {
 
       const masterImagePromise = (async () => {
         const img = new Image();
-        img.src = master;
+        img.src = masterDataUrl;
         await img.decode();
         return img;
       })();
@@ -530,7 +537,7 @@ export default function Home() {
 
       const sendOriginalModerationRequest = () => postJSON(
         getResolvedApiUrl('/api/moderate-image?debug=1'),
-        { ...baseModerationPayload, dataUrl: master },
+        { ...baseModerationPayload, dataUrl: masterDataUrl },
         60000,
       );
 
@@ -649,22 +656,82 @@ export default function Home() {
       }
 
       const img = await masterImagePromise;
+      const pxPerCm = layout?.dpi ? layout.dpi / 2.54 : (effDpi || 300) / 2.54;
+      const masterWidthExact = Math.max(1, Math.round(activeWcm * pxPerCm));
+      const masterHeightExact = Math.max(1, Math.round(activeHcm * pxPerCm));
+      const masterWidthMm = activeWcm * 10;
+      const masterHeightMm = activeHcm * 10;
       const blob = await renderMockup1080({
         productType: material === 'Glasspad' ? 'glasspad' : 'mousepad',
         image: img,
         width_cm: activeWcm,
         height_cm: activeHcm,
+        composition: {
+          widthPx: masterWidthExact,
+          heightPx: masterHeightExact,
+        },
       });
       const mockupUrl = URL.createObjectURL(blob);
-
-      const designResponse = await fetch(master);
-      const designBlob = await designResponse.blob();
-      if (!designBlob || !designBlob.size) {
-        setErr('No se pudo preparar el archivo para subir.');
-        return;
-      }
       const designMime = designBlob.type || 'image/png';
       const designSha = await sha256Hex(designBlob);
+      console.log('[diag] master dims', { width: masterWidthExact, height: masterHeightExact });
+      const designHash = designSha;
+      let nextMasterUrl = masterPublicUrl || null;
+      let nextPdfUrl = pdfPublicUrl || null;
+      if (!(designHash && designHash === designHashState && nextMasterUrl && nextPdfUrl)) {
+        const pdfBytes = await buildPdfFromMaster(designBlob, {
+          bleedMm: 20,
+          widthPx: masterWidthExact,
+          heightPx: masterHeightExact,
+          widthMm: masterWidthMm,
+          heightMm: masterHeightMm,
+        });
+        console.log('[diag] pdf bytes', pdfBytes?.byteLength || pdfBytes?.length || 0);
+        const pdfSign = await postJSON(
+          getResolvedApiUrl('/api/storage/sign'),
+          { bucket: 'outputs', contentType: 'application/pdf' },
+          60000,
+        );
+        if (!pdfSign?.uploadUrl || !pdfSign?.publicUrl) {
+          setErr('No se pudo firmar la subida del PDF.');
+          return;
+        }
+        const pdfUploadRes = await fetch(pdfSign.uploadUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/pdf' },
+          body: pdfBytes,
+        });
+        if (!pdfUploadRes.ok) {
+          setErr('No se pudo subir el PDF.');
+          return;
+        }
+        nextPdfUrl = pdfSign.publicUrl;
+        const masterSign = await postJSON(
+          getResolvedApiUrl('/api/storage/sign'),
+          { bucket: 'outputs', contentType: designMime },
+          60000,
+        );
+        if (!masterSign?.uploadUrl || !masterSign?.publicUrl) {
+          setErr('No se pudo firmar la subida de la imagen.');
+          return;
+        }
+        const masterUploadRes = await fetch(masterSign.uploadUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': designMime },
+          body: designBlob,
+        });
+        if (!masterUploadRes.ok) {
+          setErr('No se pudo subir la imagen.');
+          return;
+        }
+        nextMasterUrl = masterSign.publicUrl;
+        console.log('[diag] pdfPublicUrl', nextPdfUrl);
+      }
+      setDesignHashState(designHash);
+      setMasterPublicUrl(nextMasterUrl);
+      setPdfPublicUrl(nextPdfUrl);
+      setMasterWidthPx(masterWidthExact);
+      setMasterHeightPx(masterHeightExact);
 
       let uploadData = null;
       try {
@@ -682,7 +749,7 @@ export default function Home() {
           mime: designMime,
           sha256: designSha,
           filename: uploadFilename,
-          ...(uploadFile ? { file: uploadFile } : { data_url: master }),
+          ...(uploadFile ? { file: uploadFile } : { data_url: masterDataUrl }),
         };
         const uploadResult = await uploadOriginal(uploadPayload);
         uploadData = { ...uploadResult.json, publicUrl: uploadResult.publicUrl };
@@ -736,7 +803,12 @@ export default function Home() {
         editorState: layout,
         mockupBlob: blob,
         mockupUrl,
-        printFullResDataUrl: master,
+        printFullResDataUrl: masterDataUrl,
+        masterPublicUrl: nextMasterUrl,
+        pdfPublicUrl: nextPdfUrl,
+        masterWidthPx: masterWidthExact,
+        masterHeightPx: masterHeightExact,
+        designHash,
         fileOriginalUrl: uploadCanonical,
         uploadObjectKey,
         uploadBucket: uploadData?.bucket || 'uploads',
