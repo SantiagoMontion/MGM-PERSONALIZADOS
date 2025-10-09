@@ -1525,7 +1525,7 @@ export default function Home() {
         </div>
       </section>
 
-      <LoadingOverlay show={busy} messages={["Creando tu pedido…"]} />
+      {busy && <LoadingOverlay show={busy} messages={["Creando tu pedido…"]} />}
     </div>
   );
 
