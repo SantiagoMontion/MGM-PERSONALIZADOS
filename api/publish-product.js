@@ -496,6 +496,34 @@ export default async function handler(req, res) {
   parsedBody.price = priceValue;
   parsedBody.currency = currencyValue;
 
+  try {
+    const images = [];
+    const dataUrl = typeof parsedBody.mockupDataUrl === 'string' ? parsedBody.mockupDataUrl.trim() : '';
+    const fallbackName = designName || 'Mockup';
+    const filename = `${fallbackName}.png`;
+    if (dataUrl.startsWith('data:image')) {
+      const base64 = (dataUrl.split(',')[1] || '').trim();
+      if (base64) {
+        images.push({ attachment: base64, filename, altText: fallbackName });
+      }
+    } else {
+      const mockupUrlValue = typeof parsedBody.mockupUrl === 'string' ? parsedBody.mockupUrl.trim() : '';
+      if (mockupUrlValue.startsWith('data:image')) {
+        const base64 = (mockupUrlValue.split(',')[1] || '').trim();
+        if (base64) {
+          images.push({ attachment: base64, filename, altText: fallbackName });
+        }
+      } else if (mockupUrlValue) {
+        images.push({ src: mockupUrlValue, altText: fallbackName });
+      }
+    }
+    if (images.length) {
+      parsedBody.images = images;
+    }
+  } catch (_) {
+    // no bloquear
+  }
+
   if (typeof parsedBody.mockupDataUrl === 'string' && parsedBody.mockupDataUrl.length > 200000) {
     sendJsonWithCors(req, res, 400, { ok: false, error: 'mockup_dataurl_too_large', diagId });
     return;
