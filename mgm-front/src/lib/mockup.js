@@ -12,13 +12,15 @@ export async function renderMockup1080(opts) {
 
   ctx.clearRect(0, 0, size, size);
 
-  const image = opts.image || (opts.composition && opts.composition.image);
-  if (!image) {
+  const source = opts?.composition?.canvas
+    || opts.image
+    || (opts.composition && opts.composition.image);
+  if (!source) {
     return new Promise((res) => canvas.toBlob(res, 'image/png', 1));
   }
 
-  const compWidth = Number(opts?.composition?.widthPx);
-  const compHeight = Number(opts?.composition?.heightPx);
+  const compWidth = Number(opts?.composition?.widthPx || source?.width);
+  const compHeight = Number(opts?.composition?.heightPx || source?.height);
   if (Number.isFinite(compWidth) && Number.isFinite(compHeight) && compWidth > 0 && compHeight > 0) {
     const longest = Math.max(compWidth, compHeight);
     const scale = longest > 0 ? Math.min(1, 1080 / longest) : 1;
@@ -31,7 +33,7 @@ export async function renderMockup1080(opts) {
     if (!directCtx) throw new Error('2d context unavailable');
     directCtx.imageSmoothingEnabled = true;
     directCtx.imageSmoothingQuality = 'high';
-    directCtx.drawImage(image, 0, 0, targetWidth, targetHeight);
+    directCtx.drawImage(source, 0, 0, targetWidth, targetHeight);
     const jpegBlob = await new Promise((res) => directCanvas.toBlob(res, 'image/jpeg', 0.82));
     return jpegBlob || new Blob([], { type: 'image/jpeg' });
   }
@@ -49,8 +51,8 @@ export async function renderMockup1080(opts) {
       0
   );
 
-  const iw = image.width || image.naturalWidth || image.videoWidth || 0;
-  const ih = image.height || image.naturalHeight || image.videoHeight || 0;
+  const iw = source.width || source.naturalWidth || source.videoWidth || 0;
+  const ih = source.height || source.naturalHeight || source.videoHeight || 0;
   if (!iw || !ih) {
     return new Promise((res) => canvas.toBlob(res, 'image/png', 1));
   }
@@ -136,7 +138,7 @@ export async function renderMockup1080(opts) {
       const blurPx = 1;
 
       glassCtx.filter = `blur(${blurPx}px)`;
-      glassCtx.drawImage(image, 0, 0, drawW, drawH);
+      glassCtx.drawImage(source, 0, 0, drawW, drawH);
       glassCtx.filter = 'none';
 
       ctx.drawImage(glassCanvas, dx, dy, drawW, drawH);
@@ -145,7 +147,7 @@ export async function renderMockup1080(opts) {
   }
 
   if (!drewGlassEffect) {
-    ctx.drawImage(image, dx, dy, drawW, drawH);
+    ctx.drawImage(source, dx, dy, drawW, drawH);
   }
 
   ctx.restore();
