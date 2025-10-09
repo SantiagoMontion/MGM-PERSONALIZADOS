@@ -35,6 +35,7 @@ import styles from './Home.module.css';
 import { renderMockup1080 } from '../lib/mockup.js';
 import { buildPdfFromMaster } from '../lib/buildPdf.js';
 import { supa } from '../lib/supa.js';
+import { ensureMockupUrlInFlow } from './Mockup.jsx';
 import { quickHateSymbolCheck } from '@/lib/moderation.ts';
 import { scanNudityClient } from '@/lib/moderation/nsfw.client.js';
 import { useFlow } from '@/state/flow.js';
@@ -844,6 +845,11 @@ export default function Home() {
         priceNormal: normalPrice,
         priceCurrency: PRICE_CURRENCY,
       });
+      try {
+        await ensureMockupUrlInFlow(flow);
+      } catch (mockupEnsureError) {
+        console.warn('[diag] ensure mockup url failed during continue', mockupEnsureError);
+      }
       navigate('/mockup');
     } catch (e) {
       logger.error(e);
