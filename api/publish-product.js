@@ -400,14 +400,14 @@ export default async function handler(req, res) {
   parsedBody.masterWidthPx = Number.isFinite(masterWidthPx) && masterWidthPx > 0 ? Math.round(masterWidthPx) : null;
   parsedBody.masterHeightPx = Number.isFinite(masterHeightPx) && masterHeightPx > 0 ? Math.round(masterHeightPx) : null;
 
-  const materialLabel = (() => {
-    const rawMaterial = parsedBody?.options?.material || parsedBody?.material || '';
-    const normalized = String(rawMaterial || '').toLowerCase();
+  function resolveMaterial(value) {
+    const normalized = String(value || '').toLowerCase();
     if (normalized.includes('glass')) return 'Glasspad';
     if (normalized.includes('pro')) return 'PRO';
     if (normalized.includes('classic')) return 'Classic';
-    return rawMaterial || 'Classic';
-  })();
+    return 'Classic';
+  }
+  const materialLabel = resolveMaterial(parsedBody?.options?.material ?? parsedBody?.material);
   const dpiForCm = Number.isFinite(Number(parsedBody?.approxDpi)) && Number(parsedBody.approxDpi) > 0
     ? Number(parsedBody.approxDpi)
     : 300;
@@ -487,6 +487,7 @@ export default async function handler(req, res) {
       : 0;
   const currencyValue = String(parsedBody.currency || process.env.SHOPIFY_CART_PRESENTMENT_CURRENCY || 'USD');
   parsedBody.title = finalTitle;
+  parsedBody.materialResolved = materialLabel;
   parsedBody.price = priceValue;
   parsedBody.currency = currencyValue;
 

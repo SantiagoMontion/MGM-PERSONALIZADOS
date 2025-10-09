@@ -508,8 +508,11 @@ export async function createJobAndProduct(
   let mockupUrlForPayload = '';
   let productType: 'glasspad' | 'mousepad' = flow.productType === 'glasspad' ? 'glasspad' : 'mousepad';
   let productLabel = PRODUCT_LABELS[productType];
-  let designName = String((flow as any)?.designName ?? '').trim();
-  let materialLabel = (flow.material || '').trim() || (productType === 'glasspad' ? 'Glasspad' : '');
+  const designNameInput = (flow as any)?.designName;
+  const designNameRaw = (designNameInput ?? '').toString(); // el input tal cual (servidor corta a 40)
+  let designName = designNameRaw.trim();
+  const materialFromFlow = (flow.material || '').trim();
+  let materialLabel = productType === 'glasspad' ? 'Glasspad' : matLabelOf(materialFromFlow || 'Classic');
   let widthCm = safeNumber((flow.editorState as any)?.size_cm?.w);
   let heightCm = safeNumber((flow.editorState as any)?.size_cm?.h);
   let approxDpi = safeNumber(flow.approxDpi);
@@ -604,13 +607,13 @@ export async function createJobAndProduct(
     const payload = {
       productType,
       mockupUrl: mockupUrlForPayload,
-      designName, // usar este para armar el título en el server
+      designName: designNameRaw, // nombre exacto del input (sin recortar aquí)
       title: productTitle,
-      material: materialLabel,
+      material: materialLabel, // enviar material explícito plano
       widthCm,
       heightCm,
       approxDpi,
-      priceTransfer: priceTransferRaw, // SIEMPRE transferencia
+      priceTransfer: priceTransferRaw, // SIEMPRE transferencia (este es el que queremos en Shopify)
       currency: priceCurrency,
       priceCurrency,
       ...(priceNormal != null ? { price: priceNormal } : {}),
@@ -633,7 +636,7 @@ export async function createJobAndProduct(
       masterWidthPx: masterWidthPx ?? undefined,
       masterHeightPx: masterHeightPx ?? undefined,
       customerEmail: customerEmail || undefined,
-      options: materialLabel ? { material: materialLabel } : undefined,
+      options: materialLabel ? { material: materialLabel } : undefined, // enviar material explícito
     };
 
     const payloadBytes = jsonByteLength(payload);
