@@ -5,17 +5,142 @@ import Toast from '@/components/Toast.jsx';
 import { useFlow } from '@/state/flow.js';
 import { downloadBlob } from '@/lib/mockup.js';
 import styles from './Mockup.module.css';
+import { supa } from '../lib/supa.js';
 import { buildExportBaseName } from '@/lib/filename.ts';
-import { apiFetch, getResolvedApiUrl } from '@/lib/api.ts';
+import { apiFetch, postJSON, getResolvedApiUrl } from '@/lib/api.js';
 import {
   createJobAndProduct,
-  ensureMockupUrl,
   ONLINE_STORE_DISABLED_MESSAGE,
   ONLINE_STORE_MISSING_MESSAGE,
   pickCommerceTarget,
 } from '@/lib/shopify.ts';
 import logger from '../lib/logger';
 import { ensureTrackingRid, trackEvent } from '@/lib/tracking';
+
+const PUBLISH_MAX_PAYLOAD_KB = Number(import.meta.env?.VITE_PUBLISH_MAX_PAYLOAD_KB) || 200;
+
+function isDataUrl(value) {
+  return typeof value === 'string' && value.startsWith('data:');
+}
+
+async function dataUrlToBlob(dataUrl) {
+  const response = await fetch(dataUrl);
+  return await response.blob();
+}
+
+async function signUpload({ bucket, contentType }) {
+  let response = await postJSON(getResolvedApiUrl('/api/storage/sign'), { bucket, contentType }, 30000);
+  if (!response?.ok && bucket === 'preview') {
+    console.warn('[diag] sign preview failed, falling back to outputs');
+    response = await postJSON(
+      getResolvedApiUrl('/api/storage/sign'),
+      { bucket: 'outputs', contentType },
+      30000,
+    );
+  }
+  if (!response?.ok) {
+    throw new Error('sign_failed');
+  }
+  return response;
+}
+
+async function uploadBlobWithSignedUrl(sign, blob, filename) {
+  const file = new File([blob], filename, { type: blob.type });
+  const { error } = await supa
+    .storage.from(sign.bucket || 'preview')
+    .uploadToSignedUrl(sign.path, sign.token, file, { upsert: false, contentType: blob.type });
+  if (error) {
+    throw error;
+  }
+  return String(sign.publicUrl || '');
+}
+
+async function buildJpeg1080FromDataUrl(dataUrl, quality = 0.82) {
+  const image = await new Promise((resolve, reject) => {
+    const img = new Image();
+    img.decoding = 'async';
+    img.onload = () => resolve(img);
+    img.onerror = (event) => reject(event instanceof ErrorEvent ? event.error ?? event : event || new Error('mockup_image_load_failed'));
+    img.src = dataUrl;
+  });
+  const naturalWidth = image.naturalWidth || image.width || 1;
+  const naturalHeight = image.naturalHeight || image.height || 1;
+  const maxDim = 1080;
+  const scale = Math.min(1, maxDim / Math.max(naturalWidth, naturalHeight));
+  const width = Math.max(1, Math.round(naturalWidth * scale));
+  const height = Math.max(1, Math.round(naturalHeight * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    throw new Error('mockup_canvas_context_failed');
+  }
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(image, 0, 0, width, height);
+  const blob = await new Promise((resolve, reject) => {
+    if (typeof canvas.toBlob === 'function') {
+      canvas.toBlob((result) => {
+        if (result) {
+          resolve(result);
+        } else {
+          reject(new Error('mockup_to_blob_failed'));
+        }
+      }, 'image/jpeg', quality);
+      return;
+    }
+    try {
+      const jpegDataUrl = canvas.toDataURL('image/jpeg', quality);
+      dataUrlToBlob(jpegDataUrl).then(resolve, reject);
+    } catch (err) {
+      reject(err instanceof Error ? err : new Error('mockup_canvas_encode_failed'));
+    }
+  });
+  return blob;
+}
+
+export async function ensureMockupUrlInFlow(flow) {
+  const state = typeof flow?.get === 'function' ? flow.get() : flow;
+  if (typeof state?.mockupPublicUrl === 'string' && state.mockupPublicUrl) {
+    return state.mockupPublicUrl;
+  }
+  if (typeof state?.mockupUrl === 'string' && state.mockupUrl && !state.mockupUrl.startsWith('blob:')) {
+    return state.mockupUrl;
+  }
+  const payloadLimitBytes = PUBLISH_MAX_PAYLOAD_KB * 1024;
+  if (isDataUrl(state?.mockupDataUrl) && state.mockupDataUrl.length <= payloadLimitBytes) {
+    return state.mockupDataUrl;
+  }
+  let mockupBlob = state?.mockupBlob instanceof Blob ? state.mockupBlob : null;
+  if (!mockupBlob) {
+    if (!isDataUrl(state?.printFullResDataUrl)) {
+      const err = new Error('missing_print_fullres_dataurl');
+      err.reason = 'missing_print_fullres_dataurl';
+      throw err;
+    }
+    mockupBlob = await buildJpeg1080FromDataUrl(state.printFullResDataUrl, 0.82);
+  }
+  const contentType = mockupBlob.type || 'image/jpeg';
+  const sign = await signUpload({ bucket: 'preview', contentType });
+  const filename = contentType.includes('png') ? 'mockup.png' : 'mockup.jpg';
+  const publicUrl = await uploadBlobWithSignedUrl(sign, mockupBlob, filename);
+  if (!publicUrl) {
+    const err = new Error('missing_mockup_url');
+    err.reason = 'missing_mockup_url';
+    throw err;
+  }
+  try {
+    if (typeof flow?.set === 'function') {
+      const nextState = typeof flow.get === 'function' ? flow.get() : state;
+      flow.set({ ...nextState, mockupBlob, mockupPublicUrl: publicUrl });
+    }
+  } catch (stateErr) {
+    console.warn('[diag] mockup state update failed', stateErr);
+  }
+  console.log('[diag] mockup ensured', publicUrl);
+  return publicUrl;
+}
 
 function toastErr(msg) {
   try {
@@ -31,7 +156,7 @@ async function ensureAssetsForPublish(flowState) {
     throw new Error('missing_pdf_public_url');
   }
   const flowLike = typeof flowState?.set === 'function' ? flowState : state;
-  await ensureMockupUrl(flowLike);
+  await ensureMockupUrlInFlow(flowLike);
 }
 
 function notifyMissingAssetsError(error) {
