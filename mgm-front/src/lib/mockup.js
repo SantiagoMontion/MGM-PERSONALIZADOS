@@ -20,6 +20,7 @@ export async function renderMockup1080(imageOrOptions, maybeOptions) {
 
   const options = opts || {};
   const drawSource = options?.composition?.canvas || options?.composition?.image || image;
+  let drawable = drawSource;
 
   const MAX_LONG_PX = Number(import.meta.env?.VITE_MOCKUP_MAX_LONG_PX) || 990;
   const MIN_LONG_PX = Number(import.meta.env?.VITE_MOCKUP_MIN_LONG_PX) || 400;
@@ -60,6 +61,14 @@ export async function renderMockup1080(imageOrOptions, maybeOptions) {
       : REF_MAX_CM_MAP.classic;
 
   const anySource = drawSource || {};
+  const bitmapCandidate = drawSource || image;
+  if (typeof createImageBitmap === 'function' && bitmapCandidate && !('close' in bitmapCandidate)) {
+    try {
+      drawable = await createImageBitmap(bitmapCandidate);
+    } catch (err) {
+      drawable = drawSource;
+    }
+  }
   const fallbackWidth = Number(anySource.width || anySource.naturalWidth || anySource.videoWidth || 0);
   const fallbackHeight = Number(anySource.height || anySource.naturalHeight || anySource.videoHeight || 0);
   const compWidthPx = Number(
@@ -186,7 +195,7 @@ export async function renderMockup1080(imageOrOptions, maybeOptions) {
   roundRectPath(ctx, offsetX, offsetY, targetW, targetH, RADIUS_PX);
   ctx.clip();
   ctx.drawImage(
-    drawSource,
+    drawable,
     0,
     0,
     sourceWidth,
@@ -197,6 +206,12 @@ export async function renderMockup1080(imageOrOptions, maybeOptions) {
     targetH,
   );
   ctx.restore();
+
+  if (drawable && typeof drawable.close === 'function') {
+    try {
+      drawable.close();
+    } catch (_) {}
+  }
 
   const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
   return blob || new Blob([], { type: 'image/png' });
