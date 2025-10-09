@@ -18,6 +18,7 @@ export async function buildPdfFromMaster(masterBlob, options = {}) {
     heightPx,
     widthMm,
     heightMm,
+    dpi = 300,
   } = options || {};
 
   const bytes = await masterBlob.arrayBuffer();
@@ -32,18 +33,17 @@ export async function buildPdfFromMaster(masterBlob, options = {}) {
 
   const intrinsicWidth = embedded.width;
   const intrinsicHeight = embedded.height;
-  const resolvedWidthPx = typeof widthPx === 'number' && widthPx > 0 ? widthPx : intrinsicWidth;
-  const resolvedHeightPx = typeof heightPx === 'number' && heightPx > 0 ? heightPx : intrinsicHeight;
-  const resolvedWidthMm = typeof widthMm === 'number' && widthMm > 0
-    ? widthMm
-    : resolvedWidthPx;
-  const resolvedHeightMm = typeof heightMm === 'number' && heightMm > 0
-    ? heightMm
-    : resolvedHeightPx;
-
+  const resolvedWidthPx = Number.isFinite(widthPx) && widthPx > 0 ? Math.round(widthPx) : intrinsicWidth;
+  const resolvedHeightPx = Number.isFinite(heightPx) && heightPx > 0 ? Math.round(heightPx) : intrinsicHeight;
+  const pxToMm = (px) => {
+    if (!Number.isFinite(px) || !px) return 0;
+    const safeDpi = Number.isFinite(dpi) && dpi > 0 ? dpi : 300;
+    return (px / safeDpi) * 25.4;
+  };
+  const resolvedWidthMm = Number.isFinite(widthMm) && widthMm > 0 ? widthMm : pxToMm(resolvedWidthPx);
+  const resolvedHeightMm = Number.isFinite(heightMm) && heightMm > 0 ? heightMm : pxToMm(resolvedHeightPx);
   const bleedTotalMm = Math.max(0, Number(bleedMm) || 0);
   const bleedEachMm = bleedTotalMm / 2;
-
   const pageWidthPt = mmToPt(resolvedWidthMm + bleedEachMm * 2);
   const pageHeightPt = mmToPt(resolvedHeightMm + bleedEachMm * 2);
   const imageWidthPt = mmToPt(resolvedWidthMm);

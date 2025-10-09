@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { ensureCors, respondCorsDenied } from '../../lib/cors.js';
-import getSupabaseAdmin from '../../lib/_lib/supabaseAdmin.js';
-import logger from '../../lib/_lib/logger.js';
+import { createSignedUploadUrl } from '../../lib/handlers/uploadUrl.js';
 
 const ALLOWED_BUCKETS = new Set(['outputs', 'preview', 'uploads']);
 const DEFAULT_BUCKET = 'outputs';
@@ -24,10 +23,17 @@ function buildObjectPath(path, contentType) {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}${suffix}`;
 }
 
-function buildStorageUrl(base, bucket, key, isPublic) {
-  const normalizedBase = String(base || '').replace(/\/$/, '');
-  const visibility = isPublic ? 'public/' : '';
-  return `${normalizedBase}/storage/v1/object/${visibility}${bucket}/${key}`;
+function parseBody(raw) {
+  if (!raw) return {};
+  if (typeof raw === 'object') return raw;
+  if (typeof raw === 'string') {
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return {};
+    }
+  }
+  return {};
 }
 
 export default async function handler(req, res) {
@@ -40,68 +46,69 @@ export default async function handler(req, res) {
 
   if (req.method === 'OPTIONS') {
     res.setHeader?.('Allow', 'POST, OPTIONS');
-    res.status(204).end();
+    res.statusCode = 204;
+    res.end();
     return;
   }
 
   if (req.method !== 'POST') {
     res.setHeader?.('Allow', 'POST, OPTIONS');
-    res.status(405).json({ ok: false, error: 'method_not_allowed', diagId });
+    res.statusCode = 405;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ ok: false, error: 'method_not_allowed', diagId }));
     return;
   }
 
-  const body = req.body && typeof req.body === 'object' ? req.body : {};
-  const bucketRaw = typeof body.bucket === 'string' ? body.bucket.trim() : DEFAULT_BUCKET;
-  const bucket = ALLOWED_BUCKETS.has(bucketRaw) ? bucketRaw : null;
-  if (!bucket) {
-    res.status(400).json({ ok: false, error: 'bucket_not_allowed', diagId });
-    return;
-  }
-
-  const contentType = typeof body.contentType === 'string' && body.contentType.trim()
-    ? body.contentType.trim()
-    : '';
+  const body = parseBody(req.body);
+  const bucketRaw = typeof body.bucket === 'string' ? body.bucket.trim() : '';
+  const bucket = ALLOWED_BUCKETS.has(bucketRaw) ? bucketRaw : DEFAULT_BUCKET;
+  const contentType = typeof body.contentType === 'string' ? body.contentType.trim() : '';
   if (!contentType) {
-    res.status(400).json({ ok: false, error: 'content_type_required', diagId });
+    res.statusCode = 400;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ ok: false, error: 'content_type_required', diagId }));
     return;
   }
-
   const objectPath = buildObjectPath(body.path, contentType);
+  if (!objectPath) {
+    res.statusCode = 400;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ ok: false, error: 'path_invalid', diagId }));
+    return;
+  }
+  const expiresRaw = Number(body.expiresIn);
+  const expiresIn = Number.isFinite(expiresRaw) && expiresRaw > 0
+    ? Math.min(Math.round(expiresRaw), 3600)
+    : DEFAULT_EXPIRES;
 
   try {
-    const supabase = getSupabaseAdmin();
-    const storage = supabase.storage.from(bucket);
-    const expiresIn = Number.isFinite(Number(body.expiresIn)) && Number(body.expiresIn) > 0
-      ? Math.min(Math.round(Number(body.expiresIn)), 60 * 60 * 24)
-      : DEFAULT_EXPIRES;
-    const { data: signed, error } = await storage.createSignedUploadUrl(objectPath, expiresIn, {
-      upsert: true,
+    const { uploadUrl, publicUrl, upload } = await createSignedUploadUrl({
+      bucket,
+      objectKey: objectPath,
       contentType,
+      expiresIn,
     });
-    if (error) {
-      logger.error?.('[storage/sign] createSignedUploadUrl failed', { diagId, bucket, objectPath, error: error.message });
-      res.status(500).json({ ok: false, error: 'signed_url_failed', diagId });
-      return;
-    }
-
-    const base = process.env.SUPABASE_URL || '';
-    const uploadUrl = buildStorageUrl(base, bucket, objectPath, false);
-    const publicUrl = buildStorageUrl(base, bucket, objectPath, true);
-
-    res.setHeader?.('Content-Type', 'application/json; charset=utf-8');
-    res.status(200).json({
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({
       ok: true,
+      diagId,
       bucket,
       path: objectPath,
       uploadUrl,
       publicUrl,
       expiresIn,
-      token: signed?.token || null,
-      signedUrl: signed?.signedUrl || null,
-    });
-  } catch (err) {
-    logger.error?.('[storage/sign] unexpected', { diagId, error: err?.message || err });
-    res.setHeader?.('Content-Type', 'application/json; charset=utf-8');
-    res.status(500).json({ ok: false, error: 'internal_error', diagId });
+      token: upload?.token || null,
+      signedUrl: upload?.signed_url || null,
+    }));
+  } catch (error) {
+    res.statusCode = 500;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({
+      ok: false,
+      diagId,
+      error: 'sign_failed',
+      message: error?.message || String(error || ''),
+    }));
   }
 }
