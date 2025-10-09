@@ -408,6 +408,7 @@ export default async function handler(req, res) {
   parsedBody.masterWidthPx = Number.isFinite(masterWidthPx) && masterWidthPx > 0 ? Math.round(masterWidthPx) : null;
   parsedBody.masterHeightPx = Number.isFinite(masterHeightPx) && masterHeightPx > 0 ? Math.round(masterHeightPx) : null;
 
+  // Material canónico: usar lo que llegó del front
   const materialLabel = normalizeMaterial(
     parsedBody?.material ?? parsedBody?.materialResolved ?? parsedBody?.options?.material,
   );
@@ -465,7 +466,7 @@ export default async function handler(req, res) {
   };
   const priceTransfer = toNumber(parsedBody.priceTransfer ?? parsedBody.price_transfer ?? parsedBody.priceTranferencia);
   const priceNormal = toNumber(parsedBody.priceNormal ?? parsedBody.price_normal ?? parsedBody.price);
-  // Precio: confiamos en la calculadora del front (transferencia)
+  // Precio: confiamos en la calculadora del front (transferencia) -> respeta PRO/Classic/Glasspad
   const priceValue = Number.isFinite(priceTransfer)
     ? priceTransfer
     : Number.isFinite(priceNormal)
@@ -478,6 +479,19 @@ export default async function handler(req, res) {
   parsedBody.currency = currencyValue;
   // Pasar mockupUrl simple; la imagen se adjunta en el handler vía REST
   parsedBody.mockupUrl = mockupUrlRaw || parsedBody.mockupUrl || null;
+  // Diags para verificar qué llegó y qué se usó
+  try {
+    console.log('[publish-product] resolved', {
+      diagId,
+      materialLabel,
+      widthCm: widthCmSafe,
+      heightCm: heightCmSafe,
+      price: priceValue,
+      title: finalTitle,
+    });
+  } catch (logErr) {
+    // noop
+  }
 
   try {
     const images = [];

@@ -200,8 +200,7 @@ function normalizeMaterialLabel(value) {
   if (text.includes('glass')) return 'Glasspad';
   if (text.includes('pro')) return 'PRO';
   if (text.includes('classic')) return 'Classic';
-  const trimmed = String(value || '').trim();
-  return trimmed || 'Classic';
+  return 'Classic';
 }
 
 function buildDimsFromFlowState(flowState) {
@@ -256,19 +255,22 @@ function buildShopifyPayload(flowState, mode) {
     widthCm = dims.widthCm;
     heightCm = dims.heightCm;
   }
-  const materialLabel = normalizeMaterialLabel(source?.material || source?.options?.material);
+  // MATERIAL: tomar SIEMPRE lo que el usuario eligió en el editor/opciones
+  const materialLabel = normalizeMaterialLabel(source?.material ?? source?.options?.material);
   // Glasspad SIEMPRE 49x42 cm (independiente del canvas)
   if (materialLabel === 'Glasspad') {
     widthCm = 49;
     heightCm = 42;
   }
   const title = buildTitle(designName, widthCm, heightCm, materialLabel);
-  const priceTransfer = source?.priceTransfer;
-  const priceNormal = source?.priceNormal;
+  // Precios de la calculadora del front (transferencia manda)
+  const priceTransfer = Number(source?.priceTransfer ?? 0);
+  const priceNormal = Number(source?.priceNormal ?? 0);
   const currency = source?.priceCurrency;
   // Enviar SIEMPRE URL pública del mockup (nunca dataURL) para que REST lo adjunte
   const mockupUrl = source?.mockupPublicUrl || source?.mockupUrl || null;
   const payload = {
+    mode,
     designName,
     widthCm,
     heightCm,
