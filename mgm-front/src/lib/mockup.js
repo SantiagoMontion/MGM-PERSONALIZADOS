@@ -23,7 +23,7 @@ export async function renderMockup1080(imageOrOptions, maybeOptions) {
 
   const MAX_LONG_PX = Number(import.meta.env?.VITE_MOCKUP_MAX_LONG_PX) || 990;
   const MIN_LONG_PX = Number(import.meta.env?.VITE_MOCKUP_MIN_LONG_PX) || 400;
-  const GAMMA = Number(import.meta.env?.VITE_MOCKUP_SCALE_GAMMA) || 0.6;
+  const REF_MIN_CM = Number(import.meta.env?.VITE_REF_MIN_CM) || 20;
 
   const REF_MAX_CM_MAP = {
     classic: Number(import.meta.env?.VITE_REF_MAX_CM_CLASSIC) || 140,
@@ -130,9 +130,9 @@ export async function renderMockup1080(imageOrOptions, maybeOptions) {
     : fallbackWidth > 0 && fallbackHeight > 0
       ? fallbackWidth / fallbackHeight
       : 1;
-  const t = Math.max(0, Math.min(1, refMaxCm > 0 ? longestCm / refMaxCm : 0));
-  const eased = Math.pow(t, GAMMA);
-  let longPx = Math.round(MIN_LONG_PX + (MAX_LONG_PX - MIN_LONG_PX) * eased);
+  const denom = Math.max(1, refMaxCm - REF_MIN_CM);
+  const tLin = Math.max(0, Math.min(1, (longestCm - REF_MIN_CM) / denom));
+  let longPx = Math.round(MIN_LONG_PX + (MAX_LONG_PX - MIN_LONG_PX) * tLin);
   if (!Number.isFinite(longPx) || longPx <= 0) {
     longPx = MIN_LONG_PX;
   }
