@@ -143,7 +143,14 @@ export async function ensureMockupUrlInFlow(flow, input) {
   try {
     if (typeof flow?.set === 'function') {
       const nextState = typeof flow.get === 'function' ? flow.get() : state;
-      flow.set({ ...nextState, mockupBlob, mockupPublicUrl: publicUrl });
+      // cuando aseguramos el mockup, además de setear mockupPublicUrl, anulamos los campos legacy (evita 2 imágenes)
+      flow.set({
+        ...nextState,
+        mockupBlob,
+        mockupPublicUrl: publicUrl,
+        mockupUrl: null,
+        mockupDataUrl: null,
+      });
     }
   } catch (stateErr) {
     console.warn('[diag] mockup state update failed', stateErr);

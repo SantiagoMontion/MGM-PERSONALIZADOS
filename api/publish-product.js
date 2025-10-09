@@ -424,12 +424,13 @@ export default async function handler(req, res) {
   );
   const widthCmSafe = Number.isFinite(widthCm) && widthCm > 0 ? Math.round(widthCm) : null;
   const heightCmSafe = Number.isFinite(heightCm) && heightCm > 0 ? Math.round(heightCm) : null;
-  const designName = String(parsedBody.designName || parsedBody.title || 'Personalizado').trim() || 'Personalizado';
+  const designName = String(parsedBody.designName || '').trim() || 'Personalizado';
   const baseCategory = materialLabel === 'Glasspad' ? 'Glasspad' : 'Mousepad';
+  // Formato EXACTO: "Mousepad {Nombre} {WxH} {Material} | PERSONALIZADO"
   const finalTitle = widthCmSafe && heightCmSafe
     ? `${baseCategory} ${designName} ${widthCmSafe}x${heightCmSafe} ${materialLabel} | PERSONALIZADO`
     : `${baseCategory} ${designName} ${materialLabel} | PERSONALIZADO`;
-  const priceTransfer = Number(parsedBody.priceTransfer ?? parsedBody.price_transfer ?? NaN);
+  const priceTransfer = Number(parsedBody.priceTransfer ?? parsedBody.price_transfer ?? parsedBody.priceTranferencia ?? NaN);
   const priceNormal = Number(parsedBody.priceNormal ?? parsedBody.price_normal ?? NaN);
   const priceValue = Number.isFinite(priceTransfer)
     ? priceTransfer
