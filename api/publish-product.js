@@ -429,12 +429,12 @@ export default async function handler(req, res) {
     const fromPx = pxToCm(fallbackPx);
     return fromPx != null ? fromPx : null;
   };
-  const widthCmSafe = resolveDimension(
+  let widthCmSafe = resolveDimension(
     parsedBody?.widthCm,
     parsedBody?.masterWidthMm,
     parsedBody?.masterWidthPx,
   );
-  const heightCmSafe = resolveDimension(
+  let heightCmSafe = resolveDimension(
     parsedBody?.heightCm,
     parsedBody?.masterHeightMm,
     parsedBody?.masterHeightPx,
@@ -455,6 +455,11 @@ export default async function handler(req, res) {
   const designName = designNameNorm.length ? designNameNorm : 'Personalizado';
   const baseCategory = materialLabel === 'Glasspad' ? 'Glasspad' : 'Mousepad';
   const isGlass = baseCategory === 'Glasspad';
+  // Glasspad: normalizar SIEMPRE a 49x42 para el título y metadatos
+  if (isGlass) {
+    widthCmSafe = 49;
+    heightCmSafe = 42;
+  }
   const hasDims = Number.isFinite(widthCmSafe) && Number.isFinite(heightCmSafe) && widthCmSafe > 0 && heightCmSafe > 0;
   // Formato EXACTO:
   // - Mousepad: "Mousepad {Nombre} {WxH} {Material} | PERSONALIZADO"

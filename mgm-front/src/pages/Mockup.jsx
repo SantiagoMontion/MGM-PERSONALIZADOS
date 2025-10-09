@@ -247,8 +247,13 @@ function buildShopifyPayload(flowState, mode) {
   const source = typeof flowState?.get === 'function' ? flowState.get() : flowState || {};
   const designNameRaw = (source?.designName ?? '').toString();
   const designName = designNameRaw.trim();
-  const { widthCm, heightCm } = buildDimsFromFlowState(source);
+  let { widthCm, heightCm } = buildDimsFromFlowState(source);
   const materialLabel = normalizeMaterialLabel(source?.material || source?.options?.material);
+  // Glasspad SIEMPRE 49x42 cm (independiente del canvas)
+  if (materialLabel === 'Glasspad') {
+    widthCm = 49;
+    heightCm = 42;
+  }
   const title = buildTitle(designName, widthCm, heightCm, materialLabel);
   const priceTransfer = source?.priceTransfer;
   const priceNormal = source?.priceNormal;
