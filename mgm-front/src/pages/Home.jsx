@@ -88,6 +88,7 @@ async function nextPaint(hops = 2) {
 // ====== Workers (lazy) para offthread ======
 let mockupWorker = null;
 let shaWorker = null;
+let pdfWorker = null;
 function getMockupWorker() {
   try {
     if (!mockupWorker) {
@@ -104,6 +105,16 @@ function getShaWorker() {
       shaWorker = new Worker(new URL('../workers/sha.worker.js', import.meta.url), { type: 'module' });
     }
     return shaWorker;
+  } catch {
+    return null;
+  }
+}
+function getPdfWorker() {
+  try {
+    if (!pdfWorker) {
+      pdfWorker = new Worker(new URL('../workers/pdf.worker.js', import.meta.url), { type: 'module' });
+    }
+    return pdfWorker;
   } catch {
     return null;
   }
@@ -148,6 +159,31 @@ async function sha256Offthread(blob) {
     };
     worker.addEventListener('message', onMessage);
     worker.postMessage({ cmd: 'sha256', buffer: arrBuf }, [arrBuf]);
+  });
+}
+
+async function buildPdfOffthread(masterBlob, opts) {
+  const worker = getPdfWorker();
+  if (!worker || !masterBlob) return null;
+  const buffer = await masterBlob.arrayBuffer();
+  return new Promise((resolve) => {
+    const timeoutId = setTimeout(() => {
+      worker.removeEventListener('message', onMessage);
+      resolve(null);
+    }, 15000);
+    const onMessage = (event) => {
+      const data = event.data || {};
+      if (data?.type !== 'build_pdf') return;
+      clearTimeout(timeoutId);
+      worker.removeEventListener('message', onMessage);
+      if (data.ok && data.buffer) {
+        resolve(data.buffer);
+      } else {
+        resolve(null);
+      }
+    };
+    worker.addEventListener('message', onMessage);
+    worker.postMessage({ cmd: 'build_pdf', buffer, options: opts }, [buffer]);
   });
 }
 
@@ -802,14 +838,28 @@ export default function Home() {
       if (!(designHash && designHash === designHashState && nextMasterUrl && nextPdfUrl)) {
         const maxPdfBytes = Number(import.meta.env?.VITE_MAX_PDF_BYTES) || 40 * 1024 * 1024;
         await nextPaint(1);
-        const pdfBytes = await buildPdfFromMaster(designBlob, {
+        let pdfBytes = await buildPdfOffthread(designBlob, {
           bleedMm: 20,
           widthPx: masterWidthExact,
           heightPx: masterHeightExact,
           widthMm: masterWidthMm,
           heightMm: masterHeightMm,
           maxBytes: maxPdfBytes,
+          mime: designMime,
         });
+        if (!pdfBytes) {
+          const localBytes = await buildPdfFromMaster(designBlob, {
+            bleedMm: 20,
+            widthPx: masterWidthExact,
+            heightPx: masterHeightExact,
+            widthMm: masterWidthMm,
+            heightMm: masterHeightMm,
+            maxBytes: maxPdfBytes,
+          });
+          pdfBytes = localBytes?.buffer && localBytes.byteOffset === 0 && localBytes.byteLength === localBytes.buffer?.byteLength
+            ? localBytes.buffer
+            : localBytes?.buffer || localBytes || null;
+        }
         await nextPaint(1);
         console.log('[diag] pdf bytes', pdfBytes?.byteLength || pdfBytes?.length || 0);
         const sanitizeForFileName = (value, fallback = 'Design') =>
