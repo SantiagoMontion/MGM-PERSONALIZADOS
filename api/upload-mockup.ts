@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { randomUUID } from 'node:crypto';
 import uploadMockup from '../lib/handlers/uploadMockup.js';
+import logger from '../lib/_lib/logger.js';
 import {
   ensureCors,
   respondCorsDenied,
@@ -8,11 +9,13 @@ import {
   type CorsDecision,
 } from './_lib/cors.js';
 
-export const config = { api: { bodyParser: true, sizeLimit: '4mb' } };
+export const config = { api: { bodyParser: true, sizeLimit: '6mb' } };
 
 type NormalizedBody = Record<string, unknown>;
 
 type UploadMockupResult = Awaited<ReturnType<typeof uploadMockup>>;
+
+type ReadBodyResult = { body: NormalizedBody; bytesLength: number };
 
 function applyUploadCors(
   req: VercelRequest,
@@ -46,23 +49,33 @@ function getHeaderString(req: VercelRequest, name: string): string | null {
   return null;
 }
 
-async function readJsonBody(req: VercelRequest): Promise<NormalizedBody> {
+async function readJsonBody(req: VercelRequest): Promise<ReadBodyResult> {
   const existing = (req as unknown as { body?: unknown }).body;
   if (existing && typeof existing === 'object' && !Buffer.isBuffer(existing)) {
-    return existing as NormalizedBody;
+    let bytesLength = 0;
+    try {
+      const serialized = JSON.stringify(existing);
+      bytesLength = serialized ? Buffer.byteLength(serialized, 'utf8') : 0;
+    } catch {
+      bytesLength = 0;
+    }
+    return { body: existing as NormalizedBody, bytesLength };
   }
   if (typeof existing === 'string') {
     try {
-      return JSON.parse(existing) as NormalizedBody;
+      const parsed = JSON.parse(existing) as NormalizedBody;
+      return { body: parsed, bytesLength: Buffer.byteLength(existing, 'utf8') };
     } catch {
-      return {};
+      return { body: {}, bytesLength: Buffer.byteLength(existing, 'utf8') };
     }
   }
   if (Buffer.isBuffer(existing)) {
     try {
-      return JSON.parse(existing.toString('utf8')) as NormalizedBody;
+      const raw = existing.toString('utf8');
+      const parsed = JSON.parse(raw) as NormalizedBody;
+      return { body: parsed, bytesLength: existing.length };
     } catch {
-      return {};
+      return { body: {}, bytesLength: existing.length };
     }
   }
 
@@ -75,14 +88,16 @@ async function readJsonBody(req: VercelRequest): Promise<NormalizedBody> {
     req.on('error', (err) => reject(err));
   });
 
+  const bytesLength = raw ? Buffer.byteLength(raw, 'utf8') : 0;
+
   if (!raw) {
-    return {};
+    return { body: {}, bytesLength };
   }
 
   try {
-    return JSON.parse(raw) as NormalizedBody;
+    return { body: JSON.parse(raw) as NormalizedBody, bytesLength };
   } catch {
-    return {};
+    return { body: {}, bytesLength };
   }
 }
 
@@ -144,25 +159,58 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   let body: NormalizedBody = {};
+  let bodyBytesLength = 0;
   try {
-    body = await readJsonBody(req);
+    const result = await readJsonBody(req);
+    body = result.body;
+    bodyBytesLength = result.bytesLength;
   } catch {
     body = {};
+    bodyBytesLength = 0;
   }
 
   const rid = resolveBodyValue(body, ['rid', 'mockupRid', 'mockup_rid']) || getHeaderString(req, 'x-rid') || '';
   const mockupUrl = resolveBodyValue(body, ['mockupUrl', 'mockup_url', 'url', 'publicUrl', 'public_url']);
   const mockupDataUrl = resolveBodyValue(body, ['mockupDataUrl', 'mockup_data_url', 'mockupDataurl', 'mockup_dataurl']);
+  const fileName = getHeaderString(req, 'x-file-name') || '';
+
+  const payloadSummary = {
+    hasDataUrl: Boolean(mockupDataUrl),
+    hasUrl: Boolean(mockupUrl),
+  };
+
+  if (!payloadSummary.hasDataUrl && !payloadSummary.hasUrl) {
+    try {
+      logger.warn('[upload-mockup] missing_payload', {
+        diagId,
+        hasDataUrl: payloadSummary.hasDataUrl,
+        hasUrl: payloadSummary.hasUrl,
+        bodyBytesLength,
+      });
+    } catch {}
+  }
 
   const result = await uploadMockup({
     rid,
     mockupDataUrl,
     mockupUrl,
     diagId,
+    fileName,
   });
 
   const status = normalizeResultStatus(result);
   applyUploadCors(req, res, corsDecision);
+
+  if (!result.ok && result.error === 'missing_mockup') {
+    try {
+      logger.warn('[upload-mockup] missing_mockup', {
+        diagId: result.diagId,
+        hasDataUrl: payloadSummary.hasDataUrl,
+        hasUrl: payloadSummary.hasUrl,
+        bodyBytesLength,
+      });
+    } catch {}
+  }
 
   const responsePayload: Record<string, unknown> = result.ok
     ? {
@@ -175,6 +223,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ok: false,
         error: result.error || 'upload_failed',
         diagId: result.diagId,
+        ...(result.error === 'missing_mockup'
+          ? {
+              got: {
+                hasDataUrl: payloadSummary.hasDataUrl,
+                hasUrl: payloadSummary.hasUrl,
+              },
+            }
+          : {}),
       };
 
   if (typeof res.status === 'function' && typeof res.json === 'function') {
