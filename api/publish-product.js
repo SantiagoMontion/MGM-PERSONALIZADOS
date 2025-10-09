@@ -366,9 +366,11 @@ export default async function handler(req, res) {
   req.body = parsedBody;
 
   const mockupUrlRaw = typeof parsedBody.mockupUrl === 'string' ? parsedBody.mockupUrl.trim() : '';
+  const mockupPublicRaw = typeof parsedBody.mockupPublicUrl === 'string' ? parsedBody.mockupPublicUrl.trim() : '';
   const pdfUrlRaw = typeof parsedBody.pdfPublicUrl === 'string' ? parsedBody.pdfPublicUrl.trim() : '';
   const designHashRaw = typeof parsedBody.designHash === 'string' ? parsedBody.designHash.trim().toLowerCase() : '';
-  if (!mockupUrlRaw) {
+  const effectiveMockupUrl = mockupUrlRaw || mockupPublicRaw;
+  if (!effectiveMockupUrl) {
     sendJsonWithCors(req, res, 400, { ok: false, error: 'mockup_url_required', diagId });
     return;
   }
@@ -392,11 +394,43 @@ export default async function handler(req, res) {
     return;
   }
 
-  parsedBody.mockupUrl = mockupUrlRaw;
+  parsedBody.mockupUrl = effectiveMockupUrl;
   parsedBody.pdfPublicUrl = pdfUrlRaw;
   parsedBody.designHash = designHashRaw;
   parsedBody.masterWidthPx = Number.isFinite(masterWidthPx) && masterWidthPx > 0 ? Math.round(masterWidthPx) : null;
   parsedBody.masterHeightPx = Number.isFinite(masterHeightPx) && masterHeightPx > 0 ? Math.round(masterHeightPx) : null;
+
+  const materialLabel = (() => {
+    const rawMaterial = parsedBody?.options?.material || parsedBody?.material || '';
+    const normalized = String(rawMaterial || '').toLowerCase();
+    if (normalized.includes('glass')) return 'Glasspad';
+    if (normalized.includes('pro')) return 'PRO';
+    if (normalized.includes('classic')) return 'Classic';
+    return rawMaterial || 'Classic';
+  })();
+  const widthCm = Number(
+    parsedBody?.widthCm ??
+      (parsedBody?.masterWidthMm ? Math.round(parsedBody.masterWidthMm / 10) : undefined) ??
+      (parsedBody?.masterWidthPx
+        ? Math.round((parsedBody.masterWidthPx / (parsedBody.approxDpi || 300)) * 2.54)
+        : undefined),
+  );
+  const heightCm = Number(
+    parsedBody?.heightCm ??
+      (parsedBody?.masterHeightMm ? Math.round(parsedBody.masterHeightMm / 10) : undefined) ??
+      (parsedBody?.masterHeightPx
+        ? Math.round((parsedBody.masterHeightPx / (parsedBody.approxDpi || 300)) * 2.54)
+        : undefined),
+  );
+  const baseName = String(parsedBody.title || parsedBody.designName || 'Diseño personalizado').trim();
+  const finalTitle = Number.isFinite(widthCm) && Number.isFinite(heightCm) && widthCm > 0 && heightCm > 0
+    ? `${baseName} ${widthCm}x${heightCm} ${materialLabel}`
+    : `${baseName} ${materialLabel}`;
+  const priceValue = Number(parsedBody.price ?? parsedBody.priceNormal ?? parsedBody.priceTransfer ?? 0);
+  const currencyValue = String(parsedBody.currency || process.env.SHOPIFY_CART_PRESENTMENT_CURRENCY || 'USD');
+  parsedBody.title = finalTitle;
+  parsedBody.price = Number.isFinite(priceValue) ? priceValue : 0;
+  parsedBody.currency = currencyValue;
 
   if (typeof parsedBody.mockupDataUrl === 'string' && parsedBody.mockupDataUrl.length > 200000) {
     sendJsonWithCors(req, res, 400, { ok: false, error: 'mockup_dataurl_too_large', diagId });
