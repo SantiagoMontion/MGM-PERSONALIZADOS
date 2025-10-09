@@ -54,7 +54,7 @@ export default function UploadStep({ onUploaded, className = '', renderTrigger }
       />
       {triggerContent}
 
-      <LoadingOverlay show={busy} messages={phrases} />
+      {busy && <LoadingOverlay show={busy} messages={phrases} />}
 
       {err && <p className={`errorText ${styles.error}`}>{err}</p>}
     </div>
