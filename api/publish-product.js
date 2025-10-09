@@ -408,37 +408,17 @@ export default async function handler(req, res) {
     return 'Classic';
   }
   const materialLabel = resolveMaterial(parsedBody?.options?.material ?? parsedBody?.material);
-  const dpiForCm = Number.isFinite(Number(parsedBody?.approxDpi)) && Number(parsedBody.approxDpi) > 0
-    ? Number(parsedBody.approxDpi)
-    : 300;
-  const mmToCm = (mm) => {
-    const value = Number(mm);
-    return Number.isFinite(value) && value > 0 ? Math.round(value / 10) : null;
-  };
-  const pxToCm = (px) => {
-    const value = Number(px);
-    return Number.isFinite(value) && value > 0 ? Math.round((value / dpiForCm) * 2.54) : null;
-  };
-  const resolveDimension = (value, fallbackMm, fallbackPx) => {
-    const direct = Number(value);
-    if (Number.isFinite(direct) && direct > 0) {
-      return Math.round(direct);
-    }
-    const fromMm = mmToCm(fallbackMm);
-    if (fromMm != null) return fromMm;
-    const fromPx = pxToCm(fallbackPx);
-    return fromPx != null ? fromPx : null;
-  };
-  let widthCmSafe = resolveDimension(
-    parsedBody?.widthCm,
-    parsedBody?.masterWidthMm,
-    parsedBody?.masterWidthPx,
-  );
-  let heightCmSafe = resolveDimension(
-    parsedBody?.heightCm,
-    parsedBody?.masterHeightMm,
-    parsedBody?.masterHeightPx,
-  );
+  // *** MEDIDAS: confiar en widthCm/heightCm enviados por el front (flow) ***
+  let widthCmSafe = Number(parsedBody?.widthCm);
+  let heightCmSafe = Number(parsedBody?.heightCm);
+  // Fallback súper conservador si faltan (evita casos como 111x89)
+  if (!Number.isFinite(widthCmSafe) || widthCmSafe <= 0 || !Number.isFinite(heightCmSafe) || heightCmSafe <= 0) {
+    widthCmSafe = null;
+    heightCmSafe = null;
+  } else {
+    widthCmSafe = Math.round(widthCmSafe);
+    heightCmSafe = Math.round(heightCmSafe);
+  }
   const NAME_MAX_LEN = Number(process.env.NAME_MAX_LEN || 40);
   const normalizeDesignNameKeepSpaces = (value) => {
     const str = String(value ?? '').replace(/[\r\n\t]+/g, ' ');
@@ -456,10 +436,7 @@ export default async function handler(req, res) {
   const baseCategory = materialLabel === 'Glasspad' ? 'Glasspad' : 'Mousepad';
   const isGlass = baseCategory === 'Glasspad';
   // Glasspad: normalizar SIEMPRE a 49x42 para el título y metadatos
-  if (isGlass) {
-    widthCmSafe = 49;
-    heightCmSafe = 42;
-  }
+  if (isGlass) { widthCmSafe = 49; heightCmSafe = 42; }
   const hasDims = Number.isFinite(widthCmSafe) && Number.isFinite(heightCmSafe) && widthCmSafe > 0 && heightCmSafe > 0;
   // Formato EXACTO:
   // - Mousepad: "Mousepad {Nombre} {WxH} {Material} | PERSONALIZADO"
@@ -495,6 +472,8 @@ export default async function handler(req, res) {
   parsedBody.materialResolved = materialLabel;
   parsedBody.price = priceValue;
   parsedBody.currency = currencyValue;
+  // Pasar mockupUrl simple; la imagen se adjunta en el handler vía REST
+  parsedBody.mockupUrl = mockupUrlRaw || parsedBody.mockupUrl || null;
 
   try {
     const images = [];
