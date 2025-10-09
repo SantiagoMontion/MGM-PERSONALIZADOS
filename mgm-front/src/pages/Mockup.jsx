@@ -272,7 +272,8 @@ function buildShopifyPayload(flowState, mode) {
     designName,
     widthCm,
     heightCm,
-    options: { material: materialLabel },
+    // Enviar el material en los 3 campos para no perderlo en ninguna ruta
+    options: { ...(source?.options || {}), material: materialLabel },
     material: materialLabel,
     materialResolved: materialLabel,
     title,

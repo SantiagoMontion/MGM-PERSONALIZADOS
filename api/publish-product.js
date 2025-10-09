@@ -21,6 +21,14 @@ export const config = {
   },
 };
 
+function normalizeMaterial(value) {
+  const normalized = String(value || '').toLowerCase();
+  if (normalized.includes('glass')) return 'Glasspad';
+  if (normalized.includes('pro')) return 'PRO';
+  if (normalized.includes('classic')) return 'Classic';
+  return 'Classic';
+}
+
 function createRid() {
   const base = Date.now().toString(36);
   const random = Math.random().toString(36).slice(2, 8);
@@ -400,14 +408,9 @@ export default async function handler(req, res) {
   parsedBody.masterWidthPx = Number.isFinite(masterWidthPx) && masterWidthPx > 0 ? Math.round(masterWidthPx) : null;
   parsedBody.masterHeightPx = Number.isFinite(masterHeightPx) && masterHeightPx > 0 ? Math.round(masterHeightPx) : null;
 
-  function resolveMaterial(value) {
-    const normalized = String(value || '').toLowerCase();
-    if (normalized.includes('glass')) return 'Glasspad';
-    if (normalized.includes('pro')) return 'PRO';
-    if (normalized.includes('classic')) return 'Classic';
-    return 'Classic';
-  }
-  const materialLabel = resolveMaterial(parsedBody?.options?.material ?? parsedBody?.material);
+  const materialLabel = normalizeMaterial(
+    parsedBody?.material ?? parsedBody?.materialResolved ?? parsedBody?.options?.material,
+  );
   // *** MEDIDAS: confiar en widthCm/heightCm enviados por el front (flow) ***
   let widthCmSafe = Number(parsedBody?.widthCm);
   let heightCmSafe = Number(parsedBody?.heightCm);
@@ -433,8 +436,8 @@ export default async function handler(req, res) {
   );
   const designNameNorm = normalizeDesignNameKeepSpaces(designNameRaw);
   const designName = designNameNorm.length ? designNameNorm : 'Personalizado';
-  const baseCategory = materialLabel === 'Glasspad' ? 'Glasspad' : 'Mousepad';
-  const isGlass = baseCategory === 'Glasspad';
+  const isGlass = materialLabel === 'Glasspad';
+  const baseCategory = isGlass ? 'Glasspad' : 'Mousepad';
   // Glasspad: normalizar SIEMPRE a 49x42 para el título y metadatos
   if (isGlass) { widthCmSafe = 49; heightCmSafe = 42; }
   const hasDims = Number.isFinite(widthCmSafe) && Number.isFinite(heightCmSafe) && widthCmSafe > 0 && heightCmSafe > 0;
@@ -462,6 +465,7 @@ export default async function handler(req, res) {
   };
   const priceTransfer = toNumber(parsedBody.priceTransfer ?? parsedBody.price_transfer ?? parsedBody.priceTranferencia);
   const priceNormal = toNumber(parsedBody.priceNormal ?? parsedBody.price_normal ?? parsedBody.price);
+  // Precio: confiamos en la calculadora del front (transferencia)
   const priceValue = Number.isFinite(priceTransfer)
     ? priceTransfer
     : Number.isFinite(priceNormal)
