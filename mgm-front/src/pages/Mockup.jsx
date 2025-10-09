@@ -347,6 +347,7 @@ export default function Mockup() {
   const [publicBusy, setPublicBusy] = useState(false);
   const [privateBusy, setPrivateBusy] = useState(false);
   const [buyBtnBusy, setBuyBtnBusy] = useState(false);
+  const [cartBtnBusy, setCartBtnBusy] = useState(false);
   const [toast, setToast] = useState(null);
   const [isBuyPromptOpen, setBuyPromptOpen] = useState(false);
   const buyNowButtonRef = useRef(null);
@@ -366,8 +367,23 @@ export default function Mockup() {
     };
   }, []);
 
+  const withCartBtnSpin = useCallback((fn) => {
+    return async (...args) => {
+      if (cartBtnBusy) {
+        return;
+      }
+      setCartBtnBusy(true);
+      try {
+        return await fn(...args);
+      } finally {
+        setCartBtnBusy(false);
+      }
+    };
+  }, [cartBtnBusy]);
+
   const cartButtonLabel = CART_STATUS_LABELS[cartStatus] || CART_STATUS_LABELS.idle;
   const cartBusy = cartStatus !== 'idle';
+  const cartInteractionBusy = cartBtnBusy || cartBusy;
   const buyPromptTitleId = 'buy-choice-title';
   const buyPromptDescriptionId = 'buy-choice-description';
   const mockupSrc = useMemo(() => {
@@ -1592,10 +1608,10 @@ export default function Mockup() {
               className={`${styles.ctaButton} ${styles.ctaButtonPrimary}`}
               label={CART_STATUS_LABELS.idle}
               busyLabel={cartButtonLabel}
-              isBusy={cartBusy}
-              disabled={busy}
-              onClick={() => {
-                if (busy || cartBusy) return;
+              isBusy={cartInteractionBusy}
+              disabled={busy || cartInteractionBusy}
+              onClick={withCartBtnSpin(() => {
+                if (busy || cartInteractionBusy) return;
                 debugTrackFire('cta_click_cart', rid);
                 trackEvent('cta_click_cart', {
                   rid,
@@ -1606,7 +1622,7 @@ export default function Mockup() {
                   product_handle: lastProduct?.productHandle,
                 });
                 handle('cart');
-              }}
+              })}
             />
             <p className={styles.ctaHint}>
               Arma un carrito con todo lo que te guste <br></br> y obtené envío gratis ❤️
