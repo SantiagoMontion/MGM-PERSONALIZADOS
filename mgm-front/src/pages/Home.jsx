@@ -72,6 +72,19 @@ const MOD_PREVIEW_FALLBACK_FORMATS = ['image/jpeg'];
 const MOD_PREVIEW_RETRY_QUALITIES = [0.8, 0.7, 0.6];
 const MOD_PREVIEW_RETRY_DIMENSIONS = [1024, 896, 768, 640];
 
+const LOADING_MESSAGES = ['Guardando cambios...', 'Creando tu pedido...', 'Últimos detalles...'];
+const OVERLAY_MSG_MS = Math.max(2000, Number(import.meta.env?.VITE_OVERLAY_MSG_MS || 2400));
+
+async function nextPaint(hops = 2) {
+  const raf = typeof requestAnimationFrame === 'function'
+    ? requestAnimationFrame
+    : (cb) => setTimeout(cb, 16);
+  for (let i = 0; i < hops; i += 1) {
+    await new Promise((resolve) => raf(() => resolve()));
+  }
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 function moderationReasonMessage(reason) {
   if (typeof reason === 'string' && MODERATION_REASON_MESSAGES[reason]) {
     return MODERATION_REASON_MESSAGES[reason];
@@ -461,6 +474,7 @@ export default function Home() {
     try {
       setModerationNotice('');
       setBusy(true);
+      await nextPaint(2);
       const designBlob = await canvasRef.current.exportPadAsBlob?.();
       if (!designBlob || !designBlob.size) {
         setErr('No se pudo generar la imagen');
@@ -468,6 +482,7 @@ export default function Home() {
       }
       const designShaPromise = sha256Hex(designBlob);
       const masterDataUrl = await blobToDataUrl(designBlob);
+      await nextPaint(1);
 
       // client-side gate: filename keywords
       const metaForCheck = [uploaded?.file?.name, trimmedDesignName].filter(Boolean).join(' ');
@@ -663,6 +678,7 @@ export default function Home() {
         return;
       }
 
+      await nextPaint(1);
       const img = await masterImagePromise;
       const pxPerCm = layout?.dpi ? layout.dpi / 2.54 : (effDpi || 300) / 2.54;
       const masterWidthExact = Math.max(1, Math.round(activeWcm * pxPerCm));
@@ -682,6 +698,7 @@ export default function Home() {
           material,
         },
       });
+      await nextPaint(1);
       const mockupUrl = URL.createObjectURL(blob);
       const designMime = designBlob.type || 'image/png';
       const designSha = await designShaPromise;
@@ -691,6 +708,7 @@ export default function Home() {
       let nextPdfUrl = pdfPublicUrl || null;
       if (!(designHash && designHash === designHashState && nextMasterUrl && nextPdfUrl)) {
         const maxPdfBytes = Number(import.meta.env?.VITE_MAX_PDF_BYTES) || 40 * 1024 * 1024;
+        await nextPaint(1);
         const pdfBytes = await buildPdfFromMaster(designBlob, {
           bleedMm: 20,
           widthPx: masterWidthExact,
@@ -1528,8 +1546,8 @@ export default function Home() {
       {busy && (
         <LoadingOverlay
           visible
-          steps={['Guardando cambios...', 'Creando tu pedido...', 'Últimos detalles...']}
-          intervalMs={2000}
+          steps={LOADING_MESSAGES}
+          intervalMs={OVERLAY_MSG_MS}
           subtitle="Esto puede demorar unos segundos"
         />
       )}
