@@ -18,6 +18,10 @@ import logger from '../lib/logger';
 import { ensureTrackingRid, trackEvent } from '@/lib/tracking';
 
 const PUBLISH_MAX_PAYLOAD_KB = Number(import.meta.env?.VITE_PUBLISH_MAX_PAYLOAD_KB) || 200;
+// Guard legacy para evitar ReferenceError en builds antiguos
+const preservedCustom = false; // no se usa, pero evita 'is not defined'
+// Mostrar/ocultar el preview legacy (el segundo). Queremos ocultarlo.
+const SHOW_LEGACY_PREVIEW = false;
 
 function isDataUrl(value) {
   return typeof value === 'string' && value.startsWith('data:');
@@ -1524,27 +1528,29 @@ export default function Mockup() {
     <div id="mockup-review" className={styles.review}>
       <main className={styles.main}>
 
-        <div
-          className={`${styles.previewWrapper} ${
-            hasMockupImage ? styles.previewWithImage : ''
-          }`}
-        >
-          <h1
-            className={`${styles.previewTitle} ${
-              hasMockupImage ? styles.previewTitleOverlay : ''
+        {SHOW_LEGACY_PREVIEW ? (
+          <div
+            className={`${styles.previewWrapper} ${
+              hasMockupImage ? styles.previewWithImage : ''
             }`}
           >
-            ¿Te gustó cómo quedó?
-          </h1>
-          {hasMockupImage ? (
-            <img
-              src={mockupImageSrc}
-              className={styles.mockupImage}
-              alt="Vista previa de tu mousepad personalizado"
-            />
-          ) : null}
+            <h1
+              className={`${styles.previewTitle} ${
+                hasMockupImage ? styles.previewTitleOverlay : ''
+              }`}
+            >
+              ¿Te gustó cómo quedó?
+            </h1>
+            {hasMockupImage ? (
+              <img
+                src={mockupImageSrc}
+                className={styles.mockupImage}
+                alt="Vista previa de tu mousepad personalizado"
+              />
+            ) : null}
 
-        </div>
+          </div>
+        ) : null}
         
         {/* Mockup visible (PNG 1080x1080 cuadrado) sobre las CTAs */}
         {mockupSrc ? (
