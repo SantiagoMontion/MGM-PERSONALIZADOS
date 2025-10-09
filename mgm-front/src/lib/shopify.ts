@@ -453,6 +453,7 @@ export interface CreateJobOptions {
   onPrivateStageChange?: (stage: 'creating_product' | 'creating_checkout') => void;
   discountCode?: string;
   skipPrivateCheckout?: boolean;
+  payloadOverrides?: Record<string, unknown>;
 }
 
 export async function createJobAndProduct(
@@ -466,6 +467,7 @@ export async function createJobAndProduct(
     onPrivateStageChange,
     discountCode,
     skipPrivateCheckout = false,
+    payloadOverrides,
   } = options;
   const lastProduct = flow.lastProduct;
   const isPrivate = mode === 'private';
@@ -610,6 +612,7 @@ export async function createJobAndProduct(
       designName: designNameRaw, // nombre exacto del input (sin recortar aquí)
       title: productTitle,
       material: materialLabel, // enviar material explícito plano
+      materialResolved: materialLabel,
       widthCm,
       heightCm,
       approxDpi,
@@ -638,6 +641,71 @@ export async function createJobAndProduct(
       customerEmail: customerEmail || undefined,
       options: materialLabel ? { material: materialLabel } : undefined, // enviar material explícito
     };
+
+    const overrides =
+      payloadOverrides && typeof payloadOverrides === 'object'
+        ? (payloadOverrides as Record<string, unknown>)
+        : null;
+    if (overrides) {
+      const titleOverride = overrides.title;
+      if (typeof titleOverride === 'string' && titleOverride.trim()) {
+        payload.title = titleOverride.trim();
+      }
+      const designNameOverride = overrides.designName;
+      if (typeof designNameOverride === 'string' && designNameOverride.trim()) {
+        payload.designName = designNameOverride.trim();
+      }
+      const materialOverride = overrides.material;
+      if (typeof materialOverride === 'string' && materialOverride.trim()) {
+        const normalizedMaterial = materialOverride.trim();
+        payload.material = normalizedMaterial;
+        payload.materialResolved = normalizedMaterial;
+        payload.options = { ...(payload.options || {}), material: normalizedMaterial };
+      }
+      const materialResolvedOverride = overrides.materialResolved;
+      if (typeof materialResolvedOverride === 'string' && materialResolvedOverride.trim()) {
+        payload.materialResolved = materialResolvedOverride.trim();
+      }
+      const optionsOverride = overrides.options;
+      if (optionsOverride && typeof optionsOverride === 'object') {
+        payload.options = { ...(payload.options || {}), ...(optionsOverride as Record<string, unknown>) };
+      }
+      const priceTransferOverride = overrides.priceTransfer;
+      if (typeof priceTransferOverride === 'number') {
+        payload.priceTransfer = priceTransferOverride;
+      } else if (typeof priceTransferOverride === 'string' && priceTransferOverride.trim()) {
+        const parsed = Number(priceTransferOverride);
+        if (Number.isFinite(parsed)) {
+          payload.priceTransfer = parsed;
+        }
+      }
+      const priceNormalOverride =
+        overrides.priceNormal != null ? overrides.priceNormal : overrides.price;
+      if (priceNormalOverride != null) {
+        const parsed = Number(priceNormalOverride);
+        if (Number.isFinite(parsed)) {
+          payload.price = parsed;
+        }
+      }
+      const currencyOverride = overrides.currency;
+      if (typeof currencyOverride === 'string' && currencyOverride.trim()) {
+        const normalizedCurrency = currencyOverride.trim();
+        payload.currency = normalizedCurrency;
+        payload.priceCurrency = normalizedCurrency;
+      }
+      const mockupOverride = overrides.mockupUrl;
+      if (typeof mockupOverride === 'string' && mockupOverride.trim()) {
+        payload.mockupUrl = mockupOverride.trim();
+      }
+      const widthOverride = overrides.widthCm;
+      if (typeof widthOverride === 'number' && Number.isFinite(widthOverride) && widthOverride > 0) {
+        payload.widthCm = widthOverride;
+      }
+      const heightOverride = overrides.heightCm;
+      if (typeof heightOverride === 'number' && Number.isFinite(heightOverride) && heightOverride > 0) {
+        payload.heightCm = heightOverride;
+      }
+    }
 
     const payloadBytes = jsonByteLength(payload);
     try {

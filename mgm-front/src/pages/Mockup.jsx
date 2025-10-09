@@ -195,6 +195,88 @@ async function ensureMockupPublicReady(flowState) {
   await waitUrlReady(url);
 }
 
+function normalizeMaterialLabel(value) {
+  const text = String(value || '').toLowerCase();
+  if (text.includes('glass')) return 'Glasspad';
+  if (text.includes('pro')) return 'PRO';
+  if (text.includes('classic')) return 'Classic';
+  const trimmed = String(value || '').trim();
+  return trimmed || 'Classic';
+}
+
+function buildDimsFromFlowState(flowState) {
+  const dpi = Number(flowState?.approxDpi ?? 300);
+  const pxToCm = (px) => {
+    const num = Number(px);
+    if (!Number.isFinite(num) || num <= 0 || !Number.isFinite(dpi) || dpi <= 0) return undefined;
+    return Math.round((num / dpi) * 2.54);
+  };
+  const widthCmCandidate = Number(flowState?.widthCm);
+  const heightCmCandidate = Number(flowState?.heightCm);
+  const widthCm = Number.isFinite(widthCmCandidate) && widthCmCandidate > 0
+    ? widthCmCandidate
+    : flowState?.masterWidthMm
+      ? Math.round(Number(flowState.masterWidthMm) / 10)
+      : pxToCm(flowState?.masterWidthPx);
+  const heightCm = Number.isFinite(heightCmCandidate) && heightCmCandidate > 0
+    ? heightCmCandidate
+    : flowState?.masterHeightMm
+      ? Math.round(Number(flowState.masterHeightMm) / 10)
+      : pxToCm(flowState?.masterHeightPx);
+  return {
+    widthCm: Number.isFinite(widthCm) && widthCm > 0 ? widthCm : undefined,
+    heightCm: Number.isFinite(heightCm) && heightCm > 0 ? heightCm : undefined,
+  };
+}
+
+function buildTitle(designName, widthCm, heightCm, materialLabel) {
+  const isGlass = materialLabel === 'Glasspad';
+  const base = isGlass ? 'Glasspad' : 'Mousepad';
+  const hasDims = Number.isFinite(widthCm) && Number.isFinite(heightCm) && widthCm > 0 && heightCm > 0;
+  if (isGlass) {
+    return hasDims
+      ? `${base} ${designName} ${widthCm}x${heightCm} | PERSONALIZADO`
+      : `${base} ${designName} | PERSONALIZADO`;
+  }
+  return hasDims
+    ? `${base} ${designName} ${widthCm}x${heightCm} ${materialLabel} | PERSONALIZADO`
+    : `${base} ${designName} ${materialLabel} | PERSONALIZADO`;
+}
+
+function buildShopifyPayload(flowState, mode) {
+  const source = typeof flowState?.get === 'function' ? flowState.get() : flowState || {};
+  const designNameRaw = (source?.designName ?? '').toString();
+  const designName = designNameRaw.trim();
+  const { widthCm, heightCm } = buildDimsFromFlowState(source);
+  const materialLabel = normalizeMaterialLabel(source?.material || source?.options?.material);
+  const title = buildTitle(designName, widthCm, heightCm, materialLabel);
+  const priceTransfer = source?.priceTransfer;
+  const priceNormal = source?.priceNormal;
+  const currency = source?.priceCurrency;
+  const mockupUrl = source?.mockupPublicUrl || source?.mockupUrl || undefined;
+  const payload = {
+    designName,
+    widthCm,
+    heightCm,
+    options: { material: materialLabel },
+    material: materialLabel,
+    materialResolved: materialLabel,
+    title,
+    priceTransfer,
+    priceNormal,
+    currency,
+    productType: source?.productType,
+    mockupUrl,
+    pdfPublicUrl: source?.pdfPublicUrl,
+    masterPublicUrl: source?.masterPublicUrl || null,
+    designHash: source?.designHash,
+    masterWidthPx: source?.masterWidthPx,
+    masterHeightPx: source?.masterHeightPx,
+    ...(mode === 'private' ? { isPrivate: true } : {}),
+  };
+  return payload;
+}
+
 function toastErr(msg) {
   try {
     window?.toast?.error?.(msg);
@@ -852,7 +934,7 @@ export default function Mockup() {
     return [];
   }
 
-  async function startCartFlow() {
+  async function startCartFlow(extraOptions = {}) {
     if (busy && cartStatus !== 'idle') return;
     setToast(null);
     try {
@@ -866,8 +948,12 @@ export default function Mockup() {
     let didOpenTarget = false;
     try {
       const normalizedDiscountCode = discountCode || '';
-      const creationCartOptions = normalizedDiscountCode ? { discountCode: normalizedDiscountCode } : {};
-      const result = await createJobAndProduct('cart', flow, creationCartOptions);
+      const baseOptions =
+        extraOptions && typeof extraOptions === 'object' ? { ...extraOptions } : {};
+      if (normalizedDiscountCode) {
+        baseOptions.discountCode = normalizedDiscountCode;
+      }
+      const result = await createJobAndProduct('cart', flow, baseOptions);
       if (SHOULD_LOG_COMMERCE) {
         try {
           const jsonForLog = result && typeof result === 'object' ? result : null;
@@ -1008,7 +1094,7 @@ export default function Mockup() {
     let privateStageCallback = null;
 
     if (mode === 'cart') {
-      await startCartFlow();
+      await startCartFlow(options);
       return;
     }
 
@@ -1060,7 +1146,7 @@ export default function Mockup() {
         setPrivateBusy(true);
       }
       setBusy(true);
-      let jobOptions = options;
+      let jobOptions = options && typeof options === 'object' ? { ...options } : {};
       if (mode === 'private') {
         const stageCallback = (stage) => {
           if (stage === 'creating_product') {
@@ -1071,7 +1157,11 @@ export default function Mockup() {
         };
         privateStageCallback = stageCallback;
         setToast({ message: 'Creando producto privado…' });
-        jobOptions = { ...options, onPrivateStageChange: stageCallback, skipPrivateCheckout: true };
+        jobOptions = {
+          ...jobOptions,
+          onPrivateStageChange: stageCallback,
+          skipPrivateCheckout: true,
+        };
       }
       const normalizedDiscountCode = discountCode || '';
       const jobOptionsWithDiscount =
@@ -1506,7 +1596,10 @@ export default function Mockup() {
           actionLabel: 'Reintentar',
           action: () => {
             setToast(null);
-            handle('private', { reuseLastProduct: true });
+            handle('private', {
+              reuseLastProduct: true,
+              payloadOverrides: buildShopifyPayload(flow, 'private'),
+            });
           },
         });
         return;
@@ -1681,7 +1774,7 @@ export default function Mockup() {
                   product_handle: lastProduct?.productHandle,
                 });
                 await ensureMockupPublicReady(flow);
-                return handle('cart');
+                return handle('cart', { payloadOverrides: buildShopifyPayload(flow, 'cart') });
               })}
             />
             <p className={styles.ctaHint}>
@@ -1756,7 +1849,7 @@ export default function Mockup() {
               cta_type: 'private',
               product_handle: lastProduct?.productHandle,
             });
-            handle('private');
+            handle('private', { payloadOverrides: buildShopifyPayload(flow, 'private') });
           }}
           aria-hidden="true"
           tabIndex={-1}
@@ -1867,7 +1960,7 @@ export default function Mockup() {
                   });
                   setBuyPromptOpen(false);
                   await ensureMockupPublicReady(flow);
-                  return handle('checkout');
+                  return handle('checkout', { payloadOverrides: buildShopifyPayload(flow, 'checkout') });
                 })}
               />
               <CtaButton
@@ -1889,9 +1982,9 @@ export default function Mockup() {
                   });
                   setBuyPromptOpen(false);
                   await ensureMockupPublicReady(flow);
-                  return handle('private');
-                })}
-              />
+                  return handle('private', { payloadOverrides: buildShopifyPayload(flow, 'private') });
+              })}
+            />
             </div>
           </div>
         </div>
