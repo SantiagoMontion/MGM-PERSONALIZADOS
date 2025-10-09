@@ -698,10 +698,16 @@ export default function Home() {
           setErr('No se pudo firmar la subida del PDF.');
           return;
         }
+        // Subir PDF: POST multipart a signed upload URL (campo 'file') + headers requeridos
         const pdfForm = new FormData();
         pdfForm.append('file', new Blob([pdfBytes], { type: 'application/pdf' }), 'design.pdf');
         const pdfUploadRes = await fetch(pdfSign.uploadUrl, {
           method: 'POST',
+          headers: {
+            // Supabase signed upload requiere Authorization con la ANON KEY y x-upsert
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'x-upsert': 'false',
+          },
           body: pdfForm,
         });
         if (!pdfUploadRes.ok) {
@@ -721,10 +727,16 @@ export default function Home() {
           setErr('No se pudo firmar la subida de la imagen.');
           return;
         }
+        // Subir master PNG/JPEG: también POST multipart + headers requeridos
+        const masterName = designMime.includes('png') ? 'master.png' : 'master.jpg';
         const masterForm = new FormData();
-        masterForm.append('file', designBlob, designMime.includes('png') ? 'master.png' : 'master.jpg');
+        masterForm.append('file', designBlob, masterName);
         const masterUploadRes = await fetch(masterSign.uploadUrl, {
           method: 'POST',
+          headers: {
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'x-upsert': 'false',
+          },
           body: masterForm,
         });
         if (!masterUploadRes.ok) {
