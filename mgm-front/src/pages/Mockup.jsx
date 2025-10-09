@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { PDFDocument } from 'pdf-lib';
 import Toast from '@/components/Toast.jsx';
-import LoadingOverlay from '../components/LoadingOverlay';
 import { useFlow } from '@/state/flow.js';
 import { downloadBlob, renderMockup1080 } from '@/lib/mockup.js';
 import styles from './Mockup.module.css';
@@ -1824,14 +1823,7 @@ export default function Mockup() {
           onClose={() => setToast(null)}
         />
       ) : null}
-      {busy && (
-        <LoadingOverlay
-          visible
-          steps={['Guardando cambios...', 'Creando tu pedido...', 'Últimos detalles...']}
-          intervalMs={2000}
-          subtitle="Esto puede demorar unos segundos"
-        />
-      )}
+      {/* Sin overlay en compra */}
     </div>
   );
 }
