@@ -422,14 +422,23 @@ export default async function handler(req, res) {
         ? Math.round((parsedBody.masterHeightPx / (parsedBody.approxDpi || 300)) * 2.54)
         : undefined),
   );
-  const baseName = String(parsedBody.title || parsedBody.designName || 'Diseño personalizado').trim();
-  const finalTitle = Number.isFinite(widthCm) && Number.isFinite(heightCm) && widthCm > 0 && heightCm > 0
-    ? `${baseName} ${widthCm}x${heightCm} ${materialLabel}`
-    : `${baseName} ${materialLabel}`;
-  const priceValue = Number(parsedBody.price ?? parsedBody.priceNormal ?? parsedBody.priceTransfer ?? 0);
+  const widthCmSafe = Number.isFinite(widthCm) && widthCm > 0 ? Math.round(widthCm) : null;
+  const heightCmSafe = Number.isFinite(heightCm) && heightCm > 0 ? Math.round(heightCm) : null;
+  const designName = String(parsedBody.designName || parsedBody.title || 'Personalizado').trim() || 'Personalizado';
+  const baseCategory = materialLabel === 'Glasspad' ? 'Glasspad' : 'Mousepad';
+  const finalTitle = widthCmSafe && heightCmSafe
+    ? `${baseCategory} ${designName} ${widthCmSafe}x${heightCmSafe} ${materialLabel} | PERSONALIZADO`
+    : `${baseCategory} ${designName} ${materialLabel} | PERSONALIZADO`;
+  const priceTransfer = Number(parsedBody.priceTransfer ?? parsedBody.price_transfer ?? NaN);
+  const priceNormal = Number(parsedBody.priceNormal ?? parsedBody.price_normal ?? NaN);
+  const priceValue = Number.isFinite(priceTransfer)
+    ? priceTransfer
+    : Number.isFinite(priceNormal)
+      ? priceNormal
+      : 0;
   const currencyValue = String(parsedBody.currency || process.env.SHOPIFY_CART_PRESENTMENT_CURRENCY || 'USD');
   parsedBody.title = finalTitle;
-  parsedBody.price = Number.isFinite(priceValue) ? priceValue : 0;
+  parsedBody.price = priceValue;
   parsedBody.currency = currencyValue;
 
   if (typeof parsedBody.mockupDataUrl === 'string' && parsedBody.mockupDataUrl.length > 200000) {

@@ -55,6 +55,13 @@
   opacity: 0.95;
 }
 
+.subtitle {
+  margin: 8px 0 0;
+  font-size: clamp(13px, 3.6vw, 15px);
+  font-weight: 400;
+  opacity: 0.8;
+}
+
 /* Respeta “notches”/safe areas en iOS */
 @supports (padding: max(0px)) {
   .overlay {
