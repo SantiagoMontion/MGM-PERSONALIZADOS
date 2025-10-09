@@ -166,6 +166,35 @@ export async function ensureMockupUrlInFlow(flow, input) {
   return publicUrl;
 }
 
+async function waitUrlReady(url, tries = 8, delayMs = 350) {
+  if (!url || typeof url !== 'string') {
+    return false;
+  }
+  for (let i = 0; i < tries; i += 1) {
+    try {
+      const response = await fetch(url, { method: 'HEAD', cache: 'no-store' });
+      if (response.ok) {
+        return true;
+      }
+    } catch (_) {
+      // noop
+    }
+    await new Promise((resolve) => {
+      setTimeout(resolve, delayMs * (1 + i * 0.2));
+    });
+  }
+  return false;
+}
+
+async function ensureMockupPublicReady(flowState) {
+  const state = typeof flowState?.get === 'function' ? flowState.get() : flowState;
+  const url = state?.mockupPublicUrl || state?.mockupUrl;
+  if (!url) {
+    return;
+  }
+  await waitUrlReady(url);
+}
+
 function toastErr(msg) {
   try {
     window?.toast?.error?.(msg);
@@ -1610,7 +1639,7 @@ export default function Mockup() {
               busyLabel={cartButtonLabel}
               isBusy={cartInteractionBusy}
               disabled={busy || cartInteractionBusy}
-              onClick={withCartBtnSpin(() => {
+              onClick={withCartBtnSpin(async () => {
                 if (busy || cartInteractionBusy) return;
                 debugTrackFire('cta_click_cart', rid);
                 trackEvent('cta_click_cart', {
@@ -1621,7 +1650,8 @@ export default function Mockup() {
                   cta_type: 'cart',
                   product_handle: lastProduct?.productHandle,
                 });
-                handle('cart');
+                await ensureMockupPublicReady(flow);
+                return handle('cart');
               })}
             />
             <p className={styles.ctaHint}>
@@ -1806,6 +1836,7 @@ export default function Mockup() {
                     product_handle: lastProduct?.productHandle,
                   });
                   setBuyPromptOpen(false);
+                  await ensureMockupPublicReady(flow);
                   return handle('checkout');
                 })}
               />
@@ -1827,6 +1858,7 @@ export default function Mockup() {
                     product_handle: lastProduct?.productHandle,
                   });
                   setBuyPromptOpen(false);
+                  await ensureMockupPublicReady(flow);
                   return handle('private');
                 })}
               />
