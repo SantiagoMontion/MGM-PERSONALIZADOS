@@ -1567,33 +1567,7 @@ export default function Mockup() {
           </div>
         ) : null}
         
-        {/* Ocultar solo la IMG del preview legacy; conservar su texto */}
-        <style dangerouslySetInnerHTML={{ __html: HIDE_LEGACY_IMG_CSS }} />
-        {/* Mockup visible (PNG 1080x1080 cuadrado) sobre las CTAs */}
-        {mockupSrc ? (
-          <div
-            style={{
-              width: '100%',
-              display: 'flex',
-              justifyContent: 'center',
-              marginTop: '24px',
-              marginBottom: '32px',
-            }}
-          >
-            <img
-              src={mockupSrc}
-              alt={flowState?.designName || 'Mockup'}
-              style={{
-                width: 'min(540px, 80vw)',
-                maxWidth: '100%',
-                aspectRatio: '1 / 1',
-                objectFit: 'contain',
-              }}
-              loading="eager"
-              decoding="async"
-            />
-          </div>
-        ) : null}
+        
 
         <div className={styles.ctaRow}>
           <div className={styles.ctaCard}>
