@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { PDFDocument } from 'pdf-lib';
 import Toast from '@/components/Toast.jsx';
 import { useFlow } from '@/state/flow.js';
-import { downloadBlob } from '@/lib/mockup.js';
+import { downloadBlob, renderMockup1080 } from '@/lib/mockup.js';
 import styles from './Mockup.module.css';
 import { supa } from '../lib/supa.js';
 import { buildExportBaseName } from '@/lib/filename.ts';
@@ -23,18 +23,54 @@ function isDataUrl(value) {
   return typeof value === 'string' && value.startsWith('data:');
 }
 
-async function dataUrlToBlob(dataUrl) {
-  const response = await fetch(dataUrl);
-  return await response.blob();
+async function imgFromDataUrl(dataUrl) {
+  return await new Promise((resolve, reject) => {
+    const image = new Image();
+    image.decoding = 'async';
+    image.onload = () => resolve(image);
+    image.onerror = (event) => reject(event instanceof ErrorEvent ? event.error ?? event : event || new Error('mockup_image_load_failed'));
+    image.src = dataUrl;
+  });
 }
 
-async function signUpload({ bucket, contentType }) {
-  let response = await postJSON(getResolvedApiUrl('/api/storage/sign'), { bucket, contentType }, 30000);
+function safeName(value) {
+  return String(value || '').replace(/[\/\\:*?"<>|]+/g, '').trim() || 'Design';
+}
+
+function yyyymm() {
+  const date = new Date();
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function cmFromPx(px, dpi) {
+  return Math.max(1, Math.round((Number(px) || 0) / (Number(dpi) || 300) * 2.54));
+}
+
+function matLabelOf(material) {
+  const text = String(material || '').toLowerCase();
+  if (text.includes('glass')) {
+    return 'Glasspad';
+  }
+  if (text.includes('pro')) {
+    return 'PRO';
+  }
+  if (text.includes('classic')) {
+    return 'Classic';
+  }
+  return (String(material || '').trim() || 'Classic');
+}
+
+async function signUpload({ bucket, contentType, path }) {
+  let response = await postJSON(
+    getResolvedApiUrl('/api/storage/sign'),
+    { bucket, contentType, path },
+    30000,
+  );
   if (!response?.ok && bucket === 'preview') {
     console.warn('[diag] sign preview failed, falling back to outputs');
     response = await postJSON(
       getResolvedApiUrl('/api/storage/sign'),
-      { bucket: 'outputs', contentType },
+      { bucket: 'outputs', contentType, path },
       30000,
     );
   }
@@ -55,51 +91,6 @@ async function uploadBlobWithSignedUrl(sign, blob, filename) {
   return String(sign.publicUrl || '');
 }
 
-async function buildJpeg1080FromDataUrl(dataUrl, quality = 0.82) {
-  const image = await new Promise((resolve, reject) => {
-    const img = new Image();
-    img.decoding = 'async';
-    img.onload = () => resolve(img);
-    img.onerror = (event) => reject(event instanceof ErrorEvent ? event.error ?? event : event || new Error('mockup_image_load_failed'));
-    img.src = dataUrl;
-  });
-  const naturalWidth = image.naturalWidth || image.width || 1;
-  const naturalHeight = image.naturalHeight || image.height || 1;
-  const maxDim = 1080;
-  const scale = Math.min(1, maxDim / Math.max(naturalWidth, naturalHeight));
-  const width = Math.max(1, Math.round(naturalWidth * scale));
-  const height = Math.max(1, Math.round(naturalHeight * scale));
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) {
-    throw new Error('mockup_canvas_context_failed');
-  }
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(image, 0, 0, width, height);
-  const blob = await new Promise((resolve, reject) => {
-    if (typeof canvas.toBlob === 'function') {
-      canvas.toBlob((result) => {
-        if (result) {
-          resolve(result);
-        } else {
-          reject(new Error('mockup_to_blob_failed'));
-        }
-      }, 'image/jpeg', quality);
-      return;
-    }
-    try {
-      const jpegDataUrl = canvas.toDataURL('image/jpeg', quality);
-      dataUrlToBlob(jpegDataUrl).then(resolve, reject);
-    } catch (err) {
-      reject(err instanceof Error ? err : new Error('mockup_canvas_encode_failed'));
-    }
-  });
-  return blob;
-}
-
 export async function ensureMockupUrlInFlow(flow) {
   const state = typeof flow?.get === 'function' ? flow.get() : flow;
   if (typeof state?.mockupPublicUrl === 'string' && state.mockupPublicUrl) {
@@ -112,18 +103,33 @@ export async function ensureMockupUrlInFlow(flow) {
   if (isDataUrl(state?.mockupDataUrl) && state.mockupDataUrl.length <= payloadLimitBytes) {
     return state.mockupDataUrl;
   }
-  let mockupBlob = state?.mockupBlob instanceof Blob ? state.mockupBlob : null;
-  if (!mockupBlob) {
-    if (!isDataUrl(state?.printFullResDataUrl)) {
-      const err = new Error('missing_print_fullres_dataurl');
-      err.reason = 'missing_print_fullres_dataurl';
-      throw err;
-    }
-    mockupBlob = await buildJpeg1080FromDataUrl(state.printFullResDataUrl, 0.82);
+  if (!isDataUrl(state?.printFullResDataUrl)) {
+    const err = new Error('missing_print_fullres_dataurl');
+    err.reason = 'missing_print_fullres_dataurl';
+    throw err;
   }
-  const contentType = mockupBlob.type || 'image/jpeg';
-  const sign = await signUpload({ bucket: 'preview', contentType });
-  const filename = contentType.includes('png') ? 'mockup.png' : 'mockup.jpg';
+  const image = await imgFromDataUrl(state.printFullResDataUrl);
+  const dpi = Number(state?.approxDpi || 300);
+  const composition = {
+    widthPx: Number(state?.masterWidthPx || image.naturalWidth || image.width || 0),
+    heightPx: Number(state?.masterHeightPx || image.naturalHeight || image.height || 0),
+  };
+  const widthCm = cmFromPx(composition.widthPx, dpi);
+  const heightCm = cmFromPx(composition.heightPx, dpi);
+  const isGlass = String(state?.material || '').toLowerCase().includes('glass');
+  const mockupBlob = await renderMockup1080({
+    productType: isGlass ? 'glasspad' : 'mousepad',
+    image,
+    width_cm: widthCm,
+    height_cm: heightCm,
+    composition,
+  });
+  const filename = `${safeName(state?.designName)} ${widthCm}x${heightCm} ${matLabelOf(state?.material)}.jpg`;
+  const sign = await signUpload({
+    bucket: 'preview',
+    contentType: mockupBlob.type || 'image/jpeg',
+    path: `mockups-${yyyymm()}/${filename}`,
+  });
   const publicUrl = await uploadBlobWithSignedUrl(sign, mockupBlob, filename);
   if (!publicUrl) {
     const err = new Error('missing_mockup_url');
