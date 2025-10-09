@@ -1,166 +1,244 @@
 type ImageSource = HTMLImageElement | HTMLCanvasElement | ImageBitmap;
 
-type SizeOptions = {
+type CompositionOptions = {
+  canvas?: HTMLCanvasElement;
+  image?: ImageSource;
+  widthPx?: number;
+  heightPx?: number;
+  width_px?: number;
+  height_px?: number;
+  widthMm?: number;
+  heightMm?: number;
+  width_mm?: number;
+  height_mm?: number;
   widthCm?: number;
   heightCm?: number;
   width_cm?: number;
   height_cm?: number;
+  material?: string;
+  dpi?: number;
 };
 
-export type MockupOptions = SizeOptions & {
-  productType: 'mousepad' | 'glasspad';
+export type MockupOptions = {
+  material?: string;
+  widthPx?: number;
+  heightPx?: number;
+  width_px?: number;
+  height_px?: number;
+  widthMm?: number;
+  heightMm?: number;
+  width_mm?: number;
+  height_mm?: number;
+  widthCm?: number;
+  heightCm?: number;
+  width_cm?: number;
+  height_cm?: number;
+  dpi?: number;
+  approxDpi?: number;
+  productType?: 'mousepad' | 'glasspad';
   image?: ImageSource;
-  composition?: { image: ImageSource } & SizeOptions;
+  composition?: CompositionOptions;
 };
 
-export async function renderMockup1080(opts: MockupOptions): Promise<Blob> {
-  const size = 1080;
-  const margin = 40;
-  const SCALE_UP = 1.12;
-  const maxContent = size - margin * 2;
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('2d context unavailable');
+function toPngBlob(canvas: HTMLCanvasElement): Promise<Blob | null> {
+  return new Promise((resolve) => canvas.toBlob((blob) => resolve(blob), 'image/png'));
+}
 
-  ctx.clearRect(0, 0, size, size);
+export async function renderMockup1080(
+  imageOrOptions: ImageSource | MockupOptions,
+  maybeOptions?: MockupOptions,
+): Promise<Blob> {
+  let image: ImageSource | undefined;
+  let options: MockupOptions | undefined = maybeOptions;
 
-  const toBlob = () =>
-    new Promise<Blob>((resolve) =>
-      canvas.toBlob((b) => resolve(b!), 'image/png', 1)
-    );
-
-  const image = opts.image ?? opts.composition?.image;
-  if (!image) {
-    return toBlob();
-  }
-
-  const widthCm = Number(
-    opts.widthCm ??
-      opts.width_cm ??
-      opts.composition?.widthCm ??
-      opts.composition?.width_cm ??
-      0
-  );
-  const heightCm = Number(
-    opts.heightCm ??
-      opts.height_cm ??
-      opts.composition?.heightCm ??
-      opts.composition?.height_cm ??
-      0
-  );
-
-  const anyImg = image as any;
-  const iw = Number(anyImg.width ?? anyImg.naturalWidth ?? anyImg.videoWidth ?? 0);
-  const ih = Number(anyImg.height ?? anyImg.naturalHeight ?? anyImg.videoHeight ?? 0);
-  if (!iw || !ih) {
-    return toBlob();
-  }
-
-  const longestCm = Math.max(widthCm, heightCm);
-  const safeLongestCm = Number.isFinite(longestCm) ? Math.max(0, longestCm) : 0;
-  const norm = safeLongestCm / 140;
-  let ratio = Number.isFinite(norm) ? Math.pow(Math.max(norm, 0), 0.6) : 0;
-  if (!Number.isFinite(ratio)) {
-    ratio = 0;
-  }
-  ratio = Math.min(1, Math.max(0.26, ratio));
-  let targetLongestPx = Math.round(maxContent * ratio);
-  if (!Number.isFinite(targetLongestPx) || targetLongestPx <= 0) {
-    targetLongestPx = Math.round(maxContent * 0.26);
-  }
-  targetLongestPx = Math.min(maxContent, Math.max(1, targetLongestPx));
-
-  let drawW: number;
-  let drawH: number;
-  if (iw >= ih) {
-    drawW = targetLongestPx;
-    drawH = Math.round((ih / Math.max(1e-6, iw)) * drawW);
+  if (!maybeOptions && (imageOrOptions as MockupOptions)?.image !== undefined) {
+    options = imageOrOptions as MockupOptions;
+    image = options?.composition?.canvas ?? options?.composition?.image ?? options?.image;
+  } else if (!maybeOptions && (imageOrOptions as MockupOptions)?.composition !== undefined) {
+    options = imageOrOptions as MockupOptions;
+    image = options?.composition?.canvas ?? options?.composition?.image ?? options?.image;
+  } else if (!maybeOptions && (imageOrOptions as MockupOptions)?.productType !== undefined) {
+    options = imageOrOptions as MockupOptions;
+    image = options?.composition?.canvas ?? options?.composition?.image ?? options?.image;
   } else {
-    drawH = targetLongestPx;
-    drawW = Math.round((iw / Math.max(1e-6, ih)) * drawH);
+    image = imageOrOptions as ImageSource;
   }
 
-  drawW *= SCALE_UP;
-  drawH *= SCALE_UP;
+  options = options ?? maybeOptions ?? {};
 
-  if (drawW > maxContent) {
-    const ratio = drawH / Math.max(1e-6, drawW);
-    drawW = maxContent;
-    drawH = Math.round(drawW * ratio);
+  const CANVAS_SIZE = 1080;
+  const MAX_LONG_PX = Number(import.meta.env?.VITE_MOCKUP_MAX_LONG_PX) || 990;
+  const MIN_LONG_PX = Number(import.meta.env?.VITE_MOCKUP_MIN_LONG_PX) || 400;
+  const GAMMA = Number(import.meta.env?.VITE_MOCKUP_SCALE_GAMMA) || 0.6;
+
+  const REF_MAX_CM_MAP = {
+    classic: Number(import.meta.env?.VITE_REF_MAX_CM_CLASSIC) || 140,
+    pro: Number(import.meta.env?.VITE_REF_MAX_CM_PRO) || 140,
+    glass: Number(import.meta.env?.VITE_REF_MAX_CM_GLASS) || 49,
+  } as const;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = CANVAS_SIZE;
+  canvas.height = CANVAS_SIZE;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    throw new Error('2d context unavailable');
   }
-  if (drawH > maxContent) {
-    const ratio = drawW / Math.max(1e-6, drawH);
-    drawH = maxContent;
-    drawW = Math.round(drawH * ratio);
+
+  if (!image) {
+    const empty = await toPngBlob(canvas);
+    return empty ?? new Blob([], { type: 'image/png' });
   }
 
-  drawW = Math.max(1, Math.round(drawW));
-  drawH = Math.max(1, Math.round(drawH));
+  const compositionSource = options?.composition?.canvas ?? options?.composition?.image ?? null;
+  const drawSource: ImageSource | HTMLCanvasElement = compositionSource ?? image;
+  const anySource = drawSource as any;
+  const fallbackWidth = Number(
+    anySource?.width ?? anySource?.naturalWidth ?? anySource?.videoWidth ?? 0,
+  );
+  const fallbackHeight = Number(
+    anySource?.height ?? anySource?.naturalHeight ?? anySource?.videoHeight ?? 0,
+  );
 
-  const dx = Math.round((size - drawW) / 2);
-  const dy = Math.round((size - drawH) / 2);
+  const compWidthPx = Number(
+    options?.composition?.widthPx ??
+    options?.composition?.width_px ??
+    options?.widthPx ??
+    options?.width_px ??
+    fallbackWidth,
+  );
+  const compHeightPx = Number(
+    options?.composition?.heightPx ??
+    options?.composition?.height_px ??
+    options?.heightPx ??
+    options?.height_px ??
+    fallbackHeight,
+  );
 
+  let widthMm = Number(
+    options?.composition?.widthMm ??
+    options?.composition?.width_mm ??
+    options?.widthMm ??
+    options?.width_mm ??
+    0,
+  );
+  let heightMm = Number(
+    options?.composition?.heightMm ??
+    options?.composition?.height_mm ??
+    options?.heightMm ??
+    options?.height_mm ??
+    0,
+  );
+
+  const legacyWidthCm = Number(
+    options?.composition?.widthCm ??
+    options?.composition?.width_cm ??
+    options?.widthCm ??
+    options?.width_cm ??
+    0,
+  );
+  const legacyHeightCm = Number(
+    options?.composition?.heightCm ??
+    options?.composition?.height_cm ??
+    options?.heightCm ??
+    options?.height_cm ??
+    0,
+  );
+  if ((!Number.isFinite(widthMm) || widthMm <= 0) && Number.isFinite(legacyWidthCm) && legacyWidthCm > 0) {
+    widthMm = legacyWidthCm * 10;
+  }
+  if ((!Number.isFinite(heightMm) || heightMm <= 0) && Number.isFinite(legacyHeightCm) && legacyHeightCm > 0) {
+    heightMm = legacyHeightCm * 10;
+  }
+
+  const dpiCandidates = [
+    options?.composition?.dpi,
+    options?.dpi,
+    options?.approxDpi,
+  ];
+  const dpi = dpiCandidates.find((value) => {
+    const num = Number(value);
+    return Number.isFinite(num) && num > 0;
+  });
+  const safeDpi = dpi ?? 300;
+  const pxToMm = (px: number) => ((Number(px) || 0) / safeDpi) * 25.4;
+
+  if (!Number.isFinite(widthMm) || widthMm <= 0) {
+    widthMm = pxToMm(compWidthPx || fallbackWidth);
+  }
+  if (!Number.isFinite(heightMm) || heightMm <= 0) {
+    heightMm = pxToMm(compHeightPx || fallbackHeight);
+  }
+
+  const widthCm = Number.isFinite(widthMm) ? widthMm / 10 : 0;
+  const heightCm = Number.isFinite(heightMm) ? heightMm / 10 : 0;
+  const longestCm = Math.max(widthCm, heightCm, 0);
+
+  const materialText = String(
+    options?.material ?? options?.composition?.material ?? options?.productType ?? '',
+  ).toLowerCase();
+  const refMaxCm = materialText.includes('glass')
+    ? REF_MAX_CM_MAP.glass
+    : materialText.includes('pro')
+      ? REF_MAX_CM_MAP.pro
+      : REF_MAX_CM_MAP.classic;
+
+  const aspect = compWidthPx > 0 && compHeightPx > 0
+    ? compWidthPx / compHeightPx
+    : fallbackWidth > 0 && fallbackHeight > 0
+      ? fallbackWidth / fallbackHeight
+      : 1;
+  const t = Math.max(0, Math.min(1, refMaxCm > 0 ? longestCm / refMaxCm : 0));
+  const eased = Math.pow(t, GAMMA);
+  let longPx = Math.round(MIN_LONG_PX + (MAX_LONG_PX - MIN_LONG_PX) * eased);
+  if (!Number.isFinite(longPx) || longPx <= 0) {
+    longPx = MIN_LONG_PX;
+  }
+  longPx = Math.max(1, Math.min(longPx, MAX_LONG_PX));
+
+  let targetW: number;
+  let targetH: number;
+  if (aspect >= 1) {
+    targetW = longPx;
+    targetH = Math.max(1, Math.round(longPx / Math.max(aspect, 1e-6)));
+  } else {
+    targetH = longPx;
+    targetW = Math.max(1, Math.round(longPx * aspect));
+  }
+  if (targetW > CANVAS_SIZE) {
+    const scale = CANVAS_SIZE / targetW;
+    targetW = CANVAS_SIZE;
+    targetH = Math.max(1, Math.round(targetH * scale));
+  }
+  if (targetH > CANVAS_SIZE) {
+    const scale = CANVAS_SIZE / targetH;
+    targetH = CANVAS_SIZE;
+    targetW = Math.max(1, Math.round(targetW * scale));
+  }
+
+  const offsetX = Math.round((CANVAS_SIZE - targetW) / 2);
+  const offsetY = Math.round((CANVAS_SIZE - targetH) / 2);
+
+  ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
 
-  const clipRoundedRect = (
-    context: CanvasRenderingContext2D,
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-    radius: number
-  ) => {
-    const r = Math.max(0, Math.min(radius, Math.min(width, height) / 2));
-    context.beginPath();
-    if (typeof context.roundRect === 'function') {
-      context.roundRect(x, y, width, height, r);
-    } else {
-      context.moveTo(x + r, y);
-      context.lineTo(x + width - r, y);
-      context.arcTo(x + width, y, x + width, y + r, r);
-      context.lineTo(x + width, y + height - r);
-      context.arcTo(x + width, y + height, x + width - r, y + height, r);
-      context.lineTo(x + r, y + height);
-      context.arcTo(x, y + height, x, y + height - r, r);
-      context.lineTo(x, y + r);
-      context.arcTo(x, y, x + r, y, r);
-      context.closePath();
-    }
-    context.clip();
-  };
+  const sourceWidth = compWidthPx > 0 ? compWidthPx : fallbackWidth || targetW;
+  const sourceHeight = compHeightPx > 0 ? compHeightPx : fallbackHeight || targetH;
+  ctx.drawImage(
+    drawSource,
+    0,
+    0,
+    sourceWidth,
+    sourceHeight,
+    offsetX,
+    offsetY,
+    targetW,
+    targetH,
+  );
 
-  ctx.save();
-  clipRoundedRect(ctx, dx, dy, drawW, drawH, 12);
-
-  let drewGlassEffect = false;
-  if (opts.productType === 'glasspad') {
-    const glassCanvas = document.createElement('canvas');
-    glassCanvas.width = drawW;
-    glassCanvas.height = drawH;
-    const glassCtx = glassCanvas.getContext('2d');
-
-    if (glassCtx) {
-      const blurPx = 1;
-
-      glassCtx.filter = `blur(${blurPx}px)`;
-      glassCtx.drawImage(image, 0, 0, drawW, drawH);
-      glassCtx.filter = 'none';
-
-      ctx.drawImage(glassCanvas, dx, dy, drawW, drawH);
-      drewGlassEffect = true;
-    }
-  }
-
-  if (!drewGlassEffect) {
-    ctx.drawImage(image, dx, dy, drawW, drawH);
-  }
-
-  ctx.restore();
-
-  return toBlob();
+  const blob = await toPngBlob(canvas);
+  return blob ?? new Blob([], { type: 'image/png' });
 }
 
 export function downloadBlob(blob: Blob, name: string) {
@@ -171,4 +249,3 @@ export function downloadBlob(blob: Blob, name: string) {
   a.click();
   URL.revokeObjectURL(url);
 }
-

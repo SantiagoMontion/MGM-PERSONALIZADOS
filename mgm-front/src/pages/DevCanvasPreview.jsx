@@ -70,11 +70,23 @@ export default function DevCanvasPreview() {
     if (!padBlob || !render_v2) return;
     const { w_cm, h_cm, material } = render_v2;
     const bitmap = await createImageBitmap(padBlob);
-    const blob = await renderMockup1080({
-      productType: material === 'Glasspad' ? 'glasspad' : 'mousepad',
-      image: bitmap,
-      width_cm: w_cm,
-      height_cm: h_cm,
+    const dpi = Number(render_v2?.dpi || render_v2?.canvas_px?.dpi || 300);
+    const widthCm = Number(w_cm) || 0;
+    const heightCm = Number(h_cm) || 0;
+    const blob = await renderMockup1080(bitmap, {
+      material,
+      approxDpi: dpi,
+      composition: {
+        image: bitmap,
+        widthPx: bitmap.width,
+        heightPx: bitmap.height,
+        widthCm,
+        heightCm,
+        widthMm: widthCm > 0 ? widthCm * 10 : undefined,
+        heightMm: heightCm > 0 ? heightCm * 10 : undefined,
+        dpi,
+        material,
+      },
     });
     const widthLabel = Number(w_cm);
     const heightLabel = Number(h_cm);

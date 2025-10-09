@@ -91,7 +91,7 @@ async function uploadBlobWithSignedUrl(sign, blob, filename) {
   return String(sign.publicUrl || '');
 }
 
-export async function ensureMockupUrlInFlow(flow) {
+export async function ensureMockupUrlInFlow(flow, input) {
   const state = typeof flow?.get === 'function' ? flow.get() : flow;
   if (typeof state?.mockupPublicUrl === 'string' && state.mockupPublicUrl) {
     return state.mockupPublicUrl;
@@ -103,31 +103,35 @@ export async function ensureMockupUrlInFlow(flow) {
   if (isDataUrl(state?.mockupDataUrl) && state.mockupDataUrl.length <= payloadLimitBytes) {
     return state.mockupDataUrl;
   }
-  if (!isDataUrl(state?.printFullResDataUrl)) {
+  const sourceDataUrl = isDataUrl(state?.printFullResDataUrl)
+    ? state.printFullResDataUrl
+    : (input?.dataUrl && isDataUrl(input.dataUrl) ? input.dataUrl : null);
+  if (!isDataUrl(sourceDataUrl)) {
     const err = new Error('missing_print_fullres_dataurl');
     err.reason = 'missing_print_fullres_dataurl';
     throw err;
   }
-  const image = await imgFromDataUrl(state.printFullResDataUrl);
-  const dpi = Number(state?.approxDpi || 300);
+  const image = await imgFromDataUrl(sourceDataUrl);
+  const dpi = Number(state?.approxDpi ?? input?.dpi ?? 300);
   const composition = {
-    widthPx: Number(state?.masterWidthPx || image.naturalWidth || image.width || 0),
-    heightPx: Number(state?.masterHeightPx || image.naturalHeight || image.height || 0),
+    widthPx: Number(state?.masterWidthPx ?? input?.widthPx ?? image.naturalWidth ?? image.width ?? 0),
+    heightPx: Number(state?.masterHeightPx ?? input?.heightPx ?? image.naturalHeight ?? image.height ?? 0),
+    widthMm: Number(input?.widthMm ?? state?.masterWidthMm ?? 0) || undefined,
+    heightMm: Number(input?.heightMm ?? state?.masterHeightMm ?? 0) || undefined,
+    dpi,
+    material: state?.material ?? input?.material,
   };
   const widthCm = cmFromPx(composition.widthPx, dpi);
   const heightCm = cmFromPx(composition.heightPx, dpi);
-  const isGlass = String(state?.material || '').toLowerCase().includes('glass');
-  const mockupBlob = await renderMockup1080({
-    productType: isGlass ? 'glasspad' : 'mousepad',
-    image,
-    width_cm: widthCm,
-    height_cm: heightCm,
+  const mockupBlob = await renderMockup1080(image, {
+    material: state?.material ?? input?.material,
+    approxDpi: dpi,
     composition,
   });
-  const filename = `${safeName(state?.designName)} ${widthCm}x${heightCm} ${matLabelOf(state?.material)}.jpg`;
+  const filename = `${safeName(state?.designName)} ${widthCm}x${heightCm} ${matLabelOf(state?.material ?? input?.material)}.png`;
   const sign = await signUpload({
     bucket: 'preview',
-    contentType: mockupBlob.type || 'image/jpeg',
+    contentType: 'image/png',
     path: `mockups-${yyyymm()}/${filename}`,
   });
   const publicUrl = await uploadBlobWithSignedUrl(sign, mockupBlob, filename);
