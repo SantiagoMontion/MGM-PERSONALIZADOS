@@ -408,30 +408,57 @@ export default async function handler(req, res) {
     if (normalized.includes('classic')) return 'Classic';
     return rawMaterial || 'Classic';
   })();
-  const widthCm = Number(
-    parsedBody?.widthCm ??
-      (parsedBody?.masterWidthMm ? Math.round(parsedBody.masterWidthMm / 10) : undefined) ??
-      (parsedBody?.masterWidthPx
-        ? Math.round((parsedBody.masterWidthPx / (parsedBody.approxDpi || 300)) * 2.54)
-        : undefined),
+  const dpiForCm = Number.isFinite(Number(parsedBody?.approxDpi)) && Number(parsedBody.approxDpi) > 0
+    ? Number(parsedBody.approxDpi)
+    : 300;
+  const mmToCm = (mm) => {
+    const value = Number(mm);
+    return Number.isFinite(value) && value > 0 ? Math.round(value / 10) : null;
+  };
+  const pxToCm = (px) => {
+    const value = Number(px);
+    return Number.isFinite(value) && value > 0 ? Math.round((value / dpiForCm) * 2.54) : null;
+  };
+  const resolveDimension = (value, fallbackMm, fallbackPx) => {
+    const direct = Number(value);
+    if (Number.isFinite(direct) && direct > 0) {
+      return Math.round(direct);
+    }
+    const fromMm = mmToCm(fallbackMm);
+    if (fromMm != null) return fromMm;
+    const fromPx = pxToCm(fallbackPx);
+    return fromPx != null ? fromPx : null;
+  };
+  const widthCmSafe = resolveDimension(
+    parsedBody?.widthCm,
+    parsedBody?.masterWidthMm,
+    parsedBody?.masterWidthPx,
   );
-  const heightCm = Number(
-    parsedBody?.heightCm ??
-      (parsedBody?.masterHeightMm ? Math.round(parsedBody.masterHeightMm / 10) : undefined) ??
-      (parsedBody?.masterHeightPx
-        ? Math.round((parsedBody.masterHeightPx / (parsedBody.approxDpi || 300)) * 2.54)
-        : undefined),
+  const heightCmSafe = resolveDimension(
+    parsedBody?.heightCm,
+    parsedBody?.masterHeightMm,
+    parsedBody?.masterHeightPx,
   );
-  const widthCmSafe = Number.isFinite(widthCm) && widthCm > 0 ? Math.round(widthCm) : null;
-  const heightCmSafe = Number.isFinite(heightCm) && heightCm > 0 ? Math.round(heightCm) : null;
   const designName = String(parsedBody.designName || '').trim() || 'Personalizado';
   const baseCategory = materialLabel === 'Glasspad' ? 'Glasspad' : 'Mousepad';
   // Formato EXACTO: "Mousepad {Nombre} {WxH} {Material} | PERSONALIZADO"
   const finalTitle = widthCmSafe && heightCmSafe
     ? `${baseCategory} ${designName} ${widthCmSafe}x${heightCmSafe} ${materialLabel} | PERSONALIZADO`
     : `${baseCategory} ${designName} ${materialLabel} | PERSONALIZADO`;
-  const priceTransfer = Number(parsedBody.priceTransfer ?? parsedBody.price_transfer ?? parsedBody.priceTranferencia ?? NaN);
-  const priceNormal = Number(parsedBody.priceNormal ?? parsedBody.price_normal ?? NaN);
+  const toNumber = (value) => {
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? value : NaN;
+    }
+    if (typeof value === 'string') {
+      const normalized = value.replace(/\./g, '').replace(/,/g, '.').trim();
+      if (!normalized) return NaN;
+      const parsed = Number(normalized);
+      return Number.isFinite(parsed) ? parsed : NaN;
+    }
+    return NaN;
+  };
+  const priceTransfer = toNumber(parsedBody.priceTransfer ?? parsedBody.price_transfer ?? parsedBody.priceTranferencia);
+  const priceNormal = toNumber(parsedBody.priceNormal ?? parsedBody.price_normal ?? parsedBody.price);
   const priceValue = Number.isFinite(priceTransfer)
     ? priceTransfer
     : Number.isFinite(priceNormal)
