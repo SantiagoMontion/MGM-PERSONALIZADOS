@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { PDFDocument } from 'pdf-lib';
 import Toast from '@/components/Toast.jsx';
@@ -343,6 +343,7 @@ export default function Mockup() {
   const [cartStatus, setCartStatus] = useState('idle');
   const [publicBusy, setPublicBusy] = useState(false);
   const [privateBusy, setPrivateBusy] = useState(false);
+  const [buyBtnBusy, setBuyBtnBusy] = useState(false);
   const [toast, setToast] = useState(null);
   const [isBuyPromptOpen, setBuyPromptOpen] = useState(false);
   const buyNowButtonRef = useRef(null);
@@ -350,6 +351,17 @@ export default function Mockup() {
   const firstActionButtonRef = useRef(null);
   const wasModalOpenedRef = useRef(false);
   const successToastTimeoutRef = useRef(null);
+
+  const withBuyBtnSpin = useCallback((fn) => {
+    return async (...args) => {
+      setBuyBtnBusy(true);
+      try {
+        return await fn(...args);
+      } finally {
+        setBuyBtnBusy(false);
+      }
+    };
+  }, []);
 
   const cartButtonLabel = CART_STATUS_LABELS[cartStatus] || CART_STATUS_LABELS.idle;
   const cartBusy = cartStatus !== 'idle';
@@ -1628,12 +1640,13 @@ export default function Mockup() {
               className={`${styles.ctaButton} ${styles.ctaButtonPrimary1}`}
               type="button"
               label="Comprar ahora"
-              isBusy={false}
-              disabled={busy}
+              busyLabel="Procesando…"
+              isBusy={buyBtnBusy}
+              disabled={busy || buyBtnBusy}
               buttonRef={buyNowButtonRef}
               ariaLabel="Comprar ahora"
               onClick={() => {
-                if (busy) return;
+                if (busy || buyBtnBusy) return;
                 setBuyPromptOpen(true);
               }}
             />
@@ -1785,9 +1798,9 @@ export default function Mockup() {
                 label="Comprar público"
                 busyLabel="Procesando…"
                 isBusy={publicBusy}
-                disabled={busy}
-                onClick={() => {
-                  if (busy || publicBusy) return;
+                disabled={busy || buyBtnBusy}
+                onClick={withBuyBtnSpin(async () => {
+                  if (busy || publicBusy || buyBtnBusy) return;
                   debugTrackFire('cta_click_public', rid);
                   trackEvent('cta_click_public', {
                     rid,
@@ -1798,17 +1811,17 @@ export default function Mockup() {
                     product_handle: lastProduct?.productHandle,
                   });
                   setBuyPromptOpen(false);
-                  handle('checkout');
-                }}
+                  return handle('checkout');
+                })}
               />
               <CtaButton
                 className={styles.modalSecondary}
                 label="Comprar en privado"
                 busyLabel="Procesando…"
                 isBusy={privateBusy}
-                disabled={busy}
-                onClick={() => {
-                  if (busy || privateBusy) return;
+                disabled={busy || buyBtnBusy}
+                onClick={withBuyBtnSpin(async () => {
+                  if (busy || privateBusy || buyBtnBusy) return;
                   debugTrackFire('cta_click_private', rid);
                   trackEvent('cta_click_private', {
                     rid,
@@ -1819,8 +1832,8 @@ export default function Mockup() {
                     product_handle: lastProduct?.productHandle,
                   });
                   setBuyPromptOpen(false);
-                  handle('private');
-                }}
+                  return handle('private');
+                })}
               />
             </div>
           </div>
@@ -1840,13 +1853,3 @@ export default function Mockup() {
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
