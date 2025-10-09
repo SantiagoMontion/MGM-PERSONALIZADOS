@@ -59,13 +59,13 @@ const MODERATION_REASON_MESSAGES = {
   blocked: 'Bloqueado por moderación.',
 };
 
-const MOD_PREVIEW_LIMIT_BYTES = 2_000_000;
-const MOD_PREVIEW_THRESHOLD_BYTES = 2_000_000;
-const MOD_PREVIEW_DEFAULT_MAX_DIMENSION = null;
-const MOD_PREVIEW_DEFAULT_QUALITY = 0.9;
+const MOD_PREVIEW_LIMIT_BYTES = 800_000;
+const MOD_PREVIEW_THRESHOLD_BYTES = -1;
+const MOD_PREVIEW_DEFAULT_MAX_DIMENSION = 1280;
+const MOD_PREVIEW_DEFAULT_QUALITY = 0.85;
 const MOD_PREVIEW_FALLBACK_FORMATS = ['image/jpeg'];
 const MOD_PREVIEW_RETRY_QUALITIES = [0.8, 0.7, 0.6];
-const MOD_PREVIEW_RETRY_DIMENSIONS = [2560, 2048];
+const MOD_PREVIEW_RETRY_DIMENSIONS = [1024, 896, 768, 640];
 
 function moderationReasonMessage(reason) {
   if (typeof reason === 'string' && MODERATION_REASON_MESSAGES[reason]) {
@@ -103,7 +103,7 @@ async function createPreviewFromImage(image, options = {}) {
   const {
     maxDimension = MOD_PREVIEW_DEFAULT_MAX_DIMENSION,
     quality = MOD_PREVIEW_DEFAULT_QUALITY,
-    format = 'image/webp',
+    format = 'image/jpeg',
     fallbackFormats = MOD_PREVIEW_FALLBACK_FORMATS,
   } = options || {};
 
@@ -159,16 +159,16 @@ async function createPreviewFromImage(image, options = {}) {
   canvas.width = 0;
   canvas.height = 0;
   const base64 = dataUrl.includes(',') ? dataUrl.split(',')[1] : '';
-  return {
-    blob,
-    base64,
-    dataUrl,
-    mime: blob.type || 'image/webp',
+    return {
+      blob,
+      base64,
+      dataUrl,
+      mime: blob.type || 'image/jpeg',
     width: targetWidth,
     height: targetHeight,
     bytes: blob.size,
     options: {
-      format: blob.type || formatCandidates[0] || 'image/webp',
+        format: blob.type || formatCandidates[0] || 'image/jpeg',
       quality,
       maxDimension: appliedMaxDimension,
     },
@@ -502,7 +502,7 @@ export default function Home() {
       const defaultPreviewOptions = {
         maxDimension: MOD_PREVIEW_DEFAULT_MAX_DIMENSION,
         quality: MOD_PREVIEW_DEFAULT_QUALITY,
-        format: 'image/webp',
+        format: 'image/jpeg',
         fallbackFormats: MOD_PREVIEW_FALLBACK_FORMATS,
       };
 
@@ -511,7 +511,7 @@ export default function Home() {
         const key = JSON.stringify({
           maxDimension: options?.maxDimension ?? null,
           quality: options?.quality ?? null,
-          format: options?.format || 'image/webp',
+          format: options?.format || 'image/jpeg',
           fallback: Array.isArray(options?.fallbackFormats) ? options.fallbackFormats : [],
         });
         if (!previewCache.has(key)) {
@@ -679,12 +679,14 @@ export default function Home() {
       let nextMasterUrl = masterPublicUrl || null;
       let nextPdfUrl = pdfPublicUrl || null;
       if (!(designHash && designHash === designHashState && nextMasterUrl && nextPdfUrl)) {
+        const maxPdfBytes = Number(import.meta.env?.VITE_MAX_PDF_BYTES) || 40 * 1024 * 1024;
         const pdfBytes = await buildPdfFromMaster(designBlob, {
           bleedMm: 20,
           widthPx: masterWidthExact,
           heightPx: masterHeightExact,
           widthMm: masterWidthMm,
           heightMm: masterHeightMm,
+          maxBytes: maxPdfBytes,
         });
         console.log('[diag] pdf bytes', pdfBytes?.byteLength || pdfBytes?.length || 0);
         const pdfSign = await postJSON(
@@ -702,6 +704,9 @@ export default function Home() {
           body: pdfBytes,
         });
         if (!pdfUploadRes.ok) {
+          logger.error('[pdf-upload] failed', {
+            status: pdfUploadRes.status,
+          });
           setErr('No se pudo subir el PDF.');
           return;
         }
