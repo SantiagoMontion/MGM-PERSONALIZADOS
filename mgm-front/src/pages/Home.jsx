@@ -48,6 +48,7 @@ const CONFIG_ARROW_ICON_SRC = resolveIconAsset('down.svg');
 const TUTORIAL_ICON_SRC = resolveIconAsset('play.svg');
 
 
+const DISABLE_UPLOAD_ORIGINAL = (import.meta.env?.VITE_DISABLE_UPLOAD_ORIGINAL ?? '1') === '1';
 const CANVAS_MAX_WIDTH = 1280;
 const DEFAULT_SIZE = { w: 90, h: 40 };
 const ACK_LOW_ERROR_MESSAGE = 'Confirmá que aceptás imprimir en baja calidad.';
@@ -749,47 +750,13 @@ export default function Home() {
       setMasterWidthPx(masterWidthExact);
       setMasterHeightPx(masterHeightExact);
 
-      let uploadData = null;
-      try {
-        const uploadFilename = uploaded?.file?.name || 'design.png';
-        const uploadFile =
-          typeof File !== 'undefined'
-            ? new File([designBlob], uploadFilename, { type: designMime })
-            : null;
-        const uploadPayload = {
-          design_name: trimmedDesignName,
-          material,
-          w_cm: activeWcm,
-          h_cm: activeHcm,
-          size_bytes: designBlob.size,
-          mime: designMime,
-          sha256: designSha,
-          filename: uploadFilename,
-          ...(uploadFile ? { file: uploadFile } : { data_url: masterDataUrl }),
-        };
-        const uploadResult = await uploadOriginal(uploadPayload);
-        uploadData = { ...uploadResult.json, publicUrl: uploadResult.publicUrl };
-        logger.debug('[upload-original OK]', {
-          diagId: uploadData?.diag_id,
-          bucket: uploadData?.bucket,
-          path: uploadData?.path,
-          publicUrl: uploadResult.publicUrl,
-        });
-      } catch (uploadErr) {
-        logger.error('[upload-original EXCEPTION]', {
-          message: uploadErr?.message || uploadErr,
-          status: uploadErr?.status,
-          bodyText: uploadErr?.bodyText,
-        });
-        setErr('Error subiendo el archivo. Intentá nuevamente.');
-        return;
+      if (!DISABLE_UPLOAD_ORIGINAL) {
+        console.warn('[upload-original] flag disabled, se mantiene flujo legado.');
       }
 
-      const uploadCanonical = uploadData?.publicUrl
-        || uploadData?.file_original_url
-        || uploadData?.public_url
-        || '';
-      const uploadObjectKey = uploadData?.object_key || uploadData?.path || '';
+      const uploadCanonical = nextMasterUrl || '';
+      const uploadObjectKey = null;
+      const uploadBucket = 'outputs';
 
       setUploaded(prev => ({
         ...prev,
@@ -799,16 +766,11 @@ export default function Home() {
         file_original_url: uploadCanonical,
         canonical_url: uploadCanonical,
         object_key: uploadObjectKey,
-        bucket: uploadData?.bucket || prev?.bucket,
-        upload_diag_id: uploadData?.diag_id || null,
-        upload: uploadData?.signed_url
-          ? {
-              signed_url: uploadData.signed_url,
-              expires_in: uploadData.signed_url_expires_in,
-            }
-          : prev?.upload || null,
-        upload_size_bytes: uploadData?.size_bytes ?? designBlob.size,
-        upload_content_type: uploadData?.content_type || designMime,
+        bucket: uploadBucket || prev?.bucket,
+        upload_diag_id: null,
+        upload: prev?.upload || null,
+        upload_size_bytes: designBlob.size,
+        upload_content_type: designMime,
       }));
 
       const transferPrice = Number(priceAmount) > 0 ? Number(priceAmount) : 0;
@@ -827,10 +789,10 @@ export default function Home() {
         designHash,
         fileOriginalUrl: uploadCanonical,
         uploadObjectKey,
-        uploadBucket: uploadData?.bucket || 'uploads',
-        uploadDiagId: uploadData?.diag_id || null,
-        uploadSizeBytes: uploadData?.size_bytes ?? designBlob.size,
-        uploadContentType: uploadData?.content_type || designMime,
+        uploadBucket: uploadBucket,
+        uploadDiagId: null,
+        uploadSizeBytes: designBlob.size,
+        uploadContentType: designMime,
         uploadSha256: designSha,
         designName: trimmedDesignName,
         material,

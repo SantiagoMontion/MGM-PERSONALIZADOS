@@ -553,6 +553,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
+  respondJson(req, res, corsDecision, 410, { ok: false, error: 'upload_original_deprecated', diagId });
+  return;
+
   if (req.method !== 'POST') {
     respondJson(req, res, corsDecision, 405, { ok: false, error: 'method_not_allowed', diagId });
     return;
