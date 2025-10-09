@@ -439,13 +439,20 @@ export default async function handler(req, res) {
     parsedBody?.masterHeightMm,
     parsedBody?.masterHeightPx,
   );
-  const collapseSpaces = (value) => String(value || '').replace(/\s+/g, ' ').trim();
-  const designName = collapseSpaces(
+  const NAME_MAX_LEN = Number(process.env.NAME_MAX_LEN || 40);
+  const normalizeDesignNameKeepSpaces = (value) => {
+    const str = String(value ?? '').replace(/[\r\n\t]+/g, ' ');
+    const trimmed = str.trim();
+    return trimmed.slice(0, NAME_MAX_LEN);
+  };
+  const designNameRaw = (
     parsedBody.designName ??
     parsedBody.design_name ??
     parsedBody.name ??
-    '',
-  ) || 'Personalizado';
+    ''
+  );
+  const designNameNorm = normalizeDesignNameKeepSpaces(designNameRaw);
+  const designName = designNameNorm.length ? designNameNorm : 'Personalizado';
   const baseCategory = materialLabel === 'Glasspad' ? 'Glasspad' : 'Mousepad';
   // Formato EXACTO: "Mousepad {Nombre} {WxH} {Material} | PERSONALIZADO"
   const finalTitle = Number.isFinite(widthCmSafe) && Number.isFinite(heightCmSafe) && widthCmSafe > 0 && heightCmSafe > 0
