@@ -669,14 +669,17 @@ export default function Home() {
       const masterHeightExact = Math.max(1, Math.round(activeHcm * pxPerCm));
       const masterWidthMm = activeWcm * 10;
       const masterHeightMm = activeHcm * 10;
-      const blob = await renderMockup1080({
-        productType: material === 'Glasspad' ? 'glasspad' : 'mousepad',
-        image: img,
-        width_cm: activeWcm,
-        height_cm: activeHcm,
+      const dpiForMockup = layout?.dpi || effDpi || 300;
+      const blob = await renderMockup1080(img, {
+        material,
+        approxDpi: dpiForMockup,
         composition: {
           widthPx: masterWidthExact,
           heightPx: masterHeightExact,
+          widthMm: masterWidthMm,
+          heightMm: masterHeightMm,
+          dpi: dpiForMockup,
+          material,
         },
       });
       const mockupUrl = URL.createObjectURL(blob);
@@ -851,7 +854,15 @@ export default function Home() {
         priceCurrency: PRICE_CURRENCY,
       });
       try {
-        await ensureMockupUrlInFlow(flow);
+        await ensureMockupUrlInFlow(flow, {
+          dataUrl: masterDataUrl,
+          widthPx: masterWidthExact,
+          heightPx: masterHeightExact,
+          widthMm: masterWidthMm,
+          heightMm: masterHeightMm,
+          dpi: dpiForMockup,
+          material,
+        });
       } catch (mockupEnsureError) {
         console.warn('[diag] ensure mockup url failed during continue', mockupEnsureError);
       }

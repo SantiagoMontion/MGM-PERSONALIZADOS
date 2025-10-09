@@ -241,13 +241,19 @@ export async function ensureMockupUrl(flow: FlowState): Promise<string> {
     dpi = Number.isFinite(dpi) && dpi > 0 ? dpi : 300;
     const widthCm = cmFromPx(masterWidthPx, dpi);
     const heightCm = cmFromPx(masterHeightPx, dpi);
-    const productType = String(flowAny?.material || '').toLowerCase().includes('glass') ? 'glasspad' : 'mousepad';
-    mockupBlob = await renderMockup1080({
-      productType,
-      image,
-      width_cm: widthCm,
-      height_cm: heightCm,
-      composition: { widthPx: masterWidthPx, heightPx: masterHeightPx },
+    mockupBlob = await renderMockup1080(image, {
+      material: flowAny?.material,
+      approxDpi: dpi,
+      composition: {
+        widthPx: masterWidthPx,
+        heightPx: masterHeightPx,
+        widthCm,
+        heightCm,
+        widthMm: widthCm > 0 ? widthCm * 10 : undefined,
+        heightMm: heightCm > 0 ? heightCm * 10 : undefined,
+        dpi,
+        material: flowAny?.material,
+      },
     });
   }
 
@@ -257,8 +263,8 @@ export async function ensureMockupUrl(flow: FlowState): Promise<string> {
   const widthCm = cmFromPx(masterWidthPx, dpi);
   const heightCm = cmFromPx(masterHeightPx, dpi);
   const filenameBase = `${safeName(flowAny?.designName)} ${widthCm}x${heightCm} ${matLabelOf(flowAny?.material)}`.replace(/\s+/g, ' ').trim();
-  const filename = `${filenameBase}.jpg`;
-  const contentType = mockupBlob.type || 'image/jpeg';
+  const filename = `${filenameBase}.png`;
+  const contentType = mockupBlob.type || 'image/png';
   const sign = await signUpload({ bucket: 'preview', contentType, path: `mockups-${yyyymm()}/${filename}` });
   await uploadBlobWithSignedUrl(sign, mockupBlob, filename);
   const publicUrl = typeof sign?.publicUrl === 'string' ? sign.publicUrl : '';
