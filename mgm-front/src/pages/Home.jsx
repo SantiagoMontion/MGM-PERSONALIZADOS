@@ -139,7 +139,7 @@ async function createPreviewFromImage(image, options = {}) {
   const toBlob = (type) => new Promise((resolve) => {
     try {
       canvas.toBlob(resolve, type, quality);
-    } catch (err) {
+    } catch {
       resolve(null);
     }
   });
@@ -354,57 +354,180 @@ export default function Home() {
   }
 
   async function uploadOriginal(payload) {
-    const { file, ...rest } = payload || {};
-    let response;
-
-    const isBlob = typeof Blob !== 'undefined' && file instanceof Blob;
-    if (isBlob) {
-      const formData = new FormData();
-      const filename = typeof file.name === 'string' && file.name ? file.name : 'upload.bin';
-      formData.append('file', file, filename);
-      for (const [key, value] of Object.entries(rest)) {
-        if (value === undefined || value === null) continue;
-        if (Array.isArray(value)) {
-          for (const entry of value) {
-            if (entry === undefined || entry === null) continue;
-            formData.append(key, typeof entry === 'string' ? entry : String(entry));
-          }
-          continue;
-        }
-        formData.append(key, typeof value === 'string' ? value : String(value));
-      }
-      response = await apiFetch('POST', '/api/upload-original', formData);
-    } else {
-      response = await apiFetch('POST', '/api/upload-original', rest);
+    const { file, data_url: _legacyDataUrl, ...rest } = payload || {};
+    const blob = typeof Blob !== 'undefined' && file instanceof Blob ? file : null;
+    if (!blob) {
+      throw new Error('upload-original requires a Blob');
     }
 
-    const text = await response.text();
-    let json = null;
+    const filename = typeof blob.name === 'string' && blob.name ? blob.name : 'upload.bin';
+    const sizeBytes = Number(rest?.size_bytes) && Number.isFinite(Number(rest.size_bytes))
+      ? Number(rest.size_bytes)
+      : blob.size;
+    const contentType = typeof rest?.mime === 'string' && rest.mime
+      ? rest.mime
+      : typeof rest?.content_type === 'string' && rest.content_type
+        ? rest.content_type
+        : blob.type || 'application/octet-stream';
+
+    const startPayload = {
+      ...rest,
+      filename,
+      originalFilename: filename,
+      size_bytes: sizeBytes,
+      sizeBytes,
+      mime: contentType,
+      content_type: contentType,
+      uploadStrategy: 'direct',
+    };
+
+    const startResponse = await apiFetch('POST', '/api/upload-original/start', startPayload);
+    const startText = await startResponse.text();
+    let startJson = null;
     try {
-      json = text ? JSON.parse(text) : null;
+      startJson = startText ? JSON.parse(startText) : null;
     } catch {
-      json = null;
+      startJson = null;
     }
 
-    if (!response.ok) {
-      const message = typeof json?.error === 'string' && json.error ? json.error : text;
-      const error = new Error(`HTTP ${response.status}${message ? ` ${message}` : ''}`.trim());
-      error.status = response.status;
-      error.bodyText = text;
-      error.json = json;
+    if (!startResponse.ok) {
+      const message = typeof startJson?.error === 'string' && startJson.error ? startJson.error : startText;
+      const error = new Error(`HTTP ${startResponse.status}${message ? ` ${message}` : ''}`.trim());
+      error.status = startResponse.status;
+      error.bodyText = startText;
+      error.json = startJson;
       throw error;
     }
 
-    const publicUrl = json?.publicUrl ?? json?.url ?? json?.supabase?.publicUrl ?? null;
+    const uploadInfo = (() => {
+      if (startJson?.upload && typeof startJson.upload === 'object') return startJson.upload;
+      return startJson || {};
+    })();
+
+    const uploadUrl = typeof uploadInfo?.url === 'string' && uploadInfo.url
+      ? uploadInfo.url
+      : typeof startJson?.uploadUrl === 'string' && startJson.uploadUrl
+        ? startJson.uploadUrl
+        : typeof startJson?.url === 'string' && startJson.url
+          ? startJson.url
+          : '';
+    if (!uploadUrl) {
+      const error = new Error('upload-original/start: missing uploadUrl');
+      error.status = startResponse.status;
+      error.bodyText = startText;
+      error.json = startJson;
+      throw error;
+    }
+
+    const uploadMethodRaw = uploadInfo?.method || startJson?.uploadMethod || startJson?.method;
+    const uploadMethod = typeof uploadMethodRaw === 'string' && uploadMethodRaw
+      ? uploadMethodRaw.toUpperCase()
+      : uploadInfo?.fields
+        ? 'POST'
+        : 'PUT';
+
+    let uploadResponse;
+    if (uploadMethod === 'POST' && uploadInfo?.fields && typeof FormData !== 'undefined') {
+      const formData = new FormData();
+      Object.entries(uploadInfo.fields).forEach(([key, value]) => {
+        if (value === undefined || value === null) return;
+        formData.append(key, typeof value === 'string' ? value : String(value));
+      });
+      const fileField = typeof uploadInfo?.fileField === 'string' && uploadInfo.fileField
+        ? uploadInfo.fileField
+        : 'file';
+      formData.append(fileField, blob, filename);
+      uploadResponse = await fetch(uploadUrl, { method: 'POST', body: formData });
+    } else {
+      const headers = new Headers();
+      const headerSources = [uploadInfo?.headers, startJson?.headers, startJson?.uploadHeaders];
+      for (const source of headerSources) {
+        if (!source || typeof source !== 'object') continue;
+        for (const [key, value] of Object.entries(source)) {
+          if (value === undefined || value === null) continue;
+          headers.set(key, String(value));
+        }
+      }
+      if (!headers.has('Content-Type') && contentType) {
+        headers.set('Content-Type', contentType);
+      }
+      uploadResponse = await fetch(uploadUrl, {
+        method: uploadMethod,
+        headers,
+        body: blob,
+      });
+    }
+
+    if (!uploadResponse?.ok) {
+      const error = new Error(`upload-original upload failed (${uploadResponse?.status || 'no_status'})`);
+      error.status = uploadResponse?.status;
+      error.bodyText = await uploadResponse?.text?.() ?? '';
+      throw error;
+    }
+
+    const finalizePayloadBase = {
+      ...rest,
+      filename,
+      size_bytes: sizeBytes,
+      sizeBytes,
+      mime: contentType,
+      content_type: contentType,
+      diagId: startJson?.diagId || startJson?.diag_id || startJson?.uploadDiagId || undefined,
+      diag_id: startJson?.diag_id || undefined,
+      uploadId: startJson?.uploadId || startJson?.id || uploadInfo?.id || undefined,
+      path: startJson?.path || uploadInfo?.path || undefined,
+      bucket: startJson?.bucket || uploadInfo?.bucket || undefined,
+      objectKey: startJson?.objectKey || uploadInfo?.objectKey || uploadInfo?.object_key || undefined,
+      uploadToken: startJson?.uploadToken || uploadInfo?.uploadToken || undefined,
+      ...(typeof startJson?.finalizePayload === 'object' && startJson.finalizePayload ? startJson.finalizePayload : {}),
+    };
+
+    const finalizePayload = Object.entries(finalizePayloadBase).reduce((acc, [key, value]) => {
+      if (value === undefined) return acc;
+      acc[key] = value;
+      return acc;
+    }, {});
+
+    const finalizeUrl = typeof startJson?.finalizeUrl === 'string' && startJson.finalizeUrl
+      ? startJson.finalizeUrl
+      : '/api/upload-original/finalize';
+
+    const finalizeResponse = await apiFetch('POST', finalizeUrl, finalizePayload);
+    const finalizeText = await finalizeResponse.text();
+    let finalizeJson = null;
+    try {
+      finalizeJson = finalizeText ? JSON.parse(finalizeText) : null;
+    } catch {
+      finalizeJson = null;
+    }
+
+    if (!finalizeResponse.ok) {
+      const message = typeof finalizeJson?.error === 'string' && finalizeJson.error ? finalizeJson.error : finalizeText;
+      const error = new Error(`HTTP ${finalizeResponse.status}${message ? ` ${message}` : ''}`.trim());
+      error.status = finalizeResponse.status;
+      error.bodyText = finalizeText;
+      error.json = finalizeJson;
+      throw error;
+    }
+
+    const publicUrl = finalizeJson?.publicUrl
+      ?? finalizeJson?.file_original_url
+      ?? finalizeJson?.public_url
+      ?? finalizeJson?.url
+      ?? null;
     if (!publicUrl) {
-      const error = new Error('upload-original: missing publicUrl');
-      error.status = response.status;
-      error.bodyText = text;
-      error.json = json;
+      const error = new Error('upload-original/finalize: missing publicUrl');
+      error.status = finalizeResponse.status;
+      error.bodyText = finalizeText;
+      error.json = finalizeJson;
       throw error;
     }
 
-    return { publicUrl, json: json ?? {} };
+    return {
+      publicUrl,
+      start: startJson ?? {},
+      finalize: finalizeJson ?? {},
+    };
   }
 
   async function handleContinue() {
@@ -667,12 +790,14 @@ export default function Home() {
       const designSha = await sha256Hex(designBlob);
 
       let uploadData = null;
+      let finalizeData = null;
+      let startData = null;
       try {
         const uploadFilename = uploaded?.file?.name || 'design.png';
         const uploadFile =
           typeof File !== 'undefined'
             ? new File([designBlob], uploadFilename, { type: designMime })
-            : null;
+            : designBlob;
         const uploadPayload = {
           design_name: trimmedDesignName,
           material,
@@ -682,12 +807,18 @@ export default function Home() {
           mime: designMime,
           sha256: designSha,
           filename: uploadFilename,
-          ...(uploadFile ? { file: uploadFile } : { data_url: master }),
+          file: uploadFile,
         };
         const uploadResult = await uploadOriginal(uploadPayload);
-        uploadData = { ...uploadResult.json, publicUrl: uploadResult.publicUrl };
+        finalizeData = uploadResult?.finalize || {};
+        startData = uploadResult?.start || {};
+        uploadData = {
+          ...(startData && typeof startData === 'object' ? startData : {}),
+          ...(finalizeData && typeof finalizeData === 'object' ? finalizeData : {}),
+          publicUrl: uploadResult.publicUrl,
+        };
         logger.debug('[upload-original OK]', {
-          diagId: uploadData?.diag_id,
+          diagId: uploadData?.diag_id || uploadData?.diagId || finalizeData?.rid,
           bucket: uploadData?.bucket,
           path: uploadData?.path,
           publicUrl: uploadResult.publicUrl,
@@ -706,7 +837,33 @@ export default function Home() {
         || uploadData?.file_original_url
         || uploadData?.public_url
         || '';
-      const uploadObjectKey = uploadData?.object_key || uploadData?.path || '';
+      const uploadObjectKey = uploadData?.originalObjectKey
+        || uploadData?.object_key
+        || uploadData?.path
+        || '';
+      const uploadBucket = uploadData?.originalBucket || uploadData?.bucket || 'uploads';
+      const uploadDiagId = uploadData?.rid
+        || uploadData?.diag_id
+        || uploadData?.diagId
+        || startData?.diag_id
+        || startData?.diagId
+        || uploadData?.request_id
+        || startData?.request_id
+        || null;
+      const originalMime = uploadData?.originalMime
+        || uploadData?.mime
+        || uploadData?.content_type
+        || designMime;
+
+      const ridFromFinalize = uploadData?.rid
+        || finalizeData?.rid
+        || finalizeData?.diag_id
+        || finalizeData?.diagId
+        || finalizeData?.request_id
+        || uploadData?.request_id
+        || startData?.request_id
+        || uploadDiagId
+        || null;
 
       setUploaded(prev => ({
         ...prev,
@@ -716,8 +873,8 @@ export default function Home() {
         file_original_url: uploadCanonical,
         canonical_url: uploadCanonical,
         object_key: uploadObjectKey,
-        bucket: uploadData?.bucket || prev?.bucket,
-        upload_diag_id: uploadData?.diag_id || null,
+        bucket: uploadBucket || prev?.bucket,
+        upload_diag_id: uploadDiagId,
         upload: uploadData?.signed_url
           ? {
               signed_url: uploadData.signed_url,
@@ -725,7 +882,7 @@ export default function Home() {
             }
           : prev?.upload || null,
         upload_size_bytes: uploadData?.size_bytes ?? designBlob.size,
-        upload_content_type: uploadData?.content_type || designMime,
+        upload_content_type: uploadData?.content_type || uploadData?.mime || designMime,
       }));
 
       const transferPrice = Number(priceAmount) > 0 ? Number(priceAmount) : 0;
@@ -740,12 +897,13 @@ export default function Home() {
         fileOriginalUrl: uploadCanonical,
         uploadObjectKey,
         originalObjectKey: uploadObjectKey,
-        uploadBucket: uploadData?.bucket || 'uploads',
-        originalBucket: uploadData?.bucket || 'uploads',
-        uploadDiagId: uploadData?.diag_id || null,
+        uploadBucket,
+        originalBucket: uploadBucket,
+        uploadDiagId,
+        rid: ridFromFinalize,
         uploadSizeBytes: uploadData?.size_bytes ?? designBlob.size,
-        uploadContentType: uploadData?.content_type || designMime,
-        originalMime: uploadData?.content_type || designMime,
+        uploadContentType: uploadData?.content_type || uploadData?.mime || designMime,
+        originalMime,
         uploadSha256: designSha,
         designName: trimmedDesignName,
         material,
