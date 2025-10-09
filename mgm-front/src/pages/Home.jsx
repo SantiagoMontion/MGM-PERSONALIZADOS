@@ -381,7 +381,11 @@ export default function Home() {
       uploadStrategy: 'direct',
     };
 
-    const startResponse = await apiFetch('POST', '/api/upload-original/start', startPayload);
+    const startResponse = await apiFetch('POST', '/api/upload-original/start', startPayload, {
+      headers: {
+        'x-file-name': filename,
+      },
+    });
     const startText = await startResponse.text();
     let startJson = null;
     try {
@@ -448,8 +452,13 @@ export default function Home() {
           headers.set(key, String(value));
         }
       }
-      if (!headers.has('Content-Type') && contentType) {
-        headers.set('Content-Type', contentType);
+      const resolvedUploadContentType =
+        startJson?.contentType
+        || startJson?.content_type
+        || uploadInfo?.contentType
+        || contentType;
+      if (!headers.has('Content-Type') && resolvedUploadContentType) {
+        headers.set('Content-Type', resolvedUploadContentType);
       }
       uploadResponse = await fetch(uploadUrl, {
         method: uploadMethod,
@@ -853,6 +862,7 @@ export default function Home() {
       const originalMime = uploadData?.originalMime
         || uploadData?.mime
         || uploadData?.content_type
+        || uploadData?.contentType
         || designMime;
 
       const ridFromFinalize = uploadData?.rid
@@ -882,7 +892,7 @@ export default function Home() {
             }
           : prev?.upload || null,
         upload_size_bytes: uploadData?.size_bytes ?? designBlob.size,
-        upload_content_type: uploadData?.content_type || uploadData?.mime || designMime,
+        upload_content_type: uploadData?.content_type || uploadData?.contentType || uploadData?.mime || designMime,
       }));
 
       const transferPrice = Number(priceAmount) > 0 ? Number(priceAmount) : 0;
@@ -902,7 +912,7 @@ export default function Home() {
         uploadDiagId,
         rid: ridFromFinalize,
         uploadSizeBytes: uploadData?.size_bytes ?? designBlob.size,
-        uploadContentType: uploadData?.content_type || uploadData?.mime || designMime,
+        uploadContentType: uploadData?.content_type || uploadData?.contentType || uploadData?.mime || designMime,
         originalMime,
         uploadSha256: designSha,
         designName: trimmedDesignName,
