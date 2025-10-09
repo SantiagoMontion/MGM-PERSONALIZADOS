@@ -8,10 +8,13 @@ export type FlowState = {
   printFullResDataUrl?: string;
   fileOriginalUrl?: string | null;
   uploadObjectKey?: string | null;
+  originalObjectKey?: string | null;
   uploadBucket?: string | null;
+  originalBucket?: string | null;
   uploadDiagId?: string | null;
   uploadSizeBytes?: number | null;
   uploadContentType?: string | null;
+  originalMime?: string | null;
   uploadSha256?: string | null;
   jobId?: string | null;
   designName?: string;
@@ -49,10 +52,13 @@ const defaultState: Omit<FlowState, 'set' | 'reset'> = {
   printFullResDataUrl: undefined,
   fileOriginalUrl: undefined,
   uploadObjectKey: undefined,
+  originalObjectKey: undefined,
   uploadBucket: undefined,
+  originalBucket: undefined,
   uploadDiagId: undefined,
   uploadSizeBytes: undefined,
   uploadContentType: undefined,
+  originalMime: undefined,
   uploadSha256: undefined,
   jobId: undefined,
   designName: '',
