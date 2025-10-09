@@ -413,6 +413,12 @@ export default function Mockup() {
   );
 
   const mockupUrl = flow.mockupUrl;
+  const mockupImageSrc = useMemo(() => {
+    const state = typeof flow?.get === 'function' ? flow.get() : flow;
+    if (state?.mockupPublicUrl) return state.mockupPublicUrl;
+    if (state?.mockupUrl) return state.mockupUrl;
+    return isDataUrl(state?.mockupDataUrl) ? state.mockupDataUrl : null;
+  }, [flow]);
 
   function debugTrackFire(eventName, ridValue) {
     if (typeof window === 'undefined') return;
@@ -1489,7 +1495,9 @@ export default function Mockup() {
   };
 
   const hasMockupImage =
-    typeof mockupUrl === 'string' ? mockupUrl.trim().length > 0 : Boolean(mockupUrl);
+    typeof mockupImageSrc === 'string'
+      ? mockupImageSrc.trim().length > 0
+      : Boolean(mockupImageSrc);
 
   return (
     <div id="mockup-review" className={styles.review}>
@@ -1509,7 +1517,7 @@ export default function Mockup() {
           </h1>
           {hasMockupImage ? (
             <img
-              src={mockupUrl}
+              src={mockupImageSrc}
               className={styles.mockupImage}
               alt="Vista previa de tu mousepad personalizado"
             />
