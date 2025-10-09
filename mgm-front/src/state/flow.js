@@ -26,11 +26,13 @@ const defaultState = {
   priceCurrency: 'ARS',
   customerEmail: '',
   lastProduct: null,
+  original: null,
 };
 
 const FlowContext = createContext({
   ...defaultState,
   set: () => {},
+  setOriginal: () => {},
   reset: () => {},
 });
 
@@ -39,6 +41,7 @@ export function FlowProvider({ children }) {
   const value = {
     ...state,
     set: (partial) => setState((s) => ({ ...s, ...partial })),
+    setOriginal: (original) => setState((s) => ({ ...s, original })),
     reset: () => {
       try {
         if (state.mockupUrl) URL.revokeObjectURL(state.mockupUrl);

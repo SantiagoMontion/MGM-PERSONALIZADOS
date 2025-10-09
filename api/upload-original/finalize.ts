@@ -490,13 +490,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const originalUrl = buildPublicUrl(baseUrl, sanitizedStorageKey);
 
+    const originalObjectKeyForResponse = normalizedObjectKeyForResponse || responseObjectKey;
+
     const responsePayload: Record<string, unknown> = {
       ok: true,
       originalUrl,
       originalKey: responseObjectKey,
-      originalObjectKey: normalizedObjectKeyForResponse || responseObjectKey,
-      objectKey: responseObjectKey,
-      object_key: responseObjectKey,
+      originalObjectKey: originalObjectKeyForResponse,
+      publicUrl: originalUrl,
+      public_url: originalUrl,
+      objectKey: originalObjectKeyForResponse,
+      object_key: originalObjectKeyForResponse,
       path: responseObjectKey,
       bucket: resolvedBucket,
       originalBucket: resolvedBucket,

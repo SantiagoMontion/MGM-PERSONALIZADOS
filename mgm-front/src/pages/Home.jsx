@@ -609,18 +609,31 @@ export default function Home() {
       throw error;
     }
 
-    const publicUrl = finalizeJson?.publicUrl
-      ?? finalizeJson?.file_original_url
+    const publicUrl = finalizeJson?.originalUrl
+      ?? finalizeJson?.publicUrl
       ?? finalizeJson?.public_url
+      ?? finalizeJson?.file_original_url
       ?? finalizeJson?.url
       ?? null;
-    if (!publicUrl) {
-      const error = new Error('upload-original/finalize: missing publicUrl');
+    const objectKey = finalizeJson?.originalObjectKey
+      ?? finalizeJson?.objectKey
+      ?? finalizeJson?.object_key
+      ?? finalizeJson?.path
+      ?? null;
+    if (!publicUrl || !objectKey) {
+      const error = new Error('finalize_missing_fields');
       error.status = finalizeResponse.status;
       error.bodyText = finalizeText;
       error.json = finalizeJson;
       throw error;
     }
+
+    flow?.setOriginal?.({
+      bucket: finalizeJson?.originalBucket || finalizeJson?.bucket || 'uploads',
+      objectKey,
+      publicUrl,
+      mime: finalizeJson?.originalMime || finalizeJson?.contentType || finalizeJson?.content_type || null,
+    });
 
     return {
       publicUrl,
