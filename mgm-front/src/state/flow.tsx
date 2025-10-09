@@ -12,6 +12,7 @@ export type FlowState = {
   uploadBucket?: string | null;
   originalBucket?: string | null;
   uploadDiagId?: string | null;
+  rid?: string | null;
   uploadSizeBytes?: number | null;
   uploadContentType?: string | null;
   originalMime?: string | null;
@@ -56,6 +57,7 @@ const defaultState: Omit<FlowState, 'set' | 'reset'> = {
   uploadBucket: undefined,
   originalBucket: undefined,
   uploadDiagId: undefined,
+  rid: undefined,
   uploadSizeBytes: undefined,
   uploadContentType: undefined,
   originalMime: undefined,
@@ -80,11 +82,28 @@ const FlowContext = createContext<FlowState>({
 
 export function FlowProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState(defaultState);
+  const revokeIfObjectUrl = (value?: string) => {
+    if (typeof value === 'string' && value.startsWith('blob:')) {
+      try {
+        URL.revokeObjectURL(value);
+      } catch {}
+    }
+  };
   const value: FlowState = {
     ...state,
-    set: (p) => setState((s) => ({ ...s, ...p })),
+    set: (p) => setState((s) => {
+      if (p && typeof p === 'object' && Object.prototype.hasOwnProperty.call(p, 'mockupUrl')) {
+        const nextMockupUrl = (p as { mockupUrl?: unknown }).mockupUrl;
+        if (typeof s.mockupUrl === 'string'
+          && s.mockupUrl
+          && nextMockupUrl !== s.mockupUrl) {
+          revokeIfObjectUrl(s.mockupUrl);
+        }
+      }
+      return { ...s, ...p };
+    }),
     reset: () => {
-      if (state.mockupUrl) URL.revokeObjectURL(state.mockupUrl);
+      revokeIfObjectUrl(state.mockupUrl || undefined);
       setState(defaultState);
     },
   };

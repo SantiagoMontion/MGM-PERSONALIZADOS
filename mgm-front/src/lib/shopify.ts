@@ -301,8 +301,59 @@ function resolveMockupUploadUrl(flow: FlowState): string {
   return '';
 }
 
+async function uploadMockupAsset(blob: Blob, filename: string): Promise<{ url: string; json: any }> {
+  if (!blob) {
+    throw new Error('upload-mockup requires a blob');
+  }
+  if (typeof FormData === 'undefined') {
+    throw new Error('upload-mockup requires FormData support');
+  }
+
+  const formData = new FormData();
+  formData.append('file', blob, filename);
+  formData.append('filename', filename);
+
+  const response = await apiFetch('POST', '/api/upload-mockup', formData);
+  const text = await response.text();
+  let json: any = null;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    json = null;
+  }
+
+  if (!response.ok) {
+    const message = typeof json?.error === 'string' && json.error ? json.error : text;
+    const error: Error & { status?: number; bodyText?: string; json?: any } = new Error(
+      `HTTP ${response.status}${message ? ` ${message}` : ''}`.trim(),
+    );
+    error.status = response.status;
+    error.bodyText = text;
+    error.json = json;
+    throw error;
+  }
+
+  const url = json?.mockupUrl
+    ?? json?.mockup_url
+    ?? json?.url
+    ?? json?.publicUrl
+    ?? json?.public_url
+    ?? json?.signedUrl
+    ?? '';
+  if (!url) {
+    const error: Error & { status?: number; bodyText?: string; json?: any } = new Error('upload-mockup missing url');
+    error.status = response.status;
+    error.bodyText = text;
+    error.json = json;
+    throw error;
+  }
+
+  return { url, json };
+}
+
 function readFlowRid(flow: FlowState): string {
   const candidates: unknown[] = [
+    (flow as any)?.rid,
     (flow as any)?.uploadDiagId,
     (flow as any)?.editorState?.upload_diag_id,
     (flow as any)?.editorState?.diag_id,
@@ -423,9 +474,45 @@ export async function createJobAndProduct(
   let imageAlt = `Mockup ${productTitle}`;
 
   if (!canReuse) {
+    let mockupEndpointMissing = false;
+    const mockupBlob = flow.mockupBlob instanceof Blob ? flow.mockupBlob : null;
+
+    if (!mockupUploadUrl && mockupBlob) {
+      const mockupFilename = `${slugify(designName || productTitle)}-mockup.png`;
+      try {
+        const uploadResult = await uploadMockupAsset(mockupBlob, mockupFilename);
+        const uploadedUrl = typeof uploadResult?.url === 'string' ? uploadResult.url.trim() : '';
+        if (uploadedUrl) {
+          mockupUploadUrl = uploadedUrl;
+          try {
+            flow.set?.({ mockupUrl: uploadedUrl });
+          } catch (setErr) {
+            logger.debug('[createJobAndProduct] mockup_flow_set_failed', setErr);
+          }
+        }
+      } catch (mockupErr: any) {
+        if (mockupErr?.status === 404) {
+          mockupEndpointMissing = true;
+        } else {
+          logger.error('[createJobAndProduct] upload_mockup_failed', mockupErr);
+          throw mockupErr;
+        }
+      }
+    }
+
     if (!mockupUploadUrl) {
-      if (!flow.mockupBlob) throw new Error('missing_mockup');
-      mockupDataUrl = await blobToBase64(flow.mockupBlob);
+      if (!mockupBlob) {
+        const err: Error & { reason?: string } = new Error('missing_mockup');
+        err.reason = 'missing_mockup';
+        throw err;
+      }
+      if (!mockupEndpointMissing) {
+        const err: Error & { reason?: string } = new Error('mockup_upload_missing_url');
+        err.reason = 'mockup_upload_missing_url';
+        throw err;
+      }
+
+      mockupDataUrl = await blobToBase64(mockupBlob);
       if (!mockupDataUrl) {
         const err: Error & { reason?: string } = new Error('missing_mockup');
         err.reason = 'missing_mockup';
@@ -472,6 +559,22 @@ export async function createJobAndProduct(
       ? { w: widthCm * 10, h: heightCm * 10 }
       : undefined;
 
+    if (!ridForPublish) {
+      const err: Error & { reason?: string } = new Error('missing_rid');
+      err.reason = 'missing_rid';
+      throw err;
+    }
+
+    const originalObjectKey = originalObjectKeyRaw || '';
+    if (!originalObjectKey) {
+      const err: Error & { reason?: string } = new Error('missing_original_object_key');
+      err.reason = 'missing_original_object_key';
+      throw err;
+    }
+
+    const originalBucket = originalBucketRaw || 'uploads';
+    const originalMime = originalMimeRaw || undefined;
+
     const publishPayload: Record<string, unknown> = {
       productType,
       designName,
@@ -479,12 +582,12 @@ export async function createJobAndProduct(
       material: materialLabel,
       widthCm,
       heightCm,
-      rid: ridForPublish || undefined,
+      rid: ridForPublish,
       design_slug: designSlugForPublish,
       size_mm: sizeMmPayload,
-      originalObjectKey: originalObjectKeyRaw || null,
-      originalBucket: originalBucketRaw || null,
-      originalMime: originalMimeRaw || null,
+      originalObjectKey,
+      originalBucket,
+      originalMime: originalMime ?? undefined,
       approxDpi,
       priceTransfer: priceTransferRaw,
       priceCurrency,
@@ -570,16 +673,7 @@ export async function createJobAndProduct(
     removeIfDataImage('previewImage');
 
     try {
-      console.debug('[publish-payload]', {
-        rid: publishPayload.rid ?? null,
-        originalObjectKey: publishPayload.originalObjectKey ?? null,
-        originalBucket: publishPayload.originalBucket ?? null,
-        originalMime: publishPayload.originalMime ?? null,
-        mockupUrl: publishPayload.mockupUrl ?? null,
-        design_slug: publishPayload.design_slug ?? null,
-        size_mm: publishPayload.size_mm ?? null,
-        material: publishPayload.material ?? null,
-      });
+      console.debug('[publish-payload]', publishPayload);
     } catch (payloadDebugErr) {
       logger.debug('[createJobAndProduct] publish_payload_debug_failed', payloadDebugErr);
     }
