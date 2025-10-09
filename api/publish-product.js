@@ -163,8 +163,17 @@ function resolveBinaryLength(value) {
 function estimatePayloadBytes(body) {
   if (!body || typeof body !== 'object') return null;
 
-  if (typeof body.mockupDataUrl === 'string') {
-    const bytes = estimateDataUrlBytes(body.mockupDataUrl);
+  const mockupDataUrl = typeof body.mockupDataUrl === 'string' ? body.mockupDataUrl : null;
+  if (mockupDataUrl) {
+    const bytes = estimateDataUrlBytes(mockupDataUrl);
+    if (bytes != null) {
+      return bytes;
+    }
+  }
+
+  const mockupUrl = typeof body.mockupUrl === 'string' ? body.mockupUrl : null;
+  if (mockupUrl && mockupUrl.startsWith('data:')) {
+    const bytes = estimateDataUrlBytes(mockupUrl);
     if (bytes != null) {
       return bytes;
     }
@@ -389,9 +398,11 @@ export default async function handler(req, res) {
   parsedBody.masterWidthPx = Number.isFinite(masterWidthPx) && masterWidthPx > 0 ? Math.round(masterWidthPx) : null;
   parsedBody.masterHeightPx = Number.isFinite(masterHeightPx) && masterHeightPx > 0 ? Math.round(masterHeightPx) : null;
 
-  if (typeof parsedBody.mockupDataUrl !== 'string' || parsedBody.mockupDataUrl.length > 2048) {
-    parsedBody.mockupDataUrl = mockupUrlRaw;
+  if (typeof parsedBody.mockupDataUrl === 'string' && parsedBody.mockupDataUrl.length > 200000) {
+    sendJsonWithCors(req, res, 400, { ok: false, error: 'mockup_dataurl_too_large', diagId });
+    return;
   }
+  delete parsedBody.mockupDataUrl;
   delete parsedBody.mockupBytes;
   delete parsedBody.mockupBuffer;
   delete parsedBody.mockupBinary;
