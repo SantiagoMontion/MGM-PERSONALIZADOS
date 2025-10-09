@@ -356,6 +356,47 @@ export default async function handler(req, res) {
 
   req.body = parsedBody;
 
+  const mockupUrlRaw = typeof parsedBody.mockupUrl === 'string' ? parsedBody.mockupUrl.trim() : '';
+  const pdfUrlRaw = typeof parsedBody.pdfPublicUrl === 'string' ? parsedBody.pdfPublicUrl.trim() : '';
+  const designHashRaw = typeof parsedBody.designHash === 'string' ? parsedBody.designHash.trim().toLowerCase() : '';
+  if (!mockupUrlRaw) {
+    sendJsonWithCors(req, res, 400, { ok: false, error: 'mockup_url_required', diagId });
+    return;
+  }
+  if (!pdfUrlRaw) {
+    sendJsonWithCors(req, res, 400, { ok: false, error: 'pdf_url_required', diagId });
+    return;
+  }
+  if (!/^[a-f0-9]{64}$/.test(designHashRaw)) {
+    sendJsonWithCors(req, res, 400, { ok: false, error: 'design_hash_invalid', diagId });
+    return;
+  }
+
+  const masterWidthPx = Number(parsedBody.masterWidthPx ?? parsedBody.master_width_px);
+  const masterHeightPx = Number(parsedBody.masterHeightPx ?? parsedBody.master_height_px);
+  if (parsedBody.masterWidthPx != null && (!Number.isFinite(masterWidthPx) || masterWidthPx <= 0)) {
+    sendJsonWithCors(req, res, 400, { ok: false, error: 'master_width_invalid', diagId });
+    return;
+  }
+  if (parsedBody.masterHeightPx != null && (!Number.isFinite(masterHeightPx) || masterHeightPx <= 0)) {
+    sendJsonWithCors(req, res, 400, { ok: false, error: 'master_height_invalid', diagId });
+    return;
+  }
+
+  parsedBody.mockupUrl = mockupUrlRaw;
+  parsedBody.pdfPublicUrl = pdfUrlRaw;
+  parsedBody.designHash = designHashRaw;
+  parsedBody.masterWidthPx = Number.isFinite(masterWidthPx) && masterWidthPx > 0 ? Math.round(masterWidthPx) : null;
+  parsedBody.masterHeightPx = Number.isFinite(masterHeightPx) && masterHeightPx > 0 ? Math.round(masterHeightPx) : null;
+
+  if (typeof parsedBody.mockupDataUrl !== 'string' || parsedBody.mockupDataUrl.length > 2048) {
+    parsedBody.mockupDataUrl = mockupUrlRaw;
+  }
+  delete parsedBody.mockupBytes;
+  delete parsedBody.mockupBuffer;
+  delete parsedBody.mockupBinary;
+  delete parsedBody.mockupData;
+
   const estimatedBytes = estimatePayloadBytes(parsedBody);
   const headerBytes = typeof bytesRead === 'number' ? bytesRead : getContentLengthHeader(req);
   const effectiveEstimate = typeof estimatedBytes === 'number' ? estimatedBytes : headerBytes;

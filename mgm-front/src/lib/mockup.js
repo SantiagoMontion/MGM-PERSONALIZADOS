@@ -17,6 +17,25 @@ export async function renderMockup1080(opts) {
     return new Promise((res) => canvas.toBlob(res, 'image/png', 1));
   }
 
+  const compWidth = Number(opts?.composition?.widthPx);
+  const compHeight = Number(opts?.composition?.heightPx);
+  if (Number.isFinite(compWidth) && Number.isFinite(compHeight) && compWidth > 0 && compHeight > 0) {
+    const longest = Math.max(compWidth, compHeight);
+    const scale = longest > 0 ? Math.min(1, 1080 / longest) : 1;
+    const targetWidth = Math.max(1, Math.round(compWidth * scale));
+    const targetHeight = Math.max(1, Math.round(compHeight * scale));
+    const directCanvas = document.createElement('canvas');
+    directCanvas.width = targetWidth;
+    directCanvas.height = targetHeight;
+    const directCtx = directCanvas.getContext('2d');
+    if (!directCtx) throw new Error('2d context unavailable');
+    directCtx.imageSmoothingEnabled = true;
+    directCtx.imageSmoothingQuality = 'high';
+    directCtx.drawImage(image, 0, 0, targetWidth, targetHeight);
+    const jpegBlob = await new Promise((res) => directCanvas.toBlob(res, 'image/jpeg', 0.82));
+    return jpegBlob || new Blob([], { type: 'image/jpeg' });
+  }
+
   const widthCm = Number(
     opts.widthCm ??
       opts.width_cm ??
