@@ -21,6 +21,7 @@ type CompositionOptions = {
 
 export type MockupOptions = {
   material?: string;
+  materialLabel?: string;
   widthPx?: number;
   heightPx?: number;
   width_px?: number;
@@ -67,9 +68,41 @@ export async function renderMockup1080(
   options = options ?? maybeOptions ?? {};
 
   const CANVAS_SIZE = 1080;
-  const MAX_LONG_PX = Number(import.meta.env?.VITE_MOCKUP_MAX_LONG_PX) || 990;
-  const MIN_LONG_PX = Number(import.meta.env?.VITE_MOCKUP_MIN_LONG_PX) || 400;
-  const REF_MIN_CM = Number(import.meta.env?.VITE_REF_MIN_CM) || 20;
+  const CLASSIC_MAX_LONG_PX = Number(
+    import.meta.env?.VITE_MOCKUP_CLASSIC_MAX_LONG_PX ??
+    import.meta.env?.VITE_MOCKUP_MAX_LONG_PX,
+  ) || 990;
+  const CLASSIC_MIN_LONG_PX = Number(
+    import.meta.env?.VITE_MOCKUP_CLASSIC_MIN_LONG_PX ??
+    import.meta.env?.VITE_MOCKUP_MIN_LONG_PX,
+  ) || 400;
+  const CLASSIC_REF_MAX_LONG_CM = Number(
+    import.meta.env?.VITE_CLASSIC_REF_MAX_LONG_CM ??
+    import.meta.env?.VITE_REF_MAX_CM_CLASSIC ??
+    import.meta.env?.VITE_REF_MAX_CM_PRO,
+  ) || 140;
+  const CLASSIC_REF_MIN_LONG_CM = Number(
+    import.meta.env?.VITE_CLASSIC_REF_MIN_LONG_CM ??
+    import.meta.env?.VITE_REF_MIN_CM,
+  ) || 20;
+  const GLASS_MAX_LONG_PX = Number(
+    import.meta.env?.VITE_MOCKUP_GLASSPAD_MAX_LONG_PX ??
+    import.meta.env?.VITE_MOCKUP_GLASS_MAX_LONG_PX ??
+    import.meta.env?.VITE_MOCKUP_MAX_LONG_PX,
+  ) || 860;
+  const GLASS_MIN_LONG_PX = Number(
+    import.meta.env?.VITE_MOCKUP_GLASSPAD_MIN_LONG_PX ??
+    import.meta.env?.VITE_MOCKUP_GLASS_MIN_LONG_PX ??
+    import.meta.env?.VITE_MOCKUP_MIN_LONG_PX,
+  ) || 420;
+  const GLASS_REF_MAX_LONG_CM = Number(
+    import.meta.env?.VITE_GLASSPAD_REF_MAX_LONG_CM ??
+    import.meta.env?.VITE_REF_MAX_CM_GLASS,
+  ) || 49;
+  const GLASS_REF_MIN_LONG_CM = Number(
+    import.meta.env?.VITE_GLASSPAD_REF_MIN_LONG_CM ??
+    import.meta.env?.VITE_REF_MIN_CM,
+  ) || 20;
   const RADIUS_PX = Number(import.meta.env?.VITE_MOCKUP_PAD_RADIUS_PX) || 8;
 
   function roundRectPath(
@@ -94,11 +127,33 @@ export async function renderMockup1080(
     ctx.closePath();
   }
 
-  const REF_MAX_CM_MAP = {
-    classic: Number(import.meta.env?.VITE_REF_MAX_CM_CLASSIC) || 140,
-    pro: Number(import.meta.env?.VITE_REF_MAX_CM_PRO) || 140,
-    glass: Number(import.meta.env?.VITE_REF_MAX_CM_GLASS) || 49,
-  } as const;
+  function materialLabelFromOpts(opts?: MockupOptions | CompositionOptions) {
+    const raw = String(
+      (opts as any)?.material ||
+      (opts as any)?.materialLabel ||
+      (opts as any)?.options?.material ||
+      (opts as any)?.composition?.material ||
+      (opts as any)?.productType ||
+      '',
+    ).toLowerCase();
+    if (raw.includes('glass')) return 'Glasspad';
+    if (raw.includes('pro')) return 'PRO';
+    return 'Classic';
+  }
+
+  function mapLongPxByMaterial(longCm: number, material: string) {
+    const isGlass = material === 'Glasspad';
+    const maxPx = isGlass ? GLASS_MAX_LONG_PX : CLASSIC_MAX_LONG_PX;
+    const minPx = isGlass ? GLASS_MIN_LONG_PX : CLASSIC_MIN_LONG_PX;
+    const refMax = isGlass ? GLASS_REF_MAX_LONG_CM : CLASSIC_REF_MAX_LONG_CM;
+    const refMin = isGlass ? GLASS_REF_MIN_LONG_CM : CLASSIC_REF_MIN_LONG_CM;
+    const span = Math.max(1, refMax - refMin);
+    const tRaw = (Number(longCm) - refMin) / span;
+    const t = Math.max(0, Math.min(1, tRaw));
+    const exp = isGlass ? 1.25 : 1.08;
+    const eased = Math.pow(t, exp);
+    return Math.round(minPx + (maxPx - minPx) * eased);
+  }
 
   const canvas = document.createElement('canvas');
   canvas.width = CANVAS_SIZE;
@@ -197,27 +252,19 @@ export async function renderMockup1080(
   const heightCm = Number.isFinite(heightMm) ? heightMm / 10 : 0;
   const longestCm = Math.max(widthCm, heightCm, 0);
 
-  const materialText = String(
-    options?.material ?? options?.composition?.material ?? options?.productType ?? '',
-  ).toLowerCase();
-  const refMaxCm = materialText.includes('glass')
-    ? REF_MAX_CM_MAP.glass
-    : materialText.includes('pro')
-      ? REF_MAX_CM_MAP.pro
-      : REF_MAX_CM_MAP.classic;
+  const matLabel = materialLabelFromOpts(options);
 
   const aspect = compWidthPx > 0 && compHeightPx > 0
     ? compWidthPx / compHeightPx
     : fallbackWidth > 0 && fallbackHeight > 0
       ? fallbackWidth / fallbackHeight
       : 1;
-  const denom = Math.max(1, refMaxCm - REF_MIN_CM);
-  const tLin = Math.max(0, Math.min(1, (longestCm - REF_MIN_CM) / denom));
-  let longPx = Math.round(MIN_LONG_PX + (MAX_LONG_PX - MIN_LONG_PX) * tLin);
+  let longPx = mapLongPxByMaterial(longestCm, matLabel);
   if (!Number.isFinite(longPx) || longPx <= 0) {
-    longPx = MIN_LONG_PX;
+    longPx = mapLongPxByMaterial(CLASSIC_REF_MIN_LONG_CM, matLabel);
   }
-  longPx = Math.max(1, Math.min(longPx, MAX_LONG_PX));
+  const maxAllowed = matLabel === 'Glasspad' ? GLASS_MAX_LONG_PX : CLASSIC_MAX_LONG_PX;
+  longPx = Math.max(1, Math.min(longPx, maxAllowed));
 
   let targetW: number;
   let targetH: number;
