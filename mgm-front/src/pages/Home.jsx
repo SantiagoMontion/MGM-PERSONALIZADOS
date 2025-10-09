@@ -49,6 +49,8 @@ const TUTORIAL_ICON_SRC = resolveIconAsset('play.svg');
 
 
 const DISABLE_UPLOAD_ORIGINAL = (import.meta.env?.VITE_DISABLE_UPLOAD_ORIGINAL ?? '1') === '1';
+const KEEP_MASTER = (import.meta.env?.VITE_KEEP_MASTER ?? '0') === '1';
+const DELETE_MASTER_AFTER_PDF = (import.meta.env?.VITE_DELETE_MASTER_AFTER_PDF ?? '1') === '1';
 const CANVAS_MAX_WIDTH = 1280;
 const DEFAULT_SIZE = { w: 90, h: 40 };
 const ACK_LOW_ERROR_MESSAGE = 'Confirmá que aceptás imprimir en baja calidad.';
@@ -694,23 +696,24 @@ export default function Home() {
           maxBytes: maxPdfBytes,
         });
         console.log('[diag] pdf bytes', pdfBytes?.byteLength || pdfBytes?.length || 0);
-        const [pdfSign, masterSign] = await Promise.all([
-          postJSON(
-            getResolvedApiUrl('/api/storage/sign'),
-            { bucket: 'outputs', contentType: 'application/pdf' },
-            60000,
-          ),
-          postJSON(
+        const pdfSign = await postJSON(
+          getResolvedApiUrl('/api/storage/sign'),
+          { bucket: 'outputs', contentType: 'application/pdf' },
+          60000,
+        );
+        let masterSign = null;
+        if (KEEP_MASTER) {
+          masterSign = await postJSON(
             getResolvedApiUrl('/api/storage/sign'),
             { bucket: 'outputs', contentType: designMime },
             60000,
-          ),
-        ]);
+          );
+        }
         if (!pdfSign?.uploadUrl || !pdfSign?.publicUrl) {
           setErr('No se pudo firmar la subida del PDF.');
           return;
         }
-        if (!masterSign?.uploadUrl || !masterSign?.publicUrl) {
+        if (KEEP_MASTER && (!masterSign?.uploadUrl || !masterSign?.publicUrl)) {
           setErr('No se pudo firmar la subida de la imagen.');
           return;
         }
@@ -734,24 +737,25 @@ export default function Home() {
         const pdfFile = new File([pdfBytes], `${pdfFileName}.pdf`, { type: 'application/pdf' });
         const masterName = designMime.includes('png') ? 'master.png' : 'master.jpg';
         const masterFile = new File([designBlob], masterName, { type: designMime });
-        const [pdfUpload, masterUpload] = await Promise.all([
-          supa
-            .storage.from(pdfSign.bucket || 'outputs')
-            .uploadToSignedUrl(
-              pdfSign.path,
-              pdfSign.token,
-              pdfFile,
-              { upsert: false, contentType: 'application/pdf' },
-            ),
-          supa
+        const pdfUpload = await supa
+          .storage.from(pdfSign.bucket || 'outputs')
+          .uploadToSignedUrl(
+            pdfSign.path,
+            pdfSign.token,
+            pdfFile,
+            { upsert: false, contentType: 'application/pdf' },
+          );
+        let masterUpload = null;
+        if (KEEP_MASTER && masterSign) {
+          masterUpload = await supa
             .storage.from(masterSign.bucket || 'outputs')
             .uploadToSignedUrl(
               masterSign.path,
               masterSign.token,
               masterFile,
               { upsert: false, contentType: designMime },
-            ),
-        ]);
+            );
+        }
         if (pdfUpload?.error) {
           logger.error('[pdf-upload] failed', pdfUpload.error);
           setErr('No se pudo subir el PDF.');
@@ -763,8 +767,24 @@ export default function Home() {
           return;
         }
         nextPdfUrl = String(pdfSign.publicUrl || '');
-        nextMasterUrl = String(masterSign.publicUrl || '');
+        nextMasterUrl = KEEP_MASTER && masterSign ? String(masterSign.publicUrl || '') : null;
         console.log('[diag] uploads ok', { pdf: nextPdfUrl, master: nextMasterUrl });
+        if (KEEP_MASTER && DELETE_MASTER_AFTER_PDF && masterSign?.path) {
+          try {
+            await postJSON(
+              getResolvedApiUrl('/api/storage/delete'),
+              {
+                bucket: masterSign.bucket || 'outputs',
+                path: masterSign.path,
+              },
+              30000,
+            );
+            console.log('[diag] master deleted from storage', masterSign.path);
+            nextMasterUrl = null;
+          } catch (deleteErr) {
+            console.warn('[diag] master delete failed (kept for safety)', deleteErr);
+          }
+        }
       }
       setDesignHashState(designHash);
       setMasterPublicUrl(nextMasterUrl);
@@ -809,7 +829,7 @@ export default function Home() {
         masterWidthPx: masterWidthExact,
         masterHeightPx: masterHeightExact,
         designHash,
-        fileOriginalUrl: uploadCanonical,
+        fileOriginalUrl: null,
         uploadObjectKey,
         uploadBucket: uploadBucket,
         uploadDiagId: null,
