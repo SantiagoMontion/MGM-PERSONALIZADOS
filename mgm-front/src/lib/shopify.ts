@@ -1,5 +1,6 @@
 import { apiFetch, getResolvedApiUrl } from './api';
 import { supa } from './supa.js';
+import { renderMockup1080 } from './mockup.js';
 import { FlowState } from '@/state/flow';
 import logger from './logger';
 
@@ -82,67 +83,65 @@ async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
   return await response.blob();
 }
 
-async function buildJpeg1080FromDataUrl(dataUrl: string, quality = 0.82): Promise<Blob> {
+async function imgFromDataUrl(dataUrl: string): Promise<HTMLImageElement> {
   if (typeof document === 'undefined') {
     throw new Error('mockup_canvas_unavailable');
   }
-  const image = await new Promise<HTMLImageElement>((resolve, reject) => {
-    const img = new Image();
-    img.decoding = 'async';
-    img.onload = () => resolve(img);
-    img.onerror = (event) => {
+  return await new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.decoding = 'async';
+    image.onload = () => resolve(image);
+    image.onerror = (event) => {
       reject(event instanceof ErrorEvent ? event.error ?? event : event || new Error('mockup_image_load_failed'));
     };
-    img.src = dataUrl;
+    image.src = dataUrl;
   });
-  const naturalWidth = image.naturalWidth || image.width || 1;
-  const naturalHeight = image.naturalHeight || image.height || 1;
-  const maxDim = 1080;
-  const scale = Math.min(1, maxDim / Math.max(naturalWidth, naturalHeight));
-  const width = Math.max(1, Math.round(naturalWidth * scale));
-  const height = Math.max(1, Math.round(naturalHeight * scale));
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) {
-    throw new Error('mockup_canvas_context_failed');
+}
+
+function safeName(value: unknown): string {
+  return (value ?? '')
+    .toString()
+    .replace(/[\\/:*?"<>|]+/g, '')
+    .trim()
+    || 'Design';
+}
+
+function yyyymm(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function cmFromPx(px: unknown, dpi: unknown): number {
+  const pxNum = Number(px);
+  const dpiNum = Number(dpi);
+  if (!Number.isFinite(pxNum) || pxNum <= 0 || !Number.isFinite(dpiNum) || dpiNum <= 0) {
+    return 1;
   }
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(image, 0, 0, width, height);
-  return await new Promise<Blob>((resolve, reject) => {
-    if (typeof canvas.toBlob === 'function') {
-      canvas.toBlob((blob) => {
-        if (blob) {
-          resolve(blob);
-        } else {
-          reject(new Error('mockup_to_blob_failed'));
-        }
-      }, 'image/jpeg', quality);
-      return;
-    }
-    try {
-      const jpegDataUrl = canvas.toDataURL('image/jpeg', quality);
-      dataUrlToBlob(jpegDataUrl).then(resolve, reject);
-    } catch (err) {
-      reject(err instanceof Error ? err : new Error('mockup_canvas_encode_failed'));
-    }
-  });
+  return Math.max(1, Math.round((pxNum / dpiNum) * 2.54));
+}
+
+function matLabelOf(material: unknown): string {
+  const text = (material ?? '').toString().toLowerCase();
+  if (text.includes('glass')) return 'Glasspad';
+  if (text.includes('pro')) return 'PRO';
+  if (text.includes('classic')) return 'Classic';
+  const trimmed = (material ?? '').toString().trim();
+  return trimmed || 'Classic';
 }
 
 async function signUpload({
   bucket,
   contentType,
+  path,
   allowFallback = true,
-}: { bucket: string; contentType: string; allowFallback?: boolean }) {
+}: { bucket: string; contentType: string; path?: string; allowFallback?: boolean }) {
   const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
   const timeout = controller ? setTimeout(() => controller.abort(), 30000) : null;
   try {
     const res = await apiFetch(
       'POST',
       '/api/storage/sign',
-      { bucket, contentType },
+      { bucket, contentType, path },
       controller ? { signal: controller.signal } : undefined,
     );
     const json = await res.json().catch(() => null);
@@ -155,7 +154,7 @@ async function signUpload({
         bucket,
         status: res.status,
       });
-      return signUpload({ bucket: 'outputs', contentType, allowFallback: false });
+      return signUpload({ bucket: 'outputs', contentType, path, allowFallback: false });
     }
 
     const err = new Error('sign_upload_failed');
@@ -223,6 +222,10 @@ export async function ensureMockupUrl(flow: FlowState): Promise<string> {
     mockupBlob = mockupBlob || await dataUrlToBlob(mockupDataUrlCandidate);
   }
 
+  let masterWidthPx = Number(flowAny?.masterWidthPx || 0);
+  let masterHeightPx = Number(flowAny?.masterHeightPx || 0);
+  let dpi = Number(flowAny?.approxDpi || 300);
+
   if (!mockupBlob) {
     const printFullResDataUrl = typeof flowAny?.printFullResDataUrl === 'string'
       ? flowAny.printFullResDataUrl.trim()
@@ -232,12 +235,31 @@ export async function ensureMockupUrl(flow: FlowState): Promise<string> {
       err.reason = 'missing_print_fullres_dataurl';
       throw err;
     }
-    mockupBlob = await buildJpeg1080FromDataUrl(printFullResDataUrl, 0.82);
+    const image = await imgFromDataUrl(printFullResDataUrl);
+    masterWidthPx = masterWidthPx || Number(image.naturalWidth || image.width || 0);
+    masterHeightPx = masterHeightPx || Number(image.naturalHeight || image.height || 0);
+    dpi = Number.isFinite(dpi) && dpi > 0 ? dpi : 300;
+    const widthCm = cmFromPx(masterWidthPx, dpi);
+    const heightCm = cmFromPx(masterHeightPx, dpi);
+    const productType = String(flowAny?.material || '').toLowerCase().includes('glass') ? 'glasspad' : 'mousepad';
+    mockupBlob = await renderMockup1080({
+      productType,
+      image,
+      width_cm: widthCm,
+      height_cm: heightCm,
+      composition: { widthPx: masterWidthPx, heightPx: masterHeightPx },
+    });
   }
 
+  dpi = Number.isFinite(dpi) && dpi > 0 ? dpi : Number(flowAny?.approxDpi || 300);
+  masterWidthPx = Number(flowAny?.masterWidthPx || masterWidthPx || 0);
+  masterHeightPx = Number(flowAny?.masterHeightPx || masterHeightPx || 0);
+  const widthCm = cmFromPx(masterWidthPx, dpi);
+  const heightCm = cmFromPx(masterHeightPx, dpi);
+  const filenameBase = `${safeName(flowAny?.designName)} ${widthCm}x${heightCm} ${matLabelOf(flowAny?.material)}`.replace(/\s+/g, ' ').trim();
+  const filename = `${filenameBase}.jpg`;
   const contentType = mockupBlob.type || 'image/jpeg';
-  const sign = await signUpload({ bucket: 'preview', contentType });
-  const filename = contentType.includes('png') ? 'mockup.png' : 'mockup.jpg';
+  const sign = await signUpload({ bucket: 'preview', contentType, path: `mockups-${yyyymm()}/${filename}` });
   await uploadBlobWithSignedUrl(sign, mockupBlob, filename);
   const publicUrl = typeof sign?.publicUrl === 'string' ? sign.publicUrl : '';
   if (!publicUrl) {
