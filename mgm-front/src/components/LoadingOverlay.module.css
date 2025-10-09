@@ -1,64 +1,47 @@
 /* MobileAdvisoryBanner.module.css */
 
+
 .overlay {
   position: fixed;
   inset: 0;
   z-index: 9999;
 
-  /* Centro perfecto */
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-
-  /* Fondo oscurecido */
-  background: rgba(0, 0, 0, 0.5);
-
-  /* Evita desplazamientos laterales en móvil */
-  width: 100vw;
-  height: 100dvh; /* mejor en móviles que 100vh */
-  overflow: hidden;              /* nada de scroll interno */
-  overscroll-behavior: contain;  /* frena rebotes */
-  touch-action: pan-y;           /* permite solo scroll vertical si hiciera falta */
-}
-
-.card {
-  width: min(92vw, 600px);  /* siempre entra en viewport sin provocar scroll X */
-  max-width: 600px;
-  box-sizing: border-box;
-
-  background: #1b1b1b;
-  color: #f6f7fb;
-  border: 1px solid #2b2b2b;
-  border-radius: 16px;
-  padding: 18px 16px;
-
   text-align: center;
-  line-height: 1.35;
 
-  /* Estables, sin animaciones ni transformaciones que “muevan” el layout */
-  transform: none;
-  transition: none;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  gap: 4px;
+
+  color: #ffffff;
+  background: transparent;
+  pointer-events: none;
+
+  padding: 24px;
+  width: 100vw;
+  height: 100dvh;
+  overflow: hidden;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
 }
 
-.title {
-  margin: 0 0 8px 0;
-  font-size: clamp(18px, 5vw, 22px);
-  font-weight: 700;
-  letter-spacing: 0.2px;
+.spinner {
+  margin-bottom: 12px;
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.65));
 }
 
 .message {
   margin: 0;
-  font-size: clamp(14px, 4vw, 16px);
-  font-weight: 400;
-  opacity: 0.95;
+  font-size: clamp(18px, 5vw, 24px);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
 }
 
 .subtitle {
-  margin: 8px 0 0;
-  font-size: clamp(13px, 3.6vw, 15px);
-  font-weight: 400;
+  margin-top: 4px;
+  font-size: clamp(14px, 4vw, 16px);
   opacity: 0.8;
 }
 
@@ -72,10 +55,3 @@
   }
 }
 
-/* Por si el sistema fuerza tamaños enormes, garantizamos que no rompa el ancho */
-@media (max-width: 991px) {
-  .card {
-    width: calc(100vw - 24px);
-    margin: 0 12px; /* pequeño respiro y evita tocar bordes curvos del SO */
-  }
-}
