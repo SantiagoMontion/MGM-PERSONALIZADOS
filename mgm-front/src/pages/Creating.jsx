@@ -126,10 +126,12 @@ export default function Creating() {
 
   return (
     <div>
-      <LoadingOverlay
-        show={showOverlay}
-        messages={['Creando tu pedido…']}
-      />
+      {showOverlay && (
+        <LoadingOverlay
+          show={showOverlay}
+          messages={['Creando tu pedido…']}
+        />
+      )}
       {skipFinalize && (
         <p>Modo sólo previsualización: finalize-assets no fue llamado.</p>
       )}
