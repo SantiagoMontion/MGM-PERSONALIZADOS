@@ -795,23 +795,21 @@ export async function createJobAndProduct(
       printDpi: approxDpi ?? undefined,
     };
 
-    const normalizedMockupUrl = typeof mockupUploadUrl === 'string'
-      ? mockupUploadUrl.trim()
-      : '';
-    const normalizedMockupDataUrl = typeof mockupDataUrl === 'string'
-      ? mockupDataUrl.trim()
-      : '';
+    const pickMockupValue = (value: unknown): string => {
+      if (typeof value !== 'string') return '';
+      const trimmed = value.trim();
+      return trimmed || '';
+    };
 
-    if (normalizedMockupUrl) {
-      publishPayload.mockupUrl = normalizedMockupUrl;
-      delete publishPayload.mockupDataUrl;
-    } else if (normalizedMockupDataUrl) {
-      publishPayload.mockupDataUrl = normalizedMockupDataUrl;
-    } else {
-      const err: Error & { reason?: string } = new Error('missing_mockup');
-      err.reason = 'missing_mockup';
-      throw err;
-    }
+    const mockupUrlCandidate = pickMockupValue(mockupUploadUrl)
+      || pickMockupValue((flow as any)?.mockupUpload?.publicUrl)
+      || pickMockupValue((flow as any)?.mockup?.objectUrl)
+      || pickMockupValue((flow as any)?.mockup?.url)
+      || pickMockupValue((flow as any)?.mockup?.dataUrl);
+
+    const mockupUrl = mockupUrlCandidate || null;
+
+    publishPayload.mockupUrl = mockupUrl ?? undefined;
 
     const originalUrl = typeof (flow as any)?.fileOriginalUrl === 'string'
       ? (flow as any).fileOriginalUrl.trim()
@@ -833,13 +831,15 @@ export async function createJobAndProduct(
 
     if (SHOULD_LOG_PUBLISH_PAYLOAD) {
       try {
-        const hasMockupUrl = typeof publishPayload.mockupUrl === 'string'
-          && Boolean((publishPayload.mockupUrl as string).trim());
-        const hasMockupDataUrl = typeof publishPayload.mockupDataUrl === 'string'
-          && Boolean((publishPayload.mockupDataUrl as string).trim());
+        const trimmedMockup = typeof mockupUrl === 'string' ? mockupUrl : '';
+        const mockupKind = !trimmedMockup
+          ? 'null'
+          : trimmedMockup.startsWith('data:')
+            ? 'data'
+            : 'http';
         console.debug('[publish] send', {
-          hasMockupUrl,
-          hasMockupDataUrl,
+          mockupKind,
+          len: trimmedMockup.length,
           rid: ridForPublish || null,
         });
       } catch (payloadLogErr) {
@@ -862,9 +862,22 @@ export async function createJobAndProduct(
     removeIfDataImage('previewImage');
 
     try {
-      console.debug('[publish-payload]', publishPayload);
+      const trimmedMockup = typeof mockupUrl === 'string' ? mockupUrl : '';
+      const mockupKind = !trimmedMockup
+        ? 'null'
+        : trimmedMockup.startsWith('data:')
+          ? 'data'
+          : 'http';
+      console.debug('[publish-payload]', { mockupKind, len: trimmedMockup.length });
     } catch (payloadDebugErr) {
       logger.debug('[createJobAndProduct] publish_payload_debug_failed', payloadDebugErr);
+    }
+
+    if (mockupUrl === null) {
+      const err: Error & { reason?: string; toastMessage?: string } = new Error('missing_mockup');
+      err.reason = 'missing_mockup';
+      err.toastMessage = 'No se encontró el mockup para publicar.';
+      throw err;
     }
 
     const publishResp = await apiFetch('/api/publish-product', {
