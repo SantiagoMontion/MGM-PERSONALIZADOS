@@ -62,7 +62,8 @@ export async function buildPdfFromMaster(masterBlob, options = {}) {
     width: imageWidthPt,
     height: imageHeightPt,
   });
-  let pdfBytes = await pdfDoc.save({ useObjectStreams: false });
+  // Aprovechar object streams (PDF 1.5+) reduce tamaño/tiempo de serialización
+  let pdfBytes = await pdfDoc.save({ useObjectStreams: true });
   if (!(Number.isFinite(maxBytes) && maxBytes > 0) || pdfBytes.length <= maxBytes) {
     return pdfBytes;
   }
@@ -140,7 +141,7 @@ export async function buildPdfFromMaster(masterBlob, options = {}) {
       width: imageWidthPt,
       height: imageHeightPt,
     });
-    pdfBytes = await jpegDoc.save({ useObjectStreams: false });
+    pdfBytes = await jpegDoc.save({ useObjectStreams: true });
     if (pdfBytes.length <= maxBytes) {
       return pdfBytes;
     }

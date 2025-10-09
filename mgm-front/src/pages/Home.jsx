@@ -431,10 +431,12 @@ export default function Home() {
       || flow?.editorState?.design_slug
       || flow?.editorState?.designSlug
       || undefined;
-    trackEvent('continue_design', {
-      rid: ridCandidate,
-      design_slug: designSlugCandidate,
-    });
+    try {
+      trackEvent && trackEvent('continue_design', {
+        rid: ridCandidate,
+        design_slug: designSlugCandidate,
+      });
+    } catch {}
     setErr('');
     if (!layout?.image || !canvasRef.current) {
       setErr('Falta imagen o layout');
@@ -461,6 +463,7 @@ export default function Home() {
         setErr('No se pudo generar la imagen');
         return;
       }
+      const designShaPromise = sha256Hex(designBlob);
       const masterDataUrl = await blobToDataUrl(designBlob);
 
       // client-side gate: filename keywords
@@ -675,7 +678,7 @@ export default function Home() {
       });
       const mockupUrl = URL.createObjectURL(blob);
       const designMime = designBlob.type || 'image/png';
-      const designSha = await sha256Hex(designBlob);
+      const designSha = await designShaPromise;
       console.log('[diag] master dims', { width: masterWidthExact, height: masterHeightExact });
       const designHash = designSha;
       let nextMasterUrl = masterPublicUrl || null;
@@ -691,56 +694,58 @@ export default function Home() {
           maxBytes: maxPdfBytes,
         });
         console.log('[diag] pdf bytes', pdfBytes?.byteLength || pdfBytes?.length || 0);
-        const pdfSign = await postJSON(
-          getResolvedApiUrl('/api/storage/sign'),
-          { bucket: 'outputs', contentType: 'application/pdf' },
-          60000,
-        );
+        const [pdfSign, masterSign] = await Promise.all([
+          postJSON(
+            getResolvedApiUrl('/api/storage/sign'),
+            { bucket: 'outputs', contentType: 'application/pdf' },
+            60000,
+          ),
+          postJSON(
+            getResolvedApiUrl('/api/storage/sign'),
+            { bucket: 'outputs', contentType: designMime },
+            60000,
+          ),
+        ]);
         if (!pdfSign?.uploadUrl || !pdfSign?.publicUrl) {
           setErr('No se pudo firmar la subida del PDF.');
           return;
         }
-        // Subir PDF con SDK: uploadToSignedUrl(path, token, file, { upsert })
-        const pdfFile = new File([pdfBytes], 'design.pdf', { type: 'application/pdf' });
-        const { error: upPdfErr } = await supa
-          .storage.from(pdfSign.bucket || 'outputs')
-          .uploadToSignedUrl(
-            pdfSign.path,
-            pdfSign.token,
-            pdfFile,
-            { upsert: false, contentType: 'application/pdf' },
-          );
-        if (upPdfErr) {
-          logger.error('[pdf-upload] failed', upPdfErr);
-          setErr('No se pudo subir el PDF.');
-          return;
-        }
-        nextPdfUrl = String(pdfSign.publicUrl || '');
-        const masterSign = await postJSON(
-          getResolvedApiUrl('/api/storage/sign'),
-          { bucket: 'outputs', contentType: designMime },
-          60000,
-        );
         if (!masterSign?.uploadUrl || !masterSign?.publicUrl) {
           setErr('No se pudo firmar la subida de la imagen.');
           return;
         }
-        // Subir master (PNG/JPG) igual con SDK
+        const pdfFile = new File([pdfBytes], 'design.pdf', { type: 'application/pdf' });
         const masterName = designMime.includes('png') ? 'master.png' : 'master.jpg';
         const masterFile = new File([designBlob], masterName, { type: designMime });
-        const { error: upMasterErr } = await supa
-          .storage.from(masterSign.bucket || 'outputs')
-          .uploadToSignedUrl(
-            masterSign.path,
-            masterSign.token,
-            masterFile,
-            { upsert: false, contentType: designMime },
-          );
-        if (upMasterErr) {
-          logger.error('[master-upload] failed', upMasterErr);
+        const [pdfUpload, masterUpload] = await Promise.all([
+          supa
+            .storage.from(pdfSign.bucket || 'outputs')
+            .uploadToSignedUrl(
+              pdfSign.path,
+              pdfSign.token,
+              pdfFile,
+              { upsert: false, contentType: 'application/pdf' },
+            ),
+          supa
+            .storage.from(masterSign.bucket || 'outputs')
+            .uploadToSignedUrl(
+              masterSign.path,
+              masterSign.token,
+              masterFile,
+              { upsert: false, contentType: designMime },
+            ),
+        ]);
+        if (pdfUpload?.error) {
+          logger.error('[pdf-upload] failed', pdfUpload.error);
+          setErr('No se pudo subir el PDF.');
+          return;
+        }
+        if (masterUpload?.error) {
+          logger.error('[master-upload] failed', masterUpload.error);
           setErr('No se pudo subir la imagen.');
           return;
         }
+        nextPdfUrl = String(pdfSign.publicUrl || '');
         nextMasterUrl = String(masterSign.publicUrl || '');
         console.log('[diag] uploads ok', { pdf: nextPdfUrl, master: nextMasterUrl });
       }
