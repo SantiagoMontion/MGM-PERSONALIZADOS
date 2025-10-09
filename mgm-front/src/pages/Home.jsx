@@ -714,7 +714,24 @@ export default function Home() {
           setErr('No se pudo firmar la subida de la imagen.');
           return;
         }
-        const pdfFile = new File([pdfBytes], 'design.pdf', { type: 'application/pdf' });
+        const sanitizeForFileName = (value, fallback = 'Design') =>
+          String(value ?? '').replace(/[\\/:*?"<>|]+/g, '').trim() || fallback;
+        const formatDimensionCm = (cm) => {
+          const num = Number(cm);
+          if (!Number.isFinite(num) || num <= 0) return '0';
+          const rounded = Math.round(num * 10) / 10;
+          return (Number.isInteger(rounded) ? String(Math.trunc(rounded)) : String(rounded)).replace(/\.0+$/, '');
+        };
+        let materialLabel = String(material || '').trim();
+        if (/pro/i.test(materialLabel)) materialLabel = 'PRO';
+        else if (/glass/i.test(materialLabel)) materialLabel = 'Glasspad';
+        else if (!materialLabel || /classic/i.test(materialLabel)) materialLabel = 'Classic';
+        const namePart = sanitizeForFileName(trimmedDesignName);
+        const widthLabel = formatDimensionCm(activeWcm ?? (masterWidthMm ? masterWidthMm / 10 : undefined));
+        const heightLabel = formatDimensionCm(activeHcm ?? (masterHeightMm ? masterHeightMm / 10 : undefined));
+        const materialPart = sanitizeForFileName(materialLabel, 'Classic');
+        const pdfFileName = `${namePart} ${widthLabel}x${heightLabel} ${materialPart}`.replace(/\s+/g, ' ').trim();
+        const pdfFile = new File([pdfBytes], `${pdfFileName}.pdf`, { type: 'application/pdf' });
         const masterName = designMime.includes('png') ? 'master.png' : 'master.jpg';
         const masterFile = new File([designBlob], masterName, { type: designMime });
         const [pdfUpload, masterUpload] = await Promise.all([

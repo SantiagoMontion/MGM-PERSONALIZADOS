@@ -50,12 +50,13 @@ export async function buildPdfFromMaster(masterBlob, options = {}) {
 
   const pageWidthPt = mmToPt(resolvedWidthMm + bleedEachMm * 2);
   const pageHeightPt = mmToPt(resolvedHeightMm + bleedEachMm * 2);
-  const imageWidthPt = mmToPt(resolvedWidthMm);
-  const imageHeightPt = mmToPt(resolvedHeightMm);
-  const offsetX = mmToPt(bleedEachMm);
-  const offsetY = mmToPt(bleedEachMm);
+  const imageWidthPt = pageWidthPt;
+  const imageHeightPt = pageHeightPt;
+  const offsetX = 0;
+  const offsetY = 0;
 
   const page = pdfDoc.addPage([pageWidthPt, pageHeightPt]);
+  // cubrir la página completa (incluye bleed) sin bordes blancos
   page.drawImage(embedded, {
     x: offsetX,
     y: offsetY,
@@ -135,6 +136,7 @@ export async function buildPdfFromMaster(masterBlob, options = {}) {
     const jpegDoc = await PDFDocument.create();
     const jpegImage = await jpegDoc.embedJpg(jpegBytes);
     const jpegPage = jpegDoc.addPage([pageWidthPt, pageHeightPt]);
+    // fallback JPEG también debe ocupar todo el lienzo
     jpegPage.drawImage(jpegImage, {
       x: offsetX,
       y: offsetY,
