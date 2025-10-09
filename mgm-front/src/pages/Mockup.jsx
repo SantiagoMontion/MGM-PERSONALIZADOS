@@ -16,6 +16,46 @@ import {
 import logger from '../lib/logger';
 import { ensureTrackingRid, trackEvent } from '@/lib/tracking';
 
+function isDataUrl(s) {
+  return typeof s === 'string' && s.startsWith('data:');
+}
+
+function toastErr(msg) {
+  try {
+    window?.toast?.error?.(msg);
+  } catch (err) {
+    logger.debug('[mockup] toast_error_failed', err);
+  }
+}
+
+async function ensureAssetsForPublish(flowState) {
+  const state = typeof flowState?.get === 'function' ? flowState.get() : flowState;
+  if (!state?.pdfPublicUrl) {
+    throw new Error('missing_pdf_public_url');
+  }
+  const mockupOk = Boolean(
+    state?.mockupPublicUrl
+    || state?.mockupUrl
+    || (isDataUrl(state?.mockupDataUrl) && state.mockupDataUrl.length < 200_000),
+  );
+  if (!mockupOk) {
+    throw new Error('missing_mockup_url');
+  }
+}
+
+function notifyMissingAssetsError(error) {
+  const code = String(error?.message || error?.reason || '').trim();
+  if (code === 'missing_pdf_public_url') {
+    toastErr('Falta el PDF. Volvé al editor y tocá "Continuar" para generarlo.');
+    return;
+  }
+  if (code === 'missing_mockup_url') {
+    toastErr('Falta la imagen de mockup. Reintentá "Continuar" o recargá la vista.');
+    return;
+  }
+  toastErr('No se puede continuar: recursos incompletos.');
+}
+
 /** NUEVO: imagen de la sección (reemplazá el path por el tuyo) */
 const TESTIMONIAL_ICONS = [
   '/icons/testimonio1.png',
@@ -564,6 +604,12 @@ export default function Mockup() {
   async function startCartFlow() {
     if (busy && cartStatus !== 'idle') return;
     setToast(null);
+    try {
+      await ensureAssetsForPublish(flow);
+    } catch (assetErr) {
+      notifyMissingAssetsError(assetErr);
+      return;
+    }
     setCartStatus('creating');
     setBusy(true);
     let didOpenTarget = false;
@@ -716,6 +762,14 @@ export default function Mockup() {
     }
 
     if (busy) return;
+
+    setToast(null);
+    try {
+      await ensureAssetsForPublish(flow);
+    } catch (assetErr) {
+      notifyMissingAssetsError(assetErr);
+      return;
+    }
 
     let submissionFlow = flow;
 
