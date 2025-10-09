@@ -675,10 +675,15 @@ export default function Home() {
       const designMime = designBlob.type || 'image/png';
       const designSha = await sha256Hex(designBlob);
       console.log('[diag] master dims', { width: masterWidthExact, height: masterHeightExact });
-      const designHash = designSha;
-      let nextMasterUrl = masterPublicUrl || null;
-      let nextPdfUrl = pdfPublicUrl || null;
-      if (!(designHash && designHash === designHashState && nextMasterUrl && nextPdfUrl)) {
+      const hasExistingOutputs =
+        designHashState === designSha
+        && typeof masterPublicUrl === 'string'
+        && masterPublicUrl
+        && typeof pdfPublicUrl === 'string'
+        && pdfPublicUrl;
+      let nextMasterUrl = hasExistingOutputs ? String(masterPublicUrl) : null;
+      let nextPdfUrl = hasExistingOutputs ? String(pdfPublicUrl) : null;
+      if (!hasExistingOutputs) {
         const pdfBytes = await buildPdfFromMaster(designBlob, {
           bleedMm: 20,
           widthPx: masterWidthExact,
@@ -705,7 +710,12 @@ export default function Home() {
           setErr('No se pudo subir el PDF.');
           return;
         }
-        nextPdfUrl = pdfSign.publicUrl;
+        const resolvedPdfUrl = String(pdfSign.publicUrl || '');
+        if (!resolvedPdfUrl) {
+          setErr('No se pudo obtener la URL pública del PDF.');
+          return;
+        }
+        nextPdfUrl = resolvedPdfUrl;
         const masterSign = await postJSON(
           getResolvedApiUrl('/api/storage/sign'),
           { bucket: 'outputs', contentType: designMime },
@@ -724,10 +734,15 @@ export default function Home() {
           setErr('No se pudo subir la imagen.');
           return;
         }
-        nextMasterUrl = masterSign.publicUrl;
+        const resolvedMasterUrl = String(masterSign.publicUrl || '');
+        if (!resolvedMasterUrl) {
+          setErr('No se pudo obtener la URL pública de la imagen.');
+          return;
+        }
+        nextMasterUrl = resolvedMasterUrl;
         console.log('[diag] pdfPublicUrl', nextPdfUrl);
       }
-      setDesignHashState(designHash);
+      setDesignHashState(designSha);
       setMasterPublicUrl(nextMasterUrl);
       setPdfPublicUrl(nextPdfUrl);
       setMasterWidthPx(masterWidthExact);
@@ -808,7 +823,7 @@ export default function Home() {
         pdfPublicUrl: nextPdfUrl,
         masterWidthPx: masterWidthExact,
         masterHeightPx: masterHeightExact,
-        designHash,
+        designHash: designSha,
         fileOriginalUrl: uploadCanonical,
         uploadObjectKey,
         uploadBucket: uploadData?.bucket || 'uploads',
