@@ -439,10 +439,16 @@ export default async function handler(req, res) {
     parsedBody?.masterHeightMm,
     parsedBody?.masterHeightPx,
   );
-  const designName = String(parsedBody.designName || '').trim() || 'Personalizado';
+  const collapseSpaces = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+  const designName = collapseSpaces(
+    parsedBody.designName ??
+    parsedBody.design_name ??
+    parsedBody.name ??
+    '',
+  ) || 'Personalizado';
   const baseCategory = materialLabel === 'Glasspad' ? 'Glasspad' : 'Mousepad';
   // Formato EXACTO: "Mousepad {Nombre} {WxH} {Material} | PERSONALIZADO"
-  const finalTitle = widthCmSafe && heightCmSafe
+  const finalTitle = Number.isFinite(widthCmSafe) && Number.isFinite(heightCmSafe) && widthCmSafe > 0 && heightCmSafe > 0
     ? `${baseCategory} ${designName} ${widthCmSafe}x${heightCmSafe} ${materialLabel} | PERSONALIZADO`
     : `${baseCategory} ${designName} ${materialLabel} | PERSONALIZADO`;
   const toNumber = (value) => {
