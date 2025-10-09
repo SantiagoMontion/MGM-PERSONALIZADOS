@@ -688,10 +688,13 @@ export default function Home() {
       const dpiForMockup = layout?.dpi || effDpi || 300;
       const blob = await renderMockup1080(img, {
         material,
+        materialLabel: material,
         approxDpi: dpiForMockup,
         composition: {
           widthPx: masterWidthExact,
           heightPx: masterHeightExact,
+          widthCm: activeWcm,
+          heightCm: activeHcm,
           widthMm: masterWidthMm,
           heightMm: masterHeightMm,
           dpi: dpiForMockup,
