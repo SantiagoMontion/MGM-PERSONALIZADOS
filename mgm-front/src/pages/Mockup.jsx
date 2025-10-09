@@ -20,8 +20,11 @@ import { ensureTrackingRid, trackEvent } from '@/lib/tracking';
 const PUBLISH_MAX_PAYLOAD_KB = Number(import.meta.env?.VITE_PUBLISH_MAX_PAYLOAD_KB) || 200;
 // Guard legacy para evitar ReferenceError en builds antiguos
 const preservedCustom = false; // no se usa, pero evita 'is not defined'
-// Mostrar/ocultar el preview legacy (el segundo). Queremos ocultarlo.
-const SHOW_LEGACY_PREVIEW = false;
+// Volvemos a mostrar el wrapper legacy para recuperar su TEXTO,
+// pero ocultamos SOLO su <img/> con CSS (ver estilo inyectado abajo).
+const SHOW_LEGACY_PREVIEW = true;
+const HIDE_LEGACY_IMG_CSS =
+  `[class*="previewWrapper"][class*="previewWithImage"] img{display:none!important}`;
 
 function isDataUrl(value) {
   return typeof value === 'string' && value.startsWith('data:');
@@ -1564,6 +1567,8 @@ export default function Mockup() {
           </div>
         ) : null}
         
+        {/* Ocultar solo la IMG del preview legacy; conservar su texto */}
+        <style dangerouslySetInnerHTML={{ __html: HIDE_LEGACY_IMG_CSS }} />
         {/* Mockup visible (PNG 1080x1080 cuadrado) sobre las CTAs */}
         {mockupSrc ? (
           <div
