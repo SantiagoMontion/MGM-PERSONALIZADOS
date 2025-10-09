@@ -34,6 +34,7 @@ import {
 import styles from './Home.module.css';
 import { renderMockup1080 } from '../lib/mockup.js';
 import { buildPdfFromMaster } from '../lib/buildPdf.js';
+import { supa } from '../lib/supa.js';
 import { quickHateSymbolCheck } from '@/lib/moderation.ts';
 import { scanNudityClient } from '@/lib/moderation/nsfw.client.js';
 import { useFlow } from '@/state/flow.js';
@@ -698,22 +699,18 @@ export default function Home() {
           setErr('No se pudo firmar la subida del PDF.');
           return;
         }
-        // Subir PDF: POST multipart a signed upload URL (campo 'file') + headers requeridos
-        const pdfForm = new FormData();
-        pdfForm.append('file', new Blob([pdfBytes], { type: 'application/pdf' }), 'design.pdf');
-        const pdfUploadRes = await fetch(pdfSign.uploadUrl, {
-          method: 'POST',
-          headers: {
-            // Supabase signed upload requiere Authorization con la ANON KEY y x-upsert
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-            'x-upsert': 'false',
-          },
-          body: pdfForm,
-        });
-        if (!pdfUploadRes.ok) {
-          logger.error('[pdf-upload] failed', {
-            status: pdfUploadRes.status,
-          });
+        // Subir PDF con SDK: uploadToSignedUrl(path, token, file, { upsert })
+        const pdfFile = new File([pdfBytes], 'design.pdf', { type: 'application/pdf' });
+        const { error: upPdfErr } = await supa
+          .storage.from(pdfSign.bucket || 'outputs')
+          .uploadToSignedUrl(
+            pdfSign.path,
+            pdfSign.token,
+            pdfFile,
+            { upsert: false, contentType: 'application/pdf' },
+          );
+        if (upPdfErr) {
+          logger.error('[pdf-upload] failed', upPdfErr);
           setErr('No se pudo subir el PDF.');
           return;
         }
@@ -727,19 +724,19 @@ export default function Home() {
           setErr('No se pudo firmar la subida de la imagen.');
           return;
         }
-        // Subir master PNG/JPEG: también POST multipart + headers requeridos
+        // Subir master (PNG/JPG) igual con SDK
         const masterName = designMime.includes('png') ? 'master.png' : 'master.jpg';
-        const masterForm = new FormData();
-        masterForm.append('file', designBlob, masterName);
-        const masterUploadRes = await fetch(masterSign.uploadUrl, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-            'x-upsert': 'false',
-          },
-          body: masterForm,
-        });
-        if (!masterUploadRes.ok) {
+        const masterFile = new File([designBlob], masterName, { type: designMime });
+        const { error: upMasterErr } = await supa
+          .storage.from(masterSign.bucket || 'outputs')
+          .uploadToSignedUrl(
+            masterSign.path,
+            masterSign.token,
+            masterFile,
+            { upsert: false, contentType: designMime },
+          );
+        if (upMasterErr) {
+          logger.error('[master-upload] failed', upMasterErr);
           setErr('No se pudo subir la imagen.');
           return;
         }
