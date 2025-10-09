@@ -5,6 +5,10 @@ export type FlowState = {
   editorState: any;
   mockupBlob?: Blob;
   mockupUrl?: string;
+  mockup?: {
+    dataUrl?: string | null;
+    objectUrl?: string | null;
+  } | null;
   printFullResDataUrl?: string;
   fileOriginalUrl?: string | null;
   uploadObjectKey?: string | null;
@@ -57,6 +61,7 @@ const defaultState: Omit<FlowState, 'set' | 'setOriginal' | 'reset'> = {
   editorState: {},
   mockupBlob: undefined,
   mockupUrl: undefined,
+  mockup: null,
   printFullResDataUrl: undefined,
   fileOriginalUrl: undefined,
   uploadObjectKey: undefined,
@@ -101,12 +106,22 @@ export function FlowProvider({ children }: { children: ReactNode }) {
   const value: FlowState = {
     ...state,
     set: (p) => setState((s) => {
-      if (p && typeof p === 'object' && Object.prototype.hasOwnProperty.call(p, 'mockupUrl')) {
-        const nextMockupUrl = (p as { mockupUrl?: unknown }).mockupUrl;
-        if (typeof s.mockupUrl === 'string'
-          && s.mockupUrl
-          && nextMockupUrl !== s.mockupUrl) {
-          revokeIfObjectUrl(s.mockupUrl);
+      if (p && typeof p === 'object') {
+        if (Object.prototype.hasOwnProperty.call(p, 'mockupUrl')) {
+          const nextMockupUrl = (p as { mockupUrl?: unknown }).mockupUrl;
+          if (typeof s.mockupUrl === 'string'
+            && s.mockupUrl
+            && nextMockupUrl !== s.mockupUrl) {
+            revokeIfObjectUrl(s.mockupUrl);
+          }
+        }
+        if (Object.prototype.hasOwnProperty.call(p, 'mockup')) {
+          const nextMockup = (p as { mockup?: FlowState['mockup'] }).mockup;
+          const currentObjectUrl = typeof s.mockup?.objectUrl === 'string' ? s.mockup.objectUrl : null;
+          const nextObjectUrl = typeof nextMockup?.objectUrl === 'string' ? nextMockup.objectUrl : null;
+          if (currentObjectUrl && currentObjectUrl !== nextObjectUrl) {
+            revokeIfObjectUrl(currentObjectUrl);
+          }
         }
       }
       return { ...s, ...p };
@@ -114,6 +129,7 @@ export function FlowProvider({ children }: { children: ReactNode }) {
     setOriginal: (original) => setState((s) => ({ ...s, original })),
     reset: () => {
       revokeIfObjectUrl(state.mockupUrl || undefined);
+      revokeIfObjectUrl(state.mockup?.objectUrl || undefined);
       setState(defaultState);
     },
   };

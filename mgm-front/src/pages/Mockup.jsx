@@ -431,9 +431,20 @@ export default function Mockup() {
     const messageRaw = typeof error?.friendlyMessage === 'string' && error.friendlyMessage
       ? error.friendlyMessage
       : String(error?.message || 'Error');
+    const toastMessage = typeof error?.toastMessage === 'string' && error.toastMessage
+      ? error.toastMessage.trim()
+      : '';
+    if (toastMessage) {
+      setToast({ message: toastMessage, tone: 'error' });
+    }
     let friendly = messageRaw;
-    if (reasonRaw === 'missing_mockup') friendly = 'No se encontró el mockup para publicar.';
-    else if (reasonRaw === 'missing_variant') friendly = 'No se pudo obtener la variante del producto creado en Shopify.';
+    if (reasonRaw === 'missing_mockup') {
+      if (!toastMessage) {
+        setToast({ message: 'No se encontró el mockup para publicar.' });
+      }
+      return;
+    }
+    if (reasonRaw === 'missing_variant') friendly = 'No se pudo obtener la variante del producto creado en Shopify.';
     else if (reasonRaw === 'cart_link_failed') friendly = 'No se pudo generar el enlace del carrito. Revisá la configuración de Shopify.';
     else if (reasonRaw === 'checkout_link_failed') friendly = 'No se pudo generar el enlace de compra.';
     else if (reasonRaw === 'private_checkout_failed' || reasonRaw === 'draft_order_failed' || reasonRaw === 'draft_order_http_error' || reasonRaw === 'missing_invoice_url') {

@@ -1006,6 +1006,7 @@ export default function Home() {
         editorState: layout,
         mockupBlob: blob,
         mockupUrl,
+        mockup: { objectUrl: mockupUrl, dataUrl: null },
         printFullResDataUrl: master,
         fileOriginalUrl: uploadCanonical,
         uploadObjectKey,

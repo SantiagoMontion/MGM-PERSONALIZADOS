@@ -301,54 +301,150 @@ function resolveMockupUploadUrl(flow: FlowState): string {
   return '';
 }
 
-async function uploadMockupAsset(blob: Blob, filename: string): Promise<{ url: string; json: any }> {
-  if (!blob) {
-    throw new Error('upload-mockup requires a blob');
-  }
-  if (typeof FormData === 'undefined') {
-    throw new Error('upload-mockup requires FormData support');
-  }
+type RenderMockupDataUrlOptions = {
+  maxW?: number;
+  quality?: number;
+};
 
-  const formData = new FormData();
-  formData.append('file', blob, filename);
-  formData.append('filename', filename);
+function readMockupDataUrlFromFlow(flow: FlowState): string {
+  const candidate = (flow as any)?.mockup?.dataUrl;
+  if (typeof candidate === 'string') {
+    const trimmed = candidate.trim();
+    if (trimmed) return trimmed;
+  }
+  return '';
+}
 
-  const response = await apiFetch('POST', '/api/upload-mockup', formData);
-  const text = await response.text();
-  let json: any = null;
+function readMockupObjectUrlFromFlow(flow: FlowState): string {
+  const candidate = (flow as any)?.mockup?.objectUrl;
+  if (typeof candidate === 'string') {
+    const trimmed = candidate.trim();
+    if (trimmed) return trimmed;
+  }
+  const direct = typeof flow.mockupUrl === 'string' ? flow.mockupUrl.trim() : '';
+  return direct;
+}
+
+function clampQuality(value?: number): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return 0.92;
+  }
+  return Math.min(1, Math.max(0.01, value));
+}
+
+async function fetchBlobFromUrl(url: string): Promise<Blob | null> {
+  const trimmed = typeof url === 'string' ? url.trim() : '';
+  if (!trimmed) return null;
   try {
-    json = text ? JSON.parse(text) : null;
+    const response = await fetch(trimmed);
+    if (!response.ok) {
+      return null;
+    }
+    return await response.blob();
   } catch {
-    json = null;
+    return null;
+  }
+}
+
+async function renderBlobToJpegDataUrl(blob: Blob, options: RenderMockupDataUrlOptions = {}): Promise<string> {
+  const quality = clampQuality(options.quality);
+  const maxDimension = typeof options.maxW === 'number' && Number.isFinite(options.maxW) && options.maxW > 0
+    ? options.maxW
+    : 0;
+
+  const drawToCanvas = (image: CanvasImageSource, width: number, height: number): string => {
+    if (!width || !height) {
+      return '';
+    }
+    let scale = 1;
+    if (maxDimension > 0) {
+      const longest = Math.max(width, height);
+      if (longest > maxDimension) {
+        scale = maxDimension / Math.max(1, longest);
+      }
+    }
+    const targetWidth = Math.max(1, Math.round(width * scale));
+    const targetHeight = Math.max(1, Math.round(height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      return '';
+    }
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(image, 0, 0, targetWidth, targetHeight);
+    return canvas.toDataURL('image/jpeg', quality);
+  };
+
+  if (typeof createImageBitmap === 'function') {
+    try {
+      const bitmap = await createImageBitmap(blob);
+      const width = bitmap.width || 0;
+      const height = bitmap.height || 0;
+      if (width && height) {
+        const result = drawToCanvas(bitmap, width, height);
+        if (typeof bitmap.close === 'function') {
+          bitmap.close();
+        }
+        if (result) {
+          return result;
+        }
+      } else if (typeof bitmap.close === 'function') {
+        bitmap.close();
+      }
+    } catch {}
   }
 
-  if (!response.ok) {
-    const message = typeof json?.error === 'string' && json.error ? json.error : text;
-    const error: Error & { status?: number; bodyText?: string; json?: any } = new Error(
-      `HTTP ${response.status}${message ? ` ${message}` : ''}`.trim(),
-    );
-    error.status = response.status;
-    error.bodyText = text;
-    error.json = json;
-    throw error;
-  }
+  try {
+    const objectUrl = URL.createObjectURL(blob);
+    try {
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = reject;
+        image.src = objectUrl;
+      });
+      const width = img.naturalWidth || img.width || 0;
+      const height = img.naturalHeight || img.height || 0;
+      const result = drawToCanvas(img, width, height);
+      if (result) {
+        return result;
+      }
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
+  } catch {}
 
-  const url = json?.mockupUrl
-    ?? json?.mockup_url
-    ?? json?.url
-    ?? json?.publicUrl
-    ?? json?.public_url
-    ?? json?.signedUrl
-    ?? '';
-  if (!url) {
-    const error: Error & { status?: number; bodyText?: string; json?: any } = new Error('upload-mockup missing url');
-    error.status = response.status;
-    error.bodyText = text;
-    error.json = json;
-    throw error;
-  }
+  return await blobToBase64(blob);
+}
 
-  return { url, json };
+function createMockupDataUrlRenderer(flow: FlowState) {
+  return async function renderMockupToDataURL(options: RenderMockupDataUrlOptions = {}): Promise<string> {
+    const existing = readMockupDataUrlFromFlow(flow);
+    if (existing) {
+      return existing;
+    }
+
+    const blob = flow.mockupBlob instanceof Blob ? flow.mockupBlob : null;
+    if (blob) {
+      return await renderBlobToJpegDataUrl(blob, options);
+    }
+
+    const objectUrl = readMockupObjectUrlFromFlow(flow);
+    if (objectUrl) {
+      if (objectUrl.startsWith('data:')) {
+        return objectUrl;
+      }
+      const fetchedBlob = await fetchBlobFromUrl(objectUrl);
+      if (fetchedBlob) {
+        return await renderBlobToJpegDataUrl(fetchedBlob, options);
+      }
+    }
+
+    return '';
+  };
 }
 
 function readFlowRid(flow: FlowState): string {
@@ -435,8 +531,9 @@ export async function createJobAndProduct(
   let collectedWarnings: any[] | undefined;
   let collectedWarningMessages: string[] | undefined;
 
-  let mockupDataUrl = '';
+  let mockupDataUrl = readMockupDataUrlFromFlow(flow);
   let mockupUploadUrl = resolveMockupUploadUrl(flow);
+  const renderMockupToDataURL = createMockupDataUrlRenderer(flow);
   let productType: 'glasspad' | 'mousepad' = flow.productType === 'glasspad' ? 'glasspad' : 'mousepad';
   let productLabel = PRODUCT_LABELS[productType];
   let designName = (flow.designName || '').trim();
@@ -470,19 +567,113 @@ export async function createJobAndProduct(
   }
   if (flow.lowQualityAck) extraTags.push('calidad-baja');
   if (isPrivate) extraTags.push('private');
-  let filename = `${slugify(designName || productTitle)}.png`;
+  const designSlugForPublish = slugify(designName || productTitle);
+  let filename = `${designSlugForPublish}.png`;
   let imageAlt = `Mockup ${productTitle}`;
+
+  const ridForPublish = readFlowRid(flow);
 
   if (!canReuse) {
     let mockupEndpointMissing = false;
-    const mockupBlob = flow.mockupBlob instanceof Blob ? flow.mockupBlob : null;
+    const mockupObjectUrl = readMockupObjectUrlFromFlow(flow);
 
-    if (!mockupUploadUrl && mockupBlob) {
-      const mockupFilename = `${slugify(designName || productTitle)}-mockup.png`;
+    if (!mockupUploadUrl) {
+      if (!mockupDataUrl) {
+        try {
+          mockupDataUrl = await renderMockupToDataURL({ maxW: 2000, quality: 0.9 });
+          if (mockupDataUrl) {
+            try {
+              flow.set?.({
+                mockup: {
+                  ...(typeof (flow as any)?.mockup === 'object' && flow.mockup ? (flow.mockup as any) : {}),
+                  dataUrl: mockupDataUrl,
+                  objectUrl: mockupObjectUrl || (flow.mockup?.objectUrl ?? null) || null,
+                },
+              });
+            } catch (setErr) {
+              logger.debug('[createJobAndProduct] mockup_dataurl_set_failed', setErr);
+            }
+          }
+        } catch (renderErr) {
+          logger.warn('[createJobAndProduct] mockup_dataurl_render_failed', renderErr);
+        }
+      }
+
+      const payloadBody: Record<string, unknown> = {};
+      if (ridForPublish) {
+        payloadBody.rid = ridForPublish;
+      }
+      const normalizedPayloadMockupUrl = typeof mockupObjectUrl === 'string' ? mockupObjectUrl.trim() : '';
+      if (normalizedPayloadMockupUrl) {
+        payloadBody.mockupUrl = normalizedPayloadMockupUrl;
+      }
+      const normalizedPayloadDataUrl = typeof mockupDataUrl === 'string' ? mockupDataUrl.trim() : '';
+      if (normalizedPayloadDataUrl) {
+        payloadBody.mockupDataUrl = normalizedPayloadDataUrl;
+        mockupDataUrl = normalizedPayloadDataUrl;
+      }
+
+      if (!payloadBody.mockupUrl && !payloadBody.mockupDataUrl) {
+        const err: Error & { reason?: string; toastMessage?: string } = new Error('missing_mockup');
+        err.reason = 'missing_mockup';
+        err.toastMessage = 'No se encontró el mockup para publicar.';
+        throw err;
+      }
+
+      const mockupFilename = `${designSlugForPublish || slugify(productTitle)}-mockup.jpg`;
+
       try {
-        const uploadResult = await uploadMockupAsset(mockupBlob, mockupFilename);
-        const uploadedUrl = typeof uploadResult?.url === 'string' ? uploadResult.url.trim() : '';
-        if (uploadedUrl) {
+        const response = await apiFetch('POST', '/api/upload-mockup', payloadBody, {
+          headers: { 'x-file-name': mockupFilename },
+        });
+        const text = await response.text();
+        let json: any = null;
+        try {
+          json = text ? JSON.parse(text) : null;
+        } catch {
+          json = null;
+        }
+
+        if (!response.ok) {
+          if (json?.error === 'missing_mockup') {
+            try {
+              logger.warn('[createJobAndProduct] upload_mockup_missing', {
+                rid: ridForPublish || null,
+                diagId: json?.diagId || null,
+                payload: {
+                  hasDataUrl: Boolean(payloadBody.mockupDataUrl),
+                  dataUrlLength: typeof payloadBody.mockupDataUrl === 'string' ? payloadBody.mockupDataUrl.length : 0,
+                  hasUrl: Boolean(payloadBody.mockupUrl),
+                },
+              });
+            } catch (logErr) {
+              logger.debug('[createJobAndProduct] upload_mockup_missing_log_failed', logErr);
+            }
+            const err: Error & { reason?: string; toastMessage?: string; friendlyMessage?: string } = new Error('missing_mockup');
+            err.reason = 'missing_mockup';
+            err.toastMessage = 'No se encontró el mockup para publicar.';
+            err.friendlyMessage = 'No se encontró el mockup para publicar.';
+            throw err;
+          }
+          if (response.status === 404) {
+            mockupEndpointMissing = true;
+          } else {
+            const message = typeof json?.error === 'string' && json.error ? json.error : text;
+            const error: Error & { status?: number; bodyText?: string; json?: any } = new Error(
+              `HTTP ${response.status}${message ? ` ${message}` : ''}`.trim(),
+            );
+            error.status = response.status;
+            error.bodyText = text;
+            error.json = json;
+            throw error;
+          }
+        } else {
+          const uploadedUrl = typeof json?.mockupUrl === 'string' ? json.mockupUrl.trim() : '';
+          if (!uploadedUrl) {
+            const error: Error & { reason?: string } = new Error('mockup_upload_missing_url');
+            error.reason = 'mockup_upload_missing_url';
+            throw error;
+          }
           mockupUploadUrl = uploadedUrl;
           try {
             flow.set?.({ mockupUrl: uploadedUrl });
@@ -491,9 +682,12 @@ export async function createJobAndProduct(
           }
         }
       } catch (mockupErr: any) {
+        if (mockupErr?.reason === 'missing_mockup') {
+          throw mockupErr;
+        }
         if (mockupErr?.status === 404) {
           mockupEndpointMissing = true;
-        } else {
+        } else if (!mockupEndpointMissing) {
           logger.error('[createJobAndProduct] upload_mockup_failed', mockupErr);
           throw mockupErr;
         }
@@ -501,21 +695,18 @@ export async function createJobAndProduct(
     }
 
     if (!mockupUploadUrl) {
-      if (!mockupBlob) {
-        const err: Error & { reason?: string } = new Error('missing_mockup');
-        err.reason = 'missing_mockup';
-        throw err;
-      }
       if (!mockupEndpointMissing) {
-        const err: Error & { reason?: string } = new Error('mockup_upload_missing_url');
+        const err: Error & { reason?: string; toastMessage?: string } = new Error('mockup_upload_missing_url');
         err.reason = 'mockup_upload_missing_url';
         throw err;
       }
-
-      mockupDataUrl = await blobToBase64(mockupBlob);
       if (!mockupDataUrl) {
-        const err: Error & { reason?: string } = new Error('missing_mockup');
+        mockupDataUrl = await renderMockupToDataURL({ maxW: 2000, quality: 0.9 });
+      }
+      if (!mockupDataUrl) {
+        const err: Error & { reason?: string; toastMessage?: string } = new Error('missing_mockup');
         err.reason = 'missing_mockup';
+        err.toastMessage = 'No se encontró el mockup para publicar.';
         throw err;
       }
     }
@@ -537,8 +728,6 @@ export async function createJobAndProduct(
       }
     }
 
-    const ridForPublish = readFlowRid(flow);
-    const designSlugForPublish = slugify(designName || productTitle);
     const originalObjectKeyRaw = typeof (flow as any)?.originalObjectKey === 'string'
       ? (flow as any).originalObjectKey.trim()
       : typeof (flow as any)?.uploadObjectKey === 'string'

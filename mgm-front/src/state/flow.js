@@ -5,6 +5,7 @@ const defaultState = {
   editorState: null,
   mockupBlob: null,
   mockupUrl: null,
+  mockup: null,
   printFullResDataUrl: null,
   fileOriginalUrl: null,
   uploadObjectKey: null,
@@ -40,11 +41,40 @@ export function FlowProvider({ children }) {
   const [state, setState] = useState(defaultState);
   const value = {
     ...state,
-    set: (partial) => setState((s) => ({ ...s, ...partial })),
+    set: (partial) => setState((s) => {
+      if (partial && typeof partial === 'object') {
+        if (Object.prototype.hasOwnProperty.call(partial, 'mockupUrl')) {
+          const nextMockupUrl = partial.mockupUrl;
+          if (s.mockupUrl && nextMockupUrl !== s.mockupUrl) {
+            try {
+              URL.revokeObjectURL(s.mockupUrl);
+            } catch {}
+          }
+        }
+        if (Object.prototype.hasOwnProperty.call(partial, 'mockup')) {
+          const nextMockup = partial.mockup;
+          const currentObjectUrl = s.mockup && typeof s.mockup.objectUrl === 'string' ? s.mockup.objectUrl : null;
+          const nextObjectUrl = nextMockup && typeof nextMockup.objectUrl === 'string' ? nextMockup.objectUrl : null;
+          if (currentObjectUrl && currentObjectUrl !== nextObjectUrl) {
+            try {
+              URL.revokeObjectURL(currentObjectUrl);
+            } catch {}
+          }
+        }
+      }
+      return { ...s, ...partial };
+    }),
     setOriginal: (original) => setState((s) => ({ ...s, original })),
     reset: () => {
       try {
         if (state.mockupUrl) URL.revokeObjectURL(state.mockupUrl);
+      } catch {
+        // ignore
+      }
+      try {
+        if (state.mockup && typeof state.mockup.objectUrl === 'string') {
+          URL.revokeObjectURL(state.mockup.objectUrl);
+        }
       } catch {
         // ignore
       }
