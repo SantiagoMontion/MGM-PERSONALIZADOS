@@ -70,6 +70,29 @@ export async function renderMockup1080(
   const MAX_LONG_PX = Number(import.meta.env?.VITE_MOCKUP_MAX_LONG_PX) || 990;
   const MIN_LONG_PX = Number(import.meta.env?.VITE_MOCKUP_MIN_LONG_PX) || 400;
   const REF_MIN_CM = Number(import.meta.env?.VITE_REF_MIN_CM) || 20;
+  const RADIUS_PX = Number(import.meta.env?.VITE_MOCKUP_PAD_RADIUS_PX) || 8;
+
+  function roundRectPath(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    r: number,
+  ) {
+    const rr = Math.max(0, Math.min(r, Math.min(w, h) / 2));
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y);
+    ctx.lineTo(x + w - rr, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + rr);
+    ctx.lineTo(x + w, y + h - rr);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
+    ctx.lineTo(x + rr, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - rr);
+    ctx.lineTo(x, y + rr);
+    ctx.quadraticCurveTo(x, y, x + rr, y);
+    ctx.closePath();
+  }
 
   const REF_MAX_CM_MAP = {
     classic: Number(import.meta.env?.VITE_REF_MAX_CM_CLASSIC) || 140,
@@ -225,6 +248,9 @@ export async function renderMockup1080(
 
   const sourceWidth = compWidthPx > 0 ? compWidthPx : fallbackWidth || targetW;
   const sourceHeight = compHeightPx > 0 ? compHeightPx : fallbackHeight || targetH;
+  ctx.save();
+  roundRectPath(ctx, offsetX, offsetY, targetW, targetH, RADIUS_PX);
+  ctx.clip();
   ctx.drawImage(
     drawSource,
     0,
@@ -236,6 +262,7 @@ export async function renderMockup1080(
     targetW,
     targetH,
   );
+  ctx.restore();
 
   const blob = await toPngBlob(canvas);
   return blob ?? new Blob([], { type: 'image/png' });
