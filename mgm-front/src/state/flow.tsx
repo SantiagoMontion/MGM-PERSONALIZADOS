@@ -5,6 +5,7 @@ export type FlowState = {
   editorState: any;
   mockupBlob?: Blob;
   mockupUrl?: string;
+  mockupPublicUrl?: string;
   printFullResDataUrl?: string;
   fileOriginalUrl?: string | null;
   uploadObjectKey?: string | null;
@@ -46,6 +47,7 @@ const defaultState: Omit<FlowState, 'set' | 'reset'> = {
   editorState: {},
   mockupBlob: undefined,
   mockupUrl: undefined,
+  mockupPublicUrl: undefined,
   printFullResDataUrl: undefined,
   fileOriginalUrl: undefined,
   uploadObjectKey: undefined,
