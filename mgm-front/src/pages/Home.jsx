@@ -65,6 +65,13 @@ const MOD_PREVIEW_DEFAULT_QUALITY = 0.9;
 const MOD_PREVIEW_FALLBACK_FORMATS = ['image/jpeg'];
 const MOD_PREVIEW_RETRY_QUALITIES = [0.8, 0.7, 0.6];
 const MOD_PREVIEW_RETRY_DIMENSIONS = [2560, 2048];
+const SIGNED_UPLOAD_THRESHOLD_BYTES = 3 * 1024 * 1024;
+const SIGNED_UPLOAD_ALLOWED_TYPES = new Set(['image/png', 'image/jpeg']);
+const RAW_USE_SIGNED_UPLOAD = (import.meta?.env?.VITE_USE_SIGNED_UPLOAD ?? '1');
+const SHOULD_USE_SIGNED_UPLOAD = typeof RAW_USE_SIGNED_UPLOAD === 'string'
+  ? !['0', 'false', 'off', 'no'].includes(RAW_USE_SIGNED_UPLOAD.trim().toLowerCase())
+  : Boolean(RAW_USE_SIGNED_UPLOAD);
+const SIGNED_UPLOAD_MAX_BYTES = 40 * 1024 * 1024;
 
 function moderationReasonMessage(reason) {
   if (typeof reason === 'string' && MODERATION_REASON_MESSAGES[reason]) {
@@ -358,6 +365,126 @@ export default function Home() {
     let response;
 
     const isBlob = typeof Blob !== 'undefined' && file instanceof Blob;
+    const shouldTrySignedUpload =
+      SHOULD_USE_SIGNED_UPLOAD
+      && isBlob
+      && typeof file?.size === 'number'
+      && file.size > SIGNED_UPLOAD_THRESHOLD_BYTES;
+
+    if (shouldTrySignedUpload) {
+      const fileName =
+        (typeof file?.name === 'string' && file.name)
+        || (typeof rest?.filename === 'string' && rest.filename)
+        || (typeof rest?.file_name === 'string' && rest.file_name)
+        || 'upload.bin';
+      const contentTypeCandidate =
+        (typeof file?.type === 'string' && file.type)
+        || (typeof rest?.mime === 'string' && rest.mime)
+        || (typeof rest?.content_type === 'string' && rest.content_type)
+        || '';
+      const normalizedContentType = contentTypeCandidate.split(';')[0]?.trim().toLowerCase();
+      const isAllowedType = normalizedContentType && SIGNED_UPLOAD_ALLOWED_TYPES.has(normalizedContentType);
+
+      if (isAllowedType) {
+        let signDiagId = null;
+        try {
+          logger.info?.('[diag] storage.sign.request', {
+            fileName,
+            sizeBytes: file.size,
+            contentType: normalizedContentType,
+            thresholdBytes: SIGNED_UPLOAD_THRESHOLD_BYTES,
+          });
+
+          const signResponse = await apiFetch('POST', '/api/storage/sign', {
+            fileName,
+            contentType: normalizedContentType,
+          });
+
+          const signText = await signResponse.text();
+          let signJson = null;
+          try {
+            signJson = signText ? JSON.parse(signText) : null;
+          } catch {
+            signJson = null;
+          }
+
+          signDiagId = signResponse.headers?.get?.('X-Diag-Id') || signJson?.diagId || null;
+
+          if (!signResponse.ok) {
+            const message = signJson?.error || signText || 'sign_request_failed';
+            throw new Error(`storage_sign_failed:${message}`);
+          }
+
+          const uploadUrl = typeof signJson?.uploadUrl === 'string' ? signJson.uploadUrl : '';
+          const publicUrl = typeof signJson?.publicUrl === 'string' ? signJson.publicUrl : '';
+          const path = typeof signJson?.path === 'string' ? signJson.path : '';
+          const bucket = typeof signJson?.bucket === 'string' ? signJson.bucket : 'designs';
+          const maxBytes = Number(signJson?.maxBytes) || SIGNED_UPLOAD_MAX_BYTES;
+
+          if (!uploadUrl) {
+            throw new Error('missing_upload_url');
+          }
+          if (!publicUrl) {
+            throw new Error('missing_public_url');
+          }
+          if (file.size > maxBytes) {
+            throw new Error('file_too_large_for_signed_upload');
+          }
+
+          let putResponse;
+          try {
+            putResponse = await fetch(uploadUrl, {
+              method: 'PUT',
+              headers: { 'Content-Type': normalizedContentType },
+              body: file,
+            });
+          } catch (err) {
+            logger.info?.('[diag] storage.put.result', {
+              ok: false,
+              status: null,
+              error: err?.message || String(err),
+              path,
+              diagId: signDiagId,
+            });
+            throw err;
+          }
+
+          const putOk =
+            putResponse.ok
+            && (putResponse.status === 200 || putResponse.status === 201 || putResponse.status === 204);
+          logger.info?.('[diag] storage.put.result', {
+            ok: putOk,
+            status: putResponse.status,
+            path,
+            diagId: signDiagId,
+          });
+          if (!putOk) {
+            throw new Error(`put_failed:${putResponse.status}`);
+          }
+
+          const metadata = {
+            ok: true,
+            mode: 'signed_upload',
+            publicUrl,
+            bucket,
+            path,
+            size_bytes: file.size,
+            content_type: normalizedContentType,
+            sha256: typeof rest?.sha256 === 'string' ? rest.sha256 : undefined,
+            diag_id: signDiagId,
+            max_bytes: maxBytes,
+          };
+
+          return { publicUrl, json: metadata };
+        } catch (signedErr) {
+          logger.warn?.('[upload-original] signed_upload_fallback', {
+            message: signedErr?.message || signedErr,
+            diagId: signDiagId,
+          });
+        }
+      }
+    }
+
     if (isBlob) {
       const formData = new FormData();
       const filename = typeof file.name === 'string' && file.name ? file.name : 'upload.bin';

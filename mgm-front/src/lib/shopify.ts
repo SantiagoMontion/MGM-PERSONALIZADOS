@@ -253,6 +253,35 @@ export async function createJobAndProduct(
     ? flow.printFullResDataUrl
     : '';
   const printBackgroundHex = (flow.editorState as any)?.background || '#ffffff';
+  const uploadObjectKey = typeof (flow as any)?.uploadObjectKey === 'string'
+    ? (flow as any).uploadObjectKey.trim()
+    : '';
+  const uploadBucket = typeof (flow as any)?.uploadBucket === 'string'
+    ? (flow as any).uploadBucket.trim()
+    : '';
+  const uploadSizeBytes = typeof (flow as any)?.uploadSizeBytes === 'number'
+    ? (flow as any).uploadSizeBytes
+    : null;
+  const uploadContentType = typeof (flow as any)?.uploadContentType === 'string'
+    ? (flow as any).uploadContentType.trim()
+    : '';
+  const uploadSha256 = typeof (flow as any)?.uploadSha256 === 'string'
+    ? (flow as any).uploadSha256.trim()
+    : '';
+  const hasPrintUploadMetadata = Boolean(
+    printSourceUrl
+    && (uploadObjectKey || uploadBucket || uploadSizeBytes != null || uploadContentType || uploadSha256),
+  );
+  const printUploadMetadata = hasPrintUploadMetadata
+    ? {
+        publicUrl: printSourceUrl,
+        path: uploadObjectKey || undefined,
+        bucket: uploadBucket || undefined,
+        sizeBytes: uploadSizeBytes ?? undefined,
+        mime: uploadContentType || undefined,
+        sha256: uploadSha256 || undefined,
+      }
+    : null;
 
   let publish: any = null;
   let publishStatus: number | null = null;
@@ -322,34 +351,40 @@ export async function createJobAndProduct(
       }
     }
 
+    const publishPayload: Record<string, unknown> = {
+      productType,
+      mockupDataUrl,
+      designName,
+      title: productTitle,
+      material: materialLabel,
+      widthCm,
+      heightCm,
+      approxDpi,
+      priceTransfer: priceTransferRaw,
+      priceCurrency,
+      lowQualityAck: Boolean(flow.lowQualityAck),
+      imageAlt,
+      filename,
+      tags: extraTags,
+      description: '',
+      seoDescription: metaDescription,
+      visibility: requestedVisibility,
+      isPrivate,
+      jobId: jobIdForPdf || undefined,
+      printSourceUrl: printSourceUrl || undefined,
+      printBackgroundColor: printBackgroundHex,
+      printDpi: (approxDpi ?? undefined),
+    };
+    if (printUploadMetadata) {
+      publishPayload.printUpload = printUploadMetadata;
+    } else if (printDataUrl) {
+      publishPayload.printDataUrl = printDataUrl;
+    }
+
     const publishResp = await apiFetch('/api/publish-product', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        productType,
-        mockupDataUrl,
-        designName,
-        title: productTitle,
-        material: materialLabel,
-        widthCm,
-        heightCm,
-        approxDpi,
-        priceTransfer: priceTransferRaw,
-        priceCurrency,
-        lowQualityAck: Boolean(flow.lowQualityAck),
-        imageAlt,
-        filename,
-        tags: extraTags,
-        description: '',
-        seoDescription: metaDescription,
-        visibility: requestedVisibility,
-        isPrivate,
-        jobId: jobIdForPdf || undefined,
-        printSourceUrl: printSourceUrl || undefined,
-        printDataUrl: printDataUrl || undefined,
-        printBackgroundColor: printBackgroundHex,
-        printDpi: (approxDpi ?? undefined),
-      }),
+      body: JSON.stringify(publishPayload),
     });
     publishStatus = Number.isFinite(publishResp.status) ? publishResp.status : null;
     const publishData = await publishResp.json().catch(() => null);
