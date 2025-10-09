@@ -53,30 +53,32 @@ export default function LoadingOverlay({
 
   return (
     <div className={styles.overlay} role="status" aria-live="polite">
-      <svg viewBox="0 0 50 50" width="64" height="64" className={styles.spinner}>
-        <circle cx="25" cy="25" r="20" stroke="rgba(255, 255, 255, 0.3)" strokeWidth="5" fill="none" />
-        <circle
-          cx="25"
-          cy="25"
-          r="20"
-          stroke="#fff"
-          strokeWidth="5"
-          strokeLinecap="round"
-          fill="none"
-          strokeDasharray="31.4 188.4"
-        >
-          <animateTransform
-            attributeName="transform"
-            type="rotate"
-            from="0 25 25"
-            to="360 25 25"
-            dur="1s"
-            repeatCount="indefinite"
-          />
-        </circle>
-      </svg>
-      <div className={styles.message}>{currentMessage}</div>
-      {subtitle ? <div className={styles.subtitle}>{subtitle}</div> : null}
+      <div className={styles.panel}>
+        <svg viewBox="0 0 50 50" width="64" height="64" className={styles.spinner}>
+          <circle cx="25" cy="25" r="20" stroke="rgba(255, 255, 255, 0.3)" strokeWidth="5" fill="none" />
+          <circle
+            cx="25"
+            cy="25"
+            r="20"
+            stroke="#fff"
+            strokeWidth="5"
+            strokeLinecap="round"
+            fill="none"
+            strokeDasharray="31.4 188.4"
+          >
+            <animateTransform
+              attributeName="transform"
+              type="rotate"
+              from="0 25 25"
+              to="360 25 25"
+              dur="1s"
+              repeatCount="indefinite"
+            />
+          </circle>
+        </svg>
+        <div className={styles.message}>{currentMessage}</div>
+        {subtitle ? <div className={styles.subtitle}>{subtitle}</div> : null}
+      </div>
     </div>
   );
 }
