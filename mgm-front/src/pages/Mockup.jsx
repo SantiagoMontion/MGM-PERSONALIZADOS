@@ -325,6 +325,7 @@ const BENEFITS = [
 
 export default function Mockup() {
   const flow = useFlow();
+  const flowState = typeof flow?.get === 'function' ? flow.get() : flow;
   const navigate = useNavigate();
   const location = useLocation();
   const [busy, setBusy] = useState(false);
@@ -343,6 +344,20 @@ export default function Mockup() {
   const cartBusy = cartStatus !== 'idle';
   const buyPromptTitleId = 'buy-choice-title';
   const buyPromptDescriptionId = 'buy-choice-description';
+  const mockupSrc = useMemo(() => {
+    const state = flowState && typeof flowState === 'object' ? flowState : {};
+    if (typeof state.mockupPublicUrl === 'string' && state.mockupPublicUrl) {
+      return state.mockupPublicUrl;
+    }
+    if (typeof state.mockupUrl === 'string' && state.mockupUrl) {
+      return state.mockupUrl;
+    }
+    if (isDataUrl(state.mockupDataUrl)) {
+      return state.mockupDataUrl;
+    }
+    return null;
+  }, [flowState]);
+  const mockupUrl = mockupSrc;
   const discountCode = useMemo(() => {
     if (typeof window === 'undefined') return '';
     try {
@@ -1517,6 +1532,32 @@ export default function Mockup() {
 
         </div>
         
+        {/* Mockup visible (PNG 1080x1080 cuadrado) sobre las CTAs */}
+        {mockupSrc ? (
+          <div
+            style={{
+              width: '100%',
+              display: 'flex',
+              justifyContent: 'center',
+              marginTop: '24px',
+              marginBottom: '32px',
+            }}
+          >
+            <img
+              src={mockupSrc}
+              alt={flowState?.designName || 'Mockup'}
+              style={{
+                width: 'min(540px, 80vw)',
+                maxWidth: '100%',
+                aspectRatio: '1 / 1',
+                objectFit: 'contain',
+              }}
+              loading="eager"
+              decoding="async"
+            />
+          </div>
+        ) : null}
+
         <div className={styles.ctaRow}>
           <div className={styles.ctaCard}>
             <button
