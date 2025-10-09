@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { apiFetch } from '@/lib/api.js';
+import { publicUrlForMockup } from '@/lib/previewPath.js';
 import {
   PRINTS_GATE_PASSWORD,
   createGateRecord,
@@ -147,6 +148,23 @@ export default function Busqueda() {
     return `Mostrando ${from}-${to} de ${total}`;
   }, [searched, total, results.length, offset]);
 
+  const normalizedResults = useMemo(
+    () => results.map((row) => {
+      const previewUrl =
+        row.previewUrl ||
+        row.mockupPublicUrl ||
+        row.mockup_public_url ||
+        publicUrlForMockup(row) ||
+        row.image ||
+        row.thumbnail ||
+        row.thumbUrl ||
+        row.thumb_url ||
+        null;
+      return { ...row, previewUrl };
+    }),
+    [results],
+  );
+
   async function performSearch(nextQuery, nextOffset = 0) {
     const trimmed = nextQuery.trim();
     if (!trimmed) {
@@ -288,7 +306,7 @@ export default function Busqueda() {
   }
 
   const canShowPagination = searched && total > PAGE_LIMIT;
-  const hasResults = results.length > 0;
+  const hasResults = normalizedResults.length > 0;
   const noResultsMessage = searched && !loading && !hasResults && !error;
 
   return (
@@ -347,7 +365,7 @@ export default function Busqueda() {
             </thead>
             <tbody>
               {hasResults ? (
-                results.map((item) => {
+                normalizedResults.map((item) => {
                   const key = item.id || item.path || item.fileName;
                   const measurement = formatMeasurement(item.widthCm, item.heightCm);
                   const filename = item.name || item.fileName || 'archivo.pdf';

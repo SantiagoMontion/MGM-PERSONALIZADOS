@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { createDiagId, logApiError } from '../_lib/diag.js';
 import { applyLenientCors } from '../_lib/lenientCors.js';
+import { extractDims, publicUrlForMockup } from '../../lib/_lib/previewPath.js';
 
 const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 50;
@@ -23,6 +24,26 @@ type PrintRow = {
   popularity?: number | null;
   created_at?: string | null;
   createdAt?: string | null;
+  previewUrl?: string | null;
+  preview_url?: string | null;
+  mockupPublicUrl?: string | null;
+  mockup_public_url?: string | null;
+  material?: string | null;
+  options?: Record<string, unknown> | null;
+  designName?: string | null;
+  design_name?: string | null;
+  widthCm?: number | null;
+  width_cm?: number | null;
+  heightCm?: number | null;
+  height_cm?: number | null;
+  widthMm?: number | null;
+  width_mm?: number | null;
+  heightMm?: number | null;
+  height_mm?: number | null;
+  masterWidthMm?: number | null;
+  master_width_mm?: number | null;
+  masterHeightMm?: number | null;
+  master_height_mm?: number | null;
 };
 
 type SearchResultItem = {
@@ -34,6 +55,7 @@ type SearchResultItem = {
   price: number | string | null;
   popularity: number | null;
   createdAt: string | null;
+  previewUrl: string | null;
 };
 
 type StorageListError = { prefix: string; message: string };
@@ -57,6 +79,8 @@ type StorageSearchItem = {
   updatedAt: string | null;
   measure: string | null;
   material: string | null;
+  widthCm?: number | null;
+  heightCm?: number | null;
   previewTried?: string[];
   previewFound?: boolean;
   previewScan?: {
@@ -209,6 +233,13 @@ function isAbortError(error: unknown): boolean {
 function mapRowToItem(row: PrintRow): SearchResultItem {
   const thumb = row.thumbUrl ?? row.thumb_url ?? null;
   const created = row.createdAt ?? row.created_at ?? null;
+  const preview =
+    row.previewUrl ??
+    row.preview_url ??
+    row.mockupPublicUrl ??
+    row.mockup_public_url ??
+    publicUrlForMockup(row) ??
+    null;
   return {
     id: (row.id as string | number | null) ?? null,
     title: row.title ?? null,
@@ -218,6 +249,7 @@ function mapRowToItem(row: PrintRow): SearchResultItem {
     price: row.price ?? null,
     popularity: typeof row.popularity === 'number' ? row.popularity : null,
     createdAt: created,
+    previewUrl: preview,
   };
 }
 
@@ -809,17 +841,30 @@ async function searchStorage(
         resolvePreview(previewStorage, file.path),
       ]);
       const { measure, material } = parseMeasureAndMaterial(file.name);
+      const { wCm, hCm } = extractDims(measure ?? file.name);
+      const computedPreview = publicUrlForMockup({
+        measure,
+        material,
+        name: file.name,
+        title: file.name,
+        created_at: file.updated_at ?? null,
+        updated_at: file.updated_at ?? null,
+      });
       const item: StorageSearchItem = {
         name: file.name,
         path: file.path,
         downloadUrl,
-        previewUrl: previewInfo.url,
+        previewUrl: previewInfo.url ?? computedPreview,
         sizeBytes,
         sizeMB: computeSizeMb(sizeBytes),
         updatedAt: file.updated_at ?? null,
         measure,
         material,
       };
+      if (wCm || hCm) {
+        item.widthCm = wCm || null;
+        item.heightCm = hCm || null;
+      }
       if (debug) {
         item.previewTried = previewInfo.tried;
         item.previewFound = previewInfo.found;
