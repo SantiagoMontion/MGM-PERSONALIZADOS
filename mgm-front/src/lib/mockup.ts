@@ -103,6 +103,7 @@ export async function renderMockup1080(
     import.meta.env?.VITE_GLASSPAD_REF_MIN_LONG_CM ??
     import.meta.env?.VITE_REF_MIN_CM,
   ) || 20;
+  const GLASS_FIXED_LONG_PX = Number(import.meta.env?.VITE_MOCKUP_GLASSPAD_FIXED_LONG_PX) || 700;
   const RADIUS_PX = Number(import.meta.env?.VITE_MOCKUP_PAD_RADIUS_PX) || 8;
 
   function roundRectPath(
@@ -259,7 +260,10 @@ export async function renderMockup1080(
     : fallbackWidth > 0 && fallbackHeight > 0
       ? fallbackWidth / fallbackHeight
       : 1;
-  let longPx = mapLongPxByMaterial(longestCm, matLabel);
+  // Glasspad: usar largo fijo para que no “llene” el 1080x1080
+  let longPx = matLabel === 'Glasspad'
+    ? GLASS_FIXED_LONG_PX
+    : mapLongPxByMaterial(longestCm, matLabel);
   if (!Number.isFinite(longPx) || longPx <= 0) {
     longPx = mapLongPxByMaterial(CLASSIC_REF_MIN_LONG_CM, matLabel);
   }
