@@ -698,10 +698,11 @@ export default function Home() {
           setErr('No se pudo firmar la subida del PDF.');
           return;
         }
+        const pdfForm = new FormData();
+        pdfForm.append('file', new Blob([pdfBytes], { type: 'application/pdf' }), 'design.pdf');
         const pdfUploadRes = await fetch(pdfSign.uploadUrl, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/pdf' },
-          body: pdfBytes,
+          method: 'POST',
+          body: pdfForm,
         });
         if (!pdfUploadRes.ok) {
           logger.error('[pdf-upload] failed', {
@@ -720,17 +721,18 @@ export default function Home() {
           setErr('No se pudo firmar la subida de la imagen.');
           return;
         }
+        const masterForm = new FormData();
+        masterForm.append('file', designBlob, designMime.includes('png') ? 'master.png' : 'master.jpg');
         const masterUploadRes = await fetch(masterSign.uploadUrl, {
-          method: 'PUT',
-          headers: { 'Content-Type': designMime },
-          body: designBlob,
+          method: 'POST',
+          body: masterForm,
         });
         if (!masterUploadRes.ok) {
           setErr('No se pudo subir la imagen.');
           return;
         }
         nextMasterUrl = String(masterSign.publicUrl || '');
-        console.log('[diag] pdfPublicUrl', nextPdfUrl);
+        console.log('[diag] uploads ok', { pdf: nextPdfUrl, master: nextMasterUrl });
       }
       setDesignHashState(designHash);
       setMasterPublicUrl(nextMasterUrl);
