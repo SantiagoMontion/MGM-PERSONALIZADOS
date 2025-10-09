@@ -427,7 +427,6 @@ export default function Mockup() {
     lastProduct?.variantIdGid,
   );
 
-  const mockupUrl = flow.mockupUrl;
   const mockupImageSrc = useMemo(() => {
     const state = typeof flow?.get === 'function' ? flow.get() : flow;
     if (state?.mockupPublicUrl) return state.mockupPublicUrl;
