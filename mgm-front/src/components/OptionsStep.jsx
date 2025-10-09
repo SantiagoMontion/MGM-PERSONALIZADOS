@@ -14,6 +14,7 @@ import {
   DPI_LOW_THRESHOLD,
 } from '../lib/dpi';
 import styles from './OptionsStep.module.css';
+import LoadingOverlay from './LoadingOverlay';
 import { buildSubmitJobBody, prevalidateSubmitBody } from '../lib/jobPayload';
 import { submitJob } from '../lib/submitJob';
 import { resolveIconAsset } from '../lib/iconRegistry.js';
@@ -271,6 +272,14 @@ export default function OptionsStep({ uploaded, onSubmitted }) {
 
         )}
       </button>
+      {busy && (
+        <LoadingOverlay
+          visible
+          steps={['Guardando cambios...', 'Creando tu pedido...', 'Últimos detalles...']}
+          intervalMs={2000}
+          subtitle="Esto puede demorar unos segundos"
+        />
+      )}
     </div>
   );
 }

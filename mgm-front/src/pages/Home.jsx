@@ -1525,7 +1525,14 @@ export default function Home() {
         </div>
       </section>
 
-      {busy && <LoadingOverlay show={busy} messages={["Creando tu pedido…"]} />}
+      {busy && (
+        <LoadingOverlay
+          visible
+          steps={['Guardando cambios...', 'Creando tu pedido...', 'Últimos detalles...']}
+          intervalMs={2000}
+          subtitle="Esto puede demorar unos segundos"
+        />
+      )}
     </div>
   );
 
