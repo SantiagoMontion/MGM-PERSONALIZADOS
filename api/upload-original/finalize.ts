@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { randomUUID } from 'node:crypto';
+import path from 'node:path';
 import { supa } from '../../lib/supa.js';
 import logger from '../../lib/_lib/logger.js';
 import { normalizeOriginalReference } from '../../lib/_lib/uploads.js';
@@ -225,42 +226,48 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const storage = supa.storage.from(resolvedBucket);
-    const { data: signed, error } = await storage.createSignedUrl(resolvedKey, 120);
-    if (error || !signed?.signedUrl) {
-      logger.error('upload-original finalize signed_url_failed', {
+    const directory = (() => {
+      const dir = path.posix?.dirname(resolvedKey) ?? path.dirname(resolvedKey);
+      return dir === '.' ? '' : dir;
+    })();
+    const baseName = path.posix?.basename(resolvedKey) ?? path.basename(resolvedKey);
+    const { data: listed, error: listError } = await storage.list(directory, {
+      limit: 100,
+      search: baseName,
+    });
+
+    if (listError) {
+      logger.error('upload-original finalize list_failed', {
         diagId,
         bucket: resolvedBucket,
         objectKey: resolvedKey,
-        message: error?.message || null,
-        status: error?.status || error?.statusCode || null,
+        message: listError?.message || null,
+        status: listError?.status || listError?.statusCode || null,
       });
+      respondJson(req, res, corsDecision, 502, { ok: false, error: 'original_lookup_failed', diagId });
+      return;
+    }
+
+    const match = Array.isArray(listed)
+      ? listed.find((item) => item?.name === baseName)
+      : null;
+
+    if (!match) {
       respondJson(req, res, corsDecision, 404, { ok: false, error: 'original_not_found', diagId });
       return;
     }
 
-    const fetchFn = (globalThis as any)?.fetch as typeof fetch | undefined;
-    if (typeof fetchFn !== 'function') {
-      respondJson(req, res, corsDecision, 500, { ok: false, error: 'fetch_unavailable', diagId });
-      return;
-    }
-
-    const headResponse = await fetchFn(signed.signedUrl, { method: 'HEAD' });
-    if (!headResponse.ok) {
-      if (headResponse.status === 404) {
-        respondJson(req, res, corsDecision, 404, { ok: false, error: 'original_not_found', diagId });
-        return;
+    const metadata = (match as { metadata?: Record<string, unknown> })?.metadata ?? {};
+    const metadataMime = (() => {
+      if (metadata && typeof metadata === 'object' && 'mimetype' in metadata) {
+        const mimeCandidate = (metadata as { mimetype?: unknown }).mimetype;
+        if (typeof mimeCandidate === 'string') {
+          return mimeCandidate;
+        }
       }
-      respondJson(req, res, corsDecision, 502, {
-        ok: false,
-        error: 'original_not_accessible',
-        status: headResponse.status,
-        diagId,
-      });
-      return;
-    }
-
-    const actualMime = normalizeMime(headResponse.headers.get('content-type'))
-      || normalizeMime(expectedMime);
+      return '';
+    })();
+    const actualMime = normalizeMime(metadataMime) || normalizeMime(expectedMime);
     const canonicalExpected = normalizeMime(expectedMime);
 
     if (canonicalExpected && actualMime && canonicalExpected !== actualMime) {
@@ -292,6 +299,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       diagId,
       bucket: resolvedBucket,
       objectKey: responseObjectKey,
+      originalObjectKey: normalized.originalObjectKey || responseObjectKey,
       storageKey: resolvedKey,
       mime: actualMime || canonicalExpected || null,
     });
@@ -300,6 +308,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ok: true,
       originalUrl,
       originalKey: responseObjectKey,
+      originalObjectKey: normalized.originalObjectKey || responseObjectKey,
       objectKey: responseObjectKey,
       object_key: responseObjectKey,
       path: responseObjectKey,

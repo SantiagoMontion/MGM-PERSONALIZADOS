@@ -40,6 +40,7 @@ import { apiFetch, postJSON, getResolvedApiUrl } from '@/lib/api.js';
 import { resolveIconAsset } from '@/lib/iconRegistry.js';
 import { sha256Hex } from '@/lib/hash.js';
 import { trackEvent } from '@/lib/tracking';
+import { supa as supabaseClient } from '@/lib/supa.js';
 
 const CONFIG_ICON_SRC = resolveIconAsset('wheel.svg');
 const CONFIG_ARROW_ICON_SRC = resolveIconAsset('down.svg');
@@ -408,63 +409,136 @@ export default function Home() {
       return startJson || {};
     })();
 
-    const uploadUrl = typeof uploadInfo?.url === 'string' && uploadInfo.url
-      ? uploadInfo.url
-      : typeof startJson?.uploadUrl === 'string' && startJson.uploadUrl
-        ? startJson.uploadUrl
-        : typeof startJson?.url === 'string' && startJson.url
-          ? startJson.url
-          : '';
-    if (!uploadUrl) {
-      const error = new Error('upload-original/start: missing uploadUrl');
-      error.status = startResponse.status;
-      error.bodyText = startText;
-      error.json = startJson;
-      throw error;
-    }
+    const resolvedUploadContentType =
+      startJson?.contentType
+      || startJson?.content_type
+      || uploadInfo?.contentType
+      || contentType;
 
-    const uploadMethodRaw = uploadInfo?.method || startJson?.uploadMethod || startJson?.method;
-    const uploadMethod = typeof uploadMethodRaw === 'string' && uploadMethodRaw
-      ? uploadMethodRaw.toUpperCase()
-      : uploadInfo?.fields
-        ? 'POST'
-        : 'PUT';
-
-    let uploadResponse;
-    if (uploadMethod === 'POST' && uploadInfo?.fields && typeof FormData !== 'undefined') {
-      const formData = new FormData();
-      Object.entries(uploadInfo.fields).forEach(([key, value]) => {
-        if (value === undefined || value === null) return;
-        formData.append(key, typeof value === 'string' ? value : String(value));
-      });
-      const fileField = typeof uploadInfo?.fileField === 'string' && uploadInfo.fileField
-        ? uploadInfo.fileField
-        : 'file';
-      formData.append(fileField, blob, filename);
-      uploadResponse = await fetch(uploadUrl, { method: 'POST', body: formData });
-    } else {
-      const headers = new Headers();
-      const headerSources = [uploadInfo?.headers, startJson?.headers, startJson?.uploadHeaders];
-      for (const source of headerSources) {
-        if (!source || typeof source !== 'object') continue;
-        for (const [key, value] of Object.entries(source)) {
-          if (value === undefined || value === null) continue;
-          headers.set(key, String(value));
+    const signedUploadToken = (() => {
+      const candidates = [
+        uploadInfo?.token,
+        startJson?.token,
+        uploadInfo?.uploadToken,
+        startJson?.uploadToken,
+        startJson?.upload?.token,
+      ];
+      for (const candidate of candidates) {
+        if (typeof candidate === 'string' && candidate.trim()) {
+          return candidate.trim();
         }
       }
-      const resolvedUploadContentType =
-        startJson?.contentType
-        || startJson?.content_type
-        || uploadInfo?.contentType
-        || contentType;
-      if (!headers.has('Content-Type') && resolvedUploadContentType) {
-        headers.set('Content-Type', resolvedUploadContentType);
+      return '';
+    })();
+
+    const signedUploadObjectKey = (() => {
+      const candidates = [
+        startJson?.objectKey,
+        startJson?.object_key,
+        uploadInfo?.objectKey,
+        uploadInfo?.object_key,
+        startJson?.path,
+      ];
+      for (const candidate of candidates) {
+        if (typeof candidate === 'string' && candidate.trim()) {
+          return candidate.trim();
+        }
       }
-      uploadResponse = await fetch(uploadUrl, {
-        method: uploadMethod,
-        headers,
-        body: blob,
-      });
+      return '';
+    })();
+
+    const signedUploadBucket = (() => {
+      const candidates = [uploadInfo?.bucket, startJson?.bucket];
+      for (const candidate of candidates) {
+        if (typeof candidate === 'string' && candidate.trim()) {
+          return candidate.trim();
+        }
+      }
+      return 'uploads';
+    })();
+
+    let uploadResponse;
+    if (
+      signedUploadToken
+      && signedUploadObjectKey
+      && supabaseClient?.storage?.from
+    ) {
+      const sanitizedObjectKey = signedUploadObjectKey.replace(/^uploads\//i, '');
+      const { error: signedUploadError } = await supabaseClient
+        .storage
+        .from(signedUploadBucket)
+        .uploadToSignedUrl(sanitizedObjectKey, signedUploadToken, blob, {
+          contentType: resolvedUploadContentType,
+          upsert: true,
+        });
+      if (signedUploadError) {
+        const status = signedUploadError?.statusCode || signedUploadError?.status || null;
+        const message = signedUploadError?.message || 'unknown_error';
+        const error = new Error(`upload-original signed upload failed (${message})`);
+        error.status = status;
+        error.bodyText = message;
+        throw error;
+      }
+      uploadResponse = {
+        ok: true,
+        status: 200,
+        async text() {
+          return '';
+        },
+      };
+    } else {
+      const uploadUrl = typeof uploadInfo?.url === 'string' && uploadInfo.url
+        ? uploadInfo.url
+        : typeof startJson?.uploadUrl === 'string' && startJson.uploadUrl
+          ? startJson.uploadUrl
+          : typeof startJson?.url === 'string' && startJson.url
+            ? startJson.url
+            : '';
+      if (!uploadUrl) {
+        const error = new Error('upload-original/start: missing uploadUrl');
+        error.status = startResponse.status;
+        error.bodyText = startText;
+        error.json = startJson;
+        throw error;
+      }
+
+      const uploadMethodRaw = uploadInfo?.method || startJson?.uploadMethod || startJson?.method;
+      const uploadMethod = typeof uploadMethodRaw === 'string' && uploadMethodRaw
+        ? uploadMethodRaw.toUpperCase()
+        : uploadInfo?.fields
+          ? 'POST'
+          : 'PUT';
+
+      if (uploadMethod === 'POST' && uploadInfo?.fields && typeof FormData !== 'undefined') {
+        const formData = new FormData();
+        Object.entries(uploadInfo.fields).forEach(([key, value]) => {
+          if (value === undefined || value === null) return;
+          formData.append(key, typeof value === 'string' ? value : String(value));
+        });
+        const fileField = typeof uploadInfo?.fileField === 'string' && uploadInfo.fileField
+          ? uploadInfo.fileField
+          : 'file';
+        formData.append(fileField, blob, filename);
+        uploadResponse = await fetch(uploadUrl, { method: 'POST', body: formData });
+      } else {
+        const headers = new Headers();
+        const headerSources = [uploadInfo?.headers, startJson?.headers, startJson?.uploadHeaders];
+        for (const source of headerSources) {
+          if (!source || typeof source !== 'object') continue;
+          for (const [key, value] of Object.entries(source)) {
+            if (value === undefined || value === null) continue;
+            headers.set(key, String(value));
+          }
+        }
+        if (!headers.has('Content-Type') && resolvedUploadContentType) {
+          headers.set('Content-Type', resolvedUploadContentType);
+        }
+        uploadResponse = await fetch(uploadUrl, {
+          method: uploadMethod,
+          headers,
+          body: blob,
+        });
+      }
     }
 
     if (!uploadResponse?.ok) {

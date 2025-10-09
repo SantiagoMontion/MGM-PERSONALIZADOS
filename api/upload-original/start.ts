@@ -335,7 +335,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const rid = resolveRid(body, req, diagId);
   const safeRid = sanitizeSegment(rid, sanitizeSegment(diagId, 'flow'));
   const slug = buildSlug(fileName, safeRid);
-  const objectKey = ['uploads', 'originals', safeRid, `${slug}.${ext}`]
+  const objectKey = ['originals', safeRid, `${slug}.${ext}`]
     .filter(Boolean)
     .join('/');
   const expiresIn = resolveExpirySeconds();
@@ -361,8 +361,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     objectKey,
   });
 
+  const storageKey = objectKey.replace(/^uploads\//i, '');
+
   try {
-    const storageKey = objectKey.replace(/^uploads\//i, '');
 
     const storage = supa.storage.from(UPLOAD_BUCKET);
     const { data: signed, error } = await storage.createSignedUploadUrl(storageKey, expiresIn, {
@@ -413,6 +414,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       object_key: objectKey,
       path: objectKey,
       bucket: UPLOAD_BUCKET,
+      originalObjectKey: objectKey,
       contentType,
       content_type: contentType,
       mime: contentType,
