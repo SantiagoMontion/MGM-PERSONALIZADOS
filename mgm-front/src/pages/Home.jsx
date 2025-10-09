@@ -34,7 +34,6 @@ import {
 import styles from './Home.module.css';
 import { renderMockup1080 } from '../lib/mockup.js';
 import { buildPdfFromMaster } from '../lib/buildPdf.js';
-import { supa } from '../lib/supa.js';
 import { ensureMockupUrlInFlow } from './Mockup.jsx';
 import { quickHateSymbolCheck } from '@/lib/moderation.ts';
 import { scanNudityClient } from '@/lib/moderation/nsfw.client.js';
@@ -74,6 +73,8 @@ const MOD_PREVIEW_RETRY_DIMENSIONS = [1024, 896, 768, 640];
 
 const LOADING_MESSAGES = ['Guardando cambios...', 'Creando tu pedido...', 'Últimos detalles...'];
 const OVERLAY_MSG_MS = Math.max(2000, Number(import.meta.env?.VITE_OVERLAY_MSG_MS || 2400));
+const SKIP_MASTER_UPLOAD = String(import.meta.env?.VITE_SKIP_MASTER_UPLOAD || '0') === '1';
+const MOCKUP_BUCKET = String(import.meta.env?.VITE_MOCKUP_UPLOAD_BUCKET || 'preview');
 
 async function nextPaint(hops = 2) {
   const raf = typeof requestAnimationFrame === 'function'
@@ -83,6 +84,19 @@ async function nextPaint(hops = 2) {
     await new Promise((resolve) => raf(() => resolve()));
   }
   await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+function tnow() {
+  return typeof performance?.now === 'function' ? performance.now() : Date.now();
+}
+
+function diagTime(label, t0) {
+  try {
+    const seconds = (tnow() - t0) / 1000;
+    console.log(`[perf] ${label}: ${seconds.toFixed(2)}s`);
+  } catch (_) {
+    // noop
+  }
 }
 
 // ====== Workers (lazy) para offthread ======
@@ -792,53 +806,100 @@ export default function Home() {
       const masterWidthMm = activeWcm * 10;
       const masterHeightMm = activeHcm * 10;
       const dpiForMockup = layout?.dpi || effDpi || 300;
-      let mockupBlob = null;
-      try {
-        const flowState = (typeof flow?.get === 'function' ? flow.get() : flow) || {};
-        mockupBlob = await generateMockupOffthread(designBlob, {
-          composition: {
-            widthPx: flowState?.masterWidthPx || masterWidthExact,
-            heightPx: flowState?.masterHeightPx || masterHeightExact,
-            widthCm: flowState?.widthCm || activeWcm,
-            heightCm: flowState?.heightCm || activeHcm,
-          },
-          material: flowState?.material || material,
-          options: { material: flowState?.material || material },
-          materialLabel: flowState?.material || material,
-          radiusPx: Number(import.meta.env?.VITE_MOCKUP_PAD_RADIUS_PX) || 8,
-        });
-      } catch {
-        mockupBlob = null;
-      }
-      if (!mockupBlob) {
-        mockupBlob = await renderMockup1080(img, {
-          material,
-          materialLabel: material,
-          approxDpi: dpiForMockup,
-          composition: {
-            widthPx: masterWidthExact,
-            heightPx: masterHeightExact,
-            widthCm: activeWcm,
-            heightCm: activeHcm,
-            widthMm: masterWidthMm,
-            heightMm: masterHeightMm,
-            dpi: dpiForMockup,
-            material,
-          },
-        });
-      }
-      await nextPaint(1);
-      const mockupUrl = URL.createObjectURL(mockupBlob);
+      const flowState = (typeof flow?.get === 'function' ? flow.get() : flow) || {};
       const designMime = designBlob.type || 'image/png';
-      const designSha = await designShaPromise;
-      console.log('[diag] master dims', { width: masterWidthExact, height: masterHeightExact });
-      const designHash = designSha;
-      let nextMasterUrl = masterPublicUrl || null;
-      let nextPdfUrl = pdfPublicUrl || null;
-      if (!(designHash && designHash === designHashState && nextMasterUrl && nextPdfUrl)) {
+      const shouldUploadMaster = KEEP_MASTER && !SKIP_MASTER_UPLOAD;
+      const sanitizeForFileName = (value, fallback = 'Design') =>
+        String(value ?? '').replace(/[\\/:*?"<>|]+/g, '').trim() || fallback;
+      const formatDimensionCm = (cm) => {
+        const num = Number(cm);
+        if (!Number.isFinite(num) || num <= 0) return '0';
+        const rounded = Math.round(num * 10) / 10;
+        return (Number.isInteger(rounded) ? String(Math.trunc(rounded)) : String(rounded)).replace(/\.0+$/, '');
+      };
+      let materialLabel = String(material || '').trim();
+      if (/pro/i.test(materialLabel)) materialLabel = 'PRO';
+      else if (/glass/i.test(materialLabel)) materialLabel = 'Glasspad';
+      else if (!materialLabel || /classic/i.test(materialLabel)) materialLabel = 'Classic';
+      const namePart = sanitizeForFileName(trimmedDesignName);
+      const widthLabel = formatDimensionCm(activeWcm ?? (masterWidthMm ? masterWidthMm / 10 : undefined));
+      const heightLabel = formatDimensionCm(activeHcm ?? (masterHeightMm ? masterHeightMm / 10 : undefined));
+      const materialPart = sanitizeForFileName(materialLabel, 'Classic');
+      const pdfFileName = `${namePart} ${widthLabel}x${heightLabel} ${materialPart}`.replace(/\s+/g, ' ').trim();
+      const yyyymmValue = (() => {
+        const now = new Date();
+        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      })();
+      const pdfPath = `pdf-${yyyymmValue}/${pdfFileName}.pdf`;
+      const mockupPath = `mockups-${yyyymmValue}/${pdfFileName}.png`;
+
+      const mockupStart = tnow();
+      const mockupPromise = (async () => {
+        let blob = null;
+        try {
+          blob = await generateMockupOffthread(designBlob, {
+            composition: {
+              widthPx: flowState?.masterWidthPx || masterWidthExact,
+              heightPx: flowState?.masterHeightPx || masterHeightExact,
+              widthCm: flowState?.widthCm || activeWcm,
+              heightCm: flowState?.heightCm || activeHcm,
+            },
+            material: flowState?.material || material,
+            options: { material: flowState?.material || material },
+            materialLabel: flowState?.material || material,
+            radiusPx: Number(import.meta.env?.VITE_MOCKUP_PAD_RADIUS_PX) || 8,
+          });
+        } catch (_) {
+          blob = null;
+        }
+        if (!blob) {
+          blob = await renderMockup1080(img, {
+            material,
+            materialLabel: material,
+            approxDpi: dpiForMockup,
+            composition: {
+              widthPx: masterWidthExact,
+              heightPx: masterHeightExact,
+              widthCm: activeWcm,
+              heightCm: activeHcm,
+              widthMm: masterWidthMm,
+              heightMm: masterHeightMm,
+              dpi: dpiForMockup,
+              material,
+            },
+          });
+        }
+        diagTime('mockup_ready', mockupStart);
+        const mockupUrl = URL.createObjectURL(blob);
+        let mockupPublicUrl = flowState?.mockupPublicUrl || null;
+        if (!mockupPublicUrl) {
+          try {
+            const sign = await postJSON(
+              getResolvedApiUrl('/api/storage/sign'),
+              { bucket: MOCKUP_BUCKET, contentType: 'image/png', path: mockupPath },
+              30000,
+            );
+            if (sign?.uploadUrl) {
+              const uploadRes = await fetch(sign.uploadUrl, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'image/png' },
+                body: blob,
+              });
+              if (uploadRes.ok) {
+                mockupPublicUrl = sign.publicUrl || mockupPublicUrl;
+              }
+            }
+          } catch (mockupUploadErr) {
+            console.warn('[diag] mockup upload failed', mockupUploadErr);
+          }
+        }
+        return { mockupBlob: blob, mockupUrl, mockupPublicUrl };
+      })();
+
+      const pdfStart = tnow();
+      const pdfPromise = (async () => {
         const maxPdfBytes = Number(import.meta.env?.VITE_MAX_PDF_BYTES) || 40 * 1024 * 1024;
-        await nextPaint(1);
-        let pdfBytes = await buildPdfOffthread(designBlob, {
+        let bytes = await buildPdfOffthread(designBlob, {
           bleedMm: 20,
           widthPx: masterWidthExact,
           heightPx: masterHeightExact,
@@ -847,7 +908,7 @@ export default function Home() {
           maxBytes: maxPdfBytes,
           mime: designMime,
         });
-        if (!pdfBytes) {
+        if (!bytes) {
           const localBytes = await buildPdfFromMaster(designBlob, {
             bleedMm: 20,
             widthPx: masterWidthExact,
@@ -856,107 +917,125 @@ export default function Home() {
             heightMm: masterHeightMm,
             maxBytes: maxPdfBytes,
           });
-          pdfBytes = localBytes?.buffer && localBytes.byteOffset === 0 && localBytes.byteLength === localBytes.buffer?.byteLength
+          bytes = localBytes?.buffer && localBytes.byteOffset === 0 && localBytes.byteLength === localBytes.buffer?.byteLength
             ? localBytes.buffer
             : localBytes?.buffer || localBytes || null;
         }
-        await nextPaint(1);
-        console.log('[diag] pdf bytes', pdfBytes?.byteLength || pdfBytes?.length || 0);
-        const sanitizeForFileName = (value, fallback = 'Design') =>
-          String(value ?? '').replace(/[\\/:*?"<>|]+/g, '').trim() || fallback;
-        const formatDimensionCm = (cm) => {
-          const num = Number(cm);
-          if (!Number.isFinite(num) || num <= 0) return '0';
-          const rounded = Math.round(num * 10) / 10;
-          return (Number.isInteger(rounded) ? String(Math.trunc(rounded)) : String(rounded)).replace(/\.0+$/, '');
-        };
-        let materialLabel = String(material || '').trim();
-        if (/pro/i.test(materialLabel)) materialLabel = 'PRO';
-        else if (/glass/i.test(materialLabel)) materialLabel = 'Glasspad';
-        else if (!materialLabel || /classic/i.test(materialLabel)) materialLabel = 'Classic';
-        const namePart = sanitizeForFileName(trimmedDesignName);
-        const widthLabel = formatDimensionCm(activeWcm ?? (masterWidthMm ? masterWidthMm / 10 : undefined));
-        const heightLabel = formatDimensionCm(activeHcm ?? (masterHeightMm ? masterHeightMm / 10 : undefined));
-        const materialPart = sanitizeForFileName(materialLabel, 'Classic');
-        const pdfFileName = `${namePart} ${widthLabel}x${heightLabel} ${materialPart}`.replace(/\s+/g, ' ').trim();
-        const yyyymmValue = (() => {
-          const now = new Date();
-          return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-        })();
-        const pdfPath = `pdf-${yyyymmValue}/${pdfFileName}.pdf`;
-        const pdfSign = await postJSON(
-          getResolvedApiUrl('/api/storage/sign'),
-          { bucket: 'outputs', contentType: 'application/pdf', path: pdfPath },
-          60000,
-        );
-        let masterSign = null;
-        if (KEEP_MASTER) {
-          masterSign = await postJSON(
-            getResolvedApiUrl('/api/storage/sign'),
-            { bucket: 'outputs', contentType: designMime },
-            60000,
-          );
-        }
-        if (!pdfSign?.uploadUrl || !pdfSign?.publicUrl) {
-          setErr('No se pudo firmar la subida del PDF.');
-          return;
-        }
-        if (KEEP_MASTER && (!masterSign?.uploadUrl || !masterSign?.publicUrl)) {
-          setErr('No se pudo firmar la subida de la imagen.');
-          return;
-        }
-        const pdfFile = new File([pdfBytes], `${pdfFileName}.pdf`, { type: 'application/pdf' });
-        const masterName = designMime.includes('png') ? 'master.png' : 'master.jpg';
-        const masterFile = new File([designBlob], masterName, { type: designMime });
-        const pdfUpload = await supa
-          .storage.from(pdfSign.bucket || 'outputs')
-          .uploadToSignedUrl(
-            pdfSign.path,
-            pdfSign.token,
-            pdfFile,
-            { upsert: false, contentType: 'application/pdf' },
-          );
-        let masterUpload = null;
-        if (KEEP_MASTER && masterSign) {
-          masterUpload = await supa
-            .storage.from(masterSign.bucket || 'outputs')
-            .uploadToSignedUrl(
-              masterSign.path,
-              masterSign.token,
-              masterFile,
-              { upsert: false, contentType: designMime },
-            );
-        }
-        if (pdfUpload?.error) {
-          logger.error('[pdf-upload] failed', pdfUpload.error);
-          setErr('No se pudo subir el PDF.');
-          return;
-        }
-        if (masterUpload?.error) {
-          logger.error('[master-upload] failed', masterUpload.error);
+        diagTime('pdf_built', pdfStart);
+        return bytes;
+      })();
+
+      const shaStart = tnow();
+      const shaPromise = (async () => {
+        const hex = await designShaPromise;
+        diagTime('sha_done', shaStart);
+        return hex;
+      })();
+
+      const signStart = tnow();
+      const pdfSignPromise = postJSON(
+        getResolvedApiUrl('/api/storage/sign'),
+        { bucket: 'outputs', contentType: 'application/pdf', path: pdfPath },
+        60000,
+      );
+      const masterSignPromise = shouldUploadMaster
+        ? postJSON(getResolvedApiUrl('/api/storage/sign'), { bucket: 'outputs', contentType: designMime }, 60000)
+        : Promise.resolve(null);
+
+      const [pdfBytes, pdfSign, masterSign, designSha, mockupResult] = await Promise.all([
+        pdfPromise,
+        pdfSignPromise,
+        masterSignPromise,
+        shaPromise,
+        mockupPromise,
+      ]);
+      diagTime('signs_ready', signStart);
+
+      if (!pdfBytes) {
+        setErr('No se pudo generar el PDF.');
+        return;
+      }
+      if (!pdfSign?.uploadUrl || !pdfSign?.publicUrl) {
+        setErr('No se pudo firmar la subida del PDF.');
+        return;
+      }
+      if (shouldUploadMaster && masterSign && (!masterSign?.uploadUrl || !masterSign?.publicUrl)) {
+        setErr('No se pudo firmar la subida de la imagen.');
+        return;
+      }
+
+      const { mockupBlob, mockupUrl, mockupPublicUrl } = mockupResult || {};
+      if (!mockupBlob || !mockupUrl) {
+        setErr('No se pudo generar el mockup.');
+        return;
+      }
+
+      await nextPaint(1);
+      console.log('[diag] master dims', { width: masterWidthExact, height: masterHeightExact });
+
+      const pdfBody = pdfBytes instanceof Blob ? pdfBytes : new Blob([pdfBytes], { type: 'application/pdf' });
+      let pdfUploadRes;
+      let masterUploadRes = { ok: true };
+      const uploadsStart = tnow();
+      try {
+        pdfUploadRes = await fetch(pdfSign.uploadUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/pdf' },
+          body: pdfBody,
+        });
+      } catch (pdfUploadErr) {
+        console.error('[pdf-upload] failed', pdfUploadErr);
+        setErr('No se pudo subir el PDF.');
+        return;
+      }
+      if (shouldUploadMaster && masterSign?.uploadUrl) {
+        try {
+          masterUploadRes = await fetch(masterSign.uploadUrl, {
+            method: 'PUT',
+            headers: { 'Content-Type': designMime },
+            body: designBlob,
+          });
+        } catch (masterUploadErr) {
+          console.error('[master-upload] failed', masterUploadErr);
           setErr('No se pudo subir la imagen.');
           return;
         }
-        nextPdfUrl = String(pdfSign.publicUrl || '');
-        nextMasterUrl = KEEP_MASTER && masterSign ? String(masterSign.publicUrl || '') : null;
-        console.log('[diag] uploads ok', { pdf: nextPdfUrl, master: nextMasterUrl });
-        if (KEEP_MASTER && DELETE_MASTER_AFTER_PDF && masterSign?.path) {
-          try {
-            await postJSON(
-              getResolvedApiUrl('/api/storage/delete'),
-              {
-                bucket: masterSign.bucket || 'outputs',
-                path: masterSign.path,
-              },
-              30000,
-            );
-            console.log('[diag] master deleted from storage', masterSign.path);
-            nextMasterUrl = null;
-          } catch (deleteErr) {
-            console.warn('[diag] master delete failed (kept for safety)', deleteErr);
-          }
+      }
+      diagTime('uploads_done', uploadsStart);
+
+      if (!pdfUploadRes?.ok) {
+        logger.error('[pdf-upload] failed', pdfUploadRes?.statusText || pdfUploadRes?.status || 'upload_failed');
+        setErr('No se pudo subir el PDF.');
+        return;
+      }
+      if (shouldUploadMaster && !masterUploadRes?.ok) {
+        logger.error('[master-upload] failed', masterUploadRes?.statusText || masterUploadRes?.status || 'upload_failed');
+        setErr('No se pudo subir la imagen.');
+        return;
+      }
+
+      const nextPdfUrl = String(pdfSign.publicUrl || '');
+      let nextMasterUrl = shouldUploadMaster && masterSign ? String(masterSign.publicUrl || '') : null;
+      console.log('[diag] uploads ok', { pdf: nextPdfUrl, master: nextMasterUrl });
+
+      if (shouldUploadMaster && DELETE_MASTER_AFTER_PDF && masterSign?.path && masterUploadRes?.ok) {
+        try {
+          await postJSON(
+            getResolvedApiUrl('/api/storage/delete'),
+            {
+              bucket: masterSign.bucket || 'outputs',
+              path: masterSign.path,
+            },
+            30000,
+          );
+          console.log('[diag] master deleted from storage', masterSign.path);
+          nextMasterUrl = null;
+        } catch (deleteErr) {
+          console.warn('[diag] master delete failed (kept for safety)', deleteErr);
         }
       }
+
+      const designHash = designSha;
       setDesignHashState(designHash);
       setMasterPublicUrl(nextMasterUrl);
       setPdfPublicUrl(nextPdfUrl);
@@ -968,8 +1047,8 @@ export default function Home() {
       }
 
       const uploadCanonical = nextMasterUrl || '';
-      const uploadObjectKey = null;
-      const uploadBucket = 'outputs';
+      const uploadObjectKey = pdfSign?.path || null;
+      const uploadBucket = pdfSign?.bucket || 'outputs';
 
       setUploaded(prev => ({
         ...prev,
@@ -994,6 +1073,7 @@ export default function Home() {
         editorState: layout,
         mockupBlob,
         mockupUrl,
+        mockupPublicUrl: mockupPublicUrl || flowState?.mockupPublicUrl || null,
         printFullResDataUrl: masterDataUrl,
         masterPublicUrl: nextMasterUrl,
         pdfPublicUrl: nextPdfUrl,
