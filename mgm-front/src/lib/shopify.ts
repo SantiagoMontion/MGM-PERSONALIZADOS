@@ -452,9 +452,21 @@ export async function createJobAndProduct(
 
     const ridForPublish = readFlowRid(flow);
     const designSlugForPublish = slugify(designName || productTitle);
-    const originalObjectKeyRaw = typeof (flow as any)?.uploadObjectKey === 'string'
-      ? (flow as any).uploadObjectKey.trim()
-      : '';
+    const originalObjectKeyRaw = typeof (flow as any)?.originalObjectKey === 'string'
+      ? (flow as any).originalObjectKey.trim()
+      : typeof (flow as any)?.uploadObjectKey === 'string'
+        ? (flow as any).uploadObjectKey.trim()
+        : '';
+    const originalBucketRaw = typeof (flow as any)?.originalBucket === 'string'
+      ? (flow as any).originalBucket.trim()
+      : typeof (flow as any)?.uploadBucket === 'string'
+        ? (flow as any).uploadBucket.trim()
+        : '';
+    const originalMimeRaw = typeof (flow as any)?.originalMime === 'string'
+      ? (flow as any).originalMime.trim()
+      : typeof (flow as any)?.uploadContentType === 'string'
+        ? (flow as any).uploadContentType.trim()
+        : '';
     const sizeMmPayload = typeof widthCm === 'number' && Number.isFinite(widthCm)
       && typeof heightCm === 'number' && Number.isFinite(heightCm)
       ? { w: widthCm * 10, h: heightCm * 10 }
@@ -471,6 +483,8 @@ export async function createJobAndProduct(
       design_slug: designSlugForPublish,
       size_mm: sizeMmPayload,
       originalObjectKey: originalObjectKeyRaw || null,
+      originalBucket: originalBucketRaw || null,
+      originalMime: originalMimeRaw || null,
       approxDpi,
       priceTransfer: priceTransferRaw,
       priceCurrency,
@@ -554,6 +568,21 @@ export async function createJobAndProduct(
     removeIfDataImage('image');
     removeIfDataImage('printDataUrl');
     removeIfDataImage('previewImage');
+
+    try {
+      console.debug('[publish-payload]', {
+        rid: publishPayload.rid ?? null,
+        originalObjectKey: publishPayload.originalObjectKey ?? null,
+        originalBucket: publishPayload.originalBucket ?? null,
+        originalMime: publishPayload.originalMime ?? null,
+        mockupUrl: publishPayload.mockupUrl ?? null,
+        design_slug: publishPayload.design_slug ?? null,
+        size_mm: publishPayload.size_mm ?? null,
+        material: publishPayload.material ?? null,
+      });
+    } catch (payloadDebugErr) {
+      logger.debug('[createJobAndProduct] publish_payload_debug_failed', payloadDebugErr);
+    }
 
     const publishResp = await apiFetch('/api/publish-product', {
       method: 'POST',
