@@ -131,7 +131,11 @@ async function buildJpeg1080FromDataUrl(dataUrl: string, quality = 0.82): Promis
   });
 }
 
-async function signUpload({ bucket, contentType }: { bucket: string; contentType: string; }) {
+async function signUpload({
+  bucket,
+  contentType,
+  allowFallback = true,
+}: { bucket: string; contentType: string; allowFallback?: boolean }) {
   const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
   const timeout = controller ? setTimeout(() => controller.abort(), 30000) : null;
   try {
@@ -142,12 +146,21 @@ async function signUpload({ bucket, contentType }: { bucket: string; contentType
       controller ? { signal: controller.signal } : undefined,
     );
     const json = await res.json().catch(() => null);
-    if (!res.ok || !json) {
-      const err = new Error('sign_upload_failed');
-      (err as Error & { status?: number }).status = res.status;
-      throw err;
+    if (res.ok && json && json.ok !== false) {
+      return json as { bucket?: string; path: string; token: string; publicUrl?: string };
     }
-    return json as { bucket?: string; path: string; token: string; publicUrl?: string };
+
+    if (allowFallback && bucket === 'preview') {
+      console.warn('[shopify] sign preview failed, retrying on outputs', {
+        bucket,
+        status: res.status,
+      });
+      return signUpload({ bucket: 'outputs', contentType, allowFallback: false });
+    }
+
+    const err = new Error('sign_upload_failed');
+    (err as Error & { status?: number }).status = res.status;
+    throw err;
   } finally {
     if (timeout) clearTimeout(timeout);
   }
