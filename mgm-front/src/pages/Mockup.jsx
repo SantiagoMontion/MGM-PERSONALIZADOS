@@ -9,16 +9,13 @@ import { buildExportBaseName } from '@/lib/filename.ts';
 import { apiFetch, getResolvedApiUrl } from '@/lib/api.ts';
 import {
   createJobAndProduct,
+  ensureMockupUrl,
   ONLINE_STORE_DISABLED_MESSAGE,
   ONLINE_STORE_MISSING_MESSAGE,
   pickCommerceTarget,
 } from '@/lib/shopify.ts';
 import logger from '../lib/logger';
 import { ensureTrackingRid, trackEvent } from '@/lib/tracking';
-
-function isDataUrl(s) {
-  return typeof s === 'string' && s.startsWith('data:');
-}
 
 function toastErr(msg) {
   try {
@@ -33,14 +30,8 @@ async function ensureAssetsForPublish(flowState) {
   if (!state?.pdfPublicUrl) {
     throw new Error('missing_pdf_public_url');
   }
-  const mockupOk = Boolean(
-    state?.mockupPublicUrl
-    || state?.mockupUrl
-    || (isDataUrl(state?.mockupDataUrl) && state.mockupDataUrl.length < 200_000),
-  );
-  if (!mockupOk) {
-    throw new Error('missing_mockup_url');
-  }
+  const flowLike = typeof flowState?.set === 'function' ? flowState : state;
+  await ensureMockupUrl(flowLike);
 }
 
 function notifyMissingAssetsError(error) {
@@ -51,6 +42,10 @@ function notifyMissingAssetsError(error) {
   }
   if (code === 'missing_mockup_url') {
     toastErr('Falta la imagen de mockup. Reintentá "Continuar" o recargá la vista.');
+    return;
+  }
+  if (code === 'missing_print_fullres_dataurl') {
+    toastErr('No encontramos la composición final para generar el mockup. Volvé al editor y tocá "Continuar".');
     return;
   }
   toastErr('No se puede continuar: recursos incompletos.');

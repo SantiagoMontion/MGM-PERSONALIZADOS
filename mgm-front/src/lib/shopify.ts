@@ -82,6 +82,55 @@ async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
   return await response.blob();
 }
 
+async function buildJpeg1080FromDataUrl(dataUrl: string, quality = 0.82): Promise<Blob> {
+  if (typeof document === 'undefined') {
+    throw new Error('mockup_canvas_unavailable');
+  }
+  const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const img = new Image();
+    img.decoding = 'async';
+    img.onload = () => resolve(img);
+    img.onerror = (event) => {
+      reject(event instanceof ErrorEvent ? event.error ?? event : event || new Error('mockup_image_load_failed'));
+    };
+    img.src = dataUrl;
+  });
+  const naturalWidth = image.naturalWidth || image.width || 1;
+  const naturalHeight = image.naturalHeight || image.height || 1;
+  const maxDim = 1080;
+  const scale = Math.min(1, maxDim / Math.max(naturalWidth, naturalHeight));
+  const width = Math.max(1, Math.round(naturalWidth * scale));
+  const height = Math.max(1, Math.round(naturalHeight * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    throw new Error('mockup_canvas_context_failed');
+  }
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(image, 0, 0, width, height);
+  return await new Promise<Blob>((resolve, reject) => {
+    if (typeof canvas.toBlob === 'function') {
+      canvas.toBlob((blob) => {
+        if (blob) {
+          resolve(blob);
+        } else {
+          reject(new Error('mockup_to_blob_failed'));
+        }
+      }, 'image/jpeg', quality);
+      return;
+    }
+    try {
+      const jpegDataUrl = canvas.toDataURL('image/jpeg', quality);
+      dataUrlToBlob(jpegDataUrl).then(resolve, reject);
+    } catch (err) {
+      reject(err instanceof Error ? err : new Error('mockup_canvas_encode_failed'));
+    }
+  });
+}
+
 async function signUpload({ bucket, contentType }: { bucket: string; contentType: string; }) {
   const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
   const timeout = controller ? setTimeout(() => controller.abort(), 30000) : null;
@@ -132,6 +181,69 @@ function jsonByteLength(value: unknown): number {
   } catch {
     return Infinity;
   }
+}
+
+export async function ensureMockupUrl(flow: FlowState): Promise<string> {
+  const flowAny = flow as Record<string, any>;
+  const existingPublicUrl = typeof flowAny?.mockupPublicUrl === 'string' ? flowAny.mockupPublicUrl.trim() : '';
+  if (existingPublicUrl) return existingPublicUrl;
+
+  const payloadLimitBytes = PUBLISH_MAX_PAYLOAD_KB * 1024;
+  let mockupBlob: Blob | null = typeof Blob !== 'undefined' && flow.mockupBlob instanceof Blob
+    ? flow.mockupBlob
+    : null;
+
+  const mockupUrlCandidate = typeof flow.mockupUrl === 'string' ? flow.mockupUrl.trim() : '';
+  if (mockupUrlCandidate && !mockupUrlCandidate.startsWith('blob:')) {
+    if (isDataUrl(mockupUrlCandidate) && mockupUrlCandidate.length > payloadLimitBytes) {
+      mockupBlob = mockupBlob || await dataUrlToBlob(mockupUrlCandidate);
+    } else {
+      return mockupUrlCandidate;
+    }
+  }
+
+  const mockupDataUrlCandidate = typeof flowAny?.mockupDataUrl === 'string' ? flowAny.mockupDataUrl.trim() : '';
+  if (isDataUrl(mockupDataUrlCandidate)) {
+    if (mockupDataUrlCandidate.length <= payloadLimitBytes) {
+      return mockupDataUrlCandidate;
+    }
+    mockupBlob = mockupBlob || await dataUrlToBlob(mockupDataUrlCandidate);
+  }
+
+  if (!mockupBlob) {
+    const printFullResDataUrl = typeof flowAny?.printFullResDataUrl === 'string'
+      ? flowAny.printFullResDataUrl.trim()
+      : '';
+    if (!isDataUrl(printFullResDataUrl)) {
+      const err: Error & { reason?: string } = new Error('missing_print_fullres_dataurl');
+      err.reason = 'missing_print_fullres_dataurl';
+      throw err;
+    }
+    mockupBlob = await buildJpeg1080FromDataUrl(printFullResDataUrl, 0.82);
+  }
+
+  const contentType = mockupBlob.type || 'image/jpeg';
+  const sign = await signUpload({ bucket: 'preview', contentType });
+  const filename = contentType.includes('png') ? 'mockup.png' : 'mockup.jpg';
+  await uploadBlobWithSignedUrl(sign, mockupBlob, filename);
+  const publicUrl = typeof sign?.publicUrl === 'string' ? sign.publicUrl : '';
+  if (!publicUrl) {
+    const err: Error & { reason?: string } = new Error('missing_mockup_url');
+    err.reason = 'missing_mockup_url';
+    throw err;
+  }
+  try {
+    if (typeof flow.set === 'function') {
+      flow.set({ mockupBlob, mockupPublicUrl: publicUrl } as Partial<FlowState>);
+    }
+  } catch (stateErr) {
+    try {
+      logger.debug('[ensureMockupUrl] state_update_failed', stateErr);
+    } catch {
+      // ignore state log failures
+    }
+  }
+  return publicUrl;
 }
 
 function readJobId(flow: FlowState): string {
@@ -390,45 +502,11 @@ export async function createJobAndProduct(
   let imageAlt = `Mockup ${productTitle}`;
 
   if (!canReuse) {
-    const mockupPublicUrlCandidate = typeof (flow as any)?.mockupPublicUrl === 'string'
-      ? (flow as any).mockupPublicUrl.trim()
-      : '';
-    if (mockupPublicUrlCandidate) {
-      mockupUrlForPayload = mockupPublicUrlCandidate;
-    }
-    let mockupBlob = flow.mockupBlob;
-    const mockupUrlCandidate = typeof flow.mockupUrl === 'string' ? flow.mockupUrl : '';
-    const mockupDataUrlCandidate = typeof (flow as any)?.mockupDataUrl === 'string'
-      ? (flow as any).mockupDataUrl
-      : '';
-    if (!mockupBlob && !mockupUrlForPayload && isDataUrl(mockupUrlCandidate)) {
-      mockupBlob = await dataUrlToBlob(mockupUrlCandidate);
-    }
-    if (!mockupBlob && !mockupUrlForPayload && isDataUrl(mockupDataUrlCandidate)) {
-      mockupBlob = await dataUrlToBlob(mockupDataUrlCandidate);
-    }
-    if (!mockupBlob && !mockupUrlForPayload && mockupUrlCandidate && !mockupUrlCandidate.startsWith('blob:')) {
-      mockupUrlForPayload = mockupUrlCandidate.trim();
-    }
-    if (!mockupBlob && !mockupUrlForPayload) throw new Error('missing_mockup');
-
-    if (!mockupUrlForPayload && mockupBlob) {
-      const approxBase64Bytes = Math.ceil((mockupBlob.size * 4) / 3);
-      const approxBase64Kb = Math.ceil(approxBase64Bytes / 1024);
-      if (approxBase64Kb > PUBLISH_MAX_PAYLOAD_KB) {
-        const contentType = mockupBlob.type || 'image/jpeg';
-        const sign = await signUpload({ bucket: 'preview', contentType });
-        const name = contentType.includes('png') ? 'mockup.png' : 'mockup.jpg';
-        await uploadBlobWithSignedUrl(sign, mockupBlob, name);
-        mockupUrlForPayload = String(sign?.publicUrl || '');
-      } else {
-        const dataUrl = await blobToBase64(mockupBlob);
-        mockupUrlForPayload = dataUrl;
-      }
-    }
-
+    mockupUrlForPayload = (await ensureMockupUrl(flow))?.trim();
     if (!mockupUrlForPayload) {
-      throw new Error('missing_mockup_url');
+      const err: Error & { reason?: string } = new Error('missing_mockup_url');
+      err.reason = 'missing_mockup_url';
+      throw err;
     }
 
     if (isPrivate) {

@@ -5,6 +5,7 @@ const defaultState = {
   editorState: null,
   mockupBlob: null,
   mockupUrl: null,
+  mockupPublicUrl: null,
   printFullResDataUrl: null,
   fileOriginalUrl: null,
   uploadObjectKey: null,
