@@ -1,174 +1,185 @@
-export async function renderMockup1080(opts) {
-  const size = 1080;
-  const margin = 40;
-  const SCALE_UP = 1.05;
-  const maxContent = size - margin * 2;
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext('2d');
+export async function renderMockup1080(imageOrOptions, maybeOptions) {
+  let image = imageOrOptions;
+  let opts = maybeOptions;
+  if (!maybeOptions && (imageOrOptions?.image || imageOrOptions?.composition || imageOrOptions?.productType)) {
+    opts = imageOrOptions || {};
+    image = opts?.composition?.canvas || opts?.composition?.image || opts?.image;
+  }
 
+  const CANVAS_SIZE = 1080;
+  const canvas = document.createElement('canvas');
+  canvas.width = CANVAS_SIZE;
+  canvas.height = CANVAS_SIZE;
+  const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('2d context unavailable');
 
-  ctx.clearRect(0, 0, size, size);
-
-  const compositionSource = opts?.composition?.canvas
-    || opts?.composition?.image
-    || null;
-  const image = compositionSource || opts.image || (opts.composition && opts.composition.image);
   if (!image) {
-    return new Promise((res) => canvas.toBlob(res, 'image/png', 1));
+    const emptyBlob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
+    return emptyBlob || new Blob([], { type: 'image/png' });
   }
 
-  const drawSource = compositionSource || image;
+  const options = opts || {};
+  const drawSource = options?.composition?.canvas || options?.composition?.image || image;
 
-  const compWidth = Number(
-    opts?.composition?.widthPx ??
-    opts?.composition?.width_px ??
-    compositionSource?.width ??
-    compositionSource?.naturalWidth ??
-    0,
-  );
-  const compHeight = Number(
-    opts?.composition?.heightPx ??
-    opts?.composition?.height_px ??
-    compositionSource?.height ??
-    compositionSource?.naturalHeight ??
-    0,
-  );
-  if (Number.isFinite(compWidth) && Number.isFinite(compHeight) && compWidth > 0 && compHeight > 0) {
-    const longest = Math.max(compWidth, compHeight);
-    const scale = longest > 0 ? Math.min(1, 1080 / longest) : 1;
-    const targetWidth = Math.max(1, Math.round(compWidth * scale));
-    const targetHeight = Math.max(1, Math.round(compHeight * scale));
-    const directCanvas = document.createElement('canvas');
-    directCanvas.width = targetWidth;
-    directCanvas.height = targetHeight;
-    const directCtx = directCanvas.getContext('2d');
-    if (!directCtx) throw new Error('2d context unavailable');
-    directCtx.imageSmoothingEnabled = true;
-    directCtx.imageSmoothingQuality = 'high';
-    directCtx.drawImage(drawSource, 0, 0, targetWidth, targetHeight);
-    const jpegBlob = await new Promise((res) => directCanvas.toBlob(res, 'image/jpeg', 0.82));
-    return jpegBlob || new Blob([], { type: 'image/jpeg' });
-  }
+  const MAX_LONG_PX = Number(import.meta.env?.VITE_MOCKUP_MAX_LONG_PX) || 990;
+  const MIN_LONG_PX = Number(import.meta.env?.VITE_MOCKUP_MIN_LONG_PX) || 400;
+  const GAMMA = Number(import.meta.env?.VITE_MOCKUP_SCALE_GAMMA) || 0.6;
 
-  const widthCm = Number(
-    opts.widthCm ??
-      opts.width_cm ??
-      (opts.composition && (opts.composition.widthCm ?? opts.composition.width_cm)) ??
-      0
+  const REF_MAX_CM_MAP = {
+    classic: Number(import.meta.env?.VITE_REF_MAX_CM_CLASSIC) || 140,
+    pro: Number(import.meta.env?.VITE_REF_MAX_CM_PRO) || 140,
+    glass: Number(import.meta.env?.VITE_REF_MAX_CM_GLASS) || 49,
+  };
+
+  const materialText = String(
+    options?.material ||
+    options?.composition?.material ||
+    options?.productType ||
+    ''
+  ).toLowerCase();
+  const refMaxCm = materialText.includes('glass')
+    ? REF_MAX_CM_MAP.glass
+    : materialText.includes('pro')
+      ? REF_MAX_CM_MAP.pro
+      : REF_MAX_CM_MAP.classic;
+
+  const anySource = drawSource || {};
+  const fallbackWidth = Number(anySource.width || anySource.naturalWidth || anySource.videoWidth || 0);
+  const fallbackHeight = Number(anySource.height || anySource.naturalHeight || anySource.videoHeight || 0);
+  const compWidthPx = Number(
+    options?.composition?.widthPx ??
+    options?.composition?.width_px ??
+    options?.widthPx ??
+    options?.width_px ??
+    fallbackWidth
   );
-  const heightCm = Number(
-    opts.heightCm ??
-      opts.height_cm ??
-      (opts.composition && (opts.composition.heightCm ?? opts.composition.height_cm)) ??
-      0
+  const compHeightPx = Number(
+    options?.composition?.heightPx ??
+    options?.composition?.height_px ??
+    options?.heightPx ??
+    options?.height_px ??
+    fallbackHeight
   );
 
-  const iw = image.width || image.naturalWidth || image.videoWidth || 0;
-  const ih = image.height || image.naturalHeight || image.videoHeight || 0;
-  if (!iw || !ih) {
-    return new Promise((res) => canvas.toBlob(res, 'image/png', 1));
+  let widthMm = Number(
+    options?.composition?.widthMm ??
+    options?.composition?.width_mm ??
+    options?.widthMm ??
+    options?.width_mm ??
+    0
+  );
+  let heightMm = Number(
+    options?.composition?.heightMm ??
+    options?.composition?.height_mm ??
+    options?.heightMm ??
+    options?.height_mm ??
+    0
+  );
+
+  const legacyWidthCm = Number(
+    options?.composition?.widthCm ??
+    options?.composition?.width_cm ??
+    options?.widthCm ??
+    options?.width_cm ??
+    0
+  );
+  const legacyHeightCm = Number(
+    options?.composition?.heightCm ??
+    options?.composition?.height_cm ??
+    options?.heightCm ??
+    options?.height_cm ??
+    0
+  );
+  if ((!Number.isFinite(widthMm) || widthMm <= 0) && Number.isFinite(legacyWidthCm) && legacyWidthCm > 0) {
+    widthMm = legacyWidthCm * 10;
+  }
+  if ((!Number.isFinite(heightMm) || heightMm <= 0) && Number.isFinite(legacyHeightCm) && legacyHeightCm > 0) {
+    heightMm = legacyHeightCm * 10;
   }
 
-  const longestCm = Math.max(widthCm, heightCm);
-  const safeLongestCm = Number.isFinite(longestCm) ? Math.max(0, longestCm) : 0;
-  const norm = safeLongestCm / 140;
-  let ratio = Number.isFinite(norm) ? Math.pow(Math.max(norm, 0), 0.6) : 0;
-  if (!Number.isFinite(ratio)) {
-    ratio = 0;
-  }
-  ratio = Math.min(1, Math.max(0.26, ratio));
-  let targetLongestPx = Math.round(maxContent * ratio);
-  if (!Number.isFinite(targetLongestPx) || targetLongestPx <= 0) {
-    targetLongestPx = Math.round(maxContent * 0.26);
-  }
-  targetLongestPx = Math.min(maxContent, Math.max(1, targetLongestPx));
+  const dpiCandidates = [
+    options?.composition?.dpi,
+    options?.dpi,
+    options?.approxDpi,
+  ];
+  const safeDpi = dpiCandidates.reduce((acc, value) => {
+    const num = Number(value);
+    if (Number.isFinite(num) && num > 0) {
+      return acc ?? num;
+    }
+    return acc;
+  }, null);
+  const dpi = Number.isFinite(safeDpi) && safeDpi
+    ? Number(safeDpi)
+    : 300;
+  const pxToMm = (px) => (Number(px) || 0) / dpi * 25.4;
 
-  let drawW;
-  let drawH;
-  if (iw >= ih) {
-    drawW = targetLongestPx;
-    drawH = Math.round((ih / Math.max(1e-6, iw)) * drawW);
+  if (!Number.isFinite(widthMm) || widthMm <= 0) {
+    widthMm = pxToMm(compWidthPx || fallbackWidth);
+  }
+  if (!Number.isFinite(heightMm) || heightMm <= 0) {
+    heightMm = pxToMm(compHeightPx || fallbackHeight);
+  }
+
+  const widthCm = Number.isFinite(widthMm) ? widthMm / 10 : 0;
+  const heightCm = Number.isFinite(heightMm) ? heightMm / 10 : 0;
+  const longestCm = Math.max(widthCm, heightCm, 0);
+
+  const aspect = compWidthPx > 0 && compHeightPx > 0
+    ? compWidthPx / compHeightPx
+    : fallbackWidth > 0 && fallbackHeight > 0
+      ? fallbackWidth / fallbackHeight
+      : 1;
+  const t = Math.max(0, Math.min(1, refMaxCm > 0 ? longestCm / refMaxCm : 0));
+  const eased = Math.pow(t, GAMMA);
+  let longPx = Math.round(MIN_LONG_PX + (MAX_LONG_PX - MIN_LONG_PX) * eased);
+  if (!Number.isFinite(longPx) || longPx <= 0) {
+    longPx = MIN_LONG_PX;
+  }
+  longPx = Math.max(1, Math.min(longPx, MAX_LONG_PX));
+
+  let targetW;
+  let targetH;
+  if (aspect >= 1) {
+    targetW = longPx;
+    targetH = Math.max(1, Math.round(longPx / Math.max(aspect, 1e-6)));
   } else {
-    drawH = targetLongestPx;
-    drawW = Math.round((iw / Math.max(1e-6, ih)) * drawH);
+    targetH = longPx;
+    targetW = Math.max(1, Math.round(longPx * aspect));
   }
-
-  drawW *= SCALE_UP;
-  drawH *= SCALE_UP;
-
-  if (drawW > maxContent) {
-    const ratio = drawH / Math.max(1e-6, drawW);
-    drawW = maxContent;
-    drawH = Math.round(drawW * ratio);
+  if (targetW > CANVAS_SIZE) {
+    const scale = CANVAS_SIZE / targetW;
+    targetW = CANVAS_SIZE;
+    targetH = Math.max(1, Math.round(targetH * scale));
   }
-  if (drawH > maxContent) {
-    const ratio = drawW / Math.max(1e-6, drawH);
-    drawH = maxContent;
-    drawW = Math.round(drawH * ratio);
+  if (targetH > CANVAS_SIZE) {
+    const scale = CANVAS_SIZE / targetH;
+    targetH = CANVAS_SIZE;
+    targetW = Math.max(1, Math.round(targetW * scale));
   }
+  const offsetX = Math.round((CANVAS_SIZE - targetW) / 2);
+  const offsetY = Math.round((CANVAS_SIZE - targetH) / 2);
 
-  drawW = Math.max(1, Math.round(drawW));
-  drawH = Math.max(1, Math.round(drawH));
-
+  ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
 
-  const dx = Math.round((size - drawW) / 2);
-  const dy = Math.round((size - drawH) / 2);
+  const sourceWidth = compWidthPx > 0 ? compWidthPx : fallbackWidth || targetW;
+  const sourceHeight = compHeightPx > 0 ? compHeightPx : fallbackHeight || targetH;
+  ctx.drawImage(
+    drawSource,
+    0,
+    0,
+    sourceWidth,
+    sourceHeight,
+    offsetX,
+    offsetY,
+    targetW,
+    targetH,
+  );
 
-  const clipRoundedRect = (context, x, y, width, height, radius) => {
-    const r = Math.max(0, Math.min(radius, Math.min(width, height) / 2));
-    context.beginPath();
-    if (typeof context.roundRect === 'function') {
-      context.roundRect(x, y, width, height, r);
-    } else {
-      context.moveTo(x + r, y);
-      context.lineTo(x + width - r, y);
-      context.arcTo(x + width, y, x + width, y + r, r);
-      context.lineTo(x + width, y + height - r);
-      context.arcTo(x + width, y + height, x + width - r, y + height, r);
-      context.lineTo(x + r, y + height);
-      context.arcTo(x, y + height, x, y + height - r, r);
-      context.lineTo(x, y + r);
-      context.arcTo(x, y, x + r, y, r);
-      context.closePath();
-    }
-    context.clip();
-  };
-
-  ctx.save();
-  clipRoundedRect(ctx, dx, dy, drawW, drawH, 12);
-
-  let drewGlassEffect = false;
-  if (opts.productType === 'glasspad') {
-    const glassCanvas = document.createElement('canvas');
-    glassCanvas.width = drawW;
-    glassCanvas.height = drawH;
-    const glassCtx = glassCanvas.getContext('2d');
-
-    if (glassCtx) {
-      const blurPx = 1;
-
-      glassCtx.filter = `blur(${blurPx}px)`;
-      glassCtx.drawImage(drawSource, 0, 0, drawW, drawH);
-      glassCtx.filter = 'none';
-
-      ctx.drawImage(glassCanvas, dx, dy, drawW, drawH);
-      drewGlassEffect = true;
-    }
-  }
-
-  if (!drewGlassEffect) {
-    ctx.drawImage(drawSource, dx, dy, drawW, drawH);
-  }
-
-  ctx.restore();
-
-  const blob = await new Promise((res) => canvas.toBlob(res, 'image/png', 1));
-  return blob;
+  const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
+  return blob || new Blob([], { type: 'image/png' });
 }
 
 export function downloadBlob(blob, name) {
