@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { createDiagId, logApiError } from '../_lib/diag.js';
 import { applyLenientCors } from '../_lib/lenientCors.js';
+import logger from '../../lib/_lib/logger.js';
 
 const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 50;
@@ -14,8 +15,10 @@ const DEFAULT_ROOT = '';
 
 type PrintRow = {
   id?: string | number;
-  title?: string | null;
   slug?: string | null;
+  design_slug?: string | null;
+  filename?: string | null;
+  pdf_filename?: string | null;
   thumb_url?: string | null;
   thumbUrl?: string | null;
   tags?: string | string[] | null;
@@ -29,6 +32,9 @@ type SearchResultItem = {
   id: string | number | null;
   title: string | null;
   slug: string | null;
+  designSlug: string | null;
+  fileName: string | null;
+  pdfFileName: string | null;
   thumbUrl: string | null;
   tags: string[] | string | null;
   price: number | string | null;
@@ -120,10 +126,9 @@ const PREVIEW_BUCKET =
 let PREVIEW_ROOT = (process.env.PREVIEW_STORAGE_ROOT || 'preview')
   .replace(/^\/+/, '')
   .replace(/\/+$/, '');
-const PREVIEW_EXTS = (process.env.PREVIEW_EXTS || 'jpg,jpeg,png')
-  .split(',')
-  .map((s) => s.trim().toLowerCase())
-  .filter(Boolean);
+const PREVIEW_EXTENSION = ((process.env.PREVIEW_EXTENSION || 'jpg').split(',')[0] || 'jpg')
+  .trim()
+  .toLowerCase() || 'jpg';
 
 let cachedClient: SupabaseClient | null = null;
 
@@ -209,10 +214,24 @@ function isAbortError(error: unknown): boolean {
 function mapRowToItem(row: PrintRow): SearchResultItem {
   const thumb = row.thumbUrl ?? row.thumb_url ?? null;
   const created = row.createdAt ?? row.created_at ?? null;
+  const slug = typeof row.slug === 'string' && row.slug.trim() ? row.slug.trim() : null;
+  const designSlug =
+    typeof row.design_slug === 'string' && row.design_slug.trim()
+      ? row.design_slug.trim()
+      : null;
+  const fileName = typeof row.filename === 'string' && row.filename.trim() ? row.filename.trim() : null;
+  const pdfFileName =
+    typeof row.pdf_filename === 'string' && row.pdf_filename.trim()
+      ? row.pdf_filename.trim()
+      : null;
+  const title = slug ?? designSlug ?? fileName ?? pdfFileName ?? null;
   return {
     id: (row.id as string | number | null) ?? null,
-    title: row.title ?? null,
-    slug: row.slug ?? null,
+    title,
+    slug,
+    designSlug,
+    fileName,
+    pdfFileName,
     thumbUrl: thumb,
     tags: row.tags ?? null,
     price: row.price ?? null,
@@ -231,10 +250,14 @@ async function searchPrints(
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), SUPABASE_TIMEOUT_MS);
   try {
+    const searchColumn = "coalesce(slug,design_slug,filename,pdf_filename,'')";
     const { data, error, count } = await client
       .from(PRINTS_TABLE)
-      .select('id, title, slug, thumb_url, price, popularity, created_at, tags', { count: 'exact' })
-      .or(`title.ilike.${pattern},tags.ilike.${pattern},slug.ilike.${pattern}`)
+      .select(
+        'id, slug, design_slug, filename, pdf_filename, thumb_url, price, popularity, created_at, tags',
+        { count: 'exact' },
+      )
+      .filter(searchColumn, 'ilike', pattern)
       .order('popularity', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false, nullsFirst: false })
       .range(offset, offset + limit - 1)
@@ -432,64 +455,12 @@ function computeSizeMb(sizeBytes: number | null): number | null {
   return Number.isFinite(megabytes) ? Number(megabytes.toFixed(2)) : null;
 }
 
-function splitPath(path: string): { dir: string; name: string } {
-  const index = path.lastIndexOf('/');
-  if (index === -1) {
-    return { dir: '', name: path };
-  }
-  const dir = path.slice(0, index);
-  const name = path.slice(index + 1);
-  return { dir, name };
-}
-
-function normalizeDirPath(dir: string): string {
-  if (!dir) return '';
-  return dir.replace(/^\/+/, '').replace(/\/+$/, '');
-}
-
-function joinPreviewPath(...parts: Array<string | null | undefined>): string {
-  const cleaned = parts
-    .map((part) => (part ?? '').trim())
-    .filter((part) => part !== '')
-    .map((part) => part.replace(/^\/+/, '').replace(/\/+$/, ''))
-    .filter(Boolean);
-  return cleaned.join('/');
-}
-
 type PreviewResolution = {
   url: string | null;
   tried: string[];
   found: boolean;
   scan: null;
 };
-
-function buildPreviewCandidateDirs(
-  filePath: string,
-  rootPrefix: string,
-  pdfIndex: number,
-  year: string | null,
-  month: string | null,
-): string[] {
-  const dirs = new Set<string>();
-  const previewRoot = PREVIEW_ROOT;
-  dirs.add(joinPreviewPath(rootPrefix, previewRoot));
-  if (month) {
-    dirs.add(joinPreviewPath(rootPrefix, previewRoot, month));
-  }
-  if (year && month) {
-    dirs.add(joinPreviewPath(rootPrefix, previewRoot, year, month));
-  }
-  if (previewRoot && rootPrefix) {
-    dirs.add(joinPreviewPath(previewRoot, rootPrefix));
-  }
-  if (pdfIndex === -1) {
-    const originalDir = normalizeDirPath(splitPath(filePath).dir);
-    if (previewRoot && originalDir) {
-      dirs.add(joinPreviewPath(previewRoot, originalDir));
-    }
-  }
-  return Array.from(dirs).map((dir) => dir ?? '');
-}
 
 async function resolvePreview(
   storage: SupabaseStorageClient,
@@ -511,52 +482,26 @@ async function resolvePreview(
     return { url: null, tried, found: false, scan: null };
   }
 
-  const dirSegments = segments.slice(0, -1);
-  const pdfIndex = dirSegments.findIndex((segment) => segment.toLowerCase() === 'pdf');
-  const rootPrefix = pdfIndex !== -1 ? dirSegments.slice(0, pdfIndex).join('/') : dirSegments.join('/');
-  const tail = pdfIndex !== -1 ? dirSegments.slice(pdfIndex + 1) : [];
-  const yearCandidate = tail[0];
-  const year = yearCandidate && /^\d{4}$/.test(yearCandidate) ? yearCandidate : null;
-  const monthCandidate = year ? tail[1] : tail[0];
-  const month = monthCandidate && /^\d{1,2}$/.test(monthCandidate ?? '') ? monthCandidate : null;
+  const previewPath = PREVIEW_ROOT
+    ? `${PREVIEW_ROOT}/${baseName}.${PREVIEW_EXTENSION}`
+    : `${baseName}.${PREVIEW_EXTENSION}`;
+  tried.push(previewPath);
 
-  const candidateDirs = buildPreviewCandidateDirs(filePath, rootPrefix, pdfIndex, year, month);
-  const baseNames = new Set<string>([baseName]);
-  const baseLower = baseName.toLowerCase();
-  if (baseLower !== baseName) {
-    baseNames.add(baseLower);
-  }
-
-  for (const dir of candidateDirs) {
-    const normalizedDir = normalizeDirPath(dir);
-    for (const candidateBase of baseNames) {
-      for (const ext of PREVIEW_EXTS) {
-        const candidateFile = `${candidateBase}.${ext}`;
-        const candidatePath = normalizedDir ? `${normalizedDir}/${candidateFile}` : candidateFile;
-        if (tried.includes(candidatePath)) {
-          continue;
-        }
-        tried.push(candidatePath);
-
-        const { data: publicResult } = storage.getPublicUrl(candidatePath);
-        if (publicResult?.publicUrl) {
-          return { url: publicResult.publicUrl, tried, found: true, scan: null };
-        }
-
-        const ttl = getSignedUrlTtl();
-        try {
-          const { data: signedResult, error: signedError } = await storage.createSignedUrl(
-            candidatePath,
-            ttl,
-          );
-          if (!signedError && signedResult?.signedUrl) {
-            return { url: signedResult.signedUrl, tried, found: true, scan: null };
-          }
-        } catch {
-          // ignore and continue
-        }
-      }
+  const ttl = getSignedUrlTtl();
+  try {
+    const { data: signedResult, error: signedError } = await storage.createSignedUrl(previewPath, ttl);
+    if (!signedError && signedResult?.signedUrl) {
+      const { data: publicResult } = storage.getPublicUrl(previewPath);
+      const finalUrl = publicResult?.publicUrl || signedResult.signedUrl;
+      return { url: finalUrl, tried, found: Boolean(finalUrl), scan: null };
     }
+  } catch (err) {
+    try {
+      logger.warn('prints_search_preview_lookup_failed', {
+        path: previewPath,
+        message: err?.message || err,
+      });
+    } catch {}
   }
 
   return { url: null, tried, found: false, scan: null };
