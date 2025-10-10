@@ -102,7 +102,7 @@ export default async function handler(req, res) {
     let bucket = requestedBucket;
     let signResult = await signInBucket(bucket);
     if (signResult.error && bucket !== DEFAULT_BUCKET) {
-      console.warn('[diag] signed upload failed, retrying with default bucket', {
+      console.debug('[sign] retry_default_bucket', {
         diagId,
         requestedBucket,
         bucket,
@@ -113,15 +113,18 @@ export default async function handler(req, res) {
       signResult = await signInBucket(bucket);
     }
 
-    if (signResult.error) {
-      console.error('[diag] signed upload failed', {
+    if (signResult.error || !signResult?.data?.signedUrl || !signResult?.data?.token) {
+      const reason = signResult.error?.message || signResult.error || 'missing_signed_url';
+      console.debug('[sign] nonfatal_failure', { diagId, bucket, requestedBucket, objectKey, reason });
+      res.setHeader?.('Content-Type', 'application/json; charset=utf-8');
+      res.status(200).json({
+        ok: false,
+        error: 'sign_failed',
         diagId,
-        bucket,
         requestedBucket,
-        objectKey,
-        signError: signResult.error,
+        usedBucket: bucket,
       });
-      throw signResult.error;
+      return;
     }
 
     const signedData = signResult.data;
@@ -141,12 +144,12 @@ export default async function handler(req, res) {
       requestedBucket,
     });
   } catch (err) {
+    console.debug('[sign] catch_nonfatal', { diagId, error: err?.message || err });
     res.setHeader?.('Content-Type', 'application/json; charset=utf-8');
-    res.status(500).json({
+    res.status(200).json({
       ok: false,
       error: 'internal_error',
       diagId,
-      message: err?.message || 'sign_failed',
     });
   }
 }
