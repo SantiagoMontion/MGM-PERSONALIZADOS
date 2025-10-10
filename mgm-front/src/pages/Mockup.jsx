@@ -230,22 +230,81 @@ function isHttpUrl(u) {
   return typeof u === 'string' && /^https?:\/\//i.test(u?.trim?.() || '');
 }
 
-function reserveTab() {
+let preTabRef = null;
+
+function openOrReusePreTab() {
   if (typeof window === 'undefined') return null;
+  if (preTabRef && !preTabRef.closed) {
+    return preTabRef;
+  }
   try {
-    const tab = window.open('about:blank', '_blank', 'noopener,noreferrer');
+    const tab = window.open('', '_blank', 'noopener');
+    preTabRef = tab || null;
     if (tab) {
       try {
-        tab.document.write('<title>Abriendo...</title>');
+        tab.document.open();
+        tab.document.write(`
+          <html><head><meta charset="utf-8"><title>Abriendo...</title>
+          <style>
+            html,body{margin:0;height:100%;background:#0e0e0e;color:#fff;display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif}
+            .box{padding:24px 28px;border-radius:14px;background:rgba(255,255,255,.06);backdrop-filter:blur(6px);box-shadow:0 10px 30px rgba(0,0,0,.35)}
+          </style></head>
+          <body><div class="box">Preparando tu página...</div></body></html>
+        `);
+        tab.document.close();
       } catch (writeErr) {
-        diag('[mockup] reserve_tab_write_failed', writeErr);
+        diag('[mockup] pretab_loader_failed', writeErr);
       }
     }
-    return tab || null;
+    return preTabRef;
   } catch (err) {
-    diag('[mockup] reserve_tab_failed', err);
+    diag('[mockup] pretab_open_failed', err);
+    preTabRef = null;
     return null;
   }
+}
+
+function navigatePreTabOrClose(url) {
+  const tab = preTabRef;
+  preTabRef = null;
+  if (!tab || tab.closed) {
+    if (url && !openInNewTabSafe(url)) {
+      try {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      } catch (openErr) {
+        diag('[mockup] fallback_tab_open_failed', openErr);
+      }
+    }
+    return;
+  }
+  if (url && typeof url === 'string') {
+    try {
+      tab.location.replace(url);
+      return;
+    } catch (replaceErr) {
+      diag('[mockup] pretab_replace_failed', replaceErr);
+      try {
+        tab.location.href = url;
+        return;
+      } catch (hrefErr) {
+        diag('[mockup] pretab_href_failed', hrefErr);
+      }
+    }
+    if (!openInNewTabSafe(url)) {
+      try {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      } catch (openErr) {
+        diag('[mockup] fallback_tab_open_failed', openErr);
+      }
+    }
+    try {
+      tab.close();
+    } catch {}
+    return;
+  }
+  try {
+    tab.close();
+  } catch {}
 }
 
 function openInNewTabSafe(url) {
@@ -2433,26 +2492,20 @@ export default function Mockup() {
     });
 
     setToast(null);
-    const reservedTab = reserveTab();
+    openOrReusePreTab();
     setCartStatus('creating');
     try {
       await ensureMockupUrlInFlow(flow);
-      const overrides = buildOverridesFromUi('cart');
+      const overrides = { ...buildOverridesFromUi('cart'), private: false };
       const result = await buyDirect('cart', overrides, { autoOpen: false });
-      const outcome = finalizePurchase(result, flow, reservedTab, 'No se pudo abrir el producto. Intenta de nuevo.');
+      const outcome = finalizePurchase(result, flow, 'No se pudo abrir el producto. Intenta de nuevo.');
       return outcome;
     } catch (err) {
       warn('[cart] error', err);
       const fallbackMessage = 'Ocurrio un error al agregar al carrito.';
       toastErr(fallbackMessage);
       setToast({ message: fallbackMessage });
-      if (reservedTab && !reservedTab.closed) {
-        try {
-          reservedTab.close();
-        } catch (closeErr) {
-          diag('[mockup] reserved_tab_close_failed', closeErr);
-        }
-      }
+      navigatePreTabOrClose(null);
     } finally {
       setCartStatus('idle');
     }
@@ -2467,60 +2520,19 @@ export default function Mockup() {
     return null;
   }
 
-  function finalizePurchase(result, flowRef, reservedTab = null, fallbackMessage = 'No se pudo abrir el producto. Intenta de nuevo.') {
+  function finalizePurchase(result, flowRef, fallbackMessage = 'No se pudo abrir el producto. Intenta de nuevo.') {
     if (!result) {
-      if (reservedTab && !reservedTab.closed) {
-        try {
-          reservedTab.close();
-        } catch (closeErr) {
-          diag('[mockup] reserved_tab_close_failed', closeErr);
-        }
-      }
+      navigatePreTabOrClose(null);
       return { ok: false };
     }
     const targetUrl = pickOpenUrl(result);
     if (isHttpUrl(targetUrl)) {
-      let navigated = false;
-      if (reservedTab && !reservedTab.closed) {
-        try {
-          reservedTab.location.replace
-            ? reservedTab.location.replace(targetUrl)
-            : (reservedTab.location.href = targetUrl);
-          navigated = true;
-        } catch (assignErr) {
-          diag('[mockup] reserved_tab_navigation_failed', assignErr);
-        }
-      }
-      if (!navigated) {
-        navigated = openInNewTabSafe(targetUrl);
-      }
-      if (!navigated) {
-        try {
-          window.open(targetUrl, '_blank', 'noopener,noreferrer');
-          navigated = true;
-        } catch (fallbackErr) {
-          warn('[mockup] finalize_navigation_failed', fallbackErr);
-        }
-      }
-      if (!navigated) {
-        try {
-          window.location.assign(targetUrl);
-          navigated = true;
-        } catch (assignErr) {
-          warn('[mockup] finalize_assign_failed', assignErr);
-        }
-      }
+      navigatePreTabOrClose(targetUrl);
       const flowStateForJump = typeof flowRef?.get === 'function' ? flowRef.get() : flowRef;
       jumpHomeAndClean(flowStateForJump || flowRef);
       return { ok: true, url: targetUrl };
     }
-    if (reservedTab && !reservedTab.closed) {
-      try {
-        reservedTab.close();
-      } catch (closeErr) {
-        diag('[mockup] reserved_tab_close_failed', closeErr);
-      }
-    }
+    navigatePreTabOrClose(null);
     toastErr(fallbackMessage);
     setToast({ message: fallbackMessage });
     return { ok: false };
@@ -2609,16 +2621,14 @@ export default function Mockup() {
         h: overrides?.heightCm ?? null,
       });
       if (autoOpen && openUrl) {
-        try {
-          window.open(openUrl, '_blank', 'noopener');
-        } catch (assignErr) {
-          warn('[mockup] direct_navigation_failed', assignErr);
-        }
+        openOrReusePreTab();
+        navigatePreTabOrClose(openUrl);
       }
       return result;
     } catch (err) {
       error('[buy] direct:error', mode, err);
       setToast((prev) => (prev ? prev : { message: 'No se pudo crear el producto.' }));
+      navigatePreTabOrClose(null);
       throw err;
     }
   }
@@ -2630,7 +2640,7 @@ export default function Mockup() {
     setPublicBusy(true);
     setBusy(true);
 
-    const reservedTab = reserveTab();
+    openOrReusePreTab();
     try {
       setBuyPromptOpen(false);
       await ensureMockupPublicReady(flow);
@@ -2641,21 +2651,14 @@ export default function Mockup() {
         options: {
           ...(typeof baseOverrides.options === 'object' && baseOverrides.options ? baseOverrides.options : {}),
         },
-        private: false,
         visibility: 'public',
       };
-      const result = await buyDirect('checkout', overrides, { skipEnsure: true, autoOpen: false });
-      const outcome = finalizePurchase(result, flow, reservedTab, 'No se pudo abrir el checkout. Proba nuevamente.');
+      const result = await buyDirect('checkout', { ...overrides, private: false }, { skipEnsure: true, autoOpen: false });
+      const outcome = finalizePurchase(result, flow, 'No se pudo abrir el checkout. Proba nuevamente.');
       return outcome;
     } catch (err) {
       error('[checkout-public-flow]', err);
-      if (reservedTab && !reservedTab.closed) {
-        try {
-          reservedTab.close();
-        } catch (closeErr) {
-          diag('[mockup] reserved_tab_close_failed', closeErr);
-        }
-      }
+      navigatePreTabOrClose(null);
       setToast({ message: 'Ocurrio un error al procesar el checkout.' });
       return null;
     } finally {
@@ -2672,7 +2675,7 @@ export default function Mockup() {
     setPrivateBusy(true);
     setBusy(true);
 
-    const reservedTab = reserveTab();
+    openOrReusePreTab();
     try {
       setBuyPromptOpen(false);
       await ensureMockupPublicReady(flow);
@@ -2683,21 +2686,14 @@ export default function Mockup() {
         options: {
           ...(typeof baseOverrides.options === 'object' && baseOverrides.options ? baseOverrides.options : {}),
         },
-        private: true,
         visibility: 'private',
       };
-      const result = await buyDirect('checkout', overrides, { skipEnsure: true, autoOpen: false });
-      const outcome = finalizePurchase(result, flow, reservedTab, 'No se pudo abrir el checkout privado. Proba de nuevo.');
+      const result = await buyDirect('checkout', { ...overrides, private: true }, { skipEnsure: true, autoOpen: false });
+      const outcome = finalizePurchase(result, flow, 'No se pudo abrir el checkout privado. Proba de nuevo.');
       return outcome;
     } catch (err) {
       error('[checkout-private-flow]', err);
-      if (reservedTab && !reservedTab.closed) {
-        try {
-          reservedTab.close();
-        } catch (closeErr) {
-          diag('[mockup] reserved_tab_close_failed', closeErr);
-        }
-      }
+      navigatePreTabOrClose(null);
       setToast({ message: 'Ocurrio un error al crear el checkout privado.' });
       return null;
     } finally {

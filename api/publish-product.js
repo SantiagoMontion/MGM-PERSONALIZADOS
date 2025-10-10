@@ -517,6 +517,19 @@ export default async function handler(req, res) {
   const currencyValue = String(parsedBody.currency || process.env.SHOPIFY_CART_PRESENTMENT_CURRENCY || 'USD');
   parsedBody.price = priceValue;
   parsedBody.currency = currencyValue;
+  const privateCandidates = [
+    parsedBody?.private,
+    parsedBody?.isPrivate,
+    body?.private,
+    body?.isPrivate,
+  ];
+  const isPrivate = privateCandidates.some((candidate) => {
+    if (candidate === true) return true;
+    if (typeof candidate === 'string' && candidate.trim().toLowerCase() === 'true') return true;
+    return false;
+  });
+  parsedBody.private = isPrivate;
+  parsedBody.isPrivate = isPrivate;
   // Pasar mockupUrl simple; la imagen se adjunta en el handler via REST
   parsedBody.mockupUrl = mockupUrlRaw || parsedBody.mockupUrl || null;
   const imageSrcCandidate =
