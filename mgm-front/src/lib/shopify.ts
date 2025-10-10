@@ -133,13 +133,14 @@ function cmFromPx(px: unknown, dpi: unknown): number {
   return Math.max(1, Math.round((pxNum / dpiNum) * 2.54));
 }
 
-function matLabelOf(material: unknown): string {
-  const text = (material ?? '').toString().toLowerCase();
+function matLabelOf(material: unknown): string | null {
+  const raw = (material ?? '').toString().trim();
+  if (!raw) return null;
+  const text = raw.toLowerCase();
   if (text.includes('glass')) return 'Glasspad';
   if (text.includes('pro')) return 'PRO';
   if (text.includes('classic')) return 'Classic';
-  const trimmed = (material ?? '').toString().trim();
-  return trimmed || 'Classic';
+  return raw;
 }
 
 async function signUpload({
@@ -297,7 +298,8 @@ export async function ensureMockupUrl(flow: FlowState): Promise<string> {
   masterHeightPx = Number(flowAny?.masterHeightPx || masterHeightPx || 0);
   const widthCm = cmFromPx(masterWidthPx, dpi);
   const heightCm = cmFromPx(masterHeightPx, dpi);
-  const filenameBase = `${safeName(flowAny?.designName)} ${widthCm}x${heightCm} ${matLabelOf(flowAny?.material)}`.replace(/\s+/g, ' ').trim();
+  const mat = matLabelOf(flowAny?.material) || 'Classic';
+  const filenameBase = `${safeName(flowAny?.designName)} ${widthCm}x${heightCm} ${mat}`.replace(/\s+/g, ' ').trim();
   const filename = `${filenameBase}.png`;
   const contentType = mockupBlob.type || 'image/png';
   const sign = await signUpload({ bucket: 'preview', contentType, path: `mockups-${yyyymm()}/${filename}` });
@@ -536,7 +538,7 @@ export async function createJobAndProduct(
   const designNameRaw = (designNameInput ?? '').toString(); // el input tal cual (servidor corta a 40)
   let designName = designNameRaw.trim();
   const materialFromFlow = (flow.material || '').trim();
-  let materialLabel = productType === 'glasspad' ? 'Glasspad' : matLabelOf(materialFromFlow || 'Classic');
+  let materialLabel = productType === 'glasspad' ? 'Glasspad' : (matLabelOf(materialFromFlow) || 'Classic');
   let widthCm = safeNumber((flow.editorState as any)?.size_cm?.w);
   let heightCm = safeNumber((flow.editorState as any)?.size_cm?.h);
   let approxDpi = safeNumber(flow.approxDpi);
