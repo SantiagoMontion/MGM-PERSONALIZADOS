@@ -19,7 +19,18 @@ import { ensureTrackingRid, trackEvent } from '@/lib/tracking';
 
 const PUBLISH_MAX_PAYLOAD_KB = Number(import.meta.env?.VITE_PUBLISH_MAX_PAYLOAD_KB) || 200;
 // Guard legacy: mapear preservedCustom al designName actual si existe
-const preservedCustom = (() => {
+// --- Guardia contra referencias sueltas a "preservedCustom" ---
+// Si algún handler viejo lo usa como identificador global, lo definimos aquí
+// para evitar ReferenceError sin alterar la lógica actual.
+try {
+  if (typeof window !== 'undefined' && typeof window.preservedCustom === 'undefined') {
+    window.preservedCustom = null;
+  }
+} catch (_) {
+  // no-op
+}
+
+let preservedCustom = (() => {
   try {
     const maybeFlow = typeof globalThis !== 'undefined'
       ? globalThis.__MGM_FLOW__ || globalThis.__FLOW__ || null
@@ -31,6 +42,18 @@ const preservedCustom = (() => {
     return null;
   }
 })();
+
+try {
+  if (typeof window !== 'undefined') {
+    if (window.preservedCustom != null) {
+      preservedCustom = window.preservedCustom;
+    } else {
+      window.preservedCustom = preservedCustom;
+    }
+  }
+} catch (_) {
+  // no-op
+}
 // Volvemos a mostrar el wrapper legacy para recuperar su TEXTO,
 // pero ocultamos SOLO su <img/> con CSS (ver estilo inyectado abajo).
 const SHOW_LEGACY_PREVIEW = true;
@@ -541,6 +564,17 @@ const BENEFITS = [
 export default function Mockup() {
   const flow = useFlow();
   const flowState = typeof flow?.get === 'function' ? flow.get() : flow;
+  const f = (typeof flow?.get === 'function' && flow.get()) || flowState || {};
+  const designName = (f?.designName ?? '').toString();
+  // Sincronizar el nombre con la guardia global, para que cualquier referencia legacy lo encuentre.
+  try {
+    if (typeof window !== 'undefined') {
+      window.preservedCustom = designName || null;
+      preservedCustom = window.preservedCustom;
+    }
+  } catch (_) {
+    // no-op
+  }
   const navigate = useNavigate();
   const location = useLocation();
   const frontTitle = useMemo(() => {

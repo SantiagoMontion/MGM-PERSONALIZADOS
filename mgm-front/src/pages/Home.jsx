@@ -1099,6 +1099,16 @@ export default function Home() {
         priceNormal: normalPrice,
         priceCurrency: PRICE_CURRENCY,
       });
+      // Actualizar el nombre global para handlers legacy que lean preservedCustom
+      try {
+        if (typeof window !== 'undefined') {
+          const nextFlowState = (typeof flow?.get === 'function' ? flow.get() : flow) || {};
+          const syncedName = (nextFlowState?.designName ?? trimmedDesignName ?? '').toString();
+          window.preservedCustom = syncedName || null;
+        }
+      } catch (_) {
+        // no-op
+      }
       try {
         await ensureMockupUrlInFlow(flow, {
           dataUrl: masterDataUrl,
