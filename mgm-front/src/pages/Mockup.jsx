@@ -5,7 +5,6 @@ import Toast from '@/components/Toast.jsx';
 import { useFlow } from '@/state/flow.js';
 import { downloadBlob, renderMockup1080 } from '@/lib/mockup.js';
 import styles from './Mockup.module.css';
-import { supa } from '../lib/supa.js';
 import { buildExportBaseName } from '@/lib/filename.ts';
 import { apiFetch, postJSON, getResolvedApiUrl } from '@/lib/api.js';
 import {
@@ -143,15 +142,52 @@ async function signUpload({ bucket, contentType, path }) {
   return response;
 }
 
-async function uploadBlobWithSignedUrl(sign, blob, filename) {
-  const file = new File([blob], filename, { type: blob.type });
-  const { error } = await supa
-    .storage.from(sign.bucket || 'preview')
-    .uploadToSignedUrl(sign.path, sign.token, file, { upsert: false, contentType: blob.type });
-  if (error) {
-    throw error;
+async function uploadViaSignedUrl({ uploadUrl, blob, contentType = 'image/jpeg', upsert = false }) {
+  if (!uploadUrl || !blob) {
+    throw new Error('signed_url_or_blob_missing');
   }
-  return String(sign.publicUrl || '');
+  const isSignedUpload = /\/storage\/v1\/object\/upload\/sign\//.test(uploadUrl);
+  const headers = new Headers();
+  headers.set('Content-Type', contentType);
+  if (isSignedUpload) {
+    headers.set('x-upsert', upsert ? 'true' : 'false');
+    const response = await fetch(uploadUrl, { method: 'POST', headers, body: blob });
+    if (!response.ok) {
+      throw new Error('signed_upload_failed');
+    }
+    return true;
+  }
+  const response = await fetch(uploadUrl, { method: 'PUT', headers, body: blob });
+  if (!response.ok) {
+    throw new Error('put_upload_failed');
+  }
+  return true;
+}
+
+async function uploadBlobWithSignedUrl(sign, blob, filename) {
+  const uploadUrl = sign?.uploadUrl || sign?.signedUrl || null;
+  if (!uploadUrl) {
+    throw new Error('missing_upload_url');
+  }
+  const contentType = blob?.type || 'application/octet-stream';
+  await uploadViaSignedUrl({ uploadUrl, blob, contentType, upsert: false });
+  const bucket = sign?.bucket || 'preview';
+  const objectKey = sign?.path || filename || '';
+  try {
+    console.log('[preview] uploaded', { bucket, key: objectKey });
+  } catch (_) {
+    // noop
+  }
+  if (sign?.publicUrl) {
+    const value = String(sign.publicUrl || '').trim();
+    return value || null;
+  }
+  const supabaseUrl = import.meta?.env?.VITE_SUPABASE_URL || '';
+  if (supabaseUrl && bucket && objectKey) {
+    const sanitizedBase = supabaseUrl.replace(/\/+$/, '');
+    return `${sanitizedBase}/storage/v1/object/public/${bucket}/${objectKey}`;
+  }
+  return null;
 }
 
 export async function ensureMockupUrlInFlow(flow, input) {
@@ -201,6 +237,9 @@ export async function ensureMockupUrlInFlow(flow, input) {
   if (sign) {
     try {
       publicUrl = await uploadBlobWithSignedUrl(sign, mockupBlob, filename);
+      if (!publicUrl) {
+        publicUrl = null;
+      }
     } catch (uploadErr) {
       logger.debug?.('[mockup-sign] upload_failed', uploadErr);
       publicUrl = null;
@@ -216,7 +255,7 @@ export async function ensureMockupUrlInFlow(flow, input) {
           ...nextState,
           mockupBlob,
           mockupPublicUrl: publicUrl,
-          mockupUrl: null,
+          mockupUrl: publicUrl,
           mockupDataUrl: null,
         });
       }
@@ -290,12 +329,28 @@ async function waitUrlReady(url, tries = 8, delayMs = 350) {
 }
 
 async function ensureMockupPublicReady(flowState) {
-  const state = typeof flowState?.get === 'function' ? flowState.get() : flowState;
+  const resolveState = () => (typeof flowState?.get === 'function' ? flowState.get() : flowState);
+  let state = resolveState();
+  if (!state?.mockupPublicUrl && !state?.mockupUrl) {
+    try {
+      await ensureMockupUrlInFlow(flowState);
+    } catch (err) {
+      logger.debug?.('[mockup] ensure_mockup_url_in_flow_failed', err);
+    }
+    state = resolveState();
+  }
   const url = state?.mockupPublicUrl || state?.mockupUrl;
   if (!url) {
     return;
   }
-  await waitUrlReady(url);
+  try {
+    const ready = await waitUrlReady(url);
+    if (!ready) {
+      logger.debug?.('[mockup] mockup_head_unconfirmed', { url });
+    }
+  } catch (headErr) {
+    logger.debug?.('[mockup] mockup_head_failed', headErr);
+  }
 }
 
 function buildDimsFromFlowState(flowState) {
@@ -1796,7 +1851,7 @@ export default function Mockup() {
     }
   }
 
-  function buildOverridesFromUi() {
+  function buildOverridesFromUi(_mode) {
     const flowLike = (typeof flow?.get === 'function' && flow.get()) || flow || {};
     const rawMat = (flowLike?.options && flowLike.options.material)
       || flowLike?.material
@@ -1809,18 +1864,16 @@ export default function Mockup() {
       widthCm = 49;
       heightCm = 42;
     }
+    const normalizedWidth = Number.isFinite(widthCm) && widthCm > 0 ? Math.round(widthCm) : null;
+    const normalizedHeight = Number.isFinite(heightCm) && heightCm > 0 ? Math.round(heightCm) : null;
     const overrides = {
       material,
       materialResolved: material,
       options: { ...(flowLike?.options || {}), material },
       productType: material === 'Glasspad' ? 'glasspad' : 'mousepad',
     };
-    if (Number.isFinite(widthCm) && widthCm > 0) {
-      overrides.widthCm = Math.round(widthCm);
-    }
-    if (Number.isFinite(heightCm) && heightCm > 0) {
-      overrides.heightCm = Math.round(heightCm);
-    }
+    overrides.widthCm = normalizedWidth;
+    overrides.heightCm = normalizedHeight;
     return overrides;
   }
 
@@ -1835,37 +1888,37 @@ export default function Mockup() {
   // ---- Compra directa: evitar wrappers que cortan en silencio ----
   async function buyDirect(mode) {
     try {
-      dlog('direct:start', { mode });
+      console.log('[buy] direct:start', { mode });
       try {
         await ensureMockupPublicReady(flow);
       } catch (mockupErr) {
         logger.debug?.('[mockup] ensure_mockup_public_ready_failed', mockupErr);
       }
-      const overrides = buildOverridesFromUi();
+      const overrides = buildOverridesFromUi(mode);
       const result = await createJobAndProduct(mode, flow, {
         payloadOverrides: overrides,
         discountCode: discountCode || undefined,
       });
-      const targetUrl = pickOpenUrl(result);
-      dlog('direct:done', {
+      const openUrl = pickOpenUrl(result);
+      console.log('[buy] direct:done', {
         mode,
         ok: result?.ok ?? true,
-        url: targetUrl,
+        url: openUrl,
         reason: result?.reason,
         material: overrides?.material,
-        widthCm: overrides?.widthCm ?? null,
-        heightCm: overrides?.heightCm ?? null,
+        w: overrides?.widthCm ?? null,
+        h: overrides?.heightCm ?? null,
       });
-      if (result?.ok && targetUrl) {
+      if (result?.ok && openUrl) {
         try {
-          window.location.assign(targetUrl);
+          window.location.assign(openUrl);
         } catch (assignErr) {
           logger.warn?.('[mockup] direct_navigation_failed', assignErr);
         }
       }
       return result;
     } catch (error) {
-      derr('direct:error', mode, error);
+      console.error('[buy] direct:error', mode, error);
       setToast((prev) => (prev ? prev : { message: 'No se pudo crear el producto.' }));
       throw error;
     }
