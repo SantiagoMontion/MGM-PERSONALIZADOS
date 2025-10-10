@@ -34,7 +34,7 @@ import {
 import styles from './Home.module.css';
 import { renderMockup1080 } from '../lib/mockup.js';
 import { buildPdfFromMaster } from '../lib/buildPdf.js';
-import { ensureMockupUrlInFlow } from './Mockup.jsx';
+import { ensureMockupUrlInFlow, ensureMockupPublicReady } from './Mockup.jsx';
 import { quickHateSymbolCheck } from '@/lib/moderation.ts';
 import { scanNudityClient } from '@/lib/moderation/nsfw.client.js';
 import { useFlow } from '@/state/flow.js';
@@ -1201,6 +1201,11 @@ export default function Home() {
         });
       } catch (mockupEnsureError) {
         warn('[diag] ensure mockup url failed during continue', mockupEnsureError);
+      }
+      try {
+        await ensureMockupPublicReady(flow);
+      } catch (mockupPublicErr) {
+        warn('[diag] ensure mockup public ready failed during continue', mockupPublicErr);
       }
       const qs = new URLSearchParams();
       if (finalMaterial) {
