@@ -29,6 +29,20 @@ function normalizeMaterial(value) {
   return 'Classic';
 }
 
+function parseMoney(value) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  const raw = String(value ?? '').trim();
+  if (!raw) return NaN;
+  const sanitized = raw.replace(/[^0-9,.-]/g, '');
+  const normalized = sanitized
+    .replace(/,/g, '')
+    .replace(/\.(?=.*\.)/g, '');
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : NaN;
+}
+
 function createRid() {
   const base = Date.now().toString(36);
   const random = Math.random().toString(36).slice(2, 8);
@@ -433,7 +447,7 @@ export default async function handler(req, res) {
     const productTypeRaw = parsedBody?.productType ?? parsedBody?.options?.productType;
     const pt = String(productTypeRaw || '').toLowerCase();
     if (pt.includes('pro')) materialLabel = 'PRO';
-    else if (pt.includes('glass')) materialLabel = 'Glasspad';
+    if (pt.includes('glass')) materialLabel = 'Glasspad';
   }
   // *** MEDIDAS: confiar en widthCm/heightCm enviados por el front (flow) ***
   let widthCmSafe = Number(parsedBody?.widthCm);
@@ -477,22 +491,14 @@ export default async function handler(req, res) {
     : (hasDims
       ? `${baseCategory} ${designName} ${widthCmSafe}x${heightCmSafe} ${materialLabel} | PERSONALIZADO`
       : `${baseCategory} ${designName} ${materialLabel} | PERSONALIZADO`);
-  const toNumber = (value) => {
-    if (typeof value === 'number') {
-      return Number.isFinite(value) ? value : NaN;
-    }
-    if (typeof value === 'string') {
-      const normalized = value.replace(/\./g, '').replace(/,/g, '.').trim();
-      if (!normalized) return NaN;
-      const parsed = Number(normalized);
-      return Number.isFinite(parsed) ? parsed : NaN;
-    }
-    return NaN;
-  };
-  const priceTransfer = toNumber(parsedBody.priceTransfer ?? parsedBody.price_transfer ?? parsedBody.priceTranferencia);
-  const priceNormal = toNumber(parsedBody.priceNormal ?? parsedBody.price_normal ?? parsedBody.price);
-  // Precio: confiamos en la calculadora del front (transferencia) -> respeta PRO/Classic/Glasspad
-  const priceValue = Number.isFinite(priceTransfer)
+  const priceTransfer = parseMoney(
+    parsedBody.priceTransfer ?? parsedBody.price_transfer ?? parsedBody.priceTranferencia,
+  );
+  const priceNormal = parseMoney(
+    parsedBody.priceNormal ?? parsedBody.price_normal ?? parsedBody.price,
+  );
+  // Precio: usar SIEMPRE priceTransfer (tolerar string con miles/comas); si no hay, caer a priceNormal
+  const priceValue = Number.isFinite(priceTransfer) && priceTransfer > 0
     ? priceTransfer
     : Number.isFinite(priceNormal)
       ? priceNormal
