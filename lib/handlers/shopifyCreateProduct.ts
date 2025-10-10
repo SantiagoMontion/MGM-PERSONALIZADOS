@@ -290,10 +290,18 @@ export default async function handler(req: any, res: any) {
     return res.status(204).end();
   }
   if (req.method !== 'POST') {
+    if (cors) {
+      Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v as string));
+    }
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
     return res.status(405).json({ ok: false, message: 'method_not_allowed' });
   }
-  if (!cors) return res.status(403).json({ ok: false, message: 'origin_not_allowed' });
+  if (!cors) {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    return res.status(403).json({ ok: false, message: 'origin_not_allowed' });
+  }
   Object.entries(cors).forEach(([k, v]) => res.setHeader(k, v as string));
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
 
   try {
     const { mode, width_cm, height_cm, bleed_mm, rotate_deg, image_dataurl, mockup_dataurl } = req.body || {};

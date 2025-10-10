@@ -2,6 +2,11 @@ import { randomUUID } from 'node:crypto';
 import { ensureCors, respondCorsDenied } from '../../lib/cors.js';
 import getSupabaseAdmin from '../../lib/_lib/supabaseAdmin.js';
 
+function sendJson(res, status, payload) {
+  res.setHeader?.('Content-Type', 'application/json; charset=utf-8');
+  res.status(status).json(payload);
+}
+
 export default async function handler(req, res) {
   const diagId = randomUUID();
   const decision = ensureCors(req, res);
@@ -18,7 +23,7 @@ export default async function handler(req, res) {
 
   if (req.method !== 'POST') {
     res.setHeader?.('Allow', 'POST, OPTIONS');
-    res.status(405).json({ ok: false, error: 'method_not_allowed', diagId });
+    sendJson(res, 405, { ok: false, error: 'method_not_allowed', diagId });
     return;
   }
 
@@ -38,7 +43,7 @@ export default async function handler(req, res) {
     const bucket = typeof body.bucket === 'string' ? body.bucket.trim() : '';
     const path = typeof body.path === 'string' ? body.path.trim() : '';
     if (!bucket || !path) {
-      res.status(400).json({ ok: false, error: 'missing_bucket_or_path', diagId });
+      sendJson(res, 400, { ok: false, error: 'missing_bucket_or_path', diagId });
       return;
     }
 
@@ -48,9 +53,9 @@ export default async function handler(req, res) {
       throw error;
     }
 
-    res.status(200).json({ ok: true, removed: data || [], diagId });
+    sendJson(res, 200, { ok: true, removed: data || [], diagId });
   } catch (err) {
-    res.status(500).json({
+    sendJson(res, 500, {
       ok: false,
       error: 'delete_failed',
       diagId,

@@ -303,6 +303,7 @@ function respondEcho(
 ) {
   const origin = decision.allowedOrigin ?? decision.requestedOrigin ?? null;
   applyCorsHeaders(req, res, decision);
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.status(200).json({ ok: true, diagId, origin, accepted, event_name: eventName, rid });
 }
 
@@ -375,6 +376,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       origin: corsDecision.requestedOrigin,
     });
     applyCorsHeaders(req, res, corsDecision);
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.status(405).json({ ok: false, diagId, error: 'method_not_allowed' });
     return;
   }
@@ -532,6 +534,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     logApiError('track.unhandled_error', { diagId, error });
     if (!res.headersSent) {
       applyCorsHeaders(req, res, corsDecision);
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
       res.status(500).json({ ok: false, diagId, error: 'handler_error' });
     }
   }
