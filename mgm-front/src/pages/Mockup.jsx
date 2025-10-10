@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { PDFDocument } from 'pdf-lib';
 import Toast from '@/components/Toast.jsx';
@@ -13,7 +13,7 @@ import {
   ONLINE_STORE_MISSING_MESSAGE,
   pickCommerceTarget,
 } from '@/lib/shopify.ts';
-import { diag, info, warn, error, debugEnabled } from '@/lib/log';
+import { diag, warn, error } from '@/lib/log';
 
 const safeStr = (v) => (typeof v === 'string' ? v : '').trim();
 
@@ -99,12 +99,37 @@ const buildTitle = ({ productType, mat, widthCm, heightCm, designName }) => {
   return parts.join(' ');
 };
 
+function parseQueryOverrides() {
+  if (typeof window === 'undefined' || typeof window.location === 'undefined') {
+    return {
+      name: null,
+      widthCm: null,
+      heightCm: null,
+      material: null,
+    };
+  }
+  const sp = new URLSearchParams(window.location.search);
+  const name = sp.get('name')?.trim();
+  const w = Number(sp.get('w'));
+  const h = Number(sp.get('h'));
+  const matRaw = (sp.get('mat') || '').toLowerCase();
+  let mat = null;
+  if (matRaw.includes('glass')) mat = 'Glasspad';
+  else if (matRaw.includes('pro')) mat = 'PRO';
+  else if (matRaw.includes('classic')) mat = 'Classic';
+  return {
+    name: name || null,
+    widthCm: Number.isFinite(w) && w > 0 ? w : null,
+    heightCm: Number.isFinite(h) && h > 0 ? h : null,
+    material: mat,
+  };
+}
+
 import { ensureTrackingRid, trackEvent } from '@/lib/tracking';
 
 const PUBLISH_MAX_PAYLOAD_KB = Number(import.meta.env?.VITE_PUBLISH_MAX_PAYLOAD_KB) || 200;
 const FLOW_STORAGE_KEY = 'mgm_flow_v1';
-const BUY_DEBUG = debugEnabled;
-const dlog = (...args) => { if (BUY_DEBUG) diag('[buy]', ...args); };
+const dlog = (...args) => { diag('[buy]', ...args); };
 const derr = (...args) => { error('[buy]', ...args); };
 try {
   if (typeof window !== 'undefined' && !window.__BUY_DEBUG_WIRED__) {
@@ -773,14 +798,7 @@ export default function Mockup() {
     navigate('/', { replace: true });
   }
 
-  const qs = useMemo(() => new URLSearchParams(location.search), [location.search]);
-  const urlSeed = useMemo(() => ({
-    material: qs.get('mat') || undefined,
-    widthCm: qs.get('w') ? Number(qs.get('w')) : undefined,
-    heightCm: qs.get('h') ? Number(qs.get('h')) : undefined,
-    designName: qs.get('name') || undefined,
-  }), [qs]);
-  const initialUrlSeedRef = useRef(urlSeed);
+  const queryOverridesRef = useRef(parseQueryOverrides());
   const [flowReady, setFlowReady] = useState(false);
 
   useEffect(() => {
@@ -788,7 +806,7 @@ export default function Mockup() {
       setFlowReady(true);
       return;
     }
-    const seed = initialUrlSeedRef.current || {};
+    const q = queryOverridesRef.current || {};
     const persisted = loadPersistedFlow() || {};
     const current = (typeof flow?.get === 'function' ? flow.get() : flow) || {};
     const currentOptions = (current?.options && typeof current.options === 'object') ? current.options : {};
@@ -796,14 +814,12 @@ export default function Mockup() {
     const mergedOptions = { ...persistedOptions, ...currentOptions };
     const patch = {};
 
-    const designNameSeed = safeStr(seed.designName);
     const designNamePersisted = safeStr(persisted.designName);
     const designNameCurrent = safeStr(current.designName);
-    if (!designNameCurrent && (designNameSeed || designNamePersisted)) {
-      patch.designName = designNameSeed || designNamePersisted;
+    if (!designNameCurrent && designNamePersisted) {
+      patch.designName = designNamePersisted;
     }
 
-    const materialSeed = safeStr(seed.material);
     const materialPersisted = safeStr(
       persisted.material
         ?? persisted.materialResolved
@@ -814,15 +830,14 @@ export default function Mockup() {
         ?? current.materialResolved
         ?? currentOptions.material,
     );
-    const resolvedMaterial = materialCurrent || materialSeed || materialPersisted || null;
-    if (!materialCurrent && (materialSeed || materialPersisted)) {
-      const mat = materialSeed || materialPersisted;
+    const resolvedMaterial = materialCurrent || materialPersisted || null;
+    if (!materialCurrent && materialPersisted) {
+      const mat = materialPersisted;
       patch.material = mat;
       patch.materialResolved = persisted.materialResolved ?? mat;
     }
 
     const optionMaterial = materialCurrent
-      || materialSeed
       || materialPersisted
       || mergedOptions.material;
     if (optionMaterial) {
@@ -835,24 +850,18 @@ export default function Mockup() {
     }
 
     const currentWidth = Number(current.widthCm);
-    const seedWidth = Number(seed.widthCm);
     const persistedWidth = Number(persisted.widthCm);
     if (!(Number.isFinite(currentWidth) && currentWidth > 0)) {
-      const widthCandidate = Number.isFinite(seedWidth) && seedWidth > 0
-        ? seedWidth
-        : (Number.isFinite(persistedWidth) && persistedWidth > 0 ? persistedWidth : null);
+      const widthCandidate = Number.isFinite(persistedWidth) && persistedWidth > 0 ? persistedWidth : null;
       if (Number.isFinite(widthCandidate) && widthCandidate > 0) {
         patch.widthCm = Math.round(widthCandidate);
       }
     }
 
     const currentHeight = Number(current.heightCm);
-    const seedHeight = Number(seed.heightCm);
     const persistedHeight = Number(persisted.heightCm);
     if (!(Number.isFinite(currentHeight) && currentHeight > 0)) {
-      const heightCandidate = Number.isFinite(seedHeight) && seedHeight > 0
-        ? seedHeight
-        : (Number.isFinite(persistedHeight) && persistedHeight > 0 ? persistedHeight : null);
+      const heightCandidate = Number.isFinite(persistedHeight) && persistedHeight > 0 ? persistedHeight : null;
       if (Number.isFinite(heightCandidate) && heightCandidate > 0) {
         patch.heightCm = Math.round(heightCandidate);
       }
@@ -891,25 +900,79 @@ export default function Mockup() {
     }
 
     if (typeof flow?.set === 'function' && Object.keys(patch).length > 0) {
-      flow.set(patch);
+      const baseForPersist = {
+        ...(current || {}),
+        ...patch,
+      };
+      if (patch.options) {
+        baseForPersist.options = patch.options;
+      }
+      flow.set(baseForPersist);
+    }
+
+    const afterPersist = (typeof flow?.get === 'function' ? flow.get() : flow) || current || {};
+    const queryPatch = {};
+    if (q.name) {
+      queryPatch.designName = q.name;
+    }
+    if (q.material) {
+      queryPatch.material = q.material;
+      queryPatch.materialResolved = q.material;
+      const baseOptions = (afterPersist?.options && typeof afterPersist.options === 'object')
+        ? afterPersist.options
+        : {};
+      queryPatch.options = {
+        ...baseOptions,
+        material: q.material,
+      };
+    }
+    if (Number.isFinite(q.widthCm) && q.widthCm > 0) {
+      queryPatch.widthCm = q.widthCm;
+    }
+    if (Number.isFinite(q.heightCm) && q.heightCm > 0) {
+      queryPatch.heightCm = q.heightCm;
+    }
+    const finalMaterial = queryPatch.material || queryPatch.materialResolved || resolvedMaterial;
+    if (finalMaterial === 'Glasspad') {
+      queryPatch.widthCm = 49;
+      queryPatch.heightCm = 42;
+    }
+
+    if (typeof flow?.set === 'function' && Object.keys(queryPatch).length > 0) {
+      const base = (typeof flow?.get === 'function' ? flow.get() : afterPersist) || {};
+      const merged = {
+        ...base,
+        ...queryPatch,
+      };
+      if (queryPatch.options) {
+        merged.options = queryPatch.options;
+      }
+      flow.set(merged);
+      diag('[mockup] merged query overrides', queryPatch);
     }
 
     try {
+      const mergedFlow = (typeof flow?.get === 'function' ? flow.get() : flow) || {};
+      const optionsForLog = {
+        ...(persistedOptions || {}),
+        ...(currentOptions || {}),
+        ...(mergedFlow.options || {}),
+      };
       const mergedForLog = {
         ...persisted,
         ...current,
         ...patch,
+        ...mergedFlow,
+        ...queryPatch,
         options: {
-          ...persistedOptions,
-          ...currentOptions,
-          ...(patch.options || {}),
+          ...optionsForLog,
         },
       };
       const matForLog = safeStr(
         mergedForLog.material
           ?? mergedForLog.materialResolved
           ?? mergedForLog.options?.material
-          ?? seed.material,
+          ?? q.material,
       ) || null;
       const widthForLog = Number.isFinite(Number(mergedForLog.widthCm)) && Number(mergedForLog.widthCm) > 0
         ? Math.round(Number(mergedForLog.widthCm))
@@ -919,7 +982,7 @@ export default function Mockup() {
         : null;
       const titleForLog = buildTitle({
         ...extractFlowBasics(mergedForLog),
-        designName: safeStr(mergedForLog.designName || seed.designName || 'Personalizado') || 'Personalizado',
+        designName: safeStr(mergedForLog.designName || q.name || 'Personalizado') || 'Personalizado',
         widthCm: widthForLog || undefined,
         heightCm: heightForLog || undefined,
       });
@@ -951,18 +1014,27 @@ export default function Mockup() {
     // no-op
   }
   const frontTitle = useMemo(() => {
+    const queryOverrides = queryOverridesRef.current || {};
     const designNameRaw = typeof flow?.designName === 'string' ? flow.designName : '';
     const designNameValue = designNameRaw.trim() || 'Personalizado';
     const materialLabel = safeStr(
       flow?.material
         ?? flow?.materialResolved
         ?? flow?.options?.material
-        ?? initialUrlSeedRef.current?.material,
+        ?? queryOverrides.material,
     );
     const isGlass = materialLabel === 'Glasspad';
     const baseCategory = isGlass ? 'Glasspad' : 'Mousepad';
-    const widthCandidate = Number(flow?.editorState?.size_cm?.w ?? flow?.widthCm ?? initialUrlSeedRef.current?.widthCm);
-    const heightCandidate = Number(flow?.editorState?.size_cm?.h ?? flow?.heightCm ?? initialUrlSeedRef.current?.heightCm);
+    const widthCandidate = Number(
+      flow?.editorState?.size_cm?.w
+        ?? flow?.widthCm
+        ?? queryOverrides.widthCm,
+    );
+    const heightCandidate = Number(
+      flow?.editorState?.size_cm?.h
+        ?? flow?.heightCm
+        ?? queryOverrides.heightCm,
+    );
     const widthCm = Number.isFinite(widthCandidate) && widthCandidate > 0 ? Math.round(widthCandidate) : null;
     const heightCm = Number.isFinite(heightCandidate) && heightCandidate > 0 ? Math.round(heightCandidate) : null;
     const hasDims = widthCm != null && heightCm != null;
@@ -990,7 +1062,7 @@ export default function Mockup() {
       return;
     }
     ensureMockupUrlInFlow(flow).catch((error) => {
-      diag('[mockup] ensure_mockup_url_initial_failed', error);
+      diag('[mockup] ensure_mockup_url_initial_failed', err);
     });
   }, [
     flowReady,
@@ -1323,7 +1395,7 @@ export default function Mockup() {
 
   function showFriendlyError(error, options = {}) {
     const { scope = 'mockup' } = options || {};
-    error(`[${scope}]`, error);
+    error(`[${scope}]`, err);
     const reasonRaw = typeof error?.reason === 'string' && error.reason
       ? error.reason
       : typeof error?.message === 'string' && error.message
@@ -1522,9 +1594,9 @@ export default function Mockup() {
       if (normalizedDiscountCode) {
         baseOptions.discountCode = normalizedDiscountCode;
       }
-      info('[cart-flow] create_job_and_product_start');
+      diag('[cart-flow] create_job_and_product_start');
       const result = await runPublish('cart', flow, baseOptions);
-      info('[cart-flow] create_job_and_product_success', {
+      diag('[cart-flow] create_job_and_product_success', {
         keys: result && typeof result === 'object' ? Object.keys(result) : null,
       });
       if (SHOULD_LOG_COMMERCE) {
@@ -1742,9 +1814,9 @@ export default function Mockup() {
         mode === 'private' || !normalizedDiscountCode
           ? jobOptions
           : { ...jobOptions, discountCode: normalizedDiscountCode };
-      info(`[${mode}-flow] create_job_and_product_start`);
+      diag(`[${mode}-flow] create_job_and_product_start`);
       const result = await runPublish(mode, submissionFlow, jobOptionsWithDiscount);
-      info(`[${mode}-flow] create_job_and_product_success`, {
+      diag(`[${mode}-flow] create_job_and_product_success`, {
         keys: result && typeof result === 'object' ? Object.keys(result) : null,
       });
       const warningMessages = extractWarningMessages(result?.warnings, result?.warningMessages);
@@ -2111,7 +2183,7 @@ export default function Mockup() {
         return;
       }
       alert('El producto se creó pero no se pudo obtener un enlace.');
-    } catch (error) {
+    } catch (err) {
       const reason = typeof error?.reason === 'string' ? error.reason : '';
       if (reason === 'online_store_publication_missing' || reason === 'online_store_publication_empty') {
         const friendly = typeof error?.friendlyMessage === 'string' && error.friendlyMessage
@@ -2185,7 +2257,7 @@ export default function Mockup() {
         });
         return;
       }
-      error(`[${mode}-flow] create_job_and_product_failed`, error);
+      error(`[${mode}-flow] create_job_and_product_failed`, err);
       showFriendlyError(error, { scope: `${mode}-flow` });
     } finally {
       if (mode === 'checkout') {
@@ -2198,24 +2270,95 @@ export default function Mockup() {
   }
 
   function buildOverridesFromUi(_mode) {
-    const flowLike = (typeof flow?.get === 'function' && flow.get()) || flow || {};
-    const { productType, mat, widthCm, heightCm, designName } = extractFlowBasics(flowLike);
-    const widthRounded = Number.isFinite(widthCm) && widthCm > 0 ? Math.round(widthCm) : undefined;
-    const heightRounded = Number.isFinite(heightCm) && heightCm > 0 ? Math.round(heightCm) : undefined;
-    const title = buildTitle({ productType, mat, widthCm: widthRounded, heightCm: heightRounded, designName });
-    const overrides = {
+    const queryOverrides = parseQueryOverrides();
+    const flowState = (typeof flow?.get === 'function' && flow.get()) || flow || {};
+    const flowOptions = (flowState?.options && typeof flowState.options === 'object') ? flowState.options : {};
+    const mergedState = {
+      ...flowState,
+      ...(queryOverrides.name ? { designName: queryOverrides.name } : {}),
+      ...(Number.isFinite(queryOverrides.widthCm) && queryOverrides.widthCm > 0
+        ? { widthCm: queryOverrides.widthCm }
+        : {}),
+      ...(Number.isFinite(queryOverrides.heightCm) && queryOverrides.heightCm > 0
+        ? { heightCm: queryOverrides.heightCm }
+        : {}),
+      ...(queryOverrides.material
+        ? { material: queryOverrides.material, materialResolved: queryOverrides.material }
+        : {}),
+      options: {
+        ...flowOptions,
+        ...(queryOverrides.material ? { material: queryOverrides.material } : {}),
+      },
+    };
+    const basics = extractFlowBasics(mergedState);
+    let { productType, mat, widthCm, heightCm, designName } = basics;
+    if (!mat) {
+      mat = 'Classic';
+    }
+
+    const pickSize = (...values) => {
+      for (const value of values) {
+        const num = Number(value);
+        if (Number.isFinite(num) && num > 0) {
+          return Math.round(num);
+        }
+      }
+      return null;
+    };
+
+    let width = pickSize(
+      queryOverrides.widthCm,
+      widthCm,
+      flowState?.widthCm,
+      flowState?.editorState?.widthCm,
+      flowState?.editorState?.size_cm?.w,
+    );
+    let height = pickSize(
+      queryOverrides.heightCm,
+      heightCm,
+      flowState?.heightCm,
+      flowState?.editorState?.heightCm,
+      flowState?.editorState?.size_cm?.h,
+    );
+
+    if (mat === 'Glasspad') {
+      width = 49;
+      height = 42;
+    }
+
+    const resolvedDesignName = queryOverrides.name
+      || designName
+      || 'Personalizado';
+    const title = buildTitle({
+      productType,
+      mat,
+      widthCm: width ?? undefined,
+      heightCm: height ?? undefined,
+      designName: resolvedDesignName,
+    });
+
+    const priceTransferRaw = Number(flowState?.priceTransfer ?? 0);
+    const price = Number.isFinite(priceTransferRaw) ? priceTransferRaw : 0;
+
+    return {
       material: mat,
       materialResolved: mat,
-      options: { ...(flowLike?.options || {}), material: mat, productType },
-      widthCm: widthRounded,
-      heightCm: heightRounded,
-      designName,
+      options: {
+        ...flowOptions,
+        material: mat,
+        ...(productType ? { productType } : {}),
+      },
+      widthCm: width ?? undefined,
+      heightCm: height ?? undefined,
+      designName: resolvedDesignName,
       title,
-      mockupPublicUrl: flowLike?.mockupPublicUrl || flowLike?.mockupUrl || undefined,
-      mockupUrl: flowLike?.mockupUrl || flowLike?.mockupPublicUrl || undefined,
+      mockupPublicUrl: flowState?.mockupPublicUrl || flowState?.mockupUrl || undefined,
+      mockupUrl: flowState?.mockupUrl || flowState?.mockupPublicUrl || undefined,
+      pdfPublicUrl: flowState?.pdfPublicUrl || undefined,
       productType,
+      price,
+      priceTransfer: price,
     };
-    return overrides;
   }
 
   async function onCartClick() {
@@ -2271,12 +2414,12 @@ export default function Mockup() {
     const skipEnsure = Boolean(normalizedOptions.skipEnsure);
     const autoOpen = normalizedOptions.autoOpen !== false;
     try {
-      console.log('[buy] direct:start', { mode });
+      dlog('direct:start', { mode });
       if (!skipEnsure) {
         try {
           await ensureMockupPublicReady(flow);
         } catch (mockupErr) {
-          logger.debug?.('[mockup] ensure_mockup_public_ready_failed', mockupErr);
+          diag('[mockup] ensure_mockup_public_ready_failed', mockupErr);
         }
       }
       const stateForLog = (typeof flow?.get === 'function' ? flow.get() : flow) || {};
@@ -2348,10 +2491,10 @@ export default function Mockup() {
         }
       }
       return result;
-    } catch (error) {
-      error('[buy] direct:error', mode, error);
+    } catch (err) {
+      error('[buy] direct:error', mode, err);
       setToast((prev) => (prev ? prev : { message: 'No se pudo crear el producto.' }));
-      throw error;
+      throw err;
     }
   }
 
@@ -2383,14 +2526,14 @@ export default function Mockup() {
         return result;
       }
 
-      logger.warn?.('[checkout-public-flow] missing_url', {
+      warn('[checkout-public-flow] missing_url', {
         ok: result?.ok ?? null,
         url,
       });
       setToast({ message: 'No se pudo abrir el checkout. Probá nuevamente.' });
       return result;
-    } catch (error) {
-      logger.error('[checkout-public-flow]', error);
+    } catch (err) {
+      error('[checkout-public-flow]', err);
       setToast({ message: 'Ocurrió un error al procesar el checkout.' });
       return null;
     } finally {
@@ -2428,14 +2571,14 @@ export default function Mockup() {
         return result;
       }
 
-      logger.warn?.('[checkout-private-flow] missing_url', {
+      warn('[checkout-private-flow] missing_url', {
         ok: result?.ok ?? null,
         url,
       });
       setToast({ message: 'No se pudo abrir el checkout privado.' });
       return result;
-    } catch (error) {
-      logger.error('[checkout-private-flow]', error);
+    } catch (err) {
+      error('[checkout-private-flow]', err);
       setToast({ message: 'Ocurrió un error al procesar el checkout privado.' });
       return null;
     } finally {
@@ -2515,8 +2658,8 @@ export default function Mockup() {
         flow.material,
       );
       downloadBlob(pdfBlob, `${baseName}.pdf`);
-    } catch (error) {
-      error('[download-pdf]', error);
+    } catch (err) {
+      error('[download-pdf]', err);
       alert('No se pudo generar el PDF.');
     } finally {
       setBusy(false);
