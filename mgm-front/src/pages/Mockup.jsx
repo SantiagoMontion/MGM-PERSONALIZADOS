@@ -1963,15 +1963,28 @@ export default function Mockup() {
       } catch (mockupErr) {
         logger.debug?.('[mockup] ensure_mockup_public_ready_failed', mockupErr);
       }
+      const stateForLog = (typeof flow?.get === 'function' ? flow.get() : flow) || {};
+      const basicsForLog = extractFlowBasics(stateForLog);
+      try {
+        console.log('[buy] direct:flow', {
+          materialRaw: stateForLog?.material,
+          optionsMaterial: stateForLog?.options?.material,
+          mat: basicsForLog.material,
+          widthCm: basicsForLog.widthCm,
+          heightCm: basicsForLog.heightCm,
+          title: basicsForLog.title,
+        });
+      } catch (_) {
+        // noop
+      }
       const overrides = buildOverridesFromUi(mode);
-      const basicsForLog = extractFlowBasics(flow);
       try {
         console.log('[buy] direct:payload', {
           mode,
-          material: basicsForLog.material,
-          width: basicsForLog.widthCm,
-          height: basicsForLog.heightCm,
-          title: basicsForLog.title,
+          material: overrides?.material ?? basicsForLog.material,
+          width: overrides?.widthCm ?? basicsForLog.widthCm,
+          height: overrides?.heightCm ?? basicsForLog.heightCm,
+          title: overrides?.title ?? basicsForLog.title,
         });
       } catch (_) {
         // noop

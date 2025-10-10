@@ -38,6 +38,19 @@ import { ensureMockupUrlInFlow } from './Mockup.jsx';
 import { quickHateSymbolCheck } from '@/lib/moderation.ts';
 import { scanNudityClient } from '@/lib/moderation/nsfw.client.js';
 import { useFlow } from '@/state/flow.js';
+
+const asStr = (value) => (typeof value === 'string' ? value : value == null ? '' : String(value));
+const safeStr = (value, fallback = '') => {
+  const str = asStr(value).trim();
+  return str || fallback;
+};
+const safeReplace = (value, pattern, repl) => asStr(value).replace(pattern, repl);
+const normalizeMaterialLabelSafe = (value) => {
+  const normalized = safeStr(value).toLowerCase();
+  if (normalized.includes('glass')) return 'Glasspad';
+  if (normalized.includes('pro')) return 'PRO';
+  return 'Classic';
+};
 import { apiFetch, postJSON, getResolvedApiUrl } from '@/lib/api.js';
 import { resolveIconAsset } from '@/lib/iconRegistry.js';
 import { sha256Hex } from '@/lib/hash.js';
@@ -809,13 +822,17 @@ export default function Home() {
       const flowState = (typeof flow?.get === 'function' ? flow.get() : flow) || {};
       const designMime = designBlob.type || 'image/png';
       const shouldUploadMaster = KEEP_MASTER && !SKIP_MASTER_UPLOAD;
-      const sanitizeForFileName = (value, fallback = 'Design') =>
-        String(value ?? '').replace(/[\\/:*?"<>|]+/g, '').trim() || fallback;
+      const sanitizeForFileName = (value, fallback = 'Design') => {
+        const base = safeStr(value, fallback);
+        const cleaned = safeReplace(base, /[\\/:*?"<>|]+/g, '').trim();
+        return cleaned || fallback;
+      };
       const formatDimensionCm = (cm) => {
         const num = Number(cm);
         if (!Number.isFinite(num) || num <= 0) return '0';
         const rounded = Math.round(num * 10) / 10;
-        return (Number.isInteger(rounded) ? String(Math.trunc(rounded)) : String(rounded)).replace(/\.0+$/, '');
+        const formatted = Number.isInteger(rounded) ? String(Math.trunc(rounded)) : String(rounded);
+        return safeReplace(formatted, /\.0+$/, '');
       };
       let materialLabel = String(material || '').trim();
       if (/pro/i.test(materialLabel)) materialLabel = 'PRO';
@@ -825,7 +842,7 @@ export default function Home() {
       const widthLabel = formatDimensionCm(activeWcm ?? (masterWidthMm ? masterWidthMm / 10 : undefined));
       const heightLabel = formatDimensionCm(activeHcm ?? (masterHeightMm ? masterHeightMm / 10 : undefined));
       const materialPart = sanitizeForFileName(materialLabel, 'Classic');
-      const pdfFileName = `${namePart} ${widthLabel}x${heightLabel} ${materialPart}`.replace(/\s+/g, ' ').trim();
+      const pdfFileName = safeReplace(`${namePart} ${widthLabel}x${heightLabel} ${materialPart}`, /\s+/g, ' ').trim();
       const yyyymmValue = (() => {
         const now = new Date();
         return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -1068,16 +1085,35 @@ export default function Home() {
 
       const transferPrice = Number(priceAmount) > 0 ? Number(priceAmount) : 0;
       const normalPrice = transferPrice;
-      const nameRaw = String(trimmedDesignName || flowState?.designName || '').trim();
-      const nameClean = nameRaw.replace(/\s+/g, ' ').slice(0, 40);
-      const chosenWidthCm = Math.round(Number(activeWcm));
-      const chosenHeightCm = Math.round(Number(activeHcm));
+      const nameRaw = safeStr(trimmedDesignName || flowState?.designName || '');
+      const nameClean = safeReplace(nameRaw, /\s+/g, ' ').slice(0, 40) || 'Personalizado';
+      const chosenWidthCmRaw = Number(activeWcm);
+      const chosenHeightCmRaw = Number(activeHcm);
+      const chosenWidthCm = Number.isFinite(chosenWidthCmRaw) && chosenWidthCmRaw > 0
+        ? Math.round(chosenWidthCmRaw)
+        : null;
+      const chosenHeightCm = Number.isFinite(chosenHeightCmRaw) && chosenHeightCmRaw > 0
+        ? Math.round(chosenHeightCmRaw)
+        : null;
+      const selectedName = safeStr(trimmedDesignName || flowState?.designName || flow?.designName, 'Personalizado');
+      const selectedMaterial = normalizeMaterialLabelSafe(
+        material
+        || flowState?.material
+        || flow?.material
+        || flowState?.options?.material,
+      );
+      const existingWidth = Number(flowState?.widthCm ?? flow?.widthCm);
+      const existingHeight = Number(flowState?.heightCm ?? flow?.heightCm);
+      const widthToStore = chosenWidthCm
+        ?? (Number.isFinite(existingWidth) && existingWidth > 0 ? Math.round(existingWidth) : null);
+      const heightToStore = chosenHeightCm
+        ?? (Number.isFinite(existingHeight) && existingHeight > 0 ? Math.round(existingHeight) : null);
 
       flow.set({
         // Guardar SIEMPRE la medida elegida por el cliente (cm), para evitar caer a px/DPI
-        widthCm: chosenWidthCm,
-        heightCm: chosenHeightCm,
-        productType: material === 'Glasspad' ? 'glasspad' : 'mousepad',
+        widthCm: widthToStore,
+        heightCm: heightToStore,
+        productType: selectedMaterial === 'Glasspad' ? 'glasspad' : 'mousepad',
         editorState: layout,
         mockupBlob,
         mockupUrl,
@@ -1095,8 +1131,9 @@ export default function Home() {
         uploadSizeBytes: designBlob.size,
         uploadContentType: designMime,
         uploadSha256: designSha,
-        designName: nameClean || 'Personalizado',
-        material,
+        designName: selectedName,
+        material: selectedMaterial,
+        options: { ...(flowState?.options || {}), material: selectedMaterial },
         lowQualityAck: level === 'bad' ? Boolean(ackLow) : false,
         approxDpi: effDpi || null,
         priceTransfer: transferPrice,
