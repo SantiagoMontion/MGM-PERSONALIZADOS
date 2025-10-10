@@ -108,6 +108,23 @@ function matLabelOf(material) {
   return (String(material || '').trim() || 'Classic');
 }
 
+function safeStr(value, fallback = '') {
+  return typeof value === 'string' ? value.trim() || fallback : fallback;
+}
+
+function normalizeMaterialLabelSafe(flow) {
+  const candidates = [
+    safeStr(flow?.material),
+    safeStr(flow?.options?.material),
+    safeStr(flow?.productType),
+  ];
+  const raw = candidates.find(Boolean)?.toLowerCase() || '';
+  if (raw.includes('glass')) return 'Glasspad';
+  if (raw.includes('pro')) return 'PRO';
+  if (raw.includes('classic')) return 'Classic';
+  return candidates.find(Boolean) || 'Classic';
+}
+
 function sanitizeKeySegment(value) {
   const base = (value ?? '').toString();
   const normalized = base
@@ -152,6 +169,39 @@ function buildSupabasePublicUrl(bucket, objectKey) {
   return `${sanitizedBase}/storage/v1/object/public/${bucket}/${objectKey}`;
 }
 
+function extractFlowBasics(flowLike = {}) {
+  const name = safeStr(flowLike?.designName, 'Personalizado');
+  let material = normalizeMaterialLabelSafe(flowLike);
+  const widthCandidate = Number(flowLike?.widthCm);
+  const heightCandidate = Number(flowLike?.heightCm);
+  let widthCm = Number.isFinite(widthCandidate) && widthCandidate > 0 ? Math.round(widthCandidate) : null;
+  let heightCm = Number.isFinite(heightCandidate) && heightCandidate > 0 ? Math.round(heightCandidate) : null;
+  if (!widthCm || !heightCm) {
+    const compWidth = Number(flowLike?.composition?.widthCm);
+    const compHeight = Number(flowLike?.composition?.heightCm);
+    widthCm = !widthCm && Number.isFinite(compWidth) && compWidth > 0 ? Math.round(compWidth) : widthCm;
+    heightCm = !heightCm && Number.isFinite(compHeight) && compHeight > 0 ? Math.round(compHeight) : heightCm;
+  }
+  if ((!widthCm || !heightCm) && flowLike?.editorState?.size_cm) {
+    const sizeW = Number(flowLike.editorState.size_cm.w);
+    const sizeH = Number(flowLike.editorState.size_cm.h);
+    widthCm = !widthCm && Number.isFinite(sizeW) && sizeW > 0 ? Math.round(sizeW) : widthCm;
+    heightCm = !heightCm && Number.isFinite(sizeH) && sizeH > 0 ? Math.round(sizeH) : heightCm;
+  }
+  if (material === 'Glasspad') {
+    widthCm = 49;
+    heightCm = 42;
+  }
+  const designHash = safeStr(flowLike?.designHash);
+  return {
+    name,
+    material,
+    widthCm: Number.isFinite(widthCm) && widthCm > 0 ? widthCm : null,
+    heightCm: Number.isFinite(heightCm) && heightCm > 0 ? heightCm : null,
+    designHash,
+  };
+}
+
 async function signUpload({ bucket, contentType, objectKey, metadata }) {
   const buildPayload = (bucketName) => ({
     bucket: bucketName,
@@ -192,6 +242,15 @@ async function signUpload({ bucket, contentType, objectKey, metadata }) {
   let response = await trySign(primaryBucket);
 
   if (response?.ok === true || response?.skipUpload) {
+    try {
+      console.log('[preview] signed', {
+        bucket: response?.bucket || primaryBucket,
+        key: response?.objectKey || objectKey,
+        skipUpload: Boolean(response?.skipUpload),
+      });
+    } catch (_) {
+      // noop
+    }
     return response;
   }
 
@@ -207,6 +266,15 @@ async function signUpload({ bucket, contentType, objectKey, metadata }) {
     }
     response = await trySign('outputs');
     if (response?.ok === true || response?.skipUpload) {
+      try {
+        console.log('[preview] signed', {
+          bucket: response?.bucket || 'outputs',
+          key: response?.objectKey || objectKey,
+          skipUpload: Boolean(response?.skipUpload),
+        });
+      } catch (_) {
+        // noop
+      }
       return response;
     }
   }
@@ -219,53 +287,118 @@ async function signUpload({ bucket, contentType, objectKey, metadata }) {
   return null;
 }
 
-async function uploadViaSignedUrl({ uploadUrl, blob, method = 'POST', headers: passedHeaders }) {
+async function uploadViaSignedUrl(sign, blob, contentType, objectKey) {
+  if (!sign || typeof sign !== 'object') {
+    throw new Error('missing_sign_payload');
+  }
+  if (sign.skipUpload) {
+    return {
+      publicUrl: sign.publicUrl || buildSupabasePublicUrl(sign.bucket || 'preview', sign.objectKey || objectKey),
+      skipUpload: true,
+    };
+  }
+  const uploadUrl = sign?.uploadUrl || sign?.signedUrl || null;
   if (!uploadUrl || !blob) {
     throw new Error('signed_url_or_blob_missing');
   }
-  const headers = new Headers();
-  if (passedHeaders && typeof passedHeaders === 'object') {
-    for (const [key, value] of Object.entries(passedHeaders)) {
-      if (value == null) continue;
-      headers.set(key, String(value));
-    }
-  }
-  const normalizedMethod = typeof method === 'string' ? method.toUpperCase() : 'POST';
-  const response = await fetch(uploadUrl, { method: normalizedMethod, headers, body: blob });
-  if (!response.ok) {
-    const bodyText = await response.text().catch(() => '');
-    console.error('[preview] POST failed', {
-      status: response.status,
-      body: typeof bodyText === 'string' ? bodyText.slice(0, 400) : null,
-      uploadUrl,
-    });
-    throw new Error('signed_upload_failed');
-  }
-  return true;
-}
-
-async function uploadBlobWithSignedUrl(sign, blob, filename) {
-  const uploadUrl = sign?.uploadUrl || sign?.signedUrl || null;
-  if (!uploadUrl) {
-    throw new Error('missing_upload_url');
-  }
-  const method = typeof sign?.method === 'string' ? sign.method : 'POST';
+  const method = typeof sign?.method === 'string' ? sign.method.toUpperCase() : 'POST';
   const requiredHeaders = sign?.requiredHeaders && typeof sign.requiredHeaders === 'object'
     ? sign.requiredHeaders
     : {};
-  await uploadViaSignedUrl({
-    uploadUrl,
-    blob,
-    method,
-    headers: requiredHeaders,
-  });
   const bucket = sign?.bucket || 'preview';
-  const objectKey = sign?.path || sign?.objectKey || filename || '';
-  const explicitPublicUrl = sign?.publicUrl ? String(sign.publicUrl || '').trim() || null : null;
-  if (explicitPublicUrl) {
-    return explicitPublicUrl;
+  const key = sign?.objectKey || objectKey || sign?.path || '';
+  const isSignedUpload = /\/storage\/v1\/object\/upload\/sign\//.test(uploadUrl);
+
+  if (method === 'POST' && isSignedUpload) {
+    const headers = new Headers();
+    for (const [k, v] of Object.entries(requiredHeaders)) {
+      if (v == null) continue;
+      headers.set(k, String(v));
+    }
+    if (!headers.has('authorization') && !headers.has('Authorization')) {
+      const anonKey = import.meta.env?.VITE_SUPABASE_ANON_KEY;
+      if (anonKey) {
+        headers.set('Authorization', `Bearer ${anonKey}`);
+      }
+    }
+    headers.delete('content-type');
+    const form = new FormData();
+    form.append('file', blob, key ? key.split('/').pop() || 'preview.png' : 'preview.png');
+    if (contentType) {
+      form.append('contentType', contentType);
+    }
+    const response = await fetch(uploadUrl, {
+      method: 'POST',
+      headers,
+      body: form,
+    });
+    if (!response.ok) {
+      const bodyText = await response.text().catch(() => '');
+      if (response.status === 400 || response.status === 401 || response.status === 403) {
+        console.error('[preview] POST failed', {
+          status: response.status,
+          body: typeof bodyText === 'string' ? bodyText.slice(0, 400) : null,
+          uploadUrl,
+        });
+      }
+      throw new Error('sign_upload_failed');
+    }
+  } else if (method === 'PUT') {
+    const headers = new Headers();
+    for (const [k, v] of Object.entries(requiredHeaders)) {
+      if (v == null) continue;
+      headers.set(k, String(v));
+    }
+    headers.set('content-type', contentType || blob.type || 'application/octet-stream');
+    const response = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers,
+      body: blob,
+    });
+    if (!response.ok) {
+      const bodyText = await response.text().catch(() => '');
+      if (response.status === 400 || response.status === 401 || response.status === 403) {
+        console.error('[preview] PUT failed', {
+          status: response.status,
+          body: typeof bodyText === 'string' ? bodyText.slice(0, 400) : null,
+          uploadUrl,
+        });
+      }
+      throw new Error('sign_upload_failed');
+    }
+  } else {
+    const headers = new Headers();
+    for (const [k, v] of Object.entries(requiredHeaders)) {
+      if (v == null) continue;
+      headers.set(k, String(v));
+    }
+    const response = await fetch(uploadUrl, {
+      method,
+      headers,
+      body: blob,
+    });
+    if (!response.ok) {
+      const bodyText = await response.text().catch(() => '');
+      if (response.status === 400 || response.status === 401 || response.status === 403) {
+        console.error('[preview] upload failed', {
+          status: response.status,
+          body: typeof bodyText === 'string' ? bodyText.slice(0, 400) : null,
+          uploadUrl,
+        });
+      }
+      throw new Error('sign_upload_failed');
+    }
   }
-  return buildSupabasePublicUrl(bucket, objectKey);
+
+  const publicUrl = sign?.publicUrl || buildSupabasePublicUrl(bucket, key);
+  return {
+    publicUrl,
+    skipUpload: false,
+  };
+}
+
+async function uploadBlobWithSignedUrl(sign, blob, objectKey, contentType) {
+  return await uploadViaSignedUrl(sign, blob, contentType || blob?.type || 'image/png', objectKey);
 }
 
 export async function ensureMockupUrlInFlow(flow, input) {
@@ -298,19 +431,24 @@ export async function ensureMockupUrlInFlow(flow, input) {
     dpi,
     material: state?.material ?? input?.material,
   };
-  const widthCm = cmFromPx(composition.widthPx, dpi);
-  const heightCm = cmFromPx(composition.heightPx, dpi);
+  const fallbackWidthCm = cmFromPx(composition.widthPx, dpi);
+  const fallbackHeightCm = cmFromPx(composition.heightPx, dpi);
+  const basics = extractFlowBasics(state);
+  const materialLabel = basics.material || matLabelOf(state?.material ?? input?.material);
+  let widthCmValue = basics.widthCm ?? fallbackWidthCm;
+  let heightCmValue = basics.heightCm ?? fallbackHeightCm;
+  if (materialLabel === 'Glasspad') {
+    widthCmValue = 49;
+    heightCmValue = 42;
+  }
   const mockupBlob = await renderMockup1080(image, {
-    material: state?.material ?? input?.material,
+    material: materialLabel,
     approxDpi: dpi,
     composition,
   });
-  const materialLabel = matLabelOf(state?.material ?? input?.material);
-  const widthCmValue = Number(widthCm);
-  const heightCmValue = Number(heightCm);
   const widthCmInt = Number.isFinite(widthCmValue) && widthCmValue > 0 ? Math.round(widthCmValue) : null;
   const heightCmInt = Number.isFinite(heightCmValue) && heightCmValue > 0 ? Math.round(heightCmValue) : null;
-  const designHash = (state?.designHash ?? input?.designHash ?? '').toString().trim();
+  const designHash = basics.designHash || (input?.designHash ?? '').toString().trim();
   const objectKey = buildPreviewObjectKey(state, {
     widthCm: widthCmInt ?? undefined,
     heightCm: heightCmInt ?? undefined,
@@ -324,7 +462,7 @@ export async function ensureMockupUrlInFlow(flow, input) {
     contentType: 'image/png',
     objectKey,
     metadata: {
-      title: state?.designName,
+      title: basics.name,
       widthCm: widthCmInt ?? undefined,
       heightCm: heightCmInt ?? undefined,
       material: materialLabel,
@@ -334,18 +472,19 @@ export async function ensureMockupUrlInFlow(flow, input) {
   let publicUrl = null;
   if (sign) {
     try {
-      if (sign.skipUpload) {
-        publicUrl = sign.publicUrl || buildSupabasePublicUrl(sign.bucket || 'preview', sign.objectKey || objectKey);
-      } else {
-        const uploadedUrl = await uploadBlobWithSignedUrl(sign, mockupBlob, filename);
-        publicUrl = sign.publicUrl || uploadedUrl;
-      }
+      const { publicUrl: resolvedPublicUrl, skipUpload } = await uploadBlobWithSignedUrl(
+        sign,
+        mockupBlob,
+        sign.objectKey || objectKey,
+        'image/png',
+      );
+      publicUrl = resolvedPublicUrl || null;
       if (publicUrl) {
         try {
           console.log('[preview] uploaded', {
             bucket: sign.bucket || 'preview',
             key: sign.objectKey || objectKey,
-            skip: Boolean(sign.skipUpload),
+            skip: Boolean(skipUpload),
           });
         } catch (_) {
           // noop
@@ -1964,27 +2103,31 @@ export default function Mockup() {
 
   function buildOverridesFromUi(_mode) {
     const flowLike = (typeof flow?.get === 'function' && flow.get()) || flow || {};
-    const rawMat = (flowLike?.options && flowLike.options.material)
-      || flowLike?.material
-      || flowLike?.productType
-      || '';
-    const material = normalizeMaterialLabel?.(rawMat) || 'Classic';
-    let widthCm = Number(flowLike?.widthCm ?? flowLike?.composition?.widthCm ?? NaN);
-    let heightCm = Number(flowLike?.heightCm ?? flowLike?.composition?.heightCm ?? NaN);
-    if (material === 'Glasspad') {
-      widthCm = 49;
-      heightCm = 42;
-    }
-    const normalizedWidth = Number.isFinite(widthCm) && widthCm > 0 ? Math.round(widthCm) : null;
-    const normalizedHeight = Number.isFinite(heightCm) && heightCm > 0 ? Math.round(heightCm) : null;
+    const basics = extractFlowBasics(flowLike);
+    const name = basics.name || 'Personalizado';
+    const material = basics.material || 'Classic';
+    const widthCm = basics.widthCm;
+    const heightCm = basics.heightCm;
+    const isGlasspad = material === 'Glasspad';
+    const effectiveWidth = isGlasspad ? 49 : widthCm;
+    const effectiveHeight = isGlasspad ? 42 : heightCm;
+    const title = isGlasspad
+      ? `Glasspad ${name} 49x42 | PERSONALIZADO`
+      : `Mousepad ${name}${effectiveWidth && effectiveHeight ? ` ${effectiveWidth}x${effectiveHeight}` : ''} ${material} | PERSONALIZADO`.replace(/\s+/g, ' ').trim();
     const overrides = {
       material,
       materialResolved: material,
       options: { ...(flowLike?.options || {}), material },
-      productType: material === 'Glasspad' ? 'glasspad' : 'mousepad',
+      productType: isGlasspad ? 'glasspad' : 'mousepad',
+      title,
+      designName: name,
     };
-    overrides.widthCm = normalizedWidth;
-    overrides.heightCm = normalizedHeight;
+    if (Number.isFinite(effectiveWidth) && effectiveWidth > 0) {
+      overrides.widthCm = Math.round(effectiveWidth);
+    }
+    if (Number.isFinite(effectiveHeight) && effectiveHeight > 0) {
+      overrides.heightCm = Math.round(effectiveHeight);
+    }
     return overrides;
   }
 
@@ -2006,6 +2149,17 @@ export default function Mockup() {
         logger.debug?.('[mockup] ensure_mockup_public_ready_failed', mockupErr);
       }
       const overrides = buildOverridesFromUi(mode);
+      try {
+        console.log('[buy] direct:payload', {
+          mode,
+          material: overrides?.material,
+          width: overrides?.widthCm ?? null,
+          height: overrides?.heightCm ?? null,
+          title: overrides?.title,
+        });
+      } catch (_) {
+        // noop
+      }
       const result = await createJobAndProduct(mode, flow, {
         payloadOverrides: overrides,
         discountCode: discountCode || undefined,
