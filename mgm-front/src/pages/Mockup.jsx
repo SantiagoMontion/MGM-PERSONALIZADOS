@@ -218,24 +218,25 @@ const asStr = (value, fallback = '') => {
 
 const safeReplace = (value, pattern, replacement) => asStr(value).replace(pattern, replacement);
 
-function openInNewTab(url) {
-  if (!url) return;
+function isHttpUrl(u) {
+  return typeof u === 'string' && /^https?:\/\//i.test(u.trim());
+}
+
+function openInNewTabSafe(url) {
+  if (!isHttpUrl(url)) return false;
   try {
     const a = document.createElement('a');
     a.href = url;
     a.target = '_blank';
-    a.rel = 'noopener';
-    a.style.display = 'none';
+    a.rel = 'noopener,noreferrer';
     document.body.appendChild(a);
     a.click();
     a.remove();
-  } catch {
-    try {
-      window.open(url, '_blank', 'noopener,noreferrer');
-    } catch {
-      // noop
-    }
+    return true;
+  } catch (err) {
+    diag('[mockup] open_tab_failed', err);
   }
+  return false;
 }
 
 function loadPersistedFlow() {
@@ -1535,6 +1536,29 @@ export default function Mockup() {
     return [];
   }
 
+  function partitionWarnings(messages) {
+    const suppressed = [];
+    const remaining = [];
+    const list = Array.isArray(messages) ? messages : [];
+    for (const raw of list) {
+      const trimmed = safeStr(raw);
+      if (!trimmed) continue;
+      if (trimmed.includes('No se pudo subir la imagen')) {
+        suppressed.push(trimmed);
+      } else {
+        remaining.push(trimmed);
+      }
+    }
+    if (suppressed.length) {
+      try {
+        console.debug('[mockup] suppressed_warnings', suppressed);
+      } catch (err) {
+        diag('[mockup] debug_log_failed', err);
+      }
+    }
+    return { suppressed, remaining };
+  }
+
   // === Reactivar CTAs de compra: ejecutar SIEMPRE createJobAndProduct con await ===
   async function runPublish(mode, flowState, options) {
     try {
@@ -1614,13 +1638,14 @@ export default function Mockup() {
         }
       }
       const warningMessages = extractWarningMessages(result?.warnings, result?.warningMessages);
-      if (warningMessages.length) {
+      const { remaining: cartVisibleWarnings } = partitionWarnings(warningMessages);
+      if (cartVisibleWarnings.length) {
         try {
-          warn('[mockup] cart_flow_warnings', warningMessages);
+          warn('[mockup] cart_flow_warnings', cartVisibleWarnings);
         } catch (warnErr) {
           diag('[mockup] cart_flow_warn_log_failed', warnErr);
         }
-        setToast({ message: warningMessages.join(' ') });
+        setToast({ message: cartVisibleWarnings.join(' ') });
       }
 
       const jsonCandidates = [];
@@ -1820,13 +1845,14 @@ export default function Mockup() {
         keys: result && typeof result === 'object' ? Object.keys(result) : null,
       });
       const warningMessages = extractWarningMessages(result?.warnings, result?.warningMessages);
-      if (warningMessages.length) {
+      const { remaining: flowVisibleWarnings } = partitionWarnings(warningMessages);
+      if (flowVisibleWarnings.length) {
         try {
-          warn(`[${mode}-flow] warnings`, warningMessages);
+          warn(`[${mode}-flow] warnings`, flowVisibleWarnings);
         } catch (warnErr) {
           diag('[handle] warn_log_failed', warnErr);
         }
-        setToast({ message: warningMessages.join(' ') });
+        setToast({ message: flowVisibleWarnings.join(' ') });
       }
       const jsonCandidates = [];
       if (result && typeof result === 'object') {
@@ -2379,22 +2405,12 @@ export default function Mockup() {
     try {
       const overrides = buildOverridesFromUi('cart');
       const result = await buyDirect('cart', overrides, { autoOpen: false });
-      const targetUrl = typeof result?.url === 'string' ? result.url : '';
-
-      if (result?.ok && targetUrl) {
-        openInNewTab(targetUrl);
-        jumpHomeAndClean(flow);
-        return;
-      }
-
-      const fallbackMessage = 'No se pudo abrir el producto. Intentalo de nuevo.';
-      toastErr(fallbackMessage);
-      setToast({ message: fallbackMessage });
+      return finalizePurchase(result, flow);
     } catch (err) {
       warn('[cart] error', err);
       const fallbackMessage = 'Ocurrió un error al agregar al carrito.';
       toastErr(fallbackMessage);
-      setToast((prev) => prev || { message: fallbackMessage });
+      setToast({ message: fallbackMessage });
     } finally {
       setCartStatus('idle');
     }
@@ -2405,7 +2421,32 @@ export default function Mockup() {
     if (out?.checkoutUrl) return out.checkoutUrl;
     if (out?.productUrl) return out.productUrl;
     if (out?.cartUrl) return out.cartUrl;
+    if (out?.privateCheckoutUrl) return out.privateCheckoutUrl;
     return null;
+  }
+
+  function finalizePurchase(result, flowRef) {
+    if (!result) {
+      return { ok: false };
+    }
+    const targetUrl = pickOpenUrl(result);
+    if (isHttpUrl(targetUrl)) {
+      const opened = openInNewTabSafe(targetUrl);
+      if (!opened) {
+        try {
+          window.location.assign(targetUrl);
+        } catch (assignErr) {
+          warn('[mockup] finalize_navigation_failed', assignErr);
+        }
+      }
+      const flowStateForJump = typeof flowRef?.get === 'function' ? flowRef.get() : flowRef;
+      jumpHomeAndClean(flowStateForJump || flowRef);
+      return { ok: true, url: targetUrl };
+    }
+    const fallbackMessage = 'No se pudo abrir el producto. Intentá de nuevo.';
+    toastErr(fallbackMessage);
+    setToast({ message: fallbackMessage });
+    return { ok: false };
   }
 
   // ---- Compra directa: evitar wrappers que cortan en silencio ----
@@ -2474,6 +2515,13 @@ export default function Mockup() {
         discountCode: discountCode || undefined,
       });
       const openUrl = pickOpenUrl(result);
+      if (openUrl && result && typeof result === 'object' && !result.url) {
+        try {
+          result.url = openUrl;
+        } catch (assignErr) {
+          diag('[buy] direct:url_assign_failed', assignErr);
+        }
+      }
       diag('[buy] direct:done', {
         mode,
         ok: result?.ok ?? true,
@@ -2483,7 +2531,7 @@ export default function Mockup() {
         w: overrides?.widthCm ?? null,
         h: overrides?.heightCm ?? null,
       });
-      if (autoOpen && result?.ok && openUrl) {
+      if (autoOpen && openUrl) {
         try {
           window.open(openUrl, '_blank', 'noopener');
         } catch (assignErr) {
@@ -2518,20 +2566,7 @@ export default function Mockup() {
         visibility: 'public',
       };
       const result = await buyDirect('checkout', overrides, { skipEnsure: true, autoOpen: false });
-      const url = pickOpenUrl(result);
-      if (result?.ok && url) {
-        openInNewTab(url);
-        const flowStateForJump = typeof flow?.get === 'function' ? flow.get() : flow;
-        jumpHomeAndClean(flowStateForJump || flow);
-        return result;
-      }
-
-      warn('[checkout-public-flow] missing_url', {
-        ok: result?.ok ?? null,
-        url,
-      });
-      setToast({ message: 'No se pudo abrir el checkout. Probá nuevamente.' });
-      return result;
+      return finalizePurchase(result, flow);
     } catch (err) {
       error('[checkout-public-flow]', err);
       setToast({ message: 'Ocurrió un error al procesar el checkout.' });
@@ -2563,20 +2598,7 @@ export default function Mockup() {
         visibility: 'private',
       };
       const result = await buyDirect('private', overrides, { skipEnsure: true, autoOpen: false });
-      const url = pickOpenUrl(result) || result?.privateCheckoutUrl;
-      if (result?.ok && url) {
-        openInNewTab(url);
-        const flowStateForJump = typeof flow?.get === 'function' ? flow.get() : flow;
-        jumpHomeAndClean(flowStateForJump || flow);
-        return result;
-      }
-
-      warn('[checkout-private-flow] missing_url', {
-        ok: result?.ok ?? null,
-        url,
-      });
-      setToast({ message: 'No se pudo abrir el checkout privado.' });
-      return result;
+      return finalizePurchase(result, flow);
     } catch (err) {
       error('[checkout-private-flow]', err);
       setToast({ message: 'Ocurrió un error al procesar el checkout privado.' });
