@@ -20,7 +20,7 @@ function useBridgeWatcher(rid) {
   useEffect(() => {
     if (!rid) return undefined;
 
-    const key = ridge:;
+    const key = `bridge:${rid}`;
     let cancelled = false;
 
     const tryNavigate = () => {
@@ -116,7 +116,9 @@ export default function Bridge() {
           </p>
         ) : null}
       </div>
-      <style>{@keyframes spin{to{transform:rotate(360deg)}}}</style>
+      <style>
+        {`@keyframes spin { to { transform: rotate(360deg); } }`}
+      </style>
     </div>
   );
 }
