@@ -13,7 +13,7 @@ import {
   ONLINE_STORE_MISSING_MESSAGE,
   pickCommerceTarget,
 } from '@/lib/shopify.ts';
-import logger from '../lib/logger';
+import { diag, info, warn, error, debugEnabled } from '@/lib/log';
 
 const safeStr = (v) => (typeof v === 'string' ? v : '').trim();
 
@@ -103,9 +103,9 @@ import { ensureTrackingRid, trackEvent } from '@/lib/tracking';
 
 const PUBLISH_MAX_PAYLOAD_KB = Number(import.meta.env?.VITE_PUBLISH_MAX_PAYLOAD_KB) || 200;
 const FLOW_STORAGE_KEY = 'mgm_flow_v1';
-const BUY_DEBUG = true;
-const dlog = (...args) => { if (BUY_DEBUG) console.log('[buy]', ...args); };
-const derr = (...args) => { console.error('[buy]', ...args); };
+const BUY_DEBUG = debugEnabled;
+const dlog = (...args) => { if (BUY_DEBUG) diag('[buy]', ...args); };
+const derr = (...args) => { error('[buy]', ...args); };
 try {
   if (typeof window !== 'undefined' && !window.__BUY_DEBUG_WIRED__) {
     window.__BUY_DEBUG_WIRED__ = true;
@@ -260,7 +260,7 @@ async function uploadPreviewViaApi(objectKey, blob) {
   });
   const json = await response.json().catch(() => null);
   if (!response.ok || !json?.ok || !json?.publicUrl) {
-    console.error('[preview] api upload failed', {
+    error('[preview] api upload failed', {
       status: response.status,
       json,
       objectKey,
@@ -268,7 +268,7 @@ async function uploadPreviewViaApi(objectKey, blob) {
     throw new Error('preview_upload_failed');
   }
   try {
-    console.log('[preview] uploaded', {
+    diag('[preview] uploaded', {
       objectKey,
       skip: Boolean(json.skipUpload),
     });
@@ -335,7 +335,7 @@ export async function ensureMockupUrlInFlow(flow, input) {
   });
   let publicUrl = null;
   try {
-    console.log('[preview] about_to_upload', {
+    diag('[preview] about_to_upload', {
       objectKey,
       mat,
       w: Number.isFinite(widthRounded) ? widthRounded : null,
@@ -343,7 +343,7 @@ export async function ensureMockupUrlInFlow(flow, input) {
     });
     publicUrl = await uploadPreviewViaApi(objectKey, mockupBlob);
   } catch (uploadErr) {
-    logger.debug?.('[mockup] preview_upload_failed', uploadErr);
+    diag('[mockup] preview_upload_failed', uploadErr);
     publicUrl = null;
   }
   if (publicUrl) {
@@ -371,10 +371,10 @@ export async function ensureMockupUrlInFlow(flow, input) {
         });
       }
     } catch (stateErr) {
-      logger.debug?.('[mockup] state_update_failed', stateErr);
+      diag('[mockup] state_update_failed', stateErr);
     }
     try {
-      console.log('[audit:flow:persist]', {
+      diag('[audit:flow:persist]', {
         designName,
         material: mat,
         widthCm: Number.isFinite(widthRounded) ? widthRounded : null,
@@ -383,7 +383,7 @@ export async function ensureMockupUrlInFlow(flow, input) {
     } catch (_) {
       // noop
     }
-    console.log('[diag] mockup ensured', publicUrl);
+    diag('[diag] mockup ensured', publicUrl);
     return publicUrl;
   }
 
@@ -402,7 +402,7 @@ export async function ensureMockupUrlInFlow(flow, input) {
         return URL.createObjectURL(mockupBlob);
       }
     } catch (blobErr) {
-      logger.debug?.('[mockup] blob_url_failed', blobErr);
+      diag('[mockup] blob_url_failed', blobErr);
     }
     return null;
   })();
@@ -416,7 +416,7 @@ export async function ensureMockupUrlInFlow(flow, input) {
         mockupUrl: fallbackUrl,
       });
     } catch (stateErr) {
-      logger.debug?.('[mockup] fallback_state_failed', stateErr);
+      diag('[mockup] fallback_state_failed', stateErr);
     }
   }
 
@@ -456,7 +456,7 @@ async function ensureMockupPublicReady(flowState) {
     try {
       await ensureMockupUrlInFlow(flowState);
     } catch (err) {
-      logger.debug?.('[mockup] ensure_mockup_url_in_flow_failed', err);
+      diag('[mockup] ensure_mockup_url_in_flow_failed', err);
     }
     state = resolveState();
   }
@@ -467,10 +467,10 @@ async function ensureMockupPublicReady(flowState) {
   try {
     const ready = await waitUrlReady(url, 3, 250);
     if (!ready) {
-      logger.debug?.('[mockup] mockup_head_unconfirmed', { url });
+      diag('[mockup] mockup_head_unconfirmed', { url });
     }
   } catch (headErr) {
-    logger.debug?.('[mockup] mockup_head_failed', headErr);
+    diag('[mockup] mockup_head_failed', headErr);
   }
 }
 
@@ -564,7 +564,7 @@ function toastErr(msg) {
   try {
     window?.toast?.error?.(msg);
   } catch (err) {
-    logger.debug('[mockup] toast_error_failed', err);
+    diag('[mockup] toast_error_failed', err);
   }
 }
 
@@ -734,10 +734,35 @@ const BENEFITS = [
 ];
 
 export default function Mockup() {
-  console.log('ÁÉÍÓÚ ¿¡ ñ Ñ ✓');
   const flow = useFlow();
   const location = useLocation();
   const navigate = useNavigate();
+
+  function openNewTabSafely() {
+    if (typeof window === 'undefined') return null;
+    try {
+      const w = window.open('about:blank', '_blank', 'noopener,noreferrer');
+      return w || null;
+    } catch {
+      return null;
+    }
+  }
+
+  function jumpHomeAndClean(currentFlow) {
+    try {
+      const hash = currentFlow?.designHash || currentFlow?.designHashState;
+      if (hash && typeof sessionStorage !== 'undefined') {
+        sessionStorage.removeItem(`mgm:flow:${hash}`);
+      }
+    } catch {}
+    try {
+      currentFlow?.reset?.();
+    } catch (resetErr) {
+      warn('[cart] flow_reset_failed', resetErr);
+    }
+    navigate('/', { replace: true });
+  }
+
   const qs = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const urlSeed = useMemo(() => ({
     material: qs.get('mat') || undefined,
@@ -888,7 +913,7 @@ export default function Mockup() {
         widthCm: widthForLog || undefined,
         heightCm: heightForLog || undefined,
       });
-      console.log('[audit:flow:rehydrated]', {
+      diag('[audit:flow:rehydrated]', {
         material: matForLog,
         optionsMaterial: mergedForLog.options?.material ?? null,
         widthCm: widthForLog,
@@ -955,7 +980,7 @@ export default function Mockup() {
       return;
     }
     ensureMockupUrlInFlow(flow).catch((error) => {
-      logger.debug?.('[mockup] ensure_mockup_url_initial_failed', error);
+      diag('[mockup] ensure_mockup_url_initial_failed', error);
     });
   }, [
     flowReady,
@@ -1015,7 +1040,7 @@ export default function Mockup() {
     try {
       document.title = frontTitle;
     } catch (err) {
-      logger.debug?.('[mockup] title_update_failed', err);
+      diag('[mockup] title_update_failed', err);
     }
   }, [frontTitle]);
 
@@ -1045,11 +1070,11 @@ export default function Mockup() {
         const stored = window.sessionStorage.getItem('MGM_discountCode');
         return typeof stored === 'string' ? stored.trim() : '';
       } catch (storageErr) {
-        logger.warn('[mockup-discount-storage-read]', storageErr);
+        warn('[mockup-discount-storage-read]', storageErr);
         return '';
       }
     } catch (err) {
-      logger.warn('[mockup-discount-parse]', err);
+      warn('[mockup-discount-parse]', err);
       return '';
     }
   }, [location.search]);
@@ -1112,7 +1137,7 @@ export default function Mockup() {
   function debugTrackFire(eventName, ridValue) {
     if (typeof window === 'undefined') return;
     if ((window).__TRACK_DEBUG__ === true) {
-      console.debug('[track:fire]', { event: eventName, rid: ridValue });
+      diag('[track:fire]', { event: eventName, rid: ridValue });
     }
   }
 
@@ -1127,7 +1152,7 @@ export default function Mockup() {
         storedFlag = window.sessionStorage.getItem('mockup_view_sent') || '';
       }
     } catch (storageErr) {
-      logger.warn('[mockup-view-flag-read]', storageErr);
+      warn('[mockup-view-flag-read]', storageErr);
     }
     if (storedFlag === resolvedRid) {
       return;
@@ -1144,7 +1169,7 @@ export default function Mockup() {
         window.sessionStorage.setItem('mockup_view_sent', resolvedRid);
       }
     } catch (storageErr) {
-      logger.warn('[mockup-view-flag-write]', storageErr);
+      warn('[mockup-view-flag-write]', storageErr);
     }
   }, [designSlug, rid]);
 
@@ -1165,7 +1190,7 @@ export default function Mockup() {
         storedFlag = window.sessionStorage.getItem(flagKey) || '';
       }
     } catch (storageErr) {
-      logger.warn('[mockup-view-options-flag-read]', storageErr);
+      warn('[mockup-view-options-flag-read]', storageErr);
     }
     if (storedFlag === '1') {
       return;
@@ -1182,7 +1207,7 @@ export default function Mockup() {
         window.sessionStorage.setItem(flagKey, '1');
       }
     } catch (storageErr) {
-      logger.warn('[mockup-view-options-flag-write]', storageErr);
+      warn('[mockup-view-options-flag-write]', storageErr);
     }
   }, [designSlug, mockupUrl, rid]);
 
@@ -1195,7 +1220,7 @@ export default function Mockup() {
         window.sessionStorage.removeItem('MGM_discountCode');
       }
     } catch (err) {
-      logger.warn('[mockup-discount-storage-write]', err);
+      warn('[mockup-discount-storage-write]', err);
     }
   }, [discountCode]);
 
@@ -1216,7 +1241,7 @@ export default function Mockup() {
       try {
         firstActionButtonRef.current?.focus?.();
       } catch (focusErr) {
-        logger.warn('[buy-prompt-focus]', focusErr);
+        warn('[buy-prompt-focus]', focusErr);
       }
     }, 0);
     return () => {
@@ -1230,7 +1255,7 @@ export default function Mockup() {
     try {
       buyNowButtonRef.current?.focus?.();
     } catch (focusErr) {
-      logger.warn('[buy-prompt-return-focus]', focusErr);
+      warn('[buy-prompt-return-focus]', focusErr);
     }
   }, [isBuyPromptOpen]);
 
@@ -1257,7 +1282,7 @@ export default function Mockup() {
           try {
             last.focus();
           } catch (focusErr) {
-            logger.warn('[buy-prompt-trap-focus]', focusErr);
+            warn('[buy-prompt-trap-focus]', focusErr);
           }
         }
       } else {
@@ -1266,7 +1291,7 @@ export default function Mockup() {
           try {
             first.focus();
           } catch (focusErr) {
-            logger.warn('[buy-prompt-trap-focus]', focusErr);
+            warn('[buy-prompt-trap-focus]', focusErr);
           }
         }
       }
@@ -1288,7 +1313,7 @@ export default function Mockup() {
 
   function showFriendlyError(error, options = {}) {
     const { scope = 'mockup' } = options || {};
-    logger.error(`[${scope}]`, error);
+    error(`[${scope}]`, error);
     const reasonRaw = typeof error?.reason === 'string' && error.reason
       ? error.reason
       : typeof error?.message === 'string' && error.message
@@ -1369,7 +1394,7 @@ export default function Mockup() {
     try {
       navigate('/', { replace: true });
     } catch (navErr) {
-      logger.warn('[mockup] cart_success_navigate_failed', navErr);
+      warn('[mockup] cart_success_navigate_failed', navErr);
     }
   }
 
@@ -1386,7 +1411,7 @@ export default function Mockup() {
         try {
           navigate(relative, { replace: false });
         } catch (navErr) {
-          logger.warn('[mockup] internal_navigation_failed', navErr);
+          warn('[mockup] internal_navigation_failed', navErr);
           window.location.assign(urlInstance.toString());
         }
         return true;
@@ -1398,12 +1423,12 @@ export default function Mockup() {
       window.location.assign(urlInstance.toString());
       return true;
     } catch (navErr) {
-      logger.warn('[mockup] commerce_navigation_failed', navErr);
+      warn('[mockup] commerce_navigation_failed', navErr);
       try {
         window.location.assign(trimmed);
         return true;
       } catch (assignErr) {
-        logger.warn('[mockup] commerce_navigation_assign_failed', assignErr);
+        warn('[mockup] commerce_navigation_assign_failed', assignErr);
       }
     }
     return false;
@@ -1487,15 +1512,15 @@ export default function Mockup() {
       if (normalizedDiscountCode) {
         baseOptions.discountCode = normalizedDiscountCode;
       }
-      logger.info('[cart-flow] create_job_and_product_start');
+      info('[cart-flow] create_job_and_product_start');
       const result = await runPublish('cart', flow, baseOptions);
-      logger.info('[cart-flow] create_job_and_product_success', {
+      info('[cart-flow] create_job_and_product_success', {
         keys: result && typeof result === 'object' ? Object.keys(result) : null,
       });
       if (SHOULD_LOG_COMMERCE) {
         try {
           const jsonForLog = result && typeof result === 'object' ? result : null;
-          logger.debug('[commerce]', {
+          diag('[commerce]', {
             tag: 'startCartFlow:publish',
             json: jsonForLog,
             keys: jsonForLog ? Object.keys(jsonForLog) : [],
@@ -1503,15 +1528,15 @@ export default function Mockup() {
             cartStatus,
           });
         } catch (logErr) {
-          logger.warn('[mockup] cart_publish_log_failed', logErr);
+          warn('[mockup] cart_publish_log_failed', logErr);
         }
       }
       const warningMessages = extractWarningMessages(result?.warnings, result?.warningMessages);
       if (warningMessages.length) {
         try {
-          logger.warn('[mockup] cart_flow_warnings', warningMessages);
+          warn('[mockup] cart_flow_warnings', warningMessages);
         } catch (warnErr) {
-          logger.debug('[mockup] cart_flow_warn_log_failed', warnErr);
+          diag('[mockup] cart_flow_warn_log_failed', warnErr);
         }
         setToast({ message: warningMessages.join(' ') });
       }
@@ -1603,7 +1628,7 @@ export default function Mockup() {
           handle: handleFromResult || null,
           target: targetUrl,
         };
-        console.debug('[publish/add-to-cart]', navigationPayload);
+        diag('[publish/add-to-cart]', navigationPayload);
         const opened = openCommerceTarget(targetUrl);
         didOpenTarget = opened || didOpenTarget;
         if (!opened) {
@@ -1618,7 +1643,7 @@ export default function Mockup() {
       });
       return;
     } catch (err) {
-      logger.error('[cart-flow] create_job_and_product_failed', err);
+      error('[cart-flow] create_job_and_product_failed', err);
       setCartStatus('idle');
       if (err?.name === 'AbortError') return;
       showFriendlyError(err, { scope: 'cart-flow' });
@@ -1707,17 +1732,17 @@ export default function Mockup() {
         mode === 'private' || !normalizedDiscountCode
           ? jobOptions
           : { ...jobOptions, discountCode: normalizedDiscountCode };
-      logger.info(`[${mode}-flow] create_job_and_product_start`);
+      info(`[${mode}-flow] create_job_and_product_start`);
       const result = await runPublish(mode, submissionFlow, jobOptionsWithDiscount);
-      logger.info(`[${mode}-flow] create_job_and_product_success`, {
+      info(`[${mode}-flow] create_job_and_product_success`, {
         keys: result && typeof result === 'object' ? Object.keys(result) : null,
       });
       const warningMessages = extractWarningMessages(result?.warnings, result?.warningMessages);
       if (warningMessages.length) {
         try {
-          logger.warn(`[${mode}-flow] warnings`, warningMessages);
+          warn(`[${mode}-flow] warnings`, warningMessages);
         } catch (warnErr) {
-          logger.debug('[handle] warn_log_failed', warnErr);
+          diag('[handle] warn_log_failed', warnErr);
         }
         setToast({ message: warningMessages.join(' ') });
       }
@@ -1732,7 +1757,7 @@ export default function Mockup() {
         if (SHOULD_LOG_COMMERCE) {
           const checkoutJson = result && typeof result === 'object' ? result.publicCheckoutResponse : null;
           try {
-            logger.debug('[commerce]', {
+            diag('[commerce]', {
               tag: 'public-checkout',
               status: typeof result?.publicCheckoutStatus === 'number' ? result.publicCheckoutStatus : null,
               keys:
@@ -1753,7 +1778,7 @@ export default function Mockup() {
                   : null,
             });
           } catch (logErr) {
-            logger.warn('[checkout] public_log_failed', logErr);
+            warn('[checkout] public_log_failed', logErr);
           }
         }
         let checkoutTarget = '';
@@ -1806,7 +1831,7 @@ export default function Mockup() {
             try {
               popup = window.open(primaryTarget, '_blank');
             } catch (openErr) {
-              logger.warn('[checkout] popup_open_failed', openErr);
+              warn('[checkout] popup_open_failed', openErr);
             }
             if (popup == null) {
               try {
@@ -1815,7 +1840,7 @@ export default function Mockup() {
                   skipNavigate: true,
                 });
               } catch (assignErr) {
-                logger.warn('[checkout] location_assign_failed', assignErr);
+                warn('[checkout] location_assign_failed', assignErr);
               }
             }
           }
@@ -1860,7 +1885,7 @@ export default function Mockup() {
         try {
           privateStageCallback?.('creating_checkout');
         } catch (stageErr) {
-          logger.debug('[private-checkout] stage_callback_failed', stageErr);
+          diag('[private-checkout] stage_callback_failed', stageErr);
         }
         const payloadFromResult = result?.privateCheckoutPayload && typeof result.privateCheckoutPayload === 'object'
           ? result.privateCheckoutPayload
@@ -1888,7 +1913,7 @@ export default function Mockup() {
         try {
           resolvedPrivateCheckoutUrl = getResolvedApiUrl(privateEndpoint);
         } catch (resolveErr) {
-          logger.warn('[private-checkout] resolve_failed', resolveErr);
+          warn('[private-checkout] resolve_failed', resolveErr);
         }
         let privateResp;
         try {
@@ -1919,10 +1944,10 @@ export default function Mockup() {
             privateJson = rawBody ? JSON.parse(rawBody) : null;
           } catch (parseErr) {
             privateJson = null;
-            logger.warn('[private-checkout] json_parse_failed', parseErr);
+            warn('[private-checkout] json_parse_failed', parseErr);
           }
         } else {
-          logger.error('[private-checkout] non_json_response', {
+          error('[private-checkout] non_json_response', {
             status: privateResp.status,
             contentType,
             bodyPreview: typeof rawBody === 'string' ? rawBody.slice(0, 200) : '',
@@ -1931,14 +1956,14 @@ export default function Mockup() {
         }
         const logError = (label) => {
           try {
-            logger.error(`[private-checkout] ${label}`, {
+            error(`[private-checkout] ${label}`, {
               status: privateResp.status,
               contentType,
               bodyPreview: typeof rawBody === 'string' ? rawBody.slice(0, 200) : '',
               url: privateResp.url || resolvedPrivateCheckoutUrl || null,
             });
           } catch (logErr) {
-            logger.debug('[private-checkout] log_failed', logErr);
+            diag('[private-checkout] log_failed', logErr);
           }
         };
         const buildError = (reason) => {
@@ -2006,9 +2031,9 @@ export default function Mockup() {
           }
           if (Array.isArray(privateJson.requestIds) && privateJson.requestIds.length) {
             try {
-              logger.debug('[private-checkout] request_ids', privateJson.requestIds);
+              diag('[private-checkout] request_ids', privateJson.requestIds);
             } catch (infoErr) {
-              logger.debug('[private-checkout] request_ids_log_failed', infoErr);
+              diag('[private-checkout] request_ids_log_failed', infoErr);
             }
           }
           const SHOPIFY_DOMAIN = import.meta.env.VITE_SHOPIFY_DOMAIN || '';
@@ -2127,7 +2152,7 @@ export default function Mockup() {
         }
         const message = extraParts.length ? `${baseMessage} ${extraParts.join(' | ')}` : baseMessage;
         try {
-          logger.error('[private-checkout] toast_error', {
+          error('[private-checkout] toast_error', {
             reason: reason || null,
             status: typeof error?.status === 'number' ? error.status : null,
             userErrors,
@@ -2150,7 +2175,7 @@ export default function Mockup() {
         });
         return;
       }
-      logger.error(`[${mode}-flow] create_job_and_product_failed`, error);
+      error(`[${mode}-flow] create_job_and_product_failed`, error);
       showFriendlyError(error, { scope: `${mode}-flow` });
     } finally {
       if (mode === 'checkout') {
@@ -2183,6 +2208,79 @@ export default function Mockup() {
     return overrides;
   }
 
+  async function onCartClick() {
+    if (busy || cartInteractionBusy) return;
+
+    debugTrackFire('cta_click_cart', rid);
+    trackEvent('cta_click_cart', {
+      rid,
+      design_slug: designSlug,
+      product_id: lastProductId,
+      variant_id: lastVariantId,
+      cta_type: 'cart',
+      product_handle: lastProduct?.productHandle,
+    });
+
+    setToast(null);
+    setCartStatus('creating');
+    const stub = openNewTabSafely();
+
+    try {
+      const overrides = buildOverridesFromUi('cart');
+      const result = await buyDirect('cart', overrides);
+      const targetUrl = typeof result?.url === 'string' ? result.url : '';
+
+      if (result?.ok && targetUrl) {
+        if (stub) {
+          try {
+            stub.location.href = targetUrl;
+          } catch {
+            // ignore
+          }
+        } else if (typeof document !== 'undefined') {
+          try {
+            const anchor = document.createElement('a');
+            anchor.href = targetUrl;
+            anchor.target = '_blank';
+            anchor.rel = 'noopener';
+            document.body.appendChild(anchor);
+            anchor.click();
+            anchor.remove();
+          } catch {
+            // ignore
+          }
+        }
+        jumpHomeAndClean(flow);
+        return;
+      }
+
+      if (stub) {
+        try {
+          stub.close();
+        } catch {
+          // ignore
+        }
+      }
+      const fallbackMessage = 'No se pudo abrir el producto. Intentalo de nuevo.';
+      toastErr(fallbackMessage);
+      setToast({ message: fallbackMessage });
+    } catch (err) {
+      if (stub) {
+        try {
+          stub.close();
+        } catch {
+          // ignore
+        }
+      }
+      warn('[cart] error', err);
+      const fallbackMessage = 'Ocurrió un error al agregar al carrito.';
+      toastErr(fallbackMessage);
+      setToast((prev) => prev || { message: fallbackMessage });
+    } finally {
+      setCartStatus('idle');
+    }
+  }
+
   function pickOpenUrl(out) {
     if (out?.url) return out.url;
     if (out?.checkoutUrl) return out.checkoutUrl;
@@ -2192,13 +2290,13 @@ export default function Mockup() {
   }
 
   // ---- Compra directa: evitar wrappers que cortan en silencio ----
-  async function buyDirect(mode) {
+  async function buyDirect(mode, overridesOverride) {
     try {
-      console.log('[buy] direct:start', { mode });
+      diag('[buy] direct:start', { mode });
       try {
         await ensureMockupPublicReady(flow);
       } catch (mockupErr) {
-        logger.debug?.('[mockup] ensure_mockup_public_ready_failed', mockupErr);
+        diag('[mockup] ensure_mockup_public_ready_failed', mockupErr);
       }
       const stateForLog = (typeof flow?.get === 'function' ? flow.get() : flow) || {};
       const basics = extractFlowBasics(stateForLog);
@@ -2213,7 +2311,7 @@ export default function Mockup() {
         designName,
       });
       try {
-        console.log('[buy] direct:flow', {
+        diag('[buy] direct:flow', {
           materialRaw: stateForLog?.material ?? null,
           optionsMaterial: stateForLog?.options?.material ?? null,
           mat,
@@ -2229,9 +2327,9 @@ export default function Mockup() {
         setToast({ message: 'Faltan medidas del diseño. Volvé y tocá "Continuar" para guardarlas.' });
         return;
       }
-      const overrides = buildOverridesFromUi(mode);
+      const overrides = overridesOverride ?? buildOverridesFromUi(mode);
       try {
-        console.log('[buy] direct:payload', {
+        diag('[buy] direct:payload', {
           mode,
           material: overrides?.material ?? mat,
           width: overrides?.widthCm ?? widthRounded,
@@ -2246,7 +2344,7 @@ export default function Mockup() {
         discountCode: discountCode || undefined,
       });
       const openUrl = pickOpenUrl(result);
-      console.log('[buy] direct:done', {
+      diag('[buy] direct:done', {
         mode,
         ok: result?.ok ?? true,
         url: openUrl,
@@ -2255,16 +2353,16 @@ export default function Mockup() {
         w: overrides?.widthCm ?? null,
         h: overrides?.heightCm ?? null,
       });
-      if (result?.ok && openUrl) {
+      if (result?.ok && openUrl && mode !== 'cart') {
         try {
           window.open(openUrl, '_blank', 'noopener');
         } catch (assignErr) {
-          logger.warn?.('[mockup] direct_navigation_failed', assignErr);
+          warn('[mockup] direct_navigation_failed', assignErr);
         }
       }
       return result;
     } catch (error) {
-      console.error('[buy] direct:error', mode, error);
+      error('[buy] direct:error', mode, error);
       setToast((prev) => (prev ? prev : { message: 'No se pudo crear el producto.' }));
       throw error;
     }
@@ -2341,7 +2439,7 @@ export default function Mockup() {
       );
       downloadBlob(pdfBlob, `${baseName}.pdf`);
     } catch (error) {
-      logger.error('[download-pdf]', error);
+      error('[download-pdf]', error);
       alert('No se pudo generar el PDF.');
     } finally {
       setBusy(false);
@@ -2417,19 +2515,7 @@ export default function Mockup() {
               busyLabel={cartButtonLabel}
               isBusy={cartInteractionBusy}
               disabled={busy || cartInteractionBusy}
-              onClick={withCartBtnSpin(async () => {
-                if (busy || cartInteractionBusy) return;
-                debugTrackFire('cta_click_cart', rid);
-                trackEvent('cta_click_cart', {
-                  rid,
-                  design_slug: designSlug,
-                  product_id: lastProductId,
-                  variant_id: lastVariantId,
-                  cta_type: 'cart',
-                  product_handle: lastProduct?.productHandle,
-                });
-                return buyDirect('cart');
-              })}
+              onClick={withCartBtnSpin(onCartClick)}
             />
             <p className={styles.ctaHint}>
               Arma un carrito con todo lo que te guste <br></br> y obtené envío gratis ❤️

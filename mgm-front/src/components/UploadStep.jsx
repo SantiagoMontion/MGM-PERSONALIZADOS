@@ -1,4 +1,4 @@
-import logger from '../lib/logger';
+import { error } from '@/lib/log';
 // src/components/UploadStep.jsx
 import { useRef, useState } from 'react';
 import styles from './UploadStep.module.css';
@@ -25,7 +25,7 @@ export default function UploadStep({ onUploaded, className = '', renderTrigger }
       const uploaded = { file, localUrl };
       onUploaded(uploaded);
     } catch (e) {
-      logger.error(e);
+      error(e);
       setErr(String(e?.message || e));
     } finally {
       setBusy(false);
