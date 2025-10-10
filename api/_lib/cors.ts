@@ -26,7 +26,7 @@ export function applyCors(
 ): CorsDecision {
   const resolved = applySharedCorsHeaders(req, res, decision);
   if (!res.getHeader('Content-Type')) {
-    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
   }
   return resolved;
 }
@@ -58,6 +58,6 @@ export function applyCorsHeaders(
 
 export function ensureJsonContentType(res: VercelResponse): void {
   if (!res.getHeader('Content-Type')) {
-    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
   }
 }

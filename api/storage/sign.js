@@ -7,6 +7,11 @@ const ALLOWED_BUCKETS = new Set(['outputs', 'preview', 'uploads']);
 const DEFAULT_BUCKET = 'outputs';
 const DEFAULT_EXPIRES = 600;
 
+function sendJson(res, status, payload) {
+  res.setHeader?.('Content-Type', 'application/json; charset=utf-8');
+  res.status(status).json(payload);
+}
+
 function guessExtension(contentType) {
   if (typeof contentType !== 'string') return '';
   const lower = contentType.toLowerCase();
@@ -113,7 +118,7 @@ export default async function handler(req, res) {
 
   if (req.method !== 'POST') {
     res.setHeader?.('Allow', 'POST, OPTIONS');
-    res.status(405).json({ ok: false, error: 'method_not_allowed', diagId });
+    sendJson(res, 405, { ok: false, error: 'method_not_allowed', diagId });
     return;
   }
 
@@ -140,7 +145,7 @@ export default async function handler(req, res) {
       ? body.contentType.trim()
       : '';
     if (!contentType) {
-      res.status(400).json({ ok: false, error: 'content_type_required', diagId });
+      sendJson(res, 400, { ok: false, error: 'content_type_required', diagId });
       return;
     }
 
@@ -236,8 +241,7 @@ export default async function handler(req, res) {
 
     if (signResult.skip) {
       const publicUrl = signResult.publicUrl || computePublicUrl(bucket);
-      res.setHeader?.('Content-Type', 'application/json; charset=utf-8');
-      res.status(200).json({
+      sendJson(res, 200, {
         ok: true,
         skipUpload: true,
         bucket,
@@ -263,8 +267,7 @@ export default async function handler(req, res) {
       signResult = await signInBucket(bucket);
       if (signResult.skip) {
         const publicUrl = signResult.publicUrl || computePublicUrl(bucket);
-        res.setHeader?.('Content-Type', 'application/json; charset=utf-8');
-        res.status(200).json({
+        sendJson(res, 200, {
           ok: true,
           skipUpload: true,
           bucket,
@@ -286,8 +289,7 @@ export default async function handler(req, res) {
         objectKey,
         error: reason,
       });
-      res.setHeader?.('Content-Type', 'application/json; charset=utf-8');
-      res.status(500).json({
+      sendJson(res, 500, {
         ok: false,
         error: 'sign_failed',
         diagId,
@@ -299,8 +301,7 @@ export default async function handler(req, res) {
     const signedData = signResult.data;
     const resolvedPublicUrl = signResult.publicUrl || computePublicUrl(bucket);
 
-    res.setHeader?.('Content-Type', 'application/json; charset=utf-8');
-    res.status(200).json({
+    sendJson(res, 200, {
       ok: true,
       skipUpload: false,
       bucket,
@@ -329,8 +330,7 @@ export default async function handler(req, res) {
       objectKey,
       error: message,
     });
-    res.setHeader?.('Content-Type', 'application/json; charset=utf-8');
-    res.status(500).json({
+    sendJson(res, 500, {
       ok: false,
       error: 'sign_failed',
       diagId,

@@ -166,6 +166,7 @@ function respondJson(
   if (diagValue) {
     res.setHeader('X-Diag-Id', diagValue);
   }
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
   if (typeof res.status === 'function' && typeof res.json === 'function') {
     res.status(status);
     res.json(body);
@@ -176,9 +177,6 @@ function respondJson(
   } else {
     res.statusCode = status;
   }
-  try {
-    res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  } catch {}
   res.end(JSON.stringify(body));
 }
 

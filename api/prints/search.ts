@@ -307,6 +307,7 @@ function sendOptionsResponse(req: VercelRequest, res: VercelResponse) {
 
 function sendJsonResponse(req: VercelRequest, res: VercelResponse, status: number, payload: unknown) {
   applySearchCors(req, res);
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
   if (typeof res.status === 'function') {
     res.status(status);
   } else {
