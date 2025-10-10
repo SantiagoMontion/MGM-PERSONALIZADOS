@@ -1,4 +1,4 @@
-import logger from '../lib/logger';
+import { diag, warn, error } from '@/lib/log';
 // src/pages/Home.jsx
 import {
   useCallback,
@@ -109,7 +109,7 @@ function tnow() {
 function diagTime(label, t0) {
   try {
     const seconds = (tnow() - t0) / 1000;
-    console.log(`[perf] ${label}: ${seconds.toFixed(2)}s`);
+    diag(`[perf] ${label}: ${seconds.toFixed(2)}s`);
   } catch (_) {
     // noop
   }
@@ -656,7 +656,7 @@ export default function Home() {
           return;
         }
       } catch (scanErr) {
-        logger.error('[continue] nudity scan failed', scanErr?.message || scanErr);
+        error('[continue] nudity scan failed', scanErr?.message || scanErr);
       }
 
       const masterImagePromise = (async () => {
@@ -819,7 +819,7 @@ export default function Home() {
           }
         }
       } catch (moderationErr) {
-        console.error('moderate-image failed', moderationErr);
+        error('moderate-image failed', moderationErr);
         setErr('No se pudo validar la imagen. Intentá nuevamente.');
         return;
       }
@@ -925,7 +925,7 @@ export default function Home() {
               }
             }
           } catch (mockupUploadErr) {
-            console.warn('[diag] mockup upload failed', mockupUploadErr);
+            warn('[diag] mockup upload failed', mockupUploadErr);
           }
         }
         return { mockupBlob: blob, mockupUrl, mockupPublicUrl };
@@ -1007,7 +1007,7 @@ export default function Home() {
       }
 
       await nextPaint(1);
-      console.log('[diag] master dims', { width: masterWidthExact, height: masterHeightExact });
+      diag('[diag] master dims', { width: masterWidthExact, height: masterHeightExact });
 
       const pdfBody = pdfBytes instanceof Blob ? pdfBytes : new Blob([pdfBytes], { type: 'application/pdf' });
       let pdfUploadRes;
@@ -1020,7 +1020,7 @@ export default function Home() {
           body: pdfBody,
         });
       } catch (pdfUploadErr) {
-        console.error('[pdf-upload] failed', pdfUploadErr);
+        error('[pdf-upload] failed', pdfUploadErr);
         setErr('No se pudo subir el PDF.');
         return;
       }
@@ -1032,7 +1032,7 @@ export default function Home() {
             body: designBlob,
           });
         } catch (masterUploadErr) {
-          console.error('[master-upload] failed', masterUploadErr);
+          error('[master-upload] failed', masterUploadErr);
           setErr('No se pudo subir la imagen.');
           return;
         }
@@ -1040,19 +1040,19 @@ export default function Home() {
       diagTime('uploads_done', uploadsStart);
 
       if (!pdfUploadRes?.ok) {
-        logger.error('[pdf-upload] failed', pdfUploadRes?.statusText || pdfUploadRes?.status || 'upload_failed');
+        error('[pdf-upload] failed', pdfUploadRes?.statusText || pdfUploadRes?.status || 'upload_failed');
         setErr('No se pudo subir el PDF.');
         return;
       }
       if (shouldUploadMaster && !masterUploadRes?.ok) {
-        logger.error('[master-upload] failed', masterUploadRes?.statusText || masterUploadRes?.status || 'upload_failed');
+        error('[master-upload] failed', masterUploadRes?.statusText || masterUploadRes?.status || 'upload_failed');
         setErr('No se pudo subir la imagen.');
         return;
       }
 
       const nextPdfUrl = String(pdfSign.publicUrl || '');
       let nextMasterUrl = shouldUploadMaster && masterSign ? String(masterSign.publicUrl || '') : null;
-      console.log('[diag] uploads ok', { pdf: nextPdfUrl, master: nextMasterUrl });
+      diag('[diag] uploads ok', { pdf: nextPdfUrl, master: nextMasterUrl });
 
       if (shouldUploadMaster && DELETE_MASTER_AFTER_PDF && masterSign?.path && masterUploadRes?.ok) {
         try {
@@ -1064,10 +1064,10 @@ export default function Home() {
             },
             30000,
           );
-          console.log('[diag] master deleted from storage', masterSign.path);
+          diag('[diag] master deleted from storage', masterSign.path);
           nextMasterUrl = null;
         } catch (deleteErr) {
-          console.warn('[diag] master delete failed (kept for safety)', deleteErr);
+          warn('[diag] master delete failed (kept for safety)', deleteErr);
         }
       }
 
@@ -1079,7 +1079,7 @@ export default function Home() {
       setMasterHeightPx(masterHeightExact);
 
       if (!DISABLE_UPLOAD_ORIGINAL) {
-        console.warn('[upload-original] flag disabled, se mantiene flujo legado.');
+        warn('[upload-original] flag disabled, se mantiene flujo legado.');
       }
 
       const uploadCanonical = nextMasterUrl || '';
@@ -1165,7 +1165,7 @@ export default function Home() {
         priceCurrency: PRICE_CURRENCY,
       });
       try {
-        console.log('[audit:flow:persist]', {
+        diag('[audit:flow:persist]', {
           designName: nameClean,
           material: finalMaterial,
           widthCm: finalWidthCm,
@@ -1200,7 +1200,7 @@ export default function Home() {
           material,
         });
       } catch (mockupEnsureError) {
-        console.warn('[diag] ensure mockup url failed during continue', mockupEnsureError);
+        warn('[diag] ensure mockup url failed during continue', mockupEnsureError);
       }
       const qs = new URLSearchParams();
       if (finalMaterial) {
@@ -1218,7 +1218,7 @@ export default function Home() {
       const query = qs.toString();
       navigate(`/mockup${query ? `?${query}` : ''}`);
     } catch (e) {
-      logger.error(e);
+      error(e);
       setErr(String(e?.message || e));
     } finally {
       setBusy(false);

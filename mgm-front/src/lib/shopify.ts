@@ -2,7 +2,7 @@ import { apiFetch, getResolvedApiUrl } from './api';
 import { supa } from './supa.js';
 import { renderMockup1080 } from './mockup.js';
 import { FlowState } from '@/state/flow';
-import logger from './logger';
+import { diag, info, warn, error } from '@/lib/log';
 
 const DEFAULT_STORE_BASE = 'https://kw0f4u-ji.myshopify.com';
 const RAW_PUBLISH_MAX_PAYLOAD_KB = readEnv(['VITE_PUBLISH_MAX_PAYLOAD_KB']);
@@ -316,7 +316,7 @@ export async function ensureMockupUrl(flow: FlowState): Promise<string> {
     }
   } catch (stateErr) {
     try {
-      logger.debug('[ensureMockupUrl] state_update_failed', stateErr);
+      diag('[ensureMockupUrl] state_update_failed', stateErr);
     } catch {
       // ignore state log failures
     }
@@ -626,7 +626,7 @@ export async function createJobAndProduct(
       try {
         onPrivateStageChange?.('creating_product');
       } catch (stageErr) {
-        logger.debug('[createJobAndProduct] stage_callback_failed', stageErr);
+        diag('[createJobAndProduct] stage_callback_failed', stageErr);
       }
     }
 
@@ -733,7 +733,7 @@ export async function createJobAndProduct(
 
     const payloadBytes = jsonByteLength(payload);
     try {
-      logger.debug('[publish] payload_bytes', { bytes: payloadBytes });
+      diag('[publish] payload_bytes', { bytes: payloadBytes });
     } catch {}
     if (!Number.isFinite(payloadBytes) || payloadBytes > PUBLISH_MAX_PAYLOAD_KB * 1024) {
       const err: Error & { reason?: string; detail?: unknown } = new Error('publish_payload_too_large');
@@ -754,14 +754,14 @@ export async function createJobAndProduct(
       try {
         const jsonForLog: Record<string, unknown> | null =
           publishData && typeof publishData === 'object' ? (publishData as Record<string, unknown>) : null;
-        logger.debug('[commerce]', {
+        diag('[commerce]', {
           tag: 'publishProduct',
           status: publishStatus,
           jsonKeys: jsonForLog ? Object.keys(jsonForLog) : [],
           json: jsonForLog,
         });
       } catch (logErr) {
-        logger.warn('[createJobAndProduct] publish_log_failed', logErr);
+        warn('[createJobAndProduct] publish_log_failed', logErr);
       }
     }
     if (Array.isArray(publishData?.warnings) && publishData.warnings.length) {
@@ -866,9 +866,9 @@ export async function createJobAndProduct(
 
   if (collectedWarningMessages && collectedWarningMessages.length) {
     try {
-      logger.warn('[createJobAndProduct] warnings', collectedWarningMessages);
+      warn('[createJobAndProduct] warnings', collectedWarningMessages);
     } catch (warnErr) {
-      logger.debug('[createJobAndProduct] warn_log_failed', warnErr);
+      diag('[createJobAndProduct] warn_log_failed', warnErr);
     }
   }
 
@@ -988,7 +988,7 @@ export async function createJobAndProduct(
         try {
           onPrivateStageChange?.('creating_checkout');
         } catch (stageErr) {
-          logger.debug('[createJobAndProduct] stage_callback_failed', stageErr);
+          diag('[createJobAndProduct] stage_callback_failed', stageErr);
         }
       }
       if (shouldRequestPrivateCheckout) {
@@ -1035,13 +1035,13 @@ export async function createJobAndProduct(
           } catch (parseErr) {
             ck = null;
             try {
-              logger.warn('[private-checkout] json_parse_failed', parseErr);
+              warn('[private-checkout] json_parse_failed', parseErr);
             } catch {}
           }
         }
         const logError = (label: string) => {
           try {
-            logger.error(`[private-checkout] ${label}`, {
+            error(`[private-checkout] ${label}`, {
               status: ckResp.status,
               contentType,
               bodyPreview: typeof rawBody === 'string' ? rawBody.slice(0, 200) : '',
@@ -1130,7 +1130,7 @@ export async function createJobAndProduct(
           }
           if (Array.isArray(ck.requestIds) && ck.requestIds.length) {
             try {
-              logger.debug('[private-checkout] request_ids', ck.requestIds);
+              diag('[private-checkout] request_ids', ck.requestIds);
             } catch {}
           }
         } else {
@@ -1163,7 +1163,7 @@ export async function createJobAndProduct(
         (result as Record<string, unknown>).publicCheckoutStatus = typeof ckResp.status === 'number' ? ckResp.status : null;
         if (SHOULD_LOG_COMMERCE) {
           try {
-            logger.debug('[commerce]', {
+            diag('[commerce]', {
               tag: 'public-checkout-response',
               status: typeof ckResp.status === 'number' ? ckResp.status : null,
               keys: ck && typeof ck === 'object' ? Object.keys(ck) : [],
@@ -1178,7 +1178,7 @@ export async function createJobAndProduct(
               error: typeof ck?.error === 'string' ? ck.error : null,
             });
           } catch (logErr) {
-            logger.warn('[createJobAndProduct] public_checkout_log_failed', logErr);
+            warn('[createJobAndProduct] public_checkout_log_failed', logErr);
           }
         }
         const checkoutUrlFromResponse =
@@ -1235,14 +1235,14 @@ export async function createJobAndProduct(
           result && typeof result === 'object' ? (result as Record<string, unknown>) : null;
         const statusForLog =
           publishStatus ?? (publish?.ok === true ? 200 : publish?.ok === false ? 500 : null);
-        logger.debug('[commerce]', {
+        diag('[commerce]', {
           tag: 'createJobAndProduct',
           status: statusForLog,
           jsonKeys: jsonForLog ? Object.keys(jsonForLog) : [],
           json: jsonForLog,
         });
       } catch (logErr) {
-        logger.warn('[createJobAndProduct] result_log_failed', logErr);
+        warn('[createJobAndProduct] result_log_failed', logErr);
       }
     }
     return result;
@@ -1304,7 +1304,7 @@ export function buildCartPermalink(
   try {
     cartUrl = new URL(`/cart/${numericId}:${qty}`, baseRaw);
   } catch (err) {
-    logger.error('[buildCartPermalink] invalid base url', err);
+    error('[buildCartPermalink] invalid base url', err);
     return '';
   }
   const rawReturn = options?.returnTo;
@@ -1337,7 +1337,7 @@ export function buildCartAddUrl(
   try {
     cartUrl = new URL('/cart/add', baseRaw);
   } catch (err) {
-    logger.error('[buildCartAddUrl] invalid base url', err);
+    error('[buildCartAddUrl] invalid base url', err);
     return '';
   }
   cartUrl.searchParams.set('id', numericId);
@@ -1428,7 +1428,7 @@ function setStoredCartId(cartId?: string | null) {
       window.localStorage.removeItem(STOREFRONT_CART_STORAGE_KEY);
     }
   } catch (err) {
-    logger.warn('[storefront-cart] write failed', err);
+    warn('[storefront-cart] write failed', err);
   }
 }
 
@@ -1438,7 +1438,7 @@ function getStoredCartId() {
     const stored = window.localStorage.getItem(STOREFRONT_CART_STORAGE_KEY);
     return typeof stored === 'string' && stored.trim() ? stored.trim() : '';
   } catch (err) {
-    logger.warn('[storefront-cart] read failed', err);
+    warn('[storefront-cart] read failed', err);
     return '';
   }
 }
@@ -1555,9 +1555,9 @@ export async function addVariantToCartStorefront(
   const configResult = resolveStorefrontConfig();
   if (!configResult.ok) {
     try {
-      logger.error('[cart-flow] storefront_env_missing', { missing: configResult.missing });
+      error('[cart-flow] storefront_env_missing', { missing: configResult.missing });
     } catch (logErr) {
-      logger.warn('[cart-flow] storefront_env_missing_log_failed', logErr);
+      warn('[cart-flow] storefront_env_missing_log_failed', logErr);
     }
     const error = new Error('shopify_storefront_env_missing');
     (error as Error & { reason?: string; missing?: string[] }).reason = 'shopify_storefront_env_missing';
@@ -1566,24 +1566,24 @@ export async function addVariantToCartStorefront(
   }
   if (IS_DEV) {
     try {
-      logger.debug('[cart-flow] storefront_env_ok');
+      diag('[cart-flow] storefront_env_ok');
     } catch (logErr) {
-      logger.warn('[cart-flow] storefront_env_log_failed', logErr);
+      warn('[cart-flow] storefront_env_log_failed', logErr);
     }
   }
   const { config } = configResult;
   if (config.domain !== 'kw0f4u-ji.myshopify.com') {
     try {
-      logger.warn('[cart-flow] storefront_domain_unexpected', { domain: config.domain });
+      warn('[cart-flow] storefront_domain_unexpected', { domain: config.domain });
     } catch (logErr) {
-      logger.debug('[cart-flow] storefront_domain_log_failed', logErr);
+      diag('[cart-flow] storefront_domain_log_failed', logErr);
     }
   }
   if (config.version !== '2024-07') {
     try {
-      logger.warn('[cart-flow] storefront_version_unexpected', { version: config.version });
+      warn('[cart-flow] storefront_version_unexpected', { version: config.version });
     } catch (logErr) {
-      logger.debug('[cart-flow] storefront_version_log_failed', logErr);
+      diag('[cart-flow] storefront_version_log_failed', logErr);
     }
   }
   const merchandiseId = buildVariantGid(variantId);
@@ -1644,22 +1644,22 @@ export async function addVariantToCartStorefront(
     if (response.ok && !payloadErrors.length && !userErrors.length && resolvedCartId && resolvedCheckoutUrl) {
       setStoredCartId(resolvedCartId);
       try {
-        logger.debug('[cart-flow] cart_lines_add_ok', { cartId: resolvedCartId, checkoutUrl: resolvedCheckoutUrl });
+        diag('[cart-flow] cart_lines_add_ok', { cartId: resolvedCartId, checkoutUrl: resolvedCheckoutUrl });
       } catch (logErr) {
-        logger.warn('[cart-flow] cart_lines_add_log_failed', logErr);
+        warn('[cart-flow] cart_lines_add_log_failed', logErr);
       }
       return { ok: true, value: { cartId: resolvedCartId, checkoutUrl: resolvedCheckoutUrl } };
     }
 
     try {
-      logger.error('[cart-flow] cart_lines_add_error', {
+      error('[cart-flow] cart_lines_add_error', {
         requestId,
         status: response.status,
         userErrors,
         graphQLErrors: payloadErrors,
       });
     } catch (logErr) {
-      logger.warn('[cart-flow] cart_lines_add_log_failed', logErr);
+      warn('[cart-flow] cart_lines_add_log_failed', logErr);
     }
 
     if (userErrors.length && attempt < 2) {
@@ -1688,22 +1688,22 @@ export async function addVariantToCartStorefront(
     if (response.ok && !payloadErrors.length && !userErrors.length && createdCartId && createdCheckoutUrl) {
       setStoredCartId(createdCartId);
       try {
-        logger.debug('[cart-flow] cart_create_ok', { cartId: createdCartId, checkoutUrl: createdCheckoutUrl });
+        diag('[cart-flow] cart_create_ok', { cartId: createdCartId, checkoutUrl: createdCheckoutUrl });
       } catch (logErr) {
-        logger.warn('[cart-flow] cart_create_log_failed', logErr);
+        warn('[cart-flow] cart_create_log_failed', logErr);
       }
       return { ok: true, value: { cartId: createdCartId, checkoutUrl: createdCheckoutUrl } };
     }
 
     try {
-      logger.error('[cart-flow] cart_create_error', {
+      error('[cart-flow] cart_create_error', {
         requestId,
         status: response.status,
         userErrors,
         graphQLErrors: payloadErrors,
       });
     } catch (logErr) {
-      logger.warn('[cart-flow] cart_create_log_failed', logErr);
+      warn('[cart-flow] cart_create_log_failed', logErr);
     }
 
     if (userErrors.length && attempt < 2) {
@@ -1764,19 +1764,19 @@ export async function ensureProductPublication(productId?: string | null): Promi
   }
   try {
     if (Array.isArray(json.recoveries) && json.recoveries.includes('publication_missing_detected')) {
-      logger.debug('[cart-flow] publication_missing detectado', json.recoveries);
+      diag('[cart-flow] publication_missing detectado', json.recoveries);
     }
     if (json.publicationId && typeof json.publicationIdSource === 'string') {
       const source = json.publicationIdSource;
       if (source && source !== 'env') {
-        logger.debug('[cart-flow] publicationId elegido dinámicamente', { id: json.publicationId, source });
+        diag('[cart-flow] publicationId elegido dinámicamente', { id: json.publicationId, source });
       }
     }
     if (typeof json.publishAttempts === 'number' && Number.isFinite(json.publishAttempts)) {
-      logger.debug('[cart-flow] publish attempts', json.publishAttempts);
+      diag('[cart-flow] publish attempts', json.publishAttempts);
     }
   } catch (logErr) {
-    logger.debug('[ensureProductPublication] log_failed', logErr);
+    diag('[ensureProductPublication] log_failed', logErr);
   }
   return json;
 }
@@ -1806,12 +1806,12 @@ export async function verifyProductPublicationStatus(productId?: string | number
   const json: ProductPublicationStatusResponse | null = await resp.json().catch(() => null);
   if (!resp.ok || !json?.ok) {
     try {
-      logger.warn('[verifyProductPublicationStatus] request_failed', {
+      warn('[verifyProductPublicationStatus] request_failed', {
         status: resp.status,
         body: json,
       });
     } catch (logErr) {
-      logger.debug('[verifyProductPublicationStatus] log_failed', logErr);
+      diag('[verifyProductPublicationStatus] log_failed', logErr);
     }
     return { published: false, statusActive: false };
   }
@@ -1870,9 +1870,9 @@ export async function waitForVariantAvailability(
   const configResult = resolveStorefrontConfig();
   if (!configResult.ok) {
     try {
-      logger.warn('[waitForVariantAvailability] storefront env missing', { missing: configResult.missing });
+      warn('[waitForVariantAvailability] storefront env missing', { missing: configResult.missing });
     } catch (logErr) {
-      logger.warn('[waitForVariantAvailability] env_log_failed', logErr);
+      warn('[waitForVariantAvailability] env_log_failed', logErr);
     }
     return {
       ready: true,
@@ -1947,19 +1947,19 @@ export async function waitForVariantAvailability(
             message: error?.message ? String(error.message) : '',
             path: Array.isArray(error?.path) ? error.path : undefined,
           }));
-          logger.warn('waitForVariantAvailability storefront errors:', normalizedErrors);
+          warn('waitForVariantAvailability storefront errors:', normalizedErrors);
         } catch (logErr) {
-          logger.warn('[waitForVariantAvailability] error_log_failed', logErr);
+          warn('[waitForVariantAvailability] error_log_failed', logErr);
         }
       }
       if (!response.ok) {
         try {
-          logger.warn('[waitForVariantAvailability] storefront response issue', {
+          warn('[waitForVariantAvailability] storefront response issue', {
             status: response.status,
             requestId,
           });
         } catch (logErr) {
-          logger.warn('[waitForVariantAvailability] response_issue_log_failed', logErr);
+          warn('[waitForVariantAvailability] response_issue_log_failed', logErr);
         }
       }
 
@@ -1971,19 +1971,19 @@ export async function waitForVariantAvailability(
         if (variantPresent) {
           logPayload.variantPresent = true;
         }
-        logger.debug('[cart-flow] storefront_poll', logPayload);
+        diag('[cart-flow] storefront_poll', logPayload);
       } catch (logErr) {
-        logger.warn('[waitForVariantAvailability] poll_log_failed', logErr);
+        warn('[waitForVariantAvailability] poll_log_failed', logErr);
       }
 
       return { availableForSale, variantPresent };
     } catch (error) {
       if ((error as Error)?.name === 'AbortError') throw error;
-      logger.error('[waitForVariantAvailability] poll error', error);
+      error('[waitForVariantAvailability] poll error', error);
       try {
-        logger.debug('[cart-flow] storefront_poll', { attempt: attemptNumber, availableForSale: false });
+        diag('[cart-flow] storefront_poll', { attempt: attemptNumber, availableForSale: false });
       } catch (logErr) {
-        logger.warn('[waitForVariantAvailability] poll_log_failed', logErr);
+        warn('[waitForVariantAvailability] poll_log_failed', logErr);
       }
       return { availableForSale: false, variantPresent: false };
     }
@@ -2021,17 +2021,17 @@ export async function waitForVariantAvailability(
           : Boolean(adminResult && (adminResult as { published?: boolean; statusActive?: boolean }).published === true
               && (adminResult as { published?: boolean; statusActive?: boolean }).statusActive !== false);
         try {
-          logger.debug('[cart-flow] admin_publication_check', { ok: adminOk });
+          diag('[cart-flow] admin_publication_check', { ok: adminOk });
         } catch (logErr) {
-          logger.warn('[waitForVariantAvailability] admin_check_log_failed', logErr);
+          warn('[waitForVariantAvailability] admin_check_log_failed', logErr);
         }
       } catch (adminErr) {
         try {
-          logger.debug('[cart-flow] admin_publication_check', { ok: false });
+          diag('[cart-flow] admin_publication_check', { ok: false });
         } catch (logErr) {
-          logger.warn('[waitForVariantAvailability] admin_check_log_failed', logErr);
+          warn('[waitForVariantAvailability] admin_check_log_failed', logErr);
         }
-        logger.error('[waitForVariantAvailability] admin_publication_check_failed', adminErr);
+        error('[waitForVariantAvailability] admin_publication_check_failed', adminErr);
       }
     }
 

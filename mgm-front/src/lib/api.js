@@ -1,4 +1,4 @@
-﻿import logger from './logger';
+﻿import { warn } from '@/lib/log';
 
 const RAW_API_URL = typeof import.meta.env.VITE_API_BASE === 'string'
   ? import.meta.env.VITE_API_BASE
@@ -45,7 +45,7 @@ function resolveRequestUrl(path) {
     if (!hasWarnedAboutFallback) {
       hasWarnedAboutFallback = true;
       try {
-        logger.warn?.('[api] using_default_base', {
+        warn('[api] using_default_base', {
           message: 'VITE_API_BASE not set; defaulting to same-origin.',
         });
       } catch {}
