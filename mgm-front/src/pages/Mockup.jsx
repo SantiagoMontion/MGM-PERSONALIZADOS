@@ -14,7 +14,91 @@ import {
   pickCommerceTarget,
 } from '@/lib/shopify.ts';
 import logger from '../lib/logger';
-import { normalizeMaterialLabel } from '../lib/material.js';
+
+const safeStr = (v) => (typeof v === 'string' ? v : '').trim();
+
+const normalizeMaterialLabel = (raw) => {
+  const s = safeStr(raw).toLowerCase();
+  if (s.includes('glass')) return 'Glasspad';
+  if (s.includes('pro')) return 'PRO';
+  if (s.includes('classic')) return 'Classic';
+  return '';
+};
+
+// NO mezclar material con productType.
+// productType = mousepad/glasspad (tipo de producto).
+// material = Classic/PRO/Glasspad (tarifa/título).
+const extractFlowBasics = (flow) => {
+  const productTypeRaw = safeStr(flow?.productType) || safeStr(flow?.options?.productType) || 'mousepad';
+  const productType = productTypeRaw.toLowerCase().includes('glass') ? 'glasspad' : 'mousepad';
+  const mat =
+    normalizeMaterialLabel(flow?.material)
+    || normalizeMaterialLabel(flow?.options?.material)
+    || normalizeMaterialLabel(flow?.editorState?.material)
+    || normalizeMaterialLabel(flow?.editorState?.options?.material)
+    || normalizeMaterialLabel(flow?.editorState?.productType)
+    || (productType === 'glasspad' ? 'Glasspad' : 'Classic');
+
+  const resolveNumber = (...values) => {
+    for (const value of values) {
+      const num = Number(value);
+      if (Number.isFinite(num) && num > 0) {
+        return Math.round(num);
+      }
+    }
+    return NaN;
+  };
+
+  let widthCm = resolveNumber(
+    flow?.widthCm,
+    flow?.composition?.widthCm,
+    flow?.editorState?.widthCm,
+    flow?.editorState?.size_cm?.w,
+    flow?.editorState?.composition?.widthCm,
+    flow?.masterWidthMm ? Number(flow.masterWidthMm) / 10 : undefined,
+  );
+  let heightCm = resolveNumber(
+    flow?.heightCm,
+    flow?.composition?.heightCm,
+    flow?.editorState?.heightCm,
+    flow?.editorState?.size_cm?.h,
+    flow?.editorState?.composition?.heightCm,
+    flow?.masterHeightMm ? Number(flow.masterHeightMm) / 10 : undefined,
+  );
+
+  if (mat === 'Glasspad') {
+    widthCm = 49;
+    heightCm = 42;
+  }
+
+  const designName = safeStr(flow?.designName)
+    || safeStr(flow?.editorState?.designName)
+    || 'Personalizado';
+
+  return {
+    productType,
+    mat,
+    widthCm: Number.isFinite(widthCm) && widthCm > 0 ? widthCm : NaN,
+    heightCm: Number.isFinite(heightCm) && heightCm > 0 ? heightCm : NaN,
+    designName,
+  };
+};
+
+const buildTitle = ({ productType, mat, widthCm, heightCm, designName }) => {
+  if (mat === 'Glasspad') {
+    return `Glasspad ${designName} 49x42 | PERSONALIZADO`;
+  }
+  const prefix = productType.toLowerCase().includes('mouse') ? 'Mousepad' : 'Mousepad';
+  const w = Number(widthCm);
+  const h = Number(heightCm);
+  const parts = [prefix, designName];
+  if (Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0) {
+    parts.push(`${w}x${h}`);
+  }
+  parts.push(mat, '|', 'PERSONALIZADO');
+  return parts.join(' ');
+};
+
 import { ensureTrackingRid, trackEvent } from '@/lib/tracking';
 
 const PUBLISH_MAX_PAYLOAD_KB = Number(import.meta.env?.VITE_PUBLISH_MAX_PAYLOAD_KB) || 200;
@@ -97,24 +181,6 @@ function cmFromPx(px, dpi) {
   return Math.max(1, Math.round((Number(px) || 0) / (Number(dpi) || 300) * 2.54));
 }
 
-function matLabelOf(material) {
-  const raw = safeStr(material);
-  if (!raw) {
-    return null;
-  }
-  const text = raw.toLowerCase();
-  if (text.includes('glass')) {
-    return 'Glasspad';
-  }
-  if (text.includes('pro')) {
-    return 'PRO';
-  }
-  if (text.includes('classic')) {
-    return 'Classic';
-  }
-  return raw;
-}
-
 const asStr = (value, fallback = '') => {
   if (typeof value === 'string') return value;
   if (value == null) return fallback;
@@ -124,12 +190,6 @@ const asStr = (value, fallback = '') => {
     return fallback;
   }
 };
-
-function safeStr(value, fallback = '') {
-  const str = asStr(value);
-  const trimmed = str.trim();
-  return trimmed || fallback;
-}
 
 const safeReplace = (value, pattern, replacement) => asStr(value).replace(pattern, replacement);
 
@@ -168,115 +228,6 @@ function loadPersistedFlow() {
     }
   }
   return null;
-}
-
-function normalizeMaterialLabelSafe(flow) {
-  const candidates = [
-    safeStr(flow?.material),
-    safeStr(flow?.options?.material),
-    safeStr(flow?.productType),
-  ];
-  const raw = candidates.find(Boolean)?.toLowerCase() || '';
-  if (raw.includes('glass')) return 'Glasspad';
-  if (raw.includes('pro')) return 'PRO';
-  if (raw.includes('classic')) return 'Classic';
-  const match = candidates.find((value) => value && value.trim());
-  return match ? match.trim() : null;
-}
-
-function extractFlowBasics(flowLike = {}) {
-  let name = safeStr(flowLike?.designName, 'Personalizado');
-  let material = normalizeMaterialLabelSafe(flowLike);
-  let width = Number(flowLike?.widthCm);
-  let height = Number(flowLike?.heightCm);
-
-  if ((!Number.isFinite(width) || width <= 0) && flowLike?.composition) {
-    const compWidth = Number(flowLike?.composition?.widthCm);
-    if (Number.isFinite(compWidth) && compWidth > 0) {
-      width = compWidth;
-    }
-  }
-  if ((!Number.isFinite(height) || height <= 0) && flowLike?.composition) {
-    const compHeight = Number(flowLike?.composition?.heightCm);
-    if (Number.isFinite(compHeight) && compHeight > 0) {
-      height = compHeight;
-    }
-  }
-  if ((!Number.isFinite(width) || width <= 0) && flowLike?.editorState) {
-    const editorWidth = Number(
-      flowLike.editorState?.widthCm
-        ?? flowLike.editorState?.size_cm?.w
-        ?? flowLike.editorState?.composition?.widthCm,
-    );
-    if (Number.isFinite(editorWidth) && editorWidth > 0) {
-      width = editorWidth;
-    }
-  }
-  if ((!Number.isFinite(height) || height <= 0) && flowLike?.editorState) {
-    const editorHeight = Number(
-      flowLike.editorState?.heightCm
-        ?? flowLike.editorState?.size_cm?.h
-        ?? flowLike.editorState?.composition?.heightCm,
-    );
-    if (Number.isFinite(editorHeight) && editorHeight > 0) {
-      height = editorHeight;
-    }
-  }
-  if (!material) {
-    const editorMaterial = safeStr(
-      flowLike?.editorState?.material
-        ?? flowLike?.editorState?.options?.material
-        ?? flowLike?.editorState?.productType,
-    );
-    if (editorMaterial) {
-      const lower = editorMaterial.toLowerCase();
-      if (lower.includes('glass')) material = 'Glasspad';
-      else if (lower.includes('pro')) material = 'PRO';
-    }
-  }
-  if (!name || name === 'Personalizado') {
-    const editorName = safeStr(flowLike?.editorState?.designName);
-    if (editorName) {
-      name = editorName;
-    }
-  }
-  if (material === 'Glasspad') {
-    if (!Number.isFinite(width) || width <= 0) width = 49;
-    if (!Number.isFinite(height) || height <= 0) height = 42;
-  }
-  const validatedWidth = Number.isFinite(width) && width > 0 ? Math.round(width) : null;
-  const validatedHeight = Number.isFinite(height) && height > 0 ? Math.round(height) : null;
-  const title = buildTitle({
-    name,
-    widthCm: validatedWidth,
-    heightCm: validatedHeight,
-    material,
-  });
-  const designHash = safeStr(flowLike?.designHash ?? flowLike?.designHashState);
-  const hash8 = designHash.slice(0, 8) || '00000000';
-  const keyStem = safeReplace(title, /[^a-zA-Z0-9 _-]/g, '').replace(/\s+/g, ' ').trim();
-  let slug = asStr(keyStem || title || name || 'Personalizado');
-  if (typeof slug.normalize === 'function') {
-    slug = slug.normalize('NFKD');
-  }
-  slug = slug
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-zA-Z0-9 _-]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-  const now = new Date();
-  const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const objectKeyBase = safeReplace(`${slug || 'Personalizado'} ${hash8}`, /\s+/g, ' ').trim();
-  const objectKey = `mockups-${ym}/${objectKeyBase || 'preview-listado'}.png`;
-  return {
-    name,
-    mat: material,
-    width: validatedWidth,
-    height: validatedHeight,
-    title,
-    objectKey,
-    hash8,
-  };
 }
 
 async function blobToDataUrl(blob) {
@@ -349,32 +300,48 @@ export async function ensureMockupUrlInFlow(flow, input) {
   }
   const image = await imgFromDataUrl(sourceDataUrl);
   const dpi = Number(state?.approxDpi ?? input?.dpi ?? 300);
+  const basics = extractFlowBasics(state);
+  const { productType, mat, widthCm, heightCm, designName } = basics;
+  const widthRounded = Number.isFinite(widthCm) && widthCm > 0 ? Math.round(widthCm) : undefined;
+  const heightRounded = Number.isFinite(heightCm) && heightCm > 0 ? Math.round(heightCm) : undefined;
+  const title = buildTitle({ productType, mat, widthCm: widthRounded, heightCm: heightRounded, designName });
   const composition = {
     widthPx: Number(state?.masterWidthPx ?? input?.widthPx ?? image.naturalWidth ?? image.width ?? 0),
     heightPx: Number(state?.masterHeightPx ?? input?.heightPx ?? image.naturalHeight ?? image.height ?? 0),
     widthMm: Number(input?.widthMm ?? state?.masterWidthMm ?? 0) || undefined,
     heightMm: Number(input?.heightMm ?? state?.masterHeightMm ?? 0) || undefined,
     dpi,
-    material: state?.material ?? input?.material,
+    material: mat,
   };
-  const basics = extractFlowBasics(state);
-  const materialLabel = basics.mat;
-  const widthCmValue = basics.width;
-  const heightCmValue = basics.height;
+  const designHash = safeStr(state?.designHash ?? state?.designHashState ?? input?.designHash);
+  const hash8 = (designHash && designHash.slice(0, 8)) || '00000000';
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  let objectKeyTitle = safeReplace(title, /\s+/g, ' ').trim();
+  if (typeof objectKeyTitle.normalize === 'function') {
+    objectKeyTitle = objectKeyTitle.normalize('NFKD');
+  }
+  objectKeyTitle = objectKeyTitle
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9 _-]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const objectKey = `mockups-${yyyy}-${mm}/${objectKeyTitle || 'Personalizado'} ${hash8}.png`;
   const mockupBlob = await renderMockup1080(image, {
-    material: materialLabel,
+    material: mat,
     approxDpi: dpi,
     composition,
   });
   let publicUrl = null;
   try {
     console.log('[preview] about_to_upload', {
-      objectKey: basics.objectKey,
-      mat: basics.mat,
-      w: basics.width,
-      h: basics.height,
+      objectKey,
+      mat,
+      w: Number.isFinite(widthRounded) ? widthRounded : null,
+      h: Number.isFinite(heightRounded) ? heightRounded : null,
     });
-    publicUrl = await uploadPreviewViaApi(basics.objectKey, mockupBlob);
+    publicUrl = await uploadPreviewViaApi(objectKey, mockupBlob);
   } catch (uploadErr) {
     logger.debug?.('[mockup] preview_upload_failed', uploadErr);
     publicUrl = null;
@@ -393,17 +360,28 @@ export async function ensureMockupUrlInFlow(flow, input) {
           mockupBlob,
           mockupPublicUrl: publicUrl,
           mockupUrl: publicUrl,
-          widthCm: basics.width,
-          heightCm: basics.height,
-          material: basics.mat,
-          designName: basics.name,
-          title: basics.title ?? nextState?.title,
-          options: { ...(nextState?.options || {}), material: basics.mat },
+          widthCm: Number.isFinite(widthRounded) ? widthRounded : nextState?.widthCm ?? null,
+          heightCm: Number.isFinite(heightRounded) ? heightRounded : nextState?.heightCm ?? null,
+          material: mat,
+          designName,
+          title,
+          productType,
+          options: { ...(nextState?.options || {}), material: mat, productType },
           mockupDataUrl: null,
         });
       }
     } catch (stateErr) {
       logger.debug?.('[mockup] state_update_failed', stateErr);
+    }
+    try {
+      console.log('[audit:flow:persist]', {
+        designName,
+        material: mat,
+        widthCm: Number.isFinite(widthRounded) ? widthRounded : null,
+        heightCm: Number.isFinite(heightRounded) ? heightRounded : null,
+      });
+    } catch (_) {
+      // noop
     }
     console.log('[diag] mockup ensured', publicUrl);
     return publicUrl;
@@ -521,85 +499,55 @@ function buildDimsFromFlowState(flowState) {
   };
 }
 
-function buildTitle(nameOrConfig, maybeWidth, maybeHeight, maybeMaterial) {
-  const config = (nameOrConfig && typeof nameOrConfig === 'object' && !Array.isArray(nameOrConfig))
-    ? nameOrConfig
-    : {
-      name: nameOrConfig,
-      widthCm: maybeWidth,
-      heightCm: maybeHeight,
-      material: maybeMaterial,
-    };
-  const nameValue = safeStr(config.name ?? config.designName, 'Personalizado') || 'Personalizado';
-  const widthCm = Number.isFinite(Number(config.widthCm)) && Number(config.widthCm) > 0
-    ? Math.round(Number(config.widthCm))
-    : null;
-  const heightCm = Number.isFinite(Number(config.heightCm)) && Number(config.heightCm) > 0
-    ? Math.round(Number(config.heightCm))
-    : null;
-  const hasDims = widthCm != null && heightCm != null;
-  const normalizedMaterial = safeStr(config.material);
-  const kind = config.kind || (normalizedMaterial === 'Glasspad' ? 'Glasspad' : 'Mousepad');
-  const isGlass = kind === 'Glasspad';
-  const base = isGlass ? 'Glasspad' : 'Mousepad';
-  if (isGlass) {
-    return hasDims
-      ? `${base} ${nameValue} ${widthCm}x${heightCm} | PERSONALIZADO`
-      : `${base} ${nameValue} | PERSONALIZADO`;
-  }
-  const materialForTitle = normalizedMaterial || 'Classic';
-  return hasDims
-    ? `${base} ${nameValue} ${widthCm}x${heightCm} ${materialForTitle} | PERSONALIZADO`
-    : `${base} ${nameValue} ${materialForTitle} | PERSONALIZADO`;
-}
-
 function buildShopifyPayload(flowState, mode) {
   const source = typeof flowState?.get === 'function' ? flowState.get() : flowState || {};
-  const designNameRaw = (source?.designName ?? '').toString();
-  const designName = designNameRaw.trim();
-  // *** FUENTE ÚNICA DE VERDAD: lo que guardamos al “Continuar” ***
-  let widthCm = Number(source?.widthCm);
-  let heightCm = Number(source?.heightCm);
+  const basics = extractFlowBasics(source);
+  let { productType, mat, widthCm, heightCm, designName } = basics;
+  if (!designName) {
+    const designNameRaw = (source?.designName ?? '').toString();
+    designName = designNameRaw.trim();
+  }
+  if (!Number.isFinite(widthCm) || widthCm <= 0 || !Number.isFinite(heightCm) || heightCm <= 0) {
+    const dims = buildDimsFromFlowState(source);
+    widthCm = Number.isFinite(widthCm) && widthCm > 0 ? widthCm : dims.widthCm;
+    heightCm = Number.isFinite(heightCm) && heightCm > 0 ? heightCm : dims.heightCm;
+  }
   if (!Number.isFinite(widthCm) || widthCm <= 0 || !Number.isFinite(heightCm) || heightCm <= 0) {
     widthCm = Number(source?.composition?.widthCm);
     heightCm = Number(source?.composition?.heightCm);
   }
   if (!Number.isFinite(widthCm) || widthCm <= 0 || !Number.isFinite(heightCm) || heightCm <= 0) {
-    // Fallback (no debe pasar, pero evitamos valores raros)
-    const dims = buildDimsFromFlowState(source);
-    widthCm = dims.widthCm;
-    heightCm = dims.heightCm;
+    widthCm = Number(source?.widthCm);
+    heightCm = Number(source?.heightCm);
   }
-  // MATERIAL: tomar SIEMPRE lo que el usuario eligió en el editor/opciones
-  const materialLabel = normalizeMaterialLabel(source?.material ?? source?.options?.material);
-  // Glasspad SIEMPRE 49x42 cm (independiente del canvas)
-  if (materialLabel === 'Glasspad') {
+  if (!Number.isFinite(widthCm) || widthCm <= 0 || !Number.isFinite(heightCm) || heightCm <= 0) {
+    widthCm = undefined;
+    heightCm = undefined;
+  }
+  if (mat === 'Glasspad') {
     widthCm = 49;
     heightCm = 42;
   }
-  widthCm = Math.round(Number(widthCm));
-  heightCm = Math.round(Number(heightCm));
-  const title = buildTitle(designName, widthCm, heightCm, materialLabel);
-  // Precios de la calculadora del front (transferencia manda)
+  const roundedWidth = Number.isFinite(widthCm) && widthCm > 0 ? Math.round(widthCm) : undefined;
+  const roundedHeight = Number.isFinite(heightCm) && heightCm > 0 ? Math.round(heightCm) : undefined;
+  const title = buildTitle({ productType, mat, widthCm: roundedWidth, heightCm: roundedHeight, designName });
   const priceTransfer = Number(source?.priceTransfer ?? 0);
   const priceNormal = Number(source?.priceNormal ?? 0);
   const currency = source?.priceCurrency;
-  // Enviar SIEMPRE URL pública del mockup (nunca dataURL) para que REST lo adjunte
   const mockupUrl = source?.mockupPublicUrl || source?.mockupUrl || null;
   const payload = {
     mode,
     designName,
-    widthCm,
-    heightCm, // ← viajan en cm tal cual eligió el cliente
-    // Mandar material en los 3 campos para que jamás se pierda en merges intermedios
-    options: { ...(source?.options || {}), material: materialLabel, productType: source?.productType },
-    material: materialLabel,
-    materialResolved: materialLabel,
+    widthCm: roundedWidth,
+    heightCm: roundedHeight,
+    options: { ...(source?.options || {}), material: mat, productType },
+    material: mat,
+    materialResolved: mat,
     title,
     priceTransfer,
     priceNormal,
     currency,
-    productType: source?.productType,
+    productType,
     mockupUrl,
     pdfPublicUrl: source?.pdfPublicUrl,
     masterPublicUrl: source?.masterPublicUrl || null,
@@ -610,6 +558,7 @@ function buildShopifyPayload(flowState, mode) {
   };
   return payload;
 }
+
 
 function toastErr(msg) {
   try {
@@ -933,12 +882,12 @@ export default function Mockup() {
       const heightForLog = Number.isFinite(Number(mergedForLog.heightCm)) && Number(mergedForLog.heightCm) > 0
         ? Math.round(Number(mergedForLog.heightCm))
         : null;
-      const titleForLog = buildTitle(
-        safeStr(mergedForLog.designName || seed.designName || 'Personalizado'),
-        widthForLog,
-        heightForLog,
-        matForLog || undefined,
-      );
+      const titleForLog = buildTitle({
+        ...extractFlowBasics(mergedForLog),
+        designName: safeStr(mergedForLog.designName || seed.designName || 'Personalizado') || 'Personalizado',
+        widthCm: widthForLog || undefined,
+        heightCm: heightForLog || undefined,
+      });
       console.log('[audit:flow:rehydrated]', {
         material: matForLog,
         optionsMaterial: mergedForLog.options?.material ?? null,
@@ -2215,42 +2164,22 @@ export default function Mockup() {
 
   function buildOverridesFromUi(_mode) {
     const flowLike = (typeof flow?.get === 'function' && flow.get()) || flow || {};
-    const mat = safeStr(
-      flowLike?.material
-        ?? flowLike?.materialResolved
-        ?? flowLike?.options?.material,
-    ) || null;
-    const widthRaw = Number(flowLike?.widthCm);
-    const heightRaw = Number(flowLike?.heightCm);
-    const width = Number.isFinite(widthRaw) && widthRaw > 0 ? Math.round(widthRaw) : null;
-    const height = Number.isFinite(heightRaw) && heightRaw > 0 ? Math.round(heightRaw) : null;
-    const title = buildTitle({
-      kind: mat === 'Glasspad' ? 'Glasspad' : 'Mousepad',
-      name: safeStr(flowLike?.designName, 'Personalizado') || 'Personalizado',
-      widthCm: width,
-      heightCm: height,
-      material: mat || undefined,
-    });
-    const optionsWithMat = {
-      ...(flowLike?.options || {}),
-      ...(mat ? { material: mat } : {}),
-    };
+    const { productType, mat, widthCm, heightCm, designName } = extractFlowBasics(flowLike);
+    const widthRounded = Number.isFinite(widthCm) && widthCm > 0 ? Math.round(widthCm) : undefined;
+    const heightRounded = Number.isFinite(heightCm) && heightCm > 0 ? Math.round(heightCm) : undefined;
+    const title = buildTitle({ productType, mat, widthCm: widthRounded, heightCm: heightRounded, designName });
     const overrides = {
-      material: mat || undefined,
-      materialResolved: mat || undefined,
-      options: optionsWithMat,
-      widthCm: width ?? undefined,
-      heightCm: height ?? undefined,
+      material: mat,
+      materialResolved: mat,
+      options: { ...(flowLike?.options || {}), material: mat, productType },
+      widthCm: widthRounded,
+      heightCm: heightRounded,
+      designName,
       title,
-      designName: safeStr(flowLike?.designName, 'Personalizado') || 'Personalizado',
       mockupPublicUrl: flowLike?.mockupPublicUrl || flowLike?.mockupUrl || undefined,
       mockupUrl: flowLike?.mockupUrl || flowLike?.mockupPublicUrl || undefined,
+      productType,
     };
-    if (mat === 'Glasspad') {
-      overrides.productType = 'glasspad';
-    } else if (mat) {
-      overrides.productType = 'mousepad';
-    }
     return overrides;
   }
 
@@ -2272,29 +2201,24 @@ export default function Mockup() {
         logger.debug?.('[mockup] ensure_mockup_public_ready_failed', mockupErr);
       }
       const stateForLog = (typeof flow?.get === 'function' ? flow.get() : flow) || {};
-      const mat = safeStr(
-        stateForLog?.material
-          ?? stateForLog?.materialResolved
-          ?? stateForLog?.options?.material,
-      ) || null;
-      const widthRaw = Number(stateForLog?.widthCm);
-      const heightRaw = Number(stateForLog?.heightCm);
-      const widthRounded = Number.isFinite(widthRaw) && widthRaw > 0 ? Math.round(widthRaw) : null;
-      const heightRounded = Number.isFinite(heightRaw) && heightRaw > 0 ? Math.round(heightRaw) : null;
+      const basics = extractFlowBasics(stateForLog);
+      const { productType, mat, widthCm, heightCm, designName } = basics;
+      const widthRounded = Number.isFinite(widthCm) && widthCm > 0 ? Math.round(widthCm) : undefined;
+      const heightRounded = Number.isFinite(heightCm) && heightCm > 0 ? Math.round(heightCm) : undefined;
       const titleForFlowLog = buildTitle({
-        kind: mat === 'Glasspad' ? 'Glasspad' : 'Mousepad',
-        name: safeStr(stateForLog?.designName, 'Personalizado') || 'Personalizado',
+        productType,
+        mat,
         widthCm: widthRounded,
         heightCm: heightRounded,
-        material: mat || undefined,
+        designName,
       });
       try {
         console.log('[buy] direct:flow', {
           materialRaw: stateForLog?.material ?? null,
           optionsMaterial: stateForLog?.options?.material ?? null,
           mat,
-          widthCm: widthRounded,
-          heightCm: heightRounded,
+          widthCm: widthRounded ?? null,
+          heightCm: heightRounded ?? null,
           title: titleForFlowLog,
         });
       } catch (_) {
@@ -2333,7 +2257,7 @@ export default function Mockup() {
       });
       if (result?.ok && openUrl) {
         try {
-          window.location.assign(openUrl);
+          window.open(openUrl, '_blank', 'noopener');
         } catch (assignErr) {
           logger.warn?.('[mockup] direct_navigation_failed', assignErr);
         }
