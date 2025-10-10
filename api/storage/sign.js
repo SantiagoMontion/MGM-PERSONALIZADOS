@@ -17,18 +17,84 @@ function guessExtension(contentType) {
   return '';
 }
 
-function buildObjectPath(path, contentType) {
-  const trimmed = typeof path === 'string' ? path.trim().replace(/^\/+/, '') : '';
-  if (trimmed) return trimmed;
-  const ext = guessExtension(contentType);
-  const suffix = ext ? `.${ext}` : '';
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}${suffix}`;
-}
-
 function buildStorageUrl(base, bucket, key, isPublic) {
   const normalizedBase = String(base || '').replace(/\/+$/, '');
   const visibility = isPublic ? 'public/' : '';
   return `${normalizedBase}/storage/v1/object/${visibility}${bucket}/${key}`;
+}
+
+function sanitizeTitle(value) {
+  const base = (value ?? 'Design').toString();
+  const normalized = base
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9 _-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return normalized || 'Design';
+}
+
+function normalizeMaterialLabel(value) {
+  const text = (value ?? '').toString().toLowerCase();
+  if (text.includes('glass')) return 'Glasspad';
+  if (text.includes('pro')) return 'PRO';
+  if (text.includes('classic')) return 'Classic';
+  return (value ?? '').toString().trim() || 'Classic';
+}
+
+function extractDimension(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num <= 0) return null;
+  return Math.round(num);
+}
+
+function extractHash(value) {
+  const raw = (value ?? '').toString().trim();
+  if (!raw) return '';
+  const cleaned = raw.replace(/[^a-zA-Z0-9]+/g, '').slice(0, 8);
+  return cleaned;
+}
+
+function buildGeneratedObjectKey(body, contentType) {
+  const now = new Date();
+  const year = now.getUTCFullYear();
+  const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+  const folder = `mockups-${year}-${month}`;
+  const title = sanitizeTitle(body?.title || body?.designName || body?.name || 'Design');
+  const material = sanitizeTitle(normalizeMaterialLabel(body?.material));
+  const width = extractDimension(body?.widthCm);
+  const height = extractDimension(body?.heightCm);
+  const dims = width && height ? `${width}x${height}` : null;
+  const hash = extractHash(body?.designHash) || Math.random().toString(36).slice(2, 10);
+  const ext = (() => {
+    const guessed = guessExtension(contentType);
+    if (!guessed) return '.png';
+    return guessed.startsWith('.') ? guessed : `.${guessed}`;
+  })();
+  const parts = [title];
+  if (dims) parts.push(dims);
+  if (material) parts.push(material);
+  if (hash) parts.push(hash);
+  const filename = parts.filter(Boolean).join(' ').replace(/\s+/g, ' ').trim() || 'Design';
+  return `${folder}/${filename}${ext}`;
+}
+
+function resolveObjectKey(body, contentType) {
+  const explicit = typeof body?.objectKey === 'string' ? body.objectKey.trim() : '';
+  if (explicit) {
+    return explicit.replace(/^\/+/, '');
+  }
+  const legacyPath = typeof body?.path === 'string' ? body.path.trim() : '';
+  if (legacyPath) {
+    return legacyPath.replace(/^\/+/, '');
+  }
+  return buildGeneratedObjectKey(body, contentType);
+}
+
+function isAlreadyExistsError(error) {
+  if (!error) return false;
+  const message = typeof error.message === 'string' ? error.message : String(error);
+  return /already exists/i.test(message);
 }
 
 export default async function handler(req, res) {
@@ -82,23 +148,16 @@ export default async function handler(req, res) {
       ? Math.min(Math.round(Number(body.expiresIn)), 60 * 60 * 24)
       : DEFAULT_EXPIRES;
 
-    const requestedPath = typeof body.path === 'string'
-      ? body.path
-      : typeof body.objectKey === 'string'
-        ? body.objectKey
-        : '';
-    objectKey = buildObjectPath(requestedPath, contentType);
-    const wantsUpsert = typeof body.upsert === 'boolean'
-      ? body.upsert
-      : requestedBucket === 'preview' || requestedBucket === 'outputs';
+    objectKey = resolveObjectKey(body, contentType);
 
     const supabase = getSupabaseAdmin();
+    const supabaseUrl = process.env.SUPABASE_URL || '';
 
     logger.debug?.('[storage:sign:req]', {
       diagId,
       bucket: requestedBucket,
       key: objectKey,
-      upsert: wantsUpsert,
+      upsert: true,
       contentType,
     });
 
@@ -132,28 +191,65 @@ export default async function handler(req, res) {
       }
     };
 
-    const signInBucket = async (bucketName, upsertFlag) => {
+    const computePublicUrl = (bucketName) => {
+      if (!supabaseUrl || !objectKey) return null;
+      return buildStorageUrl(supabaseUrl, bucketName, objectKey, true);
+    };
+
+    const signInBucket = async (bucketName) => {
       const ensureError = await ensureBucketExists(bucketName);
       if (ensureError) {
-        return { error: ensureError };
+        if (isAlreadyExistsError(ensureError)) {
+          return {
+            skip: true,
+            bucket: bucketName,
+            publicUrl: computePublicUrl(bucketName),
+          };
+        }
+        return { error: ensureError, bucket: bucketName };
       }
       const { data, error } = await supabase
         .storage
         .from(bucketName)
-        .createSignedUploadUrl(objectKey, expiresInRaw, { upsert: upsertFlag, contentType });
+        .createSignedUploadUrl(objectKey, expiresInRaw, { upsert: true, contentType });
       if (error || !data?.signedUrl) {
-        return { error: error || new Error('missing_signed_url') };
+        if (isAlreadyExistsError(error)) {
+          const { data: publicData } = supabase.storage.from(bucketName).getPublicUrl(objectKey);
+          return {
+            skip: true,
+            bucket: bucketName,
+            publicUrl: publicData?.publicUrl || computePublicUrl(bucketName),
+          };
+        }
+        return { error: error || new Error('missing_signed_url'), bucket: bucketName };
       }
       const { data: publicData } = supabase.storage.from(bucketName).getPublicUrl(objectKey);
-      return { data, publicData };
+      return {
+        bucket: bucketName,
+        data,
+        publicUrl: publicData?.publicUrl || computePublicUrl(bucketName),
+      };
     };
 
     let bucket = requestedBucket;
-    let signResult = await signInBucket(bucket, wantsUpsert);
-    if (signResult.error && bucket === 'preview' && !wantsUpsert) {
-      const retryUpsert = true;
-      signResult = await signInBucket(bucket, retryUpsert);
+    let signResult = await signInBucket(bucket);
+
+    if (signResult.skip) {
+      const publicUrl = signResult.publicUrl || computePublicUrl(bucket);
+      res.setHeader?.('Content-Type', 'application/json; charset=utf-8');
+      res.status(200).json({
+        ok: true,
+        skipUpload: true,
+        bucket,
+        objectKey,
+        publicUrl,
+        diagId,
+        requestedBucket,
+      });
+      logger.debug?.('[storage:sign:ok]', { diagId, bucket, key: objectKey, skip: true });
+      return;
     }
+
     if (signResult.error && bucket === 'preview') {
       const reason = signResult.error?.message || signResult.error || 'missing_signed_url';
       logger.warn?.('[sign] retry_default_bucket', {
@@ -164,7 +260,22 @@ export default async function handler(req, res) {
         error: reason,
       });
       bucket = DEFAULT_BUCKET;
-      signResult = await signInBucket(bucket, true);
+      signResult = await signInBucket(bucket);
+      if (signResult.skip) {
+        const publicUrl = signResult.publicUrl || computePublicUrl(bucket);
+        res.setHeader?.('Content-Type', 'application/json; charset=utf-8');
+        res.status(200).json({
+          ok: true,
+          skipUpload: true,
+          bucket,
+          objectKey,
+          publicUrl,
+          diagId,
+          requestedBucket,
+        });
+        logger.debug?.('[storage:sign:ok]', { diagId, bucket, key: objectKey, skip: true });
+        return;
+      }
     }
 
     if (signResult.error || !signResult?.data?.signedUrl) {
@@ -186,18 +297,12 @@ export default async function handler(req, res) {
     }
 
     const signedData = signResult.data;
-    const publicData = signResult.publicData;
-    const supabaseUrl = process.env.SUPABASE_URL || '';
-    const resolvedPublicUrl = (() => {
-      if (bucket === 'uploads') return null;
-      if (publicData?.publicUrl) return publicData.publicUrl;
-      if (!supabaseUrl || !objectKey) return null;
-      return buildStorageUrl(supabaseUrl, bucket, objectKey, bucket !== 'uploads');
-    })();
+    const resolvedPublicUrl = signResult.publicUrl || computePublicUrl(bucket);
 
     res.setHeader?.('Content-Type', 'application/json; charset=utf-8');
     res.status(200).json({
       ok: true,
+      skipUpload: false,
       bucket,
       path: objectKey,
       objectKey,
@@ -215,7 +320,7 @@ export default async function handler(req, res) {
       },
       upsert: true,
     });
-    logger.debug?.('[storage:sign:ok]', { diagId, bucket, key: objectKey });
+    logger.debug?.('[storage:sign:ok]', { diagId, bucket, key: objectKey, skip: false });
   } catch (err) {
     const message = err?.message || String(err);
     logger.error?.('[storage:sign:error]', {

@@ -90,11 +90,6 @@ function safeName(value) {
   return String(value || '').replace(/[\/\\:*?"<>|]+/g, '').trim() || 'Design';
 }
 
-function yyyymm() {
-  const date = new Date();
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-}
-
 function cmFromPx(px, dpi) {
   return Math.max(1, Math.round((Number(px) || 0) / (Number(dpi) || 300) * 2.54));
 }
@@ -113,14 +108,75 @@ function matLabelOf(material) {
   return (String(material || '').trim() || 'Classic');
 }
 
-async function signUpload({ bucket, contentType, path }) {
+function sanitizeKeySegment(value) {
+  const base = (value ?? '').toString();
+  const normalized = base
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9 _-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return normalized;
+}
+
+function buildPreviewObjectKey(state, {
+  widthCm,
+  heightCm,
+  materialLabel,
+  designHash,
+  contentType = 'image/png',
+}) {
+  const now = new Date();
+  const folder = `mockups-${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+  const baseTitle = sanitizeKeySegment(state?.designName || 'Design') || 'Design';
+  const width = Number.isFinite(widthCm) && widthCm > 0 ? Math.round(widthCm) : null;
+  const height = Number.isFinite(heightCm) && heightCm > 0 ? Math.round(heightCm) : null;
+  const dims = width && height ? `${width}x${height}` : null;
+  const material = sanitizeKeySegment(materialLabel) || 'Classic';
+  const hashSource = (designHash ?? state?.designHash ?? '').toString().trim();
+  const hashSegment = (hashSource.replace(/[^a-zA-Z0-9]+/g, '').slice(0, 8) || Math.random().toString(36).slice(2, 10))
+    .replace(/[^a-zA-Z0-9]/g, '');
+  const ext = contentType && /png/i.test(contentType) ? '.png' : '.png';
+  const nameParts = [baseTitle];
+  if (dims) nameParts.push(dims);
+  if (material) nameParts.push(material);
+  if (hashSegment) nameParts.push(hashSegment);
+  const filename = nameParts.filter(Boolean).join(' ').replace(/\s+/g, ' ').trim() || 'Design';
+  return `${folder}/${filename}${ext}`;
+}
+
+function buildSupabasePublicUrl(bucket, objectKey) {
+  const supabaseUrl = import.meta?.env?.VITE_SUPABASE_URL || '';
+  if (!supabaseUrl || !bucket || !objectKey) return null;
+  const sanitizedBase = supabaseUrl.replace(/\/+$/, '');
+  return `${sanitizedBase}/storage/v1/object/public/${bucket}/${objectKey}`;
+}
+
+async function signUpload({ bucket, contentType, objectKey, metadata }) {
+  const buildPayload = (bucketName) => ({
+    bucket: bucketName,
+    contentType,
+    objectKey,
+    upsert: true,
+    material: metadata?.material,
+    title: metadata?.title,
+    widthCm: metadata?.widthCm,
+    heightCm: metadata?.heightCm,
+    designHash: metadata?.designHash,
+  });
+
   const trySign = async (bucketName) => {
     try {
-      return await postJSON(
+      const json = await postJSON(
         getResolvedApiUrl('/api/storage/sign'),
-        { bucket: bucketName, contentType, path, upsert: true },
+        buildPayload(bucketName),
         30000,
       );
+      return {
+        ...json,
+        bucket: json?.bucket || bucketName,
+        objectKey: json?.objectKey || objectKey,
+      };
     } catch (error) {
       const reason = error?.message || error?.reason || 'sign_failed';
       logger.debug?.('[mockup-sign] request_failed', { bucket: bucketName, error: reason });
@@ -135,7 +191,11 @@ async function signUpload({ bucket, contentType, path }) {
   const primaryBucket = bucket || 'preview';
   let response = await trySign(primaryBucket);
 
-  if (!response?.ok && primaryBucket === 'preview') {
+  if (response?.ok === true || response?.skipUpload) {
+    return response;
+  }
+
+  if (primaryBucket === 'preview') {
     try {
       console.warn('[preview] sign failed, retrying on outputs', {
         bucket: primaryBucket,
@@ -146,18 +206,17 @@ async function signUpload({ bucket, contentType, path }) {
       // noop
     }
     response = await trySign('outputs');
+    if (response?.ok === true || response?.skipUpload) {
+      return response;
+    }
   }
 
-  if (!response?.ok) {
-    logger.debug?.('[mockup-sign] unavailable', {
-      bucket: primaryBucket,
-      error: response?.error || response?.reason || 'sign_failed',
-      status: response?.status,
-    });
-    return null;
-  }
-
-  return response;
+  logger.debug?.('[mockup-sign] unavailable', {
+    bucket: primaryBucket,
+    error: response?.error || response?.reason || 'sign_failed',
+    status: response?.status,
+  });
+  return null;
 }
 
 async function uploadViaSignedUrl({ uploadUrl, blob, method = 'POST', headers: passedHeaders }) {
@@ -171,7 +230,8 @@ async function uploadViaSignedUrl({ uploadUrl, blob, method = 'POST', headers: p
       headers.set(key, String(value));
     }
   }
-  const response = await fetch(uploadUrl, { method, headers, body: blob });
+  const normalizedMethod = typeof method === 'string' ? method.toUpperCase() : 'POST';
+  const response = await fetch(uploadUrl, { method: normalizedMethod, headers, body: blob });
   if (!response.ok) {
     const bodyText = await response.text().catch(() => '');
     console.error('[preview] POST failed', {
@@ -201,21 +261,11 @@ async function uploadBlobWithSignedUrl(sign, blob, filename) {
   });
   const bucket = sign?.bucket || 'preview';
   const objectKey = sign?.path || sign?.objectKey || filename || '';
-  try {
-    console.log('[preview] uploaded', { bucket, key: objectKey });
-  } catch (_) {
-    // noop
-  }
   const explicitPublicUrl = sign?.publicUrl ? String(sign.publicUrl || '').trim() || null : null;
   if (explicitPublicUrl) {
     return explicitPublicUrl;
   }
-  const supabaseUrl = import.meta?.env?.VITE_SUPABASE_URL || '';
-  if (supabaseUrl && bucket && objectKey) {
-    const sanitizedBase = supabaseUrl.replace(/\/+$/, '');
-    return `${sanitizedBase}/storage/v1/object/public/${bucket}/${objectKey}`;
-  }
-  return null;
+  return buildSupabasePublicUrl(bucket, objectKey);
 }
 
 export async function ensureMockupUrlInFlow(flow, input) {
@@ -255,18 +305,51 @@ export async function ensureMockupUrlInFlow(flow, input) {
     approxDpi: dpi,
     composition,
   });
-  const filename = `${safeName(state?.designName)} ${widthCm}x${heightCm} ${matLabelOf(state?.material ?? input?.material)}.png`;
+  const materialLabel = matLabelOf(state?.material ?? input?.material);
+  const widthCmValue = Number(widthCm);
+  const heightCmValue = Number(heightCm);
+  const widthCmInt = Number.isFinite(widthCmValue) && widthCmValue > 0 ? Math.round(widthCmValue) : null;
+  const heightCmInt = Number.isFinite(heightCmValue) && heightCmValue > 0 ? Math.round(heightCmValue) : null;
+  const designHash = (state?.designHash ?? input?.designHash ?? '').toString().trim();
+  const objectKey = buildPreviewObjectKey(state, {
+    widthCm: widthCmInt ?? undefined,
+    heightCm: heightCmInt ?? undefined,
+    materialLabel,
+    designHash,
+    contentType: 'image/png',
+  });
+  const filename = objectKey.split('/').pop() || `${safeName(state?.designName)}.png`;
   const sign = await signUpload({
     bucket: 'preview',
     contentType: 'image/png',
-    path: `mockups-${yyyymm()}/${filename}`,
+    objectKey,
+    metadata: {
+      title: state?.designName,
+      widthCm: widthCmInt ?? undefined,
+      heightCm: heightCmInt ?? undefined,
+      material: materialLabel,
+      designHash,
+    },
   });
   let publicUrl = null;
   if (sign) {
     try {
-      publicUrl = await uploadBlobWithSignedUrl(sign, mockupBlob, filename);
-      if (!publicUrl) {
-        publicUrl = null;
+      if (sign.skipUpload) {
+        publicUrl = sign.publicUrl || buildSupabasePublicUrl(sign.bucket || 'preview', sign.objectKey || objectKey);
+      } else {
+        const uploadedUrl = await uploadBlobWithSignedUrl(sign, mockupBlob, filename);
+        publicUrl = sign.publicUrl || uploadedUrl;
+      }
+      if (publicUrl) {
+        try {
+          console.log('[preview] uploaded', {
+            bucket: sign.bucket || 'preview',
+            key: sign.objectKey || objectKey,
+            skip: Boolean(sign.skipUpload),
+          });
+        } catch (_) {
+          // noop
+        }
       }
     } catch (uploadErr) {
       logger.debug?.('[mockup-sign] upload_failed', uploadErr);
@@ -282,8 +365,8 @@ export async function ensureMockupUrlInFlow(flow, input) {
         flow.set({
           ...nextState,
           mockupBlob,
-          mockupPublicUrl: sign?.publicUrl || publicUrl,
-          mockupUrl: sign?.publicUrl || publicUrl,
+          mockupPublicUrl: publicUrl,
+          mockupUrl: publicUrl,
           mockupDataUrl: null,
         });
       }
@@ -372,7 +455,7 @@ async function ensureMockupPublicReady(flowState) {
     return;
   }
   try {
-    const ready = await waitUrlReady(url);
+    const ready = await waitUrlReady(url, 3, 250);
     if (!ready) {
       logger.debug?.('[mockup] mockup_head_unconfirmed', { url });
     }
