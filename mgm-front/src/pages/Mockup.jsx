@@ -524,28 +524,19 @@ async function waitUrlReady(url, tries = 8, delayMs = 350) {
   return false;
 }
 
-async function ensureMockupPublicReady(flowState) {
-  const resolveState = () => (typeof flowState?.get === 'function' ? flowState.get() : flowState);
-  let state = resolveState();
-  if (!state?.mockupPublicUrl && !state?.mockupUrl) {
-    try {
-      await ensureMockupUrlInFlow(flowState);
-    } catch (err) {
-      diag('[mockup] ensure_mockup_url_in_flow_failed', err);
-    }
-    state = resolveState();
-  }
-  const url = state?.mockupPublicUrl || state?.mockupUrl;
-  if (!url) {
-    return;
-  }
+export async function ensureMockupPublicReady(flow) {
+  // Reusar la rutina ya existente para asegurar URL pública.
+  // Debe devolver la URL pública final o null si no pudo.
   try {
-    const ready = await waitUrlReady(url, 3, 250);
-    if (!ready) {
-      diag('[mockup] mockup_head_unconfirmed', { url });
-    }
-  } catch (headErr) {
-    diag('[mockup] mockup_head_failed', headErr);
+    const url = await ensureMockupUrlInFlow(flow);
+    if (typeof url === 'string' && url.startsWith('http')) return url;
+
+    // Si ensureMockupUrlInFlow no devuelve string, tomarla del flow luego de ejecutar.
+    const state = typeof flow?.get === 'function' ? flow.get() : flow;
+    const resolved = state?.mockupPublicUrl || state?.mockupUrl || null;
+    return (typeof resolved === 'string' && resolved.startsWith('http')) ? resolved : null;
+  } catch {
+    return null;
   }
 }
 
