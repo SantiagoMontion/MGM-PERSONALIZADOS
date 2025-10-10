@@ -1803,6 +1803,43 @@ export default function Mockup() {
     }
   }
 
+  // ---- Compra directa: evitar wrappers que cortan en silencio ----
+  async function buyDirect(mode) {
+    try {
+      dlog('direct:start', { mode });
+      try {
+        await ensureMockupPublicReady(flow);
+      } catch (mockupErr) {
+        logger.debug?.('[mockup] ensure_mockup_public_ready_failed', mockupErr);
+      }
+      const payload = buildShopifyPayload(flow, mode);
+      dlog('direct:payload', {
+        mode,
+        title: payload?.title,
+        material: payload?.material ?? payload?.materialResolved,
+        widthCm: payload?.widthCm,
+        heightCm: payload?.heightCm,
+        hasPdf: Boolean(payload?.pdfPublicUrl),
+        hasMockup: Boolean(payload?.mockupUrl),
+        price: payload?.priceTransfer ?? payload?.price ?? null,
+      });
+      const result = await handle(mode, { payloadOverrides: payload });
+      const targetUrl = typeof result?.url === 'string' && result.url
+        ? result.url
+        : typeof result?.checkoutUrl === 'string' && result.checkoutUrl
+          ? result.checkoutUrl
+          : typeof result?.productUrl === 'string' && result.productUrl
+            ? result.productUrl
+            : null;
+      dlog('direct:done', { mode, ok: result?.ok ?? true, url: targetUrl, reason: result?.reason });
+      return result;
+    } catch (error) {
+      derr('direct:error', mode, error);
+      setToast((prev) => (prev ? prev : { message: 'No se pudo crear el producto.' }));
+      throw error;
+    }
+  }
+
   async function handleDownloadPdf() {
     const preferredSource =
       typeof flow.fileOriginalUrl === 'string' && flow.fileOriginalUrl.trim()
@@ -1961,9 +1998,7 @@ export default function Mockup() {
                   cta_type: 'cart',
                   product_handle: lastProduct?.productHandle,
                 });
-                // Igual que en comprar: nos aseguramos de tener mockup público antes
-                await ensureMockupPublicReady(flow);
-                return handle('cart', { payloadOverrides: buildShopifyPayload(flow, 'cart') });
+                return buyDirect('cart');
               })}
             />
             <p className={styles.ctaHint}>
@@ -2038,7 +2073,7 @@ export default function Mockup() {
               cta_type: 'private',
               product_handle: lastProduct?.productHandle,
             });
-            handle('private', { payloadOverrides: buildShopifyPayload(flow, 'private') });
+            buyDirect('private');
           }}
           aria-hidden="true"
           tabIndex={-1}
@@ -2148,9 +2183,7 @@ export default function Mockup() {
                     product_handle: lastProduct?.productHandle,
                   });
                   setBuyPromptOpen(false);
-                  // Asegurar URL pública antes de publicar
-                  await ensureMockupPublicReady(flow);
-                  return handle('checkout', { payloadOverrides: buildShopifyPayload(flow, 'checkout') });
+                  return buyDirect('checkout');
                 })}
               />
               <CtaButton
@@ -2171,8 +2204,7 @@ export default function Mockup() {
                     product_handle: lastProduct?.productHandle,
                   });
                   setBuyPromptOpen(false);
-                  await ensureMockupPublicReady(flow);
-                  return handle('private', { payloadOverrides: buildShopifyPayload(flow, 'private') });
+                  return buyDirect('private');
               })}
             />
             </div>
