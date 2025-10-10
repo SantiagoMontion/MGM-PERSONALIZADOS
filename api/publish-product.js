@@ -517,12 +517,35 @@ export default async function handler(req, res) {
   const currencyValue = String(parsedBody.currency || process.env.SHOPIFY_CART_PRESENTMENT_CURRENCY || 'USD');
   parsedBody.price = priceValue;
   parsedBody.currency = currencyValue;
-  const isPrivate = parsedBody.private === true || parsedBody.mode === 'private';
-  const mf = Array.isArray(parsedBody.metafields) ? parsedBody.metafields.slice() : [];
-  if (!mf.some((m) => m && typeof m === 'object' && m.namespace === 'custom' && m.key === 'private')) {
-    mf.push({ namespace: 'custom', key: 'private', type: 'boolean', value: isPrivate ? 'true' : 'false' });
+  const modeFromBody = typeof parsedBody.mode === 'string' ? parsedBody.mode.trim().toLowerCase() : '';
+  const isPrivate = parsedBody.private === true
+    || modeFromBody === 'private'
+    || req?.query?.private === '1';
+  parsedBody.private = Boolean(isPrivate);
+  parsedBody.isPrivate = Boolean(isPrivate);
+  const existingMetafields = Array.isArray(parsedBody.metafields) ? parsedBody.metafields : [];
+  const preservedMetafields = existingMetafields.filter(
+    (entry) => !entry || typeof entry !== 'object'
+      ? true
+      : entry.namespace !== 'custom' || entry.key !== 'private',
+  );
+  const privateMetafield = {
+    namespace: 'custom',
+    key: 'private',
+    type: 'boolean',
+    value: isPrivate ? 'true' : 'false',
+  };
+  parsedBody.metafields = [...preservedMetafields, privateMetafield];
+  try {
+    console.log('[audit:metafields]', {
+      namespace: privateMetafield.namespace,
+      key: privateMetafield.key,
+      type: privateMetafield.type,
+      value: privateMetafield.value,
+    });
+  } catch (_) {
+    // noop
   }
-  parsedBody.metafields = mf;
   // Pasar mockupUrl simple; la imagen se adjunta en el handler vía REST
   parsedBody.mockupUrl = mockupUrlRaw || parsedBody.mockupUrl || null;
   // Diags para verificar qué llegó y qué se usó
