@@ -21,6 +21,13 @@ export default async function handler(req, res) {
     return;
   }
 
+  res.setHeader?.('Access-Control-Allow-Methods', 'POST,OPTIONS');
+  res.setHeader?.('Access-Control-Allow-Headers', 'content-type,authorization,x-upsert');
+  if (req.method === 'OPTIONS') {
+    res.status(204).end();
+    return;
+  }
+
   if (req.method !== 'POST') {
     res.status(405).json({ ok: false, error: 'method_not_allowed', diagId });
     return;

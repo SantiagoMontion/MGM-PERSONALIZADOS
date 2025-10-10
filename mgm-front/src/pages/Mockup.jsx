@@ -87,7 +87,9 @@ async function imgFromDataUrl(dataUrl) {
 }
 
 function safeName(value) {
-  return String(value || '').replace(/[\/\\:*?"<>|]+/g, '').trim() || 'Design';
+  const cleaned = safeReplace(asStr(value), /[\/\\:*?"<>|]+/g, '');
+  const trimmed = cleaned.trim();
+  return trimmed || 'Design';
 }
 
 function cmFromPx(px, dpi) {
@@ -108,9 +110,23 @@ function matLabelOf(material) {
   return (String(material || '').trim() || 'Classic');
 }
 
+const asStr = (value, fallback = '') => {
+  if (typeof value === 'string') return value;
+  if (value == null) return fallback;
+  try {
+    return String(value);
+  } catch {
+    return fallback;
+  }
+};
+
 function safeStr(value, fallback = '') {
-  return typeof value === 'string' ? value.trim() || fallback : fallback;
+  const str = asStr(value);
+  const trimmed = str.trim();
+  return trimmed || fallback;
 }
+
+const safeReplace = (value, pattern, replacement) => asStr(value).replace(pattern, replacement);
 
 function normalizeMaterialLabelSafe(flow) {
   const candidates = [
@@ -152,8 +168,8 @@ function extractFlowBasics(flowLike = {}) {
   heightCm = Number.isFinite(heightCm) && heightCm > 0 ? Math.max(1, Math.round(heightCm)) : 1;
   const designHash = safeStr(flowLike?.designHash ?? flowLike?.designHashState);
   const hash8 = designHash.slice(0, 8) || '00000000';
-  const base = `${name} ${widthCm}x${heightCm} ${material}`.replace(/\s+/g, ' ').trim();
-  const slug = base
+  const base = safeReplace(`${name} ${widthCm}x${heightCm} ${material}`, /\s+/g, ' ').trim();
+  const slug = asStr(base)
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-zA-Z0-9 _-]/g, '')
@@ -161,12 +177,12 @@ function extractFlowBasics(flowLike = {}) {
     .trim();
   const now = new Date();
   const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const objectKeyBase = `${slug || 'Personalizado'} ${hash8}`.replace(/\s+/g, ' ').trim();
+  const objectKeyBase = safeReplace(`${slug || 'Personalizado'} ${hash8}`, /\s+/g, ' ').trim();
   const objectKey = `mockups-${ym}/${objectKeyBase}.png`;
   const titleRaw = material === 'Glasspad'
     ? `Glasspad ${name} 49x42 | PERSONALIZADO`
     : `Mousepad ${name} ${widthCm}x${heightCm} ${material} | PERSONALIZADO`;
-  const title = titleRaw.replace(/\s+/g, ' ').trim();
+  const title = safeReplace(titleRaw, /\s+/g, ' ').trim();
   return {
     name,
     material,
@@ -198,6 +214,14 @@ async function blobToDataUrl(blob) {
 async function uploadPreviewViaApi(objectKey, blob) {
   if (!objectKey || !blob) throw new Error('preview_upload_missing_data');
   const dataUrl = await blobToDataUrl(blob);
+  try {
+    console.log('[preview] about_to_upload', {
+      objectKey,
+      hasDataUrl: typeof dataUrl === 'string' && dataUrl.length > 0,
+    });
+  } catch (_) {
+    // noop
+  }
   const response = await fetch(getResolvedApiUrl('/api/preview/upload'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -616,7 +640,9 @@ const SHOPIFY_DOMAIN = (() => {
       : '';
   const raw = (fromImportMeta || fromProcess || '').trim();
   if (!raw) return '';
-  return raw.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+  let sanitized = safeReplace(raw, /^https?:\/\//i, '');
+  sanitized = safeReplace(sanitized, /\/+$/, '');
+  return sanitized;
 })();
 
 const SHOULD_LOG_COMMERCE = (() => {
@@ -1557,7 +1583,10 @@ export default function Mockup() {
         if (!fallbackTarget) {
           const handleCandidate = handleCandidates.find((entry) => typeof entry === 'string' && entry.trim());
           if (handleCandidate && SHOPIFY_DOMAIN) {
-            const normalizedHandle = handleCandidate.trim().replace(/^\/+/, '').replace(/\/+$/, '');
+            const trimmedHandle = safeStr(handleCandidate);
+            let normalizedHandle = trimmedHandle.trim();
+            normalizedHandle = safeReplace(normalizedHandle, /^\/+/, '');
+            normalizedHandle = safeReplace(normalizedHandle, /\/+$/, '');
             fallbackTarget = `https://${SHOPIFY_DOMAIN}/products/${normalizedHandle}`;
           }
         }
@@ -1935,13 +1964,14 @@ export default function Mockup() {
         logger.debug?.('[mockup] ensure_mockup_public_ready_failed', mockupErr);
       }
       const overrides = buildOverridesFromUi(mode);
+      const basicsForLog = extractFlowBasics(flow);
       try {
         console.log('[buy] direct:payload', {
           mode,
-          material: overrides?.material,
-          width: overrides?.widthCm ?? null,
-          height: overrides?.heightCm ?? null,
-          title: overrides?.title,
+          material: basicsForLog.material,
+          width: basicsForLog.widthCm,
+          height: basicsForLog.heightCm,
+          title: basicsForLog.title,
         });
       } catch (_) {
         // noop
