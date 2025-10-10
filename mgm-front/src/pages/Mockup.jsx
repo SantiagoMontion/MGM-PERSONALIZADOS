@@ -2429,6 +2429,8 @@ export default function Mockup() {
       return {
         ...baseOverrides,
         private: true,
+        mode: 'private',
+        checkoutType: 'private',
         metafields: [
           ...filteredMetafields,
           { namespace: 'custom', key: 'private', type: 'boolean', value: 'true' },
@@ -2669,7 +2671,11 @@ export default function Mockup() {
         },
         visibility: 'private',
       };
-      const result = await buyDirect('checkout', { ...overrides, private: true }, { skipEnsure: true, autoOpen: false });
+      const result = await buyDirect(
+        'checkout',
+        { ...overrides, private: true, mode: 'private', checkoutType: 'private' },
+        { skipEnsure: true, autoOpen: false },
+      );
       return finalizePurchase(result, flow, bridgeRid, 'No se pudo abrir el checkout privado. Proba de nuevo.');
     } catch (err) {
       error('[checkout-private-flow]', err);

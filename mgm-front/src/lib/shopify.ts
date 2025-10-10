@@ -694,6 +694,22 @@ export async function createJobAndProduct(
       if (optionsOverride && typeof optionsOverride === 'object') {
         payload.options = { ...(payload.options || {}), ...(optionsOverride as Record<string, unknown>) };
       }
+      const visibilityOverride = overrides.visibility;
+      if (typeof visibilityOverride === 'string' && visibilityOverride.trim()) {
+        payload.visibility = visibilityOverride.trim();
+      }
+      if (typeof overrides.private === 'boolean') {
+        payload.private = overrides.private;
+        payload.isPrivate = overrides.private;
+      }
+      const modeOverride = overrides.mode;
+      if (typeof modeOverride === 'string' && modeOverride.trim()) {
+        payload.mode = modeOverride.trim();
+      }
+      const checkoutTypeOverride = overrides.checkoutType;
+      if (typeof checkoutTypeOverride === 'string' && checkoutTypeOverride.trim()) {
+        payload.checkoutType = checkoutTypeOverride.trim();
+      }
       const priceTransferOverride = overrides.priceTransfer;
       if (typeof priceTransferOverride === 'number') {
         payload.priceTransfer = priceTransferOverride;
