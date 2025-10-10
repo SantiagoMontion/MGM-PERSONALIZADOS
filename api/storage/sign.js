@@ -88,9 +88,19 @@ export default async function handler(req, res) {
         ? body.objectKey
         : '';
     objectKey = buildObjectPath(requestedPath, contentType);
-    const upsertRequested = Boolean(body.upsert);
+    const wantsUpsert = typeof body.upsert === 'boolean'
+      ? body.upsert
+      : requestedBucket === 'preview' || requestedBucket === 'outputs';
 
     const supabase = getSupabaseAdmin();
+
+    logger.debug?.('[storage:sign:req]', {
+      diagId,
+      bucket: requestedBucket,
+      key: objectKey,
+      upsert: wantsUpsert,
+      contentType,
+    });
 
     const ensureBucketExists = async (bucketName) => {
       try {
@@ -122,7 +132,7 @@ export default async function handler(req, res) {
       }
     };
 
-    const signInBucket = async (bucketName) => {
+    const signInBucket = async (bucketName, upsertFlag) => {
       const ensureError = await ensureBucketExists(bucketName);
       if (ensureError) {
         return { error: ensureError };
@@ -130,7 +140,7 @@ export default async function handler(req, res) {
       const { data, error } = await supabase
         .storage
         .from(bucketName)
-        .createSignedUploadUrl(objectKey, expiresInRaw, { upsert: upsertRequested });
+        .createSignedUploadUrl(objectKey, expiresInRaw, { upsert: upsertFlag, contentType });
       if (error || !data?.signedUrl) {
         return { error: error || new Error('missing_signed_url') };
       }
@@ -139,7 +149,11 @@ export default async function handler(req, res) {
     };
 
     let bucket = requestedBucket;
-    let signResult = await signInBucket(bucket);
+    let signResult = await signInBucket(bucket, wantsUpsert);
+    if (signResult.error && bucket === 'preview' && !wantsUpsert) {
+      const retryUpsert = true;
+      signResult = await signInBucket(bucket, retryUpsert);
+    }
     if (signResult.error && bucket === 'preview') {
       const reason = signResult.error?.message || signResult.error || 'missing_signed_url';
       logger.warn?.('[sign] retry_default_bucket', {
@@ -150,7 +164,7 @@ export default async function handler(req, res) {
         error: reason,
       });
       bucket = DEFAULT_BUCKET;
-      signResult = await signInBucket(bucket);
+      signResult = await signInBucket(bucket, true);
     }
 
     if (signResult.error || !signResult?.data?.signedUrl) {
@@ -196,11 +210,12 @@ export default async function handler(req, res) {
       requestedBucket,
       method: 'POST',
       requiredHeaders: {
-        'content-type': contentType,
-        'x-upsert': upsertRequested ? 'true' : 'false',
+        'content-type': contentType || 'image/jpeg',
+        'x-upsert': 'true',
       },
-      upsert: upsertRequested,
+      upsert: true,
     });
+    logger.debug?.('[storage:sign:ok]', { diagId, bucket, key: objectKey });
   } catch (err) {
     const message = err?.message || String(err);
     logger.error?.('[storage:sign:error]', {
