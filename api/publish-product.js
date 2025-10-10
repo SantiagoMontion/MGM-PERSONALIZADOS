@@ -4,6 +4,7 @@ import { getAllowedOriginsFromEnv, resolveCorsDecision } from '../lib/cors.js';
 
 const SHOPIFY_ENABLED = process.env.SHOPIFY_ENABLED === '1';
 const FRONT_ORIGIN = (process.env.FRONT_ORIGIN || 'https://mgm-app.vercel.app').replace(/\/$/, '');
+const BRIDGE_ORIGIN = 'https://tu-mousepad-personalizado.mgmgamers.store';
 const REQUIRED_ENV = resolveEnvRequirements('SHOPIFY_ADMIN', 'SUPABASE_SERVICE');
 const SHOPIFY_TIMEOUT_STATUS = 504;
 const MAX_PAYLOAD_BYTES = 20 * 1024 * 1024;
@@ -11,6 +12,15 @@ const MAX_REQUEST_BODY_BYTES = 32 * 1024 * 1024;
 const CORS_ALLOW_HEADERS = 'content-type, authorization, x-diag';
 const CORS_ALLOW_METHODS = 'POST, OPTIONS';
 const CORS_MAX_AGE = '86400';
+
+function withCORS(res) {
+  if (!res || typeof res.setHeader !== 'function') return;
+  res.setHeader('Access-Control-Allow-Origin', BRIDGE_ORIGIN);
+  res.setHeader('Vary', 'Origin');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Diag');
+}
 
 export const config = {
   memory: 256,
@@ -61,22 +71,19 @@ function applyCors(req, res) {
   const requestedOrigin = resolveRequestedOrigin(req);
   const allowList = getAllowedOriginsFromEnv();
   const decision = resolveCorsDecision(requestedOrigin, allowList);
-  const resolvedOrigin = decision.allowed
-    ? decision.allowedOrigin ?? decision.requestedOrigin ?? FRONT_ORIGIN
-    : decision.allowedOrigin ?? FRONT_ORIGIN;
-
+  const resolvedOrigin = BRIDGE_ORIGIN;
+  withCORS(res);
   if (typeof res.setHeader === 'function') {
-    res.setHeader('Access-Control-Allow-Origin', resolvedOrigin || FRONT_ORIGIN);
     res.setHeader('Access-Control-Allow-Methods', CORS_ALLOW_METHODS);
     res.setHeader('Access-Control-Allow-Headers', CORS_ALLOW_HEADERS);
     res.setHeader('Access-Control-Max-Age', CORS_MAX_AGE);
-    res.setHeader('Vary', 'Origin');
   }
   return { decision, origin: resolvedOrigin };
 }
 
 function sendJsonWithCors(req, res, status, payload) {
   applyCors(req, res);
+  withCORS(res);
   if (typeof res.setHeader === 'function' && !res.getHeader?.('Content-Type')) {
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
   }
@@ -338,6 +345,7 @@ function buildMockProduct(payload) {
 
 export default async function handler(req, res) {
   const diagId = createDiagId();
+  withCORS(res);
   const method = String(req.method || '').toUpperCase();
 
   if (method === 'OPTIONS') {

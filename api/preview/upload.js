@@ -1,9 +1,19 @@
 import { randomUUID } from 'node:crypto';
-import { ensureCors, respondCorsDenied } from '../../lib/cors.js';
 import getSupabaseAdmin from '../../lib/_lib/supabaseAdmin.js';
 import logger from '../../lib/_lib/logger.js';
 
 export const config = { api: { bodyParser: { sizeLimit: '3mb' } } };
+
+const BRIDGE_ORIGIN = 'https://tu-mousepad-personalizado.mgmgamers.store';
+
+function withCORS(res) {
+  if (!res || typeof res.setHeader !== 'function') return;
+  res.setHeader('Access-Control-Allow-Origin', BRIDGE_ORIGIN);
+  res.setHeader('Vary', 'Origin');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Upsert');
+}
 
 function parseDataUrl(dataUrl = '') {
   const match = /^data:([^;]+);base64,(.+)$/.exec(dataUrl);
@@ -14,20 +24,14 @@ function parseDataUrl(dataUrl = '') {
 }
 
 function sendJson(res, status, payload) {
+  withCORS(res);
   res.setHeader?.('Content-Type', 'application/json; charset=utf-8');
   res.status(status).json(payload);
 }
 
 export default async function handler(req, res) {
   const diagId = randomUUID();
-  const decision = ensureCors(req, res);
-  if (!decision?.allowed) {
-    respondCorsDenied(req, res, decision, diagId);
-    return;
-  }
-
-  res.setHeader?.('Access-Control-Allow-Methods', 'POST,OPTIONS');
-  res.setHeader?.('Access-Control-Allow-Headers', 'content-type,authorization,x-upsert');
+  withCORS(res);
   if (req.method === 'OPTIONS') {
     res.status(204).end();
     return;
@@ -107,6 +111,7 @@ export default async function handler(req, res) {
       diagId,
       err: err?.message || err,
     });
+    withCORS(res);
     sendJson(res, 500, { ok: false, error: 'internal_error', diagId });
   }
 }

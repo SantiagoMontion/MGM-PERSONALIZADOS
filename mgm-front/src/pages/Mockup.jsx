@@ -230,81 +230,48 @@ function isHttpUrl(u) {
   return typeof u === 'string' && /^https?:\/\//i.test(u?.trim?.() || '');
 }
 
-let preTabRef = null;
-
-function openOrReusePreTab() {
+function openBridgeTab() {
   if (typeof window === 'undefined') return null;
-  if (preTabRef && !preTabRef.closed) {
-    return preTabRef;
-  }
   try {
-    const tab = window.open('', '_blank', 'noopener');
-    preTabRef = tab || null;
-    if (tab) {
-      try {
-        tab.document.open();
-        tab.document.write(`
-          <html><head><meta charset="utf-8"><title>Abriendo...</title>
-          <style>
-            html,body{margin:0;height:100%;background:#0e0e0e;color:#fff;display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif}
-            .box{padding:24px 28px;border-radius:14px;background:rgba(255,255,255,.06);backdrop-filter:blur(6px);box-shadow:0 10px 30px rgba(0,0,0,.35)}
-          </style></head>
-          <body><div class="box">Preparando tu página...</div></body></html>
-        `);
-        tab.document.close();
-      } catch (writeErr) {
-        diag('[mockup] pretab_loader_failed', writeErr);
-      }
-    }
-    return preTabRef;
+    return window.open('/bridge', '_blank', 'noopener,noreferrer');
   } catch (err) {
-    diag('[mockup] pretab_open_failed', err);
-    preTabRef = null;
+    diag('[mockup] bridge_open_failed', err);
     return null;
   }
 }
 
-function navigatePreTabOrClose(url) {
-  const tab = preTabRef;
-  preTabRef = null;
-  if (!tab || tab.closed) {
-    if (url && !openInNewTabSafe(url)) {
-      try {
-        window.open(url, '_blank', 'noopener,noreferrer');
-      } catch (openErr) {
-        diag('[mockup] fallback_tab_open_failed', openErr);
-      }
-    }
-    return;
-  }
-  if (url && typeof url === 'string') {
+function sendToBridge(win, url) {
+  const target = typeof url === 'string' && url ? url : null;
+  let delivered = false;
+  if (target && win && !win.closed) {
     try {
-      tab.location.replace(url);
-      return;
-    } catch (replaceErr) {
-      diag('[mockup] pretab_replace_failed', replaceErr);
-      try {
-        tab.location.href = url;
-        return;
-      } catch (hrefErr) {
-        diag('[mockup] pretab_href_failed', hrefErr);
-      }
+      win.postMessage({ type: 'go', url: target }, window.location.origin);
+      delivered = true;
+    } catch (err) {
+      diag('[mockup] bridge_post_failed', err);
     }
-    if (!openInNewTabSafe(url)) {
-      try {
-        window.open(url, '_blank', 'noopener,noreferrer');
-      } catch (openErr) {
-        diag('[mockup] fallback_tab_open_failed', openErr);
-      }
-    }
-    try {
-      tab.close();
-    } catch {}
-    return;
   }
+  if (!delivered && target) {
+    if (!openInNewTabSafe(target)) {
+      try {
+        window.open(target, '_blank', 'noopener,noreferrer');
+      } catch (openErr) {
+        diag('[mockup] bridge_fallback_open_failed', openErr);
+      }
+    }
+    if (win && !win.closed) {
+      closeBridge(win);
+    }
+  }
+}
+
+function closeBridge(win) {
+  if (!win || win.closed) return;
   try {
-    tab.close();
-  } catch {}
+    win.close();
+  } catch (err) {
+    diag('[mockup] bridge_close_failed', err);
+  }
 }
 
 function openInNewTabSafe(url) {
@@ -2492,20 +2459,20 @@ export default function Mockup() {
     });
 
     setToast(null);
-    openOrReusePreTab();
+    const bridgeTab = openBridgeTab();
     setCartStatus('creating');
     try {
       await ensureMockupUrlInFlow(flow);
       const overrides = { ...buildOverridesFromUi('cart'), private: false };
       const result = await buyDirect('cart', overrides, { autoOpen: false });
-      const outcome = finalizePurchase(result, flow, 'No se pudo abrir el producto. Intenta de nuevo.');
+      const outcome = finalizePurchase(result, flow, bridgeTab, 'No se pudo abrir el producto. Intenta de nuevo.');
       return outcome;
     } catch (err) {
       warn('[cart] error', err);
       const fallbackMessage = 'Ocurrio un error al agregar al carrito.';
       toastErr(fallbackMessage);
       setToast({ message: fallbackMessage });
-      navigatePreTabOrClose(null);
+      closeBridge(bridgeTab);
     } finally {
       setCartStatus('idle');
     }
@@ -2520,19 +2487,19 @@ export default function Mockup() {
     return null;
   }
 
-  function finalizePurchase(result, flowRef, fallbackMessage = 'No se pudo abrir el producto. Intenta de nuevo.') {
+  function finalizePurchase(result, flowRef, bridgeWin, fallbackMessage = 'No se pudo abrir el producto. Intenta de nuevo.') {
     if (!result) {
-      navigatePreTabOrClose(null);
+      closeBridge(bridgeWin);
       return { ok: false };
     }
     const targetUrl = pickOpenUrl(result);
     if (isHttpUrl(targetUrl)) {
-      navigatePreTabOrClose(targetUrl);
+      sendToBridge(bridgeWin, targetUrl);
       const flowStateForJump = typeof flowRef?.get === 'function' ? flowRef.get() : flowRef;
       jumpHomeAndClean(flowStateForJump || flowRef);
       return { ok: true, url: targetUrl };
     }
-    navigatePreTabOrClose(null);
+    closeBridge(bridgeWin);
     toastErr(fallbackMessage);
     setToast({ message: fallbackMessage });
     return { ok: false };
@@ -2621,14 +2588,16 @@ export default function Mockup() {
         h: overrides?.heightCm ?? null,
       });
       if (autoOpen && openUrl) {
-        openOrReusePreTab();
-        navigatePreTabOrClose(openUrl);
+        try {
+          window.open(openUrl, '_blank', 'noopener');
+        } catch (assignErr) {
+          warn('[mockup] direct_navigation_failed', assignErr);
+        }
       }
       return result;
     } catch (err) {
       error('[buy] direct:error', mode, err);
       setToast((prev) => (prev ? prev : { message: 'No se pudo crear el producto.' }));
-      navigatePreTabOrClose(null);
       throw err;
     }
   }
@@ -2640,7 +2609,7 @@ export default function Mockup() {
     setPublicBusy(true);
     setBusy(true);
 
-    openOrReusePreTab();
+    const bridgeTab = openBridgeTab();
     try {
       setBuyPromptOpen(false);
       await ensureMockupPublicReady(flow);
@@ -2654,11 +2623,11 @@ export default function Mockup() {
         visibility: 'public',
       };
       const result = await buyDirect('checkout', { ...overrides, private: false }, { skipEnsure: true, autoOpen: false });
-      const outcome = finalizePurchase(result, flow, 'No se pudo abrir el checkout. Proba nuevamente.');
+      const outcome = finalizePurchase(result, flow, bridgeTab, 'No se pudo abrir el checkout. Proba nuevamente.');
       return outcome;
     } catch (err) {
       error('[checkout-public-flow]', err);
-      navigatePreTabOrClose(null);
+      closeBridge(bridgeTab);
       setToast({ message: 'Ocurrio un error al procesar el checkout.' });
       return null;
     } finally {
@@ -2675,7 +2644,7 @@ export default function Mockup() {
     setPrivateBusy(true);
     setBusy(true);
 
-    openOrReusePreTab();
+    const bridgeTab = openBridgeTab();
     try {
       setBuyPromptOpen(false);
       await ensureMockupPublicReady(flow);
@@ -2689,11 +2658,11 @@ export default function Mockup() {
         visibility: 'private',
       };
       const result = await buyDirect('checkout', { ...overrides, private: true }, { skipEnsure: true, autoOpen: false });
-      const outcome = finalizePurchase(result, flow, 'No se pudo abrir el checkout privado. Proba de nuevo.');
+      const outcome = finalizePurchase(result, flow, bridgeTab, 'No se pudo abrir el checkout privado. Proba de nuevo.');
       return outcome;
     } catch (err) {
       error('[checkout-private-flow]', err);
-      navigatePreTabOrClose(null);
+      closeBridge(bridgeTab);
       setToast({ message: 'Ocurrio un error al crear el checkout privado.' });
       return null;
     } finally {
