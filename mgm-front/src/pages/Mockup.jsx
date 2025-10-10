@@ -526,27 +526,74 @@ async function waitUrlReady(url, tries = 8, delayMs = 350) {
 
 async function ensureMockupPublicReady(flowState) {
   const resolveState = () => (typeof flowState?.get === 'function' ? flowState.get() : flowState);
-  let state = resolveState();
-  if (!state?.mockupPublicUrl && !state?.mockupUrl) {
+  const pickCandidate = (state) => {
+    if (!state || typeof state !== 'object') return null;
+    const candidates = [state.mockupPublicUrl, state.mockupUrl, state.mockupDataUrl];
+    for (const candidate of candidates) {
+      if (typeof candidate === 'string' && candidate.trim()) {
+        return candidate.trim();
+      }
+    }
+    return null;
+  };
+
+  const applyHttpToFlow = (publicUrl) => {
+    if (!isHttpUrl(publicUrl)) return null;
+    if (typeof flowState?.set === 'function') {
+      try {
+        flowState.set({ mockupPublicUrl: publicUrl, mockupUrl: publicUrl });
+      } catch (setErr) {
+        diag('[mockup] ensure_mockup_public_set_failed', setErr);
+      }
+    } else {
+      const latest = resolveState();
+      if (latest && typeof latest === 'object') {
+        latest.mockupPublicUrl = publicUrl;
+        latest.mockupUrl = publicUrl;
+      }
+    }
+    return publicUrl;
+  };
+
+  const ensureUploadedPublic = async () => {
     try {
-      await ensureMockupUrlInFlow(flowState);
+      const maybeUrl = await ensureMockupUrlInFlow(flowState);
+      const latest = resolveState();
+      const httpCandidate = [maybeUrl, latest?.mockupPublicUrl, latest?.mockupUrl].find((value) => isHttpUrl(value));
+      if (httpCandidate) {
+        return applyHttpToFlow(httpCandidate);
+      }
     } catch (err) {
-      diag('[mockup] ensure_mockup_url_in_flow_failed', err);
+      diag('[mockup] ensure_mockup_public_upload_failed', err);
     }
-    state = resolveState();
+    return null;
+  };
+
+  let state = resolveState();
+  let candidate = pickCandidate(state);
+
+  if (!candidate) {
+    return ensureUploadedPublic();
   }
-  const url = state?.mockupPublicUrl || state?.mockupUrl;
-  if (!url) {
-    return;
-  }
-  try {
-    const ready = await waitUrlReady(url, 3, 250);
-    if (!ready) {
-      diag('[mockup] mockup_head_unconfirmed', { url });
+
+  if (isHttpUrl(candidate)) {
+    try {
+      const ready = await waitUrlReady(candidate, 3, 250);
+      if (!ready) {
+        diag('[mockup] mockup_head_unconfirmed', { url: candidate });
+      }
+    } catch (headErr) {
+      diag('[mockup] mockup_head_failed', headErr);
     }
-  } catch (headErr) {
-    diag('[mockup] mockup_head_failed', headErr);
+    return applyHttpToFlow(candidate) || candidate;
   }
+
+  const lowerCandidate = candidate.toLowerCase();
+  if (lowerCandidate.startsWith('blob:') || lowerCandidate.startsWith('data:')) {
+    return ensureUploadedPublic();
+  }
+
+  return ensureUploadedPublic();
 }
 
 function buildDimsFromFlowState(flowState) {
@@ -609,7 +656,11 @@ function buildShopifyPayload(flowState, mode) {
   const priceTransfer = Number(source?.priceTransfer ?? 0);
   const priceNormal = Number(source?.priceNormal ?? 0);
   const currency = source?.priceCurrency;
-  const mockupUrl = source?.mockupPublicUrl || source?.mockupUrl || null;
+  const resolvedMockupUrl = (() => {
+    if (isHttpUrl(source?.mockupPublicUrl)) return source.mockupPublicUrl;
+    if (isHttpUrl(source?.mockupUrl)) return source.mockupUrl;
+    return null;
+  })();
   const payload = {
     mode,
     designName,
@@ -623,7 +674,7 @@ function buildShopifyPayload(flowState, mode) {
     priceNormal,
     currency,
     productType,
-    mockupUrl,
+    mockupUrl: resolvedMockupUrl || undefined,
     pdfPublicUrl: source?.pdfPublicUrl,
     masterPublicUrl: source?.masterPublicUrl || null,
     designHash: source?.designHash,
@@ -631,6 +682,13 @@ function buildShopifyPayload(flowState, mode) {
     masterHeightPx: source?.masterHeightPx,
     ...(mode === 'private' ? { isPrivate: true } : {}),
   };
+  if (resolvedMockupUrl && 'mockupDataUrl' in payload) {
+    try {
+      delete payload.mockupDataUrl;
+    } catch (_) {
+      payload.mockupDataUrl = undefined;
+    }
+  }
   return payload;
 }
 
@@ -2394,6 +2452,11 @@ export default function Mockup() {
 
     const priceTransferRaw = Number(flowState?.priceTransfer ?? 0);
     const price = Number.isFinite(priceTransferRaw) ? priceTransferRaw : 0;
+    const httpMockupUrl = (() => {
+      if (isHttpUrl(flowState?.mockupPublicUrl)) return flowState.mockupPublicUrl;
+      if (isHttpUrl(flowState?.mockupUrl)) return flowState.mockupUrl;
+      return undefined;
+    })();
 
     return {
       material: mat,
@@ -2407,8 +2470,7 @@ export default function Mockup() {
       heightCm: height ?? undefined,
       designName: resolvedDesignName,
       title,
-      mockupPublicUrl: flowState?.mockupPublicUrl || flowState?.mockupUrl || undefined,
-      mockupUrl: flowState?.mockupUrl || flowState?.mockupPublicUrl || undefined,
+      ...(httpMockupUrl ? { mockupPublicUrl: httpMockupUrl, mockupUrl: httpMockupUrl } : {}),
       pdfPublicUrl: flowState?.pdfPublicUrl || undefined,
       productType,
       price,
@@ -2435,9 +2497,18 @@ export default function Mockup() {
     window.open(`/bridge?rid=${encodeURIComponent(bridgeRid)}`, '_blank', 'noopener');
     setCartStatus('creating');
     try {
-      await ensureMockupUrlInFlow(flow);
+      let resolvedMockupUrl = null;
+      try {
+        resolvedMockupUrl = await ensureMockupPublicReady(flow);
+      } catch (mockupErr) {
+        diag('[cart] ensure_mockup_public_ready_failed', mockupErr);
+      }
       const overrides = { ...buildOverridesFromUi('cart'), private: false };
-      const result = await buyDirect('cart', overrides, { autoOpen: false });
+      if (isHttpUrl(resolvedMockupUrl)) {
+        overrides.mockupPublicUrl = resolvedMockupUrl;
+        overrides.mockupUrl = resolvedMockupUrl;
+      }
+      const result = await buyDirect('cart', overrides, { autoOpen: false, skipEnsure: true });
       const outcome = finalizePurchase(result, flow, bridgeRid, 'No se pudo abrir el producto. Intenta de nuevo.');
       return outcome;
     } catch (err) {
@@ -2600,8 +2671,12 @@ export default function Mockup() {
 
     try {
       setBuyPromptOpen(false);
-      await ensureMockupPublicReady(flow);
-      await ensureMockupUrlInFlow(flow);
+      let resolvedMockupUrl = null;
+      try {
+        resolvedMockupUrl = await ensureMockupPublicReady(flow);
+      } catch (mockupErr) {
+        diag('[checkout-public] ensure_mockup_public_ready_failed', mockupErr);
+      }
       const baseOverrides = buildOverridesFromUi('checkout') || {};
       const overrides = {
         ...baseOverrides,
@@ -2610,6 +2685,10 @@ export default function Mockup() {
         },
         visibility: 'public',
       };
+      if (isHttpUrl(resolvedMockupUrl)) {
+        overrides.mockupPublicUrl = resolvedMockupUrl;
+        overrides.mockupUrl = resolvedMockupUrl;
+      }
       const result = await buyDirect('checkout', { ...overrides, private: false }, { skipEnsure: true, autoOpen: false });
       return finalizePurchase(result, flow, bridgeRid, 'No se pudo abrir el checkout. Intenta nuevamente.');
     } catch (err) {
@@ -2637,8 +2716,12 @@ export default function Mockup() {
 
     try {
       setBuyPromptOpen(false);
-      await ensureMockupPublicReady(flow);
-      await ensureMockupUrlInFlow(flow);
+      let resolvedMockupUrl = null;
+      try {
+        resolvedMockupUrl = await ensureMockupPublicReady(flow);
+      } catch (mockupErr) {
+        diag('[checkout-private] ensure_mockup_public_ready_failed', mockupErr);
+      }
       const baseOverrides = buildOverridesFromUi('private') || {};
       const overrides = {
         ...baseOverrides,
@@ -2647,6 +2730,10 @@ export default function Mockup() {
         },
         visibility: 'private',
       };
+      if (isHttpUrl(resolvedMockupUrl)) {
+        overrides.mockupPublicUrl = resolvedMockupUrl;
+        overrides.mockupUrl = resolvedMockupUrl;
+      }
       const result = await buyDirect('checkout', { ...overrides, private: true }, { skipEnsure: true, autoOpen: false });
       return finalizePurchase(result, flow, bridgeRid, 'No se pudo abrir el checkout privado. Proba de nuevo.');
     } catch (err) {
