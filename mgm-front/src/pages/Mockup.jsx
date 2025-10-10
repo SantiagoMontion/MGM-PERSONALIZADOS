@@ -1060,6 +1060,31 @@ export default function Mockup() {
     return [];
   }
 
+  // === Reactivar CTAs de compra: ejecutar SIEMPRE createJobAndProduct con await ===
+  async function runPublish(mode, flowState, options) {
+    const payloadForTrace = (() => {
+      try {
+        return buildShopifyPayload(flowState, mode);
+      } catch (err) {
+        console.debug('[buy] payload_failed', { mode, err });
+        return null;
+      }
+    })();
+    const hasMockup = Boolean(payloadForTrace?.mockupUrl);
+    const hasPdf = Boolean(payloadForTrace?.pdfPublicUrl);
+    console.log('[buy] start', { mode, hasPdf, hasMockup });
+    const result = await createJobAndProduct(mode, flowState, options);
+    const resultUrl = typeof result?.checkoutUrl === 'string' && result.checkoutUrl
+      ? result.checkoutUrl
+      : typeof result?.productUrl === 'string' && result.productUrl
+        ? result.productUrl
+        : typeof result?.url === 'string' && result.url
+          ? result.url
+          : null;
+    console.log('[buy] done', { mode, ok: result?.ok ?? true, url: resultUrl });
+    return result;
+  }
+
   async function startCartFlow(extraOptions = {}) {
     if (busy && cartStatus !== 'idle') return;
     setToast(null);
@@ -1080,7 +1105,7 @@ export default function Mockup() {
         baseOptions.discountCode = normalizedDiscountCode;
       }
       logger.info('[cart-flow] create_job_and_product_start');
-      const result = await createJobAndProduct('cart', flow, baseOptions);
+      const result = await runPublish('cart', flow, baseOptions);
       logger.info('[cart-flow] create_job_and_product_success', {
         keys: result && typeof result === 'object' ? Object.keys(result) : null,
       });
@@ -1300,7 +1325,7 @@ export default function Mockup() {
           ? jobOptions
           : { ...jobOptions, discountCode: normalizedDiscountCode };
       logger.info(`[${mode}-flow] create_job_and_product_start`);
-      const result = await createJobAndProduct(mode, submissionFlow, jobOptionsWithDiscount);
+      const result = await runPublish(mode, submissionFlow, jobOptionsWithDiscount);
       logger.info(`[${mode}-flow] create_job_and_product_success`, {
         keys: result && typeof result === 'object' ? Object.keys(result) : null,
       });
