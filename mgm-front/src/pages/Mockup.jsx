@@ -125,6 +125,14 @@ function parseQueryOverrides() {
   };
 }
 
+const getMockupSrc = (flowLike) => {
+  const url = flowLike?.mockupUrl || flowLike?.mockupPublicUrl || null;
+  if (typeof url === 'string' && url.trim()) {
+    return url.trim();
+  }
+  return null;
+};
+
 import { ensureTrackingRid, trackEvent } from '@/lib/tracking';
 
 const PUBLISH_MAX_PAYLOAD_KB = Number(import.meta.env?.VITE_PUBLISH_MAX_PAYLOAD_KB) || 200;
@@ -219,7 +227,25 @@ const asStr = (value, fallback = '') => {
 const safeReplace = (value, pattern, replacement) => asStr(value).replace(pattern, replacement);
 
 function isHttpUrl(u) {
-  return typeof u === 'string' && /^https?:\/\//i.test(u.trim());
+  return typeof u === 'string' && /^https?:\/\//i.test(u?.trim?.() || '');
+}
+
+function reserveTab() {
+  if (typeof window === 'undefined') return null;
+  try {
+    const tab = window.open('about:blank', '_blank', 'noopener,noreferrer');
+    if (tab) {
+      try {
+        tab.document.write('<title>Abriendo...</title>');
+      } catch (writeErr) {
+        diag('[mockup] reserve_tab_write_failed', writeErr);
+      }
+    }
+    return tab || null;
+  } catch (err) {
+    diag('[mockup] reserve_tab_failed', err);
+    return null;
+  }
 }
 
 function openInNewTabSafe(url) {
@@ -458,7 +484,7 @@ export async function ensureMockupUrlInFlow(flow, input) {
       flow.set({
         ...nextState,
         mockupBlob,
-        mockupPublicUrl: nextState?.mockupPublicUrl || null,
+        mockupPublicUrl: fallbackUrl,
         mockupUrl: fallbackUrl,
       });
     } catch (stateErr) {
@@ -1440,7 +1466,7 @@ export default function Mockup() {
       } else if (messageRaw && messageRaw !== 'Error') {
         friendly = messageRaw;
       } else {
-        friendly = 'Shopify rechazó el carrito generado. Intentá nuevamente en unos segundos.';
+        friendly = 'Shopify rechazó el carrito generado. Intenta nuevamente en unos segundos.';
       }
     }
     setToast({ message: friendly, tone: 'error', persist: true });
@@ -1762,6 +1788,11 @@ export default function Mockup() {
   async function handle(mode, options = {}) {
     if (mode !== 'checkout' && mode !== 'cart' && mode !== 'private') return;
 
+    if (mode === 'private') {
+      await onCheckoutPrivateClick();
+      return;
+    }
+
     let privateStageCallback = null;
 
     if (mode === 'cart') {
@@ -2040,7 +2071,7 @@ export default function Mockup() {
           }
           const err = new Error('private_checkout_network_error');
           err.reason = 'private_checkout_network_error';
-          err.friendlyMessage = 'No pudimos generar el checkout privado. Probá de nuevo en unos segundos.';
+          err.friendlyMessage = 'No pudimos generar el checkout privado. Proba de nuevo en unos segundos.';
           err.detail = requestErr?.message || null;
           throw err;
         }
@@ -2246,7 +2277,7 @@ export default function Mockup() {
         const baseMessage =
           typeof error?.friendlyMessage === 'string' && error.friendlyMessage
             ? error.friendlyMessage
-            : 'No pudimos generar el checkout privado. Probá de nuevo en unos segundos.';
+            : 'No pudimos generar el checkout privado. Proba de nuevo en unos segundos.';
         const extraParts = [];
         if (userErrors.length) {
           extraParts.push(userErrors.join(' | '));
@@ -2366,6 +2397,7 @@ export default function Mockup() {
     const priceTransferRaw = Number(flowState?.priceTransfer ?? 0);
     const price = Number.isFinite(priceTransferRaw) ? priceTransferRaw : 0;
 
+    const mockupSrc = getMockupSrc(flowState);
     return {
       material: mat,
       materialResolved: mat,
@@ -2378,8 +2410,8 @@ export default function Mockup() {
       heightCm: height ?? undefined,
       designName: resolvedDesignName,
       title,
-      mockupPublicUrl: flowState?.mockupPublicUrl || flowState?.mockupUrl || undefined,
-      mockupUrl: flowState?.mockupUrl || flowState?.mockupPublicUrl || undefined,
+      mockupPublicUrl: mockupSrc || undefined,
+      mockupUrl: mockupSrc || undefined,
       pdfPublicUrl: flowState?.pdfPublicUrl || undefined,
       productType,
       price,
@@ -2401,16 +2433,26 @@ export default function Mockup() {
     });
 
     setToast(null);
+    const reservedTab = reserveTab();
     setCartStatus('creating');
     try {
+      await ensureMockupUrlInFlow(flow);
       const overrides = buildOverridesFromUi('cart');
       const result = await buyDirect('cart', overrides, { autoOpen: false });
-      return finalizePurchase(result, flow);
+      const outcome = finalizePurchase(result, flow, reservedTab, 'No se pudo abrir el producto. Intenta de nuevo.');
+      return outcome;
     } catch (err) {
       warn('[cart] error', err);
-      const fallbackMessage = 'Ocurrió un error al agregar al carrito.';
+      const fallbackMessage = 'Ocurrio un error al agregar al carrito.';
       toastErr(fallbackMessage);
       setToast({ message: fallbackMessage });
+      if (reservedTab && !reservedTab.closed) {
+        try {
+          reservedTab.close();
+        } catch (closeErr) {
+          diag('[mockup] reserved_tab_close_failed', closeErr);
+        }
+      }
     } finally {
       setCartStatus('idle');
     }
@@ -2425,25 +2467,60 @@ export default function Mockup() {
     return null;
   }
 
-  function finalizePurchase(result, flowRef) {
+  function finalizePurchase(result, flowRef, reservedTab = null, fallbackMessage = 'No se pudo abrir el producto. Intenta de nuevo.') {
     if (!result) {
+      if (reservedTab && !reservedTab.closed) {
+        try {
+          reservedTab.close();
+        } catch (closeErr) {
+          diag('[mockup] reserved_tab_close_failed', closeErr);
+        }
+      }
       return { ok: false };
     }
     const targetUrl = pickOpenUrl(result);
     if (isHttpUrl(targetUrl)) {
-      const opened = openInNewTabSafe(targetUrl);
-      if (!opened) {
+      let navigated = false;
+      if (reservedTab && !reservedTab.closed) {
+        try {
+          reservedTab.location.replace
+            ? reservedTab.location.replace(targetUrl)
+            : (reservedTab.location.href = targetUrl);
+          navigated = true;
+        } catch (assignErr) {
+          diag('[mockup] reserved_tab_navigation_failed', assignErr);
+        }
+      }
+      if (!navigated) {
+        navigated = openInNewTabSafe(targetUrl);
+      }
+      if (!navigated) {
+        try {
+          window.open(targetUrl, '_blank', 'noopener,noreferrer');
+          navigated = true;
+        } catch (fallbackErr) {
+          warn('[mockup] finalize_navigation_failed', fallbackErr);
+        }
+      }
+      if (!navigated) {
         try {
           window.location.assign(targetUrl);
+          navigated = true;
         } catch (assignErr) {
-          warn('[mockup] finalize_navigation_failed', assignErr);
+          warn('[mockup] finalize_assign_failed', assignErr);
         }
       }
       const flowStateForJump = typeof flowRef?.get === 'function' ? flowRef.get() : flowRef;
       jumpHomeAndClean(flowStateForJump || flowRef);
       return { ok: true, url: targetUrl };
     }
-    const fallbackMessage = 'No se pudo abrir el producto. Intentá de nuevo.';
+    if (reservedTab && !reservedTab.closed) {
+      try {
+        reservedTab.close();
+      } catch (closeErr) {
+        diag('[mockup] reserved_tab_close_failed', closeErr);
+      }
+    }
     toastErr(fallbackMessage);
     setToast({ message: fallbackMessage });
     return { ok: false };
@@ -2553,9 +2630,11 @@ export default function Mockup() {
     setPublicBusy(true);
     setBusy(true);
 
+    const reservedTab = reserveTab();
     try {
       setBuyPromptOpen(false);
       await ensureMockupPublicReady(flow);
+      await ensureMockupUrlInFlow(flow);
       const baseOverrides = buildOverridesFromUi('checkout') || {};
       const overrides = {
         ...baseOverrides,
@@ -2566,10 +2645,18 @@ export default function Mockup() {
         visibility: 'public',
       };
       const result = await buyDirect('checkout', overrides, { skipEnsure: true, autoOpen: false });
-      return finalizePurchase(result, flow);
+      const outcome = finalizePurchase(result, flow, reservedTab, 'No se pudo abrir el checkout. Proba nuevamente.');
+      return outcome;
     } catch (err) {
       error('[checkout-public-flow]', err);
-      setToast({ message: 'Ocurrió un error al procesar el checkout.' });
+      if (reservedTab && !reservedTab.closed) {
+        try {
+          reservedTab.close();
+        } catch (closeErr) {
+          diag('[mockup] reserved_tab_close_failed', closeErr);
+        }
+      }
+      setToast({ message: 'Ocurrio un error al procesar el checkout.' });
       return null;
     } finally {
       setPublicBusy(false);
@@ -2585,9 +2672,11 @@ export default function Mockup() {
     setPrivateBusy(true);
     setBusy(true);
 
+    const reservedTab = reserveTab();
     try {
       setBuyPromptOpen(false);
       await ensureMockupPublicReady(flow);
+      await ensureMockupUrlInFlow(flow);
       const baseOverrides = buildOverridesFromUi('private') || {};
       const overrides = {
         ...baseOverrides,
@@ -2597,11 +2686,19 @@ export default function Mockup() {
         private: true,
         visibility: 'private',
       };
-      const result = await buyDirect('private', overrides, { skipEnsure: true, autoOpen: false });
-      return finalizePurchase(result, flow);
+      const result = await buyDirect('checkout', overrides, { skipEnsure: true, autoOpen: false });
+      const outcome = finalizePurchase(result, flow, reservedTab, 'No se pudo abrir el checkout privado. Proba de nuevo.');
+      return outcome;
     } catch (err) {
       error('[checkout-private-flow]', err);
-      setToast({ message: 'Ocurrió un error al procesar el checkout privado.' });
+      if (reservedTab && !reservedTab.closed) {
+        try {
+          reservedTab.close();
+        } catch (closeErr) {
+          diag('[mockup] reserved_tab_close_failed', closeErr);
+        }
+      }
+      setToast({ message: 'Ocurrio un error al crear el checkout privado.' });
       return null;
     } finally {
       setPrivateBusy(false);

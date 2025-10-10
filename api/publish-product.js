@@ -517,8 +517,53 @@ export default async function handler(req, res) {
   const currencyValue = String(parsedBody.currency || process.env.SHOPIFY_CART_PRESENTMENT_CURRENCY || 'USD');
   parsedBody.price = priceValue;
   parsedBody.currency = currencyValue;
-  // Pasar mockupUrl simple; la imagen se adjunta en el handler vía REST
+  // Pasar mockupUrl simple; la imagen se adjunta en el handler via REST
   parsedBody.mockupUrl = mockupUrlRaw || parsedBody.mockupUrl || null;
+  const imageSrcCandidate =
+    (typeof parsedBody.mockupUrl === 'string' && parsedBody.mockupUrl)
+    || (typeof parsedBody.mockupPublicUrl === 'string' && parsedBody.mockupPublicUrl)
+    || (typeof parsedBody.previewUrl === 'string' && parsedBody.previewUrl)
+    || null;
+  parsedBody.imageSrc = typeof imageSrcCandidate === 'string' && imageSrcCandidate ? imageSrcCandidate : null;
+  let imageReachable = null;
+  if (typeof parsedBody.imageSrc === 'string' && /^https?:\/\//i.test(parsedBody.imageSrc)) {
+    imageReachable = false;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        const timeoutId = controller ? setTimeout(() => controller.abort(), 2000) : null;
+        try {
+          const headResp = await fetch(parsedBody.imageSrc, {
+            method: 'HEAD',
+            cache: 'no-store',
+            redirect: 'follow',
+            signal: controller?.signal,
+          });
+          if (headResp?.ok) {
+            imageReachable = true;
+            if (timeoutId) clearTimeout(timeoutId);
+            break;
+          }
+        } catch (_) {
+          // continuar
+        } finally {
+          if (timeoutId) clearTimeout(timeoutId);
+        }
+      } catch (_) {
+        // ignorar y reintentar
+      }
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+  }
+  try {
+    console.log('[audit:publish-product:image]', {
+      diagId,
+      present: Boolean(parsedBody.imageSrc),
+      reachable: imageReachable,
+    });
+  } catch (_) {
+    // noop
+  }
   // Diags para verificar qué llegó y qué se usó
   try {
     console.log('[audit:publish-product:resolved]', {
