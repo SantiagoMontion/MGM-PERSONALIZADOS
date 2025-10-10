@@ -1069,6 +1069,9 @@ export default function Home() {
       const normalPrice = transferPrice;
 
       flow.set({
+        // Guardar SIEMPRE la medida elegida por el cliente (cm), para evitar caer a px/DPI
+        widthCm: Math.round(Number(activeWcm)),
+        heightCm: Math.round(Number(activeHcm)),
         productType: material === 'Glasspad' ? 'glasspad' : 'mousepad',
         editorState: layout,
         mockupBlob,

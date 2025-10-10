@@ -247,8 +247,12 @@ function buildShopifyPayload(flowState, mode) {
   const designNameRaw = (source?.designName ?? '').toString();
   const designName = designNameRaw.trim();
   // *** FUENTE ÚNICA DE VERDAD: lo que guardamos al “Continuar” ***
-  let widthCm = Number(source?.widthCm ?? source?.composition?.widthCm);
-  let heightCm = Number(source?.heightCm ?? source?.composition?.heightCm);
+  let widthCm = Number(source?.widthCm);
+  let heightCm = Number(source?.heightCm);
+  if (!Number.isFinite(widthCm) || widthCm <= 0 || !Number.isFinite(heightCm) || heightCm <= 0) {
+    widthCm = Number(source?.composition?.widthCm);
+    heightCm = Number(source?.composition?.heightCm);
+  }
   if (!Number.isFinite(widthCm) || widthCm <= 0 || !Number.isFinite(heightCm) || heightCm <= 0) {
     // Fallback (no debe pasar, pero evitamos valores raros)
     const dims = buildDimsFromFlowState(source);
@@ -262,6 +266,8 @@ function buildShopifyPayload(flowState, mode) {
     widthCm = 49;
     heightCm = 42;
   }
+  widthCm = Math.round(Number(widthCm));
+  heightCm = Math.round(Number(heightCm));
   const title = buildTitle(designName, widthCm, heightCm, materialLabel);
   // Precios de la calculadora del front (transferencia manda)
   const priceTransfer = Number(source?.priceTransfer ?? 0);
@@ -273,7 +279,7 @@ function buildShopifyPayload(flowState, mode) {
     mode,
     designName,
     widthCm,
-    heightCm,
+    heightCm, // ← viajan en cm tal cual eligió el cliente
     // Enviar el material en los 3 campos para no perderlo en ninguna ruta
     options: { ...(source?.options || {}), material: materialLabel },
     material: materialLabel,

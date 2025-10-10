@@ -441,7 +441,7 @@ export default async function handler(req, res) {
   // Fallback súper conservador si faltan (evita casos como 111x89)
   if (!Number.isFinite(widthCmSafe) || widthCmSafe <= 0 || !Number.isFinite(heightCmSafe) || heightCmSafe <= 0) {
     widthCmSafe = null;
-    heightCmSafe = null;
+    heightCmSafe = null; // sin inventar desde px/DPI
   } else {
     widthCmSafe = Math.round(widthCmSafe);
     heightCmSafe = Math.round(heightCmSafe);
@@ -464,6 +464,8 @@ export default async function handler(req, res) {
   const baseCategory = isGlass ? 'Glasspad' : 'Mousepad';
   // Glasspad: normalizar SIEMPRE a 49x42 para el título y metadatos
   if (isGlass) { widthCmSafe = 49; heightCmSafe = 42; }
+  if (Number.isFinite(widthCmSafe)) widthCmSafe = Math.round(widthCmSafe);
+  if (Number.isFinite(heightCmSafe)) heightCmSafe = Math.round(heightCmSafe);
   const hasDims = Number.isFinite(widthCmSafe) && Number.isFinite(heightCmSafe) && widthCmSafe > 0 && heightCmSafe > 0;
   // Formato EXACTO:
   // - Mousepad: "Mousepad {Nombre} {WxH} {Material} | PERSONALIZADO"
