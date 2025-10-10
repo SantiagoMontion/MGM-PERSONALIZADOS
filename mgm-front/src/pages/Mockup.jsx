@@ -18,6 +18,18 @@ import logger from '../lib/logger';
 import { ensureTrackingRid, trackEvent } from '@/lib/tracking';
 
 const PUBLISH_MAX_PAYLOAD_KB = Number(import.meta.env?.VITE_PUBLISH_MAX_PAYLOAD_KB) || 200;
+const BUY_DEBUG = true;
+const dlog = (...args) => { if (BUY_DEBUG) console.log('[buy]', ...args); };
+const derr = (...args) => { console.error('[buy]', ...args); };
+try {
+  if (typeof window !== 'undefined' && !window.__BUY_DEBUG_WIRED__) {
+    window.__BUY_DEBUG_WIRED__ = true;
+    window.addEventListener('unhandledrejection', (event) => derr('unhandledrejection', event?.reason));
+    window.addEventListener('error', (event) => derr('window.onerror', event?.error || event?.message));
+  }
+} catch (_) {
+  // no-op
+}
 // Guard legacy: mapear preservedCustom al designName actual si existe
 // --- Guardia contra referencias sueltas a "preservedCustom" ---
 // Si algún handler viejo lo usa como identificador global, lo definimos aquí
@@ -1062,27 +1074,42 @@ export default function Mockup() {
 
   // === Reactivar CTAs de compra: ejecutar SIEMPRE createJobAndProduct con await ===
   async function runPublish(mode, flowState, options) {
-    const payloadForTrace = (() => {
-      try {
-        return buildShopifyPayload(flowState, mode);
-      } catch (err) {
-        console.debug('[buy] payload_failed', { mode, err });
-        return null;
+    try {
+      dlog('start', { mode });
+      const payloadForTrace = (() => {
+        try {
+          return buildShopifyPayload(flowState, mode);
+        } catch (err) {
+          derr('payload_failed', mode, err);
+          return null;
+        }
+      })();
+      if (payloadForTrace) {
+        dlog('payload', {
+          mode,
+          title: payloadForTrace?.title,
+          material: payloadForTrace?.material ?? payloadForTrace?.materialResolved,
+          widthCm: payloadForTrace?.widthCm,
+          heightCm: payloadForTrace?.heightCm,
+          hasPdf: Boolean(payloadForTrace?.pdfPublicUrl),
+          hasMockup: Boolean(payloadForTrace?.mockupUrl),
+          price: payloadForTrace?.priceTransfer ?? payloadForTrace?.price ?? null,
+        });
       }
-    })();
-    const hasMockup = Boolean(payloadForTrace?.mockupUrl);
-    const hasPdf = Boolean(payloadForTrace?.pdfPublicUrl);
-    console.log('[buy] start', { mode, hasPdf, hasMockup });
-    const result = await createJobAndProduct(mode, flowState, options);
-    const resultUrl = typeof result?.checkoutUrl === 'string' && result.checkoutUrl
-      ? result.checkoutUrl
-      : typeof result?.productUrl === 'string' && result.productUrl
-        ? result.productUrl
-        : typeof result?.url === 'string' && result.url
-          ? result.url
-          : null;
-    console.log('[buy] done', { mode, ok: result?.ok ?? true, url: resultUrl });
-    return result;
+      const result = await createJobAndProduct(mode, flowState, options);
+      const resultUrl = typeof result?.checkoutUrl === 'string' && result.checkoutUrl
+        ? result.checkoutUrl
+        : typeof result?.productUrl === 'string' && result.productUrl
+          ? result.productUrl
+          : typeof result?.url === 'string' && result.url
+            ? result.url
+            : null;
+      dlog('done', { mode, ok: result?.ok ?? true, url: resultUrl, reason: result?.reason });
+      return result;
+    } catch (err) {
+      derr('error', mode, err);
+      throw err;
+    }
   }
 
   async function startCartFlow(extraOptions = {}) {
