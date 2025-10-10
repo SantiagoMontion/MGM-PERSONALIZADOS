@@ -780,16 +780,6 @@ export default function Mockup() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  function openNewTabSafely() {
-    if (typeof window === 'undefined') return null;
-    try {
-      const w = window.open('about:blank', '_blank', 'noopener,noreferrer');
-      return w || null;
-    } catch {
-      return null;
-    }
-  }
-
   function jumpHomeAndClean(currentFlow) {
     try {
       const hash = currentFlow?.designHash || currentFlow?.designHashState;
@@ -1070,19 +1060,6 @@ export default function Mockup() {
       }
     };
   }, [cartBtnBusy]);
-
-  const jumpHomeAndClean = useCallback((flowLike) => {
-    const flowStateLike = typeof flowLike?.get === 'function' ? flowLike.get() : flowLike;
-    const designHash = flowStateLike?.designHash;
-    if (designHash && typeof window !== 'undefined') {
-      try {
-        window.sessionStorage.removeItem(`mgm:flow:${designHash}`);
-      } catch (_) {
-        // noop
-      }
-    }
-    navigate('/', { replace: true });
-  }, [navigate]);
 
   const cartButtonLabel = CART_STATUS_LABELS[cartStatus] || CART_STATUS_LABELS.idle;
   const cartBusy = cartStatus !== 'idle';
