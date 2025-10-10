@@ -144,33 +144,26 @@ function normalizeMaterialLabelSafe(flow) {
 function extractFlowBasics(flowLike = {}) {
   const name = safeStr(flowLike?.designName, 'Personalizado');
   let material = normalizeMaterialLabelSafe(flowLike);
-  const widthCandidate = Number(flowLike?.widthCm);
-  const heightCandidate = Number(flowLike?.heightCm);
-  let widthCm = Number.isFinite(widthCandidate) && widthCandidate > 0 ? Math.round(widthCandidate) : null;
-  let heightCm = Number.isFinite(heightCandidate) && heightCandidate > 0 ? Math.round(heightCandidate) : null;
-  if (!widthCm || !heightCm) {
-    const compWidth = Number(flowLike?.composition?.widthCm);
-    const compHeight = Number(flowLike?.composition?.heightCm);
-    widthCm = !widthCm && Number.isFinite(compWidth) && compWidth > 0 ? Math.round(compWidth) : widthCm;
-    heightCm = !heightCm && Number.isFinite(compHeight) && compHeight > 0 ? Math.round(compHeight) : heightCm;
-  }
-  if ((!widthCm || !heightCm) && flowLike?.editorState?.size_cm) {
-    const sizeW = Number(flowLike.editorState.size_cm.w);
-    const sizeH = Number(flowLike.editorState.size_cm.h);
-    widthCm = !widthCm && Number.isFinite(sizeW) && sizeW > 0 ? Math.round(sizeW) : widthCm;
-    heightCm = !heightCm && Number.isFinite(sizeH) && sizeH > 0 ? Math.round(sizeH) : heightCm;
-  }
+  let width = Number(flowLike?.widthCm);
+  let height = Number(flowLike?.heightCm);
   if (material === 'Glasspad') {
-    widthCm = 49;
-    heightCm = 42;
+    width = 49;
+    height = 42;
   }
-  widthCm = Number.isFinite(widthCm) && widthCm > 0 ? Math.max(1, Math.round(widthCm)) : 1;
-  heightCm = Number.isFinite(heightCm) && heightCm > 0 ? Math.max(1, Math.round(heightCm)) : 1;
+  const validatedWidth = Number.isFinite(width) && width > 0 ? Math.round(width) : null;
+  const validatedHeight = Number.isFinite(height) && height > 0 ? Math.round(height) : null;
+  const titleRaw = material === 'Glasspad'
+    ? `Glasspad ${name} 49x42 | PERSONALIZADO`
+    : `Mousepad ${name} ${validatedWidth ?? ''}x${validatedHeight ?? ''} ${material} | PERSONALIZADO`;
+  const title = safeReplace(titleRaw, /\s+/g, ' ').trim();
   const designHash = safeStr(flowLike?.designHash ?? flowLike?.designHashState);
   const hash8 = designHash.slice(0, 8) || '00000000';
-  const base = safeReplace(`${name} ${widthCm}x${heightCm} ${material}`, /\s+/g, ' ').trim();
-  const slug = asStr(base)
-    .normalize('NFKD')
+  const baseForKey = safeReplace(`${name} ${validatedWidth ?? ''}x${validatedHeight ?? ''} ${material}`, /\s+/g, ' ').trim();
+  let slug = asStr(baseForKey);
+  if (typeof slug.normalize === 'function') {
+    slug = slug.normalize('NFKD');
+  }
+  slug = slug
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-zA-Z0-9 _-]/g, '')
     .replace(/\s+/g, ' ')
@@ -178,17 +171,12 @@ function extractFlowBasics(flowLike = {}) {
   const now = new Date();
   const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const objectKeyBase = safeReplace(`${slug || 'Personalizado'} ${hash8}`, /\s+/g, ' ').trim();
-  const objectKey = `mockups-${ym}/${objectKeyBase}.png`;
-  const titleRaw = material === 'Glasspad'
-    ? `Glasspad ${name} 49x42 | PERSONALIZADO`
-    : `Mousepad ${name} ${widthCm}x${heightCm} ${material} | PERSONALIZADO`;
-  const title = safeReplace(titleRaw, /\s+/g, ' ').trim();
+  const objectKey = `mockups-${ym}/${objectKeyBase || 'preview-listado'}.png`;
   return {
     name,
-    material,
-    widthCm,
-    heightCm,
-    designHash,
+    mat: material,
+    width: validatedWidth,
+    height: validatedHeight,
     title,
     objectKey,
     hash8,
@@ -282,9 +270,9 @@ export async function ensureMockupUrlInFlow(flow, input) {
     material: state?.material ?? input?.material,
   };
   const basics = extractFlowBasics(state);
-  const materialLabel = basics.material;
-  const widthCmValue = basics.widthCm || cmFromPx(composition.widthPx, dpi);
-  const heightCmValue = basics.heightCm || cmFromPx(composition.heightPx, dpi);
+  const materialLabel = basics.mat;
+  const widthCmValue = basics.width || cmFromPx(composition.widthPx, dpi);
+  const heightCmValue = basics.height || cmFromPx(composition.heightPx, dpi);
   const mockupBlob = await renderMockup1080(image, {
     material: materialLabel,
     approxDpi: dpi,
@@ -311,12 +299,12 @@ export async function ensureMockupUrlInFlow(flow, input) {
           mockupBlob,
           mockupPublicUrl: publicUrl,
           mockupUrl: publicUrl,
-          widthCm: basics.widthCm,
-          heightCm: basics.heightCm,
-          material: basics.material,
+          widthCm: basics.width,
+          heightCm: basics.height,
+          material: basics.mat,
           designName: basics.name,
           title: basics.title ?? nextState?.title,
-          options: { ...(nextState?.options || {}), material: basics.material },
+          options: { ...(nextState?.options || {}), material: basics.mat },
           mockupDataUrl: null,
         });
       }
@@ -1921,27 +1909,24 @@ export default function Mockup() {
     const flowLike = (typeof flow?.get === 'function' && flow.get()) || flow || {};
     const basics = extractFlowBasics(flowLike);
     const name = basics.name || 'Personalizado';
-    const material = basics.material || 'Classic';
-    const widthCm = basics.widthCm;
-    const heightCm = basics.heightCm;
-    const isGlasspad = material === 'Glasspad';
-    const effectiveWidth = isGlasspad ? 49 : widthCm;
-    const effectiveHeight = isGlasspad ? 42 : heightCm;
+    const material = basics.mat || 'Classic';
+    const width = basics.width;
+    const height = basics.height;
     const title = basics.title;
     const overrides = {
       material,
       materialResolved: material,
       options: { ...(flowLike?.options || {}), material },
-      productType: isGlasspad ? 'glasspad' : 'mousepad',
+      productType: material === 'Glasspad' ? 'glasspad' : 'mousepad',
       title,
       designName: name,
       mockupUrl: safeStr(flowLike?.mockupPublicUrl) || safeStr(flowLike?.mockupUrl),
     };
-    if (Number.isFinite(effectiveWidth) && effectiveWidth > 0) {
-      overrides.widthCm = Math.round(effectiveWidth);
+    if (Number.isFinite(width) && width > 0) {
+      overrides.widthCm = Math.round(width);
     }
-    if (Number.isFinite(effectiveHeight) && effectiveHeight > 0) {
-      overrides.heightCm = Math.round(effectiveHeight);
+    if (Number.isFinite(height) && height > 0) {
+      overrides.heightCm = Math.round(height);
     }
     return overrides;
   }
@@ -1969,21 +1954,26 @@ export default function Mockup() {
         console.log('[buy] direct:flow', {
           materialRaw: stateForLog?.material,
           optionsMaterial: stateForLog?.options?.material,
-          mat: basicsForLog.material,
-          widthCm: basicsForLog.widthCm,
-          heightCm: basicsForLog.heightCm,
+          mat: basicsForLog.mat,
+          widthCm: basicsForLog.width,
+          heightCm: basicsForLog.height,
           title: basicsForLog.title,
         });
       } catch (_) {
         // noop
       }
+      if (!Number.isFinite(basicsForLog.width) || basicsForLog.width <= 0
+        || !Number.isFinite(basicsForLog.height) || basicsForLog.height <= 0) {
+        setToast({ message: 'Faltan medidas del diseño. Volvé y tocá “Continuar” para guardarlas.' });
+        return;
+      }
       const overrides = buildOverridesFromUi(mode);
       try {
         console.log('[buy] direct:payload', {
           mode,
-          material: overrides?.material ?? basicsForLog.material,
-          width: overrides?.widthCm ?? basicsForLog.widthCm,
-          height: overrides?.heightCm ?? basicsForLog.heightCm,
+          material: overrides?.material ?? basicsForLog.mat,
+          width: overrides?.widthCm ?? basicsForLog.width,
+          height: overrides?.heightCm ?? basicsForLog.height,
           title: overrides?.title ?? basicsForLog.title,
         });
       } catch (_) {

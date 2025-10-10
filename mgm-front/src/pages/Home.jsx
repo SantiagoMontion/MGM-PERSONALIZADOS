@@ -1085,7 +1085,7 @@ export default function Home() {
 
       const transferPrice = Number(priceAmount) > 0 ? Number(priceAmount) : 0;
       const normalPrice = transferPrice;
-      const nameRaw = safeStr(trimmedDesignName || flowState?.designName || '');
+      const nameRaw = safeStr(trimmedDesignName || flowState?.designName || flow?.designName, 'Personalizado');
       const nameClean = safeReplace(nameRaw, /\s+/g, ' ').slice(0, 40) || 'Personalizado';
       const chosenWidthCmRaw = Number(activeWcm);
       const chosenHeightCmRaw = Number(activeHcm);
@@ -1095,7 +1095,6 @@ export default function Home() {
       const chosenHeightCm = Number.isFinite(chosenHeightCmRaw) && chosenHeightCmRaw > 0
         ? Math.round(chosenHeightCmRaw)
         : null;
-      const selectedName = safeStr(trimmedDesignName || flowState?.designName || flow?.designName, 'Personalizado');
       const selectedMaterial = normalizeMaterialLabelSafe(
         material
         || flowState?.material
@@ -1108,12 +1107,19 @@ export default function Home() {
         ?? (Number.isFinite(existingWidth) && existingWidth > 0 ? Math.round(existingWidth) : null);
       const heightToStore = chosenHeightCm
         ?? (Number.isFinite(existingHeight) && existingHeight > 0 ? Math.round(existingHeight) : null);
+      const finalMaterial = selectedMaterial === 'Glasspad' ? 'Glasspad' : selectedMaterial || 'Classic';
+      let finalWidthCm = widthToStore;
+      let finalHeightCm = heightToStore;
+      if (finalMaterial === 'Glasspad') {
+        finalWidthCm = 49;
+        finalHeightCm = 42;
+      }
 
       flow.set({
         // Guardar SIEMPRE la medida elegida por el cliente (cm), para evitar caer a px/DPI
-        widthCm: widthToStore,
-        heightCm: heightToStore,
-        productType: selectedMaterial === 'Glasspad' ? 'glasspad' : 'mousepad',
+        widthCm: finalWidthCm,
+        heightCm: finalHeightCm,
+        productType: finalMaterial === 'Glasspad' ? 'glasspad' : 'mousepad',
         editorState: layout,
         mockupBlob,
         mockupUrl,
@@ -1131,9 +1137,9 @@ export default function Home() {
         uploadSizeBytes: designBlob.size,
         uploadContentType: designMime,
         uploadSha256: designSha,
-        designName: selectedName,
-        material: selectedMaterial,
-        options: { ...(flowState?.options || {}), material: selectedMaterial },
+        designName: nameClean,
+        material: finalMaterial,
+        options: { ...(flowState?.options || {}), material: finalMaterial },
         lowQualityAck: level === 'bad' ? Boolean(ackLow) : false,
         approxDpi: effDpi || null,
         priceTransfer: transferPrice,
