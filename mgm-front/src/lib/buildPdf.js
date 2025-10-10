@@ -18,19 +18,31 @@ export async function buildPdfFromMaster(masterBlob, options = {}) {
     heightPx,
     widthMm,
     heightMm,
+    mime,
     maxBytes = Infinity,
     dpi = 300,
   } = options || {};
 
+  performance.mark?.('pdf_bytes_start');
   const bytes = await masterBlob.arrayBuffer();
+  performance.mark?.('pdf_bytes_end');
   const pdfDoc = await PDFDocument.create();
 
+  performance.mark?.('pdf_embed_start');
+  const lowerMime = (mime || masterBlob.type || '').toLowerCase();
   let embedded;
-  try {
-    embedded = await pdfDoc.embedPng(bytes);
-  } catch {
+  if (lowerMime.includes('jpeg') || lowerMime.includes('jpg')) {
     embedded = await pdfDoc.embedJpg(bytes);
+  } else if (lowerMime.includes('png')) {
+    embedded = await pdfDoc.embedPng(bytes);
+  } else {
+    try {
+      embedded = await pdfDoc.embedPng(bytes);
+    } catch {
+      embedded = await pdfDoc.embedJpg(bytes);
+    }
   }
+  performance.mark?.('pdf_embed_end');
 
   const intrinsicWidth = embedded.width;
   const intrinsicHeight = embedded.height;
@@ -64,7 +76,21 @@ export async function buildPdfFromMaster(masterBlob, options = {}) {
     height: imageHeightPt,
   });
   // Aprovechar object streams (PDF 1.5+) reduce tamaño/tiempo de serialización
+  performance.mark?.('pdf_save_start');
   let pdfBytes = await pdfDoc.save({ useObjectStreams: true });
+  performance.mark?.('pdf_save_end');
+  try {
+    const measure = (name, start, end) => {
+      const result = performance.measure?.(name, start, end);
+      return result?.duration ?? 0;
+    };
+    const fmt = (value) => (Number.isFinite(value) ? Number(value.toFixed(2)) : value);
+    console.debug?.('[perf.pdf]', {
+      bytes: fmt(measure('pdf_bytes', 'pdf_bytes_start', 'pdf_bytes_end')),
+      embed: fmt(measure('pdf_embed', 'pdf_embed_start', 'pdf_embed_end')),
+      save: fmt(measure('pdf_save', 'pdf_save_start', 'pdf_save_end')),
+    });
+  } catch {}
   if (!(Number.isFinite(maxBytes) && maxBytes > 0) || pdfBytes.length <= maxBytes) {
     return pdfBytes;
   }

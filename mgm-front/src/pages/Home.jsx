@@ -916,6 +916,7 @@ export default function Home() {
             widthMm: masterWidthMm,
             heightMm: masterHeightMm,
             maxBytes: maxPdfBytes,
+            mime: designMime,
           });
           bytes = localBytes?.buffer && localBytes.byteOffset === 0 && localBytes.byteLength === localBytes.buffer?.byteLength
             ? localBytes.buffer
