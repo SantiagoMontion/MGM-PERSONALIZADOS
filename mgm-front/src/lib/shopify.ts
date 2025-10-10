@@ -154,7 +154,7 @@ async function signUpload({
     const res = await apiFetch(
       'POST',
       '/api/storage/sign',
-      { bucket, contentType, path },
+      { bucket, contentType, path, upsert: true },
       controller ? { signal: controller.signal } : undefined,
     );
     const text = await res.text().catch(() => '');

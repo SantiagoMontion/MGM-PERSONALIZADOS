@@ -117,7 +117,7 @@ export default async function handler(req, res) {
       const { data, error } = await supabase
         .storage
         .from(bucketName)
-        .createSignedUploadUrl(objectKey, expiresInRaw);
+        .createSignedUploadUrl(objectKey, expiresInRaw, { upsert: upsertRequested });
       if (error || !data?.signedUrl) {
         return { error: error || new Error('missing_signed_url') };
       }

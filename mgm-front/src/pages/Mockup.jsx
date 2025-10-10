@@ -118,7 +118,7 @@ async function signUpload({ bucket, contentType, path }) {
     try {
       return await postJSON(
         getResolvedApiUrl('/api/storage/sign'),
-        { bucket: bucketName, contentType, path },
+        { bucket: bucketName, contentType, path, upsert: true },
         30000,
       );
     } catch (error) {
