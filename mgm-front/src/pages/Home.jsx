@@ -1202,7 +1202,21 @@ export default function Home() {
       } catch (mockupEnsureError) {
         console.warn('[diag] ensure mockup url failed during continue', mockupEnsureError);
       }
-      navigate('/mockup');
+      const qs = new URLSearchParams();
+      if (finalMaterial) {
+        qs.set('mat', finalMaterial);
+      }
+      if (Number.isFinite(finalWidthCm) && finalWidthCm > 0) {
+        qs.set('w', String(finalWidthCm));
+      }
+      if (Number.isFinite(finalHeightCm) && finalHeightCm > 0) {
+        qs.set('h', String(finalHeightCm));
+      }
+      if (nameClean) {
+        qs.set('name', nameClean);
+      }
+      const query = qs.toString();
+      navigate(`/mockup${query ? `?${query}` : ''}`);
     } catch (e) {
       logger.error(e);
       setErr(String(e?.message || e));

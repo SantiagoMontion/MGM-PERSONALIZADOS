@@ -98,7 +98,11 @@ function cmFromPx(px, dpi) {
 }
 
 function matLabelOf(material) {
-  const text = String(material || '').toLowerCase();
+  const raw = safeStr(material);
+  if (!raw) {
+    return null;
+  }
+  const text = raw.toLowerCase();
   if (text.includes('glass')) {
     return 'Glasspad';
   }
@@ -108,7 +112,7 @@ function matLabelOf(material) {
   if (text.includes('classic')) {
     return 'Classic';
   }
-  return (String(material || '').trim() || 'Classic');
+  return raw;
 }
 
 const asStr = (value, fallback = '') => {
@@ -131,35 +135,39 @@ const safeReplace = (value, pattern, replacement) => asStr(value).replace(patter
 
 function loadPersistedFlow() {
   if (typeof window === 'undefined') return null;
-  try {
-    const raw = window.localStorage.getItem(FLOW_STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object') return null;
-    const result = { ...parsed };
-    if ('widthCm' in result) {
-      const num = Number(result.widthCm);
-      if (Number.isFinite(num) && num > 0) {
-        result.widthCm = Math.round(num);
-      } else {
-        delete result.widthCm;
+  const keys = ['mgm:flow', FLOW_STORAGE_KEY];
+  for (const key of keys) {
+    try {
+      const raw = window.localStorage.getItem(key);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object') continue;
+      const result = { ...parsed };
+      if ('widthCm' in result) {
+        const num = Number(result.widthCm);
+        if (Number.isFinite(num) && num > 0) {
+          result.widthCm = Math.round(num);
+        } else {
+          delete result.widthCm;
+        }
       }
-    }
-    if ('heightCm' in result) {
-      const num = Number(result.heightCm);
-      if (Number.isFinite(num) && num > 0) {
-        result.heightCm = Math.round(num);
-      } else {
-        delete result.heightCm;
+      if ('heightCm' in result) {
+        const num = Number(result.heightCm);
+        if (Number.isFinite(num) && num > 0) {
+          result.heightCm = Math.round(num);
+        } else {
+          delete result.heightCm;
+        }
       }
+      if (result.options && typeof result.options !== 'object') {
+        delete result.options;
+      }
+      return result;
+    } catch {
+      // continue to next key
     }
-    if (result.options && typeof result.options !== 'object') {
-      delete result.options;
-    }
-    return result;
-  } catch {
-    return null;
   }
+  return null;
 }
 
 function normalizeMaterialLabelSafe(flow) {
@@ -172,7 +180,8 @@ function normalizeMaterialLabelSafe(flow) {
   if (raw.includes('glass')) return 'Glasspad';
   if (raw.includes('pro')) return 'PRO';
   if (raw.includes('classic')) return 'Classic';
-  return candidates.find(Boolean) || null;
+  const match = candidates.find((value) => value && value.trim());
+  return match ? match.trim() : null;
 }
 
 function extractFlowBasics(flowLike = {}) {
@@ -213,7 +222,7 @@ function extractFlowBasics(flowLike = {}) {
       height = editorHeight;
     }
   }
-  if (!material || material === 'Classic') {
+  if (!material) {
     const editorMaterial = safeStr(
       flowLike?.editorState?.material
         ?? flowLike?.editorState?.options?.material
@@ -237,7 +246,12 @@ function extractFlowBasics(flowLike = {}) {
   }
   const validatedWidth = Number.isFinite(width) && width > 0 ? Math.round(width) : null;
   const validatedHeight = Number.isFinite(height) && height > 0 ? Math.round(height) : null;
-  const title = buildTitle(name, validatedWidth, validatedHeight, material);
+  const title = buildTitle({
+    name,
+    widthCm: validatedWidth,
+    heightCm: validatedHeight,
+    material,
+  });
   const designHash = safeStr(flowLike?.designHash ?? flowLike?.designHashState);
   const hash8 = designHash.slice(0, 8) || '00000000';
   const keyStem = safeReplace(title, /[^a-zA-Z0-9 _-]/g, '').replace(/\s+/g, ' ').trim();
@@ -507,18 +521,36 @@ function buildDimsFromFlowState(flowState) {
   };
 }
 
-function buildTitle(designName, widthCm, heightCm, materialLabel) {
-  const isGlass = materialLabel === 'Glasspad';
+function buildTitle(nameOrConfig, maybeWidth, maybeHeight, maybeMaterial) {
+  const config = (nameOrConfig && typeof nameOrConfig === 'object' && !Array.isArray(nameOrConfig))
+    ? nameOrConfig
+    : {
+      name: nameOrConfig,
+      widthCm: maybeWidth,
+      heightCm: maybeHeight,
+      material: maybeMaterial,
+    };
+  const nameValue = safeStr(config.name ?? config.designName, 'Personalizado') || 'Personalizado';
+  const widthCm = Number.isFinite(Number(config.widthCm)) && Number(config.widthCm) > 0
+    ? Math.round(Number(config.widthCm))
+    : null;
+  const heightCm = Number.isFinite(Number(config.heightCm)) && Number(config.heightCm) > 0
+    ? Math.round(Number(config.heightCm))
+    : null;
+  const hasDims = widthCm != null && heightCm != null;
+  const normalizedMaterial = safeStr(config.material);
+  const kind = config.kind || (normalizedMaterial === 'Glasspad' ? 'Glasspad' : 'Mousepad');
+  const isGlass = kind === 'Glasspad';
   const base = isGlass ? 'Glasspad' : 'Mousepad';
-  const hasDims = Number.isFinite(widthCm) && Number.isFinite(heightCm) && widthCm > 0 && heightCm > 0;
   if (isGlass) {
     return hasDims
-      ? `${base} ${designName} ${widthCm}x${heightCm} | PERSONALIZADO`
-      : `${base} ${designName} | PERSONALIZADO`;
+      ? `${base} ${nameValue} ${widthCm}x${heightCm} | PERSONALIZADO`
+      : `${base} ${nameValue} | PERSONALIZADO`;
   }
+  const materialForTitle = normalizedMaterial || 'Classic';
   return hasDims
-    ? `${base} ${designName} ${widthCm}x${heightCm} ${materialLabel} | PERSONALIZADO`
-    : `${base} ${designName} ${materialLabel} | PERSONALIZADO`;
+    ? `${base} ${nameValue} ${widthCm}x${heightCm} ${materialForTitle} | PERSONALIZADO`
+    : `${base} ${nameValue} ${materialForTitle} | PERSONALIZADO`;
 }
 
 function buildShopifyPayload(flowState, mode) {
@@ -754,107 +786,173 @@ const BENEFITS = [
 
 export default function Mockup() {
   const flow = useFlow();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const qs = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const urlSeed = useMemo(() => ({
+    material: qs.get('mat') || undefined,
+    widthCm: qs.get('w') ? Number(qs.get('w')) : undefined,
+    heightCm: qs.get('h') ? Number(qs.get('h')) : undefined,
+    designName: qs.get('name') || undefined,
+  }), [qs]);
+  const initialUrlSeedRef = useRef(urlSeed);
+  const [flowReady, setFlowReady] = useState(false);
+
   useEffect(() => {
-    const persisted = loadPersistedFlow();
-    const currentOptions = (flow?.options && typeof flow.options === 'object') ? flow.options : {};
-    const logBasics = (source) => {
-      try {
-        const basics = extractFlowBasics(source || {});
-        console.log('[audit:flow:rehydrated]', {
-          material: basics.mat,
-          optionsMaterial: source?.options?.material,
-          widthCm: basics.width,
-          heightCm: basics.height,
-          title: basics.title,
-          mockupPublicUrl: source?.mockupPublicUrl || null,
-        });
-      } catch (_) {
-        // noop
-      }
-    };
-    if (!persisted) {
-      logBasics(flow);
+    if (typeof window === 'undefined') {
+      setFlowReady(true);
       return;
     }
-    if (!flow?.set) {
-      logBasics({ ...flow, ...persisted });
-      return;
-    }
+    const seed = initialUrlSeedRef.current || {};
+    const persisted = loadPersistedFlow() || {};
+    const current = (typeof flow?.get === 'function' ? flow.get() : flow) || {};
+    const currentOptions = (current?.options && typeof current.options === 'object') ? current.options : {};
+    const persistedOptions = (persisted?.options && typeof persisted.options === 'object') ? persisted.options : {};
+    const mergedOptions = { ...persistedOptions, ...currentOptions };
     const patch = {};
-    if (!safeStr(flow?.designName) && safeStr(persisted.designName)) {
-      patch.designName = safeStr(persisted.designName);
+
+    const designNameSeed = safeStr(seed.designName);
+    const designNamePersisted = safeStr(persisted.designName);
+    const designNameCurrent = safeStr(current.designName);
+    if (!designNameCurrent && (designNameSeed || designNamePersisted)) {
+      patch.designName = designNameSeed || designNamePersisted;
     }
-    const persistedMaterial = safeStr(
+
+    const materialSeed = safeStr(seed.material);
+    const materialPersisted = safeStr(
       persisted.material
         ?? persisted.materialResolved
-        ?? persisted.options?.material,
+        ?? persistedOptions.material,
     );
-    const existingMaterial = safeStr(
-      flow?.material
-        ?? flow?.materialResolved
-        ?? currentOptions?.material,
+    const materialCurrent = safeStr(
+      current.material
+        ?? current.materialResolved
+        ?? currentOptions.material,
     );
-    const mergedOptions = { ...currentOptions };
-    let optionsChanged = false;
-    if (persisted.options && typeof persisted.options === 'object') {
-      Object.entries(persisted.options).forEach(([key, value]) => {
-        if (mergedOptions[key] !== value) {
-          mergedOptions[key] = value;
-          optionsChanged = true;
-        }
-      });
+    const resolvedMaterial = materialCurrent || materialSeed || materialPersisted || null;
+    if (!materialCurrent && (materialSeed || materialPersisted)) {
+      const mat = materialSeed || materialPersisted;
+      patch.material = mat;
+      patch.materialResolved = persisted.materialResolved ?? mat;
     }
-    if (!existingMaterial && persistedMaterial) {
-      patch.material = persistedMaterial;
-      patch.materialResolved = persisted.materialResolved ?? persistedMaterial;
-      if (mergedOptions.material !== (persisted.options?.material ?? persistedMaterial)) {
-        mergedOptions.material = persisted.options?.material ?? persistedMaterial;
-        optionsChanged = true;
-      }
-    } else if (persistedMaterial && !mergedOptions.material) {
-      mergedOptions.material = persistedMaterial;
-      optionsChanged = true;
+
+    const optionMaterial = materialCurrent
+      || materialSeed
+      || materialPersisted
+      || mergedOptions.material;
+    if (optionMaterial) {
+      mergedOptions.material = optionMaterial;
     }
-    if (optionsChanged) {
+    const mergedOptionsString = JSON.stringify(mergedOptions || {});
+    const currentOptionsString = JSON.stringify(currentOptions || {});
+    if (mergedOptionsString !== currentOptionsString) {
       patch.options = mergedOptions;
     }
-    const existingWidth = Number(flow?.widthCm);
+
+    const currentWidth = Number(current.widthCm);
+    const seedWidth = Number(seed.widthCm);
     const persistedWidth = Number(persisted.widthCm);
-    if (!(Number.isFinite(existingWidth) && existingWidth > 0) && Number.isFinite(persistedWidth) && persistedWidth > 0) {
-      patch.widthCm = Math.round(persistedWidth);
+    if (!(Number.isFinite(currentWidth) && currentWidth > 0)) {
+      const widthCandidate = Number.isFinite(seedWidth) && seedWidth > 0
+        ? seedWidth
+        : (Number.isFinite(persistedWidth) && persistedWidth > 0 ? persistedWidth : null);
+      if (Number.isFinite(widthCandidate) && widthCandidate > 0) {
+        patch.widthCm = Math.round(widthCandidate);
+      }
     }
-    const existingHeight = Number(flow?.heightCm);
+
+    const currentHeight = Number(current.heightCm);
+    const seedHeight = Number(seed.heightCm);
     const persistedHeight = Number(persisted.heightCm);
-    if (!(Number.isFinite(existingHeight) && existingHeight > 0) && Number.isFinite(persistedHeight) && persistedHeight > 0) {
-      patch.heightCm = Math.round(persistedHeight);
+    if (!(Number.isFinite(currentHeight) && currentHeight > 0)) {
+      const heightCandidate = Number.isFinite(seedHeight) && seedHeight > 0
+        ? seedHeight
+        : (Number.isFinite(persistedHeight) && persistedHeight > 0 ? persistedHeight : null);
+      if (Number.isFinite(heightCandidate) && heightCandidate > 0) {
+        patch.heightCm = Math.round(heightCandidate);
+      }
     }
-    if (!safeStr(flow?.mockupPublicUrl) && safeStr(persisted.mockupPublicUrl || persisted.mockupUrl)) {
-      patch.mockupPublicUrl = safeStr(persisted.mockupPublicUrl || persisted.mockupUrl);
+
+    const finalWidth = Number.isFinite(Number(patch.widthCm)) ? Number(patch.widthCm) : Number(current.widthCm);
+    const finalHeight = Number.isFinite(Number(patch.heightCm)) ? Number(patch.heightCm) : Number(current.heightCm);
+    if (resolvedMaterial === 'Glasspad') {
+      if (!(Number.isFinite(finalWidth) && finalWidth > 0)) {
+        patch.widthCm = 49;
+      }
+      if (!(Number.isFinite(finalHeight) && finalHeight > 0)) {
+        patch.heightCm = 42;
+      }
     }
-    if (!safeStr(flow?.mockupUrl) && safeStr(persisted.mockupUrl || persisted.mockupPublicUrl)) {
-      patch.mockupUrl = safeStr(persisted.mockupUrl || persisted.mockupPublicUrl);
+
+    const mockupPersisted = safeStr(persisted.mockupPublicUrl || persisted.mockupUrl);
+    if (!safeStr(current.mockupPublicUrl) && mockupPersisted) {
+      patch.mockupPublicUrl = mockupPersisted;
     }
-    if (!safeStr(flow?.productType) && safeStr(persisted.productType)) {
+    const mockupUrlPersisted = safeStr(persisted.mockupUrl || persisted.mockupPublicUrl);
+    if (!safeStr(current.mockupUrl) && mockupUrlPersisted) {
+      patch.mockupUrl = mockupUrlPersisted;
+    }
+    if (!safeStr(current.productType) && safeStr(persisted.productType)) {
       patch.productType = safeStr(persisted.productType);
     }
-    if (persisted.approxDpi && !flow?.approxDpi) {
-      patch.approxDpi = persisted.approxDpi;
+    if (!current.approxDpi && Number.isFinite(Number(persisted.approxDpi))) {
+      patch.approxDpi = Number(persisted.approxDpi);
     }
-    if (persisted.masterWidthPx && !flow?.masterWidthPx) {
-      patch.masterWidthPx = persisted.masterWidthPx;
+    if (!current.masterWidthPx && Number.isFinite(Number(persisted.masterWidthPx))) {
+      patch.masterWidthPx = Number(persisted.masterWidthPx);
     }
-    if (persisted.masterHeightPx && !flow?.masterHeightPx) {
-      patch.masterHeightPx = persisted.masterHeightPx;
+    if (!current.masterHeightPx && Number.isFinite(Number(persisted.masterHeightPx))) {
+      patch.masterHeightPx = Number(persisted.masterHeightPx);
     }
-    if (Object.keys(patch).length > 0) {
+
+    if (typeof flow?.set === 'function' && Object.keys(patch).length > 0) {
       flow.set(patch);
-      const merged = { ...flow, ...patch };
-      merged.options = patch.options || merged.options;
-      logBasics(merged);
-    } else {
-      logBasics(flow);
     }
+
+    try {
+      const mergedForLog = {
+        ...persisted,
+        ...current,
+        ...patch,
+        options: {
+          ...persistedOptions,
+          ...currentOptions,
+          ...(patch.options || {}),
+        },
+      };
+      const matForLog = safeStr(
+        mergedForLog.material
+          ?? mergedForLog.materialResolved
+          ?? mergedForLog.options?.material
+          ?? seed.material,
+      ) || null;
+      const widthForLog = Number.isFinite(Number(mergedForLog.widthCm)) && Number(mergedForLog.widthCm) > 0
+        ? Math.round(Number(mergedForLog.widthCm))
+        : null;
+      const heightForLog = Number.isFinite(Number(mergedForLog.heightCm)) && Number(mergedForLog.heightCm) > 0
+        ? Math.round(Number(mergedForLog.heightCm))
+        : null;
+      const titleForLog = buildTitle(
+        safeStr(mergedForLog.designName || seed.designName || 'Personalizado'),
+        widthForLog,
+        heightForLog,
+        matForLog || undefined,
+      );
+      console.log('[audit:flow:rehydrated]', {
+        material: matForLog,
+        optionsMaterial: mergedForLog.options?.material ?? null,
+        widthCm: widthForLog,
+        heightCm: heightForLog,
+        title: titleForLog,
+        mockupPublicUrl: mergedForLog.mockupPublicUrl ?? null,
+      });
+    } catch (_) {
+      // noop
+    }
+
+    setFlowReady(true);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const flowState = typeof flow?.get === 'function' ? flow.get() : flow;
   const f = (typeof flow?.get === 'function' && flow.get()) || flowState || {};
   const designName = (f?.designName ?? '').toString();
@@ -867,28 +965,56 @@ export default function Mockup() {
   } catch (_) {
     // no-op
   }
-  const navigate = useNavigate();
-  const location = useLocation();
   const frontTitle = useMemo(() => {
     const designNameRaw = typeof flow?.designName === 'string' ? flow.designName : '';
-    const designName = designNameRaw.trim() || 'Personalizado';
-    const materialLabel = String(flow?.material || 'Classic');
-    const isGlass = materialLabel.toLowerCase().includes('glass');
+    const designNameValue = designNameRaw.trim() || 'Personalizado';
+    const materialLabel = safeStr(
+      flow?.material
+        ?? flow?.materialResolved
+        ?? flow?.options?.material
+        ?? initialUrlSeedRef.current?.material,
+    );
+    const isGlass = materialLabel === 'Glasspad';
     const baseCategory = isGlass ? 'Glasspad' : 'Mousepad';
-    const widthCandidate = Number(flow?.editorState?.size_cm?.w ?? flow?.widthCm);
-    const heightCandidate = Number(flow?.editorState?.size_cm?.h ?? flow?.heightCm);
+    const widthCandidate = Number(flow?.editorState?.size_cm?.w ?? flow?.widthCm ?? initialUrlSeedRef.current?.widthCm);
+    const heightCandidate = Number(flow?.editorState?.size_cm?.h ?? flow?.heightCm ?? initialUrlSeedRef.current?.heightCm);
     const widthCm = Number.isFinite(widthCandidate) && widthCandidate > 0 ? Math.round(widthCandidate) : null;
     const heightCm = Number.isFinite(heightCandidate) && heightCandidate > 0 ? Math.round(heightCandidate) : null;
     const hasDims = widthCm != null && heightCm != null;
     if (isGlass) {
       return hasDims
-        ? `${baseCategory} ${designName} ${widthCm}x${heightCm} | PERSONALIZADO`
-        : `${baseCategory} ${designName} | PERSONALIZADO`;
+        ? `${baseCategory} ${designNameValue} ${widthCm}x${heightCm} | PERSONALIZADO`
+        : `${baseCategory} ${designNameValue} | PERSONALIZADO`;
     }
+    const matPart = materialLabel ? ` ${materialLabel}` : '';
     return hasDims
-      ? `${baseCategory} ${designName} ${widthCm}x${heightCm} ${materialLabel} | PERSONALIZADO`
-      : `${baseCategory} ${designName} ${materialLabel} | PERSONALIZADO`;
+      ? `${baseCategory} ${designNameValue} ${widthCm}x${heightCm}${matPart} | PERSONALIZADO`
+      : `${baseCategory} ${designNameValue}${matPart} | PERSONALIZADO`;
   }, [flow]);
+
+  useEffect(() => {
+    const mat = safeStr(
+      flow?.material
+        ?? flow?.materialResolved
+        ?? flow?.options?.material,
+    );
+    const width = Number(flow?.widthCm);
+    const height = Number(flow?.heightCm);
+    if (!flowReady) return;
+    if (!mat || !(Number.isFinite(width) && width > 0) || !(Number.isFinite(height) && height > 0)) {
+      return;
+    }
+    ensureMockupUrlInFlow(flow).catch((error) => {
+      logger.debug?.('[mockup] ensure_mockup_url_initial_failed', error);
+    });
+  }, [
+    flowReady,
+    flow?.material,
+    flow?.materialResolved,
+    flow?.options?.material,
+    flow?.widthCm,
+    flow?.heightCm,
+  ]);
   const [busy, setBusy] = useState(false);
   const [cartStatus, setCartStatus] = useState('idle');
   const [publicBusy, setPublicBusy] = useState(false);
@@ -2088,26 +2214,41 @@ export default function Mockup() {
 
   function buildOverridesFromUi(_mode) {
     const flowLike = (typeof flow?.get === 'function' && flow.get()) || flow || {};
-    const basics = extractFlowBasics(flowLike);
-    const name = basics.name || 'Personalizado';
-    const material = basics.mat || 'Classic';
-    const width = basics.width;
-    const height = basics.height;
-    const title = basics.title;
-    const overrides = {
-      material,
-      materialResolved: material,
-      options: { ...(flowLike?.options || {}), material },
-      productType: material === 'Glasspad' ? 'glasspad' : 'mousepad',
-      title,
-      designName: name,
-      mockupUrl: safeStr(flowLike?.mockupPublicUrl) || safeStr(flowLike?.mockupUrl),
+    const mat = safeStr(
+      flowLike?.material
+        ?? flowLike?.materialResolved
+        ?? flowLike?.options?.material,
+    ) || null;
+    const widthRaw = Number(flowLike?.widthCm);
+    const heightRaw = Number(flowLike?.heightCm);
+    const width = Number.isFinite(widthRaw) && widthRaw > 0 ? Math.round(widthRaw) : null;
+    const height = Number.isFinite(heightRaw) && heightRaw > 0 ? Math.round(heightRaw) : null;
+    const title = buildTitle({
+      kind: mat === 'Glasspad' ? 'Glasspad' : 'Mousepad',
+      name: safeStr(flowLike?.designName, 'Personalizado') || 'Personalizado',
+      widthCm: width,
+      heightCm: height,
+      material: mat || undefined,
+    });
+    const optionsWithMat = {
+      ...(flowLike?.options || {}),
+      ...(mat ? { material: mat } : {}),
     };
-    if (Number.isFinite(width) && width > 0) {
-      overrides.widthCm = Math.round(width);
-    }
-    if (Number.isFinite(height) && height > 0) {
-      overrides.heightCm = Math.round(height);
+    const overrides = {
+      material: mat || undefined,
+      materialResolved: mat || undefined,
+      options: optionsWithMat,
+      widthCm: width ?? undefined,
+      heightCm: height ?? undefined,
+      title,
+      designName: safeStr(flowLike?.designName, 'Personalizado') || 'Personalizado',
+      mockupPublicUrl: flowLike?.mockupPublicUrl || flowLike?.mockupUrl || undefined,
+      mockupUrl: flowLike?.mockupUrl || flowLike?.mockupPublicUrl || undefined,
+    };
+    if (mat === 'Glasspad') {
+      overrides.productType = 'glasspad';
+    } else if (mat) {
+      overrides.productType = 'mousepad';
     }
     return overrides;
   }
@@ -2130,21 +2271,36 @@ export default function Mockup() {
         logger.debug?.('[mockup] ensure_mockup_public_ready_failed', mockupErr);
       }
       const stateForLog = (typeof flow?.get === 'function' ? flow.get() : flow) || {};
-      const basicsForLog = extractFlowBasics(stateForLog);
+      const mat = safeStr(
+        stateForLog?.material
+          ?? stateForLog?.materialResolved
+          ?? stateForLog?.options?.material,
+      ) || null;
+      const widthRaw = Number(stateForLog?.widthCm);
+      const heightRaw = Number(stateForLog?.heightCm);
+      const widthRounded = Number.isFinite(widthRaw) && widthRaw > 0 ? Math.round(widthRaw) : null;
+      const heightRounded = Number.isFinite(heightRaw) && heightRaw > 0 ? Math.round(heightRaw) : null;
+      const titleForFlowLog = buildTitle({
+        kind: mat === 'Glasspad' ? 'Glasspad' : 'Mousepad',
+        name: safeStr(stateForLog?.designName, 'Personalizado') || 'Personalizado',
+        widthCm: widthRounded,
+        heightCm: heightRounded,
+        material: mat || undefined,
+      });
       try {
         console.log('[buy] direct:flow', {
-          materialRaw: stateForLog?.material,
-          optionsMaterial: stateForLog?.options?.material,
-          mat: basicsForLog.mat,
-          widthCm: basicsForLog.width,
-          heightCm: basicsForLog.height,
-          title: basicsForLog.title,
+          materialRaw: stateForLog?.material ?? null,
+          optionsMaterial: stateForLog?.options?.material ?? null,
+          mat,
+          widthCm: widthRounded,
+          heightCm: heightRounded,
+          title: titleForFlowLog,
         });
       } catch (_) {
         // noop
       }
-      if (!Number.isFinite(basicsForLog.width) || basicsForLog.width <= 0
-        || !Number.isFinite(basicsForLog.height) || basicsForLog.height <= 0) {
+      if (!Number.isFinite(widthRounded) || widthRounded <= 0
+        || !Number.isFinite(heightRounded) || heightRounded <= 0) {
         setToast({ message: 'Faltan medidas del diseño. Volvé y tocá "Continuar" para guardarlas.' });
         return;
       }
@@ -2152,10 +2308,10 @@ export default function Mockup() {
       try {
         console.log('[buy] direct:payload', {
           mode,
-          material: overrides?.material ?? basicsForLog.mat,
-          width: overrides?.widthCm ?? basicsForLog.width,
-          height: overrides?.heightCm ?? basicsForLog.height,
-          title: overrides?.title ?? basicsForLog.title,
+          material: overrides?.material ?? mat,
+          width: overrides?.widthCm ?? widthRounded,
+          height: overrides?.heightCm ?? heightRounded,
+          title: overrides?.title ?? titleForFlowLog,
         });
       } catch (_) {
         // noop

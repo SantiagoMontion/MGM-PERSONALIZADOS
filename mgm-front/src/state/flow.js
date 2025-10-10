@@ -39,7 +39,7 @@ const defaultState = {
   uploadSha256: null,
   jobId: null,
   designName: '',
-  material: 'Classic',
+  material: null,
   options: {},
   widthCm: null,
   heightCm: null,
@@ -101,8 +101,12 @@ export function FlowProvider({ children }) {
         });
       }
       if (next.material === 'Glasspad') {
-        next.widthCm = 49;
-        next.heightCm = 42;
+        if (!(Number.isFinite(next.widthCm) && next.widthCm > 0)) {
+          next.widthCm = 49;
+        }
+        if (!(Number.isFinite(next.heightCm) && next.heightCm > 0)) {
+          next.heightCm = 42;
+        }
       }
       console.log('[audit:flow:hydrate]', {
         widthCm: next.widthCm,
@@ -136,7 +140,10 @@ export function FlowProvider({ children }) {
         }
         if (key === 'options') {
           if (value && typeof value === 'object') {
-            payload.options = { material: safeStr(value.material || state.material) };
+            const matValue = safeStr(value.material || state.material);
+            if (matValue) {
+              payload.options = { material: matValue };
+            }
           }
           return;
         }
