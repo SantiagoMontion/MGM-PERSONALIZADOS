@@ -140,6 +140,7 @@ function respondJson(
   payload: Record<string, any>,
 ): void {
   applyCorsHeaders(req, res, corsDecision);
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
   if (typeof res.status === 'function') {
     res.status(statusCode);
     if (typeof res.json === 'function') {
@@ -148,9 +149,6 @@ function respondJson(
     }
   }
   res.statusCode = statusCode;
-  try {
-    res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  } catch {}
   res.end(JSON.stringify(payload));
 }
 
@@ -626,7 +624,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return originalJson(payload);
         }
         try {
-          enhancedRes.setHeader?.('Content-Type', 'application/json');
+        enhancedRes.setHeader?.('Content-Type', 'application/json; charset=utf-8');
         } catch {}
         enhancedRes.end(JSON.stringify(payload));
         return enhancedRes;

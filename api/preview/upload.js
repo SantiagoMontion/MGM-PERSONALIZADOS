@@ -13,6 +13,11 @@ function parseDataUrl(dataUrl = '') {
   return { contentType, buffer };
 }
 
+function sendJson(res, status, payload) {
+  res.setHeader?.('Content-Type', 'application/json; charset=utf-8');
+  res.status(status).json(payload);
+}
+
 export default async function handler(req, res) {
   const diagId = randomUUID();
   const decision = ensureCors(req, res);
@@ -29,7 +34,7 @@ export default async function handler(req, res) {
   }
 
   if (req.method !== 'POST') {
-    res.status(405).json({ ok: false, error: 'method_not_allowed', diagId });
+    sendJson(res, 405, { ok: false, error: 'method_not_allowed', diagId });
     return;
   }
 
@@ -37,17 +42,17 @@ export default async function handler(req, res) {
     const { objectKey, dataUrl, contentType: ctOverride } = req.body || {};
 
     if (typeof objectKey !== 'string' || !objectKey.trim()) {
-      res.status(400).json({ ok: false, error: 'object_key_required', diagId });
+      sendJson(res, 400, { ok: false, error: 'object_key_required', diagId });
       return;
     }
     if (typeof dataUrl !== 'string' || dataUrl.length < 32) {
-      res.status(400).json({ ok: false, error: 'data_url_required', diagId });
+      sendJson(res, 400, { ok: false, error: 'data_url_required', diagId });
       return;
     }
 
     const { contentType, buffer } = parseDataUrl(dataUrl);
     if (!buffer) {
-      res.status(400).json({ ok: false, error: 'data_url_invalid', diagId });
+      sendJson(res, 400, { ok: false, error: 'data_url_invalid', diagId });
       return;
     }
 
@@ -77,7 +82,7 @@ export default async function handler(req, res) {
       .getPublicUrl(key);
 
     if (publicError) {
-      res.status(500).json({ ok: false, error: 'public_url_failed', diagId });
+      sendJson(res, 500, { ok: false, error: 'public_url_failed', diagId });
       return;
     }
 
@@ -89,7 +94,7 @@ export default async function handler(req, res) {
       skipUpload: Boolean(uploadResult.error),
     });
 
-    res.status(200).json({
+    sendJson(res, 200, {
       ok: true,
       bucket,
       objectKey: key,
@@ -102,6 +107,6 @@ export default async function handler(req, res) {
       diagId,
       err: err?.message || err,
     });
-    res.status(500).json({ ok: false, error: 'internal_error', diagId });
+    sendJson(res, 500, { ok: false, error: 'internal_error', diagId });
   }
 }
