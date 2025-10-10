@@ -193,6 +193,48 @@ const asStr = (value, fallback = '') => {
 
 const safeReplace = (value, pattern, replacement) => asStr(value).replace(pattern, replacement);
 
+function openNewTabSafely() {
+  try {
+    const w = window.open('about:blank', '_blank', 'noopener,noreferrer');
+    return w || null;
+  } catch {
+    return null;
+  }
+}
+
+function openUrlInTab(url, stub) {
+  if (!url) {
+    return;
+  }
+  if (stub) {
+    try {
+      stub.location.href = url;
+      return;
+    } catch (_) {
+      // noop
+    }
+  }
+  try {
+    if (typeof document !== 'undefined') {
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.target = '_blank';
+      anchor.rel = 'noopener';
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      return;
+    }
+  } catch (_) {
+    // noop
+  }
+  try {
+    window.open(url, '_blank', 'noopener');
+  } catch (_) {
+    // noop
+  }
+}
+
 function loadPersistedFlow() {
   if (typeof window === 'undefined') return null;
   const keys = ['mgm:flow', FLOW_STORAGE_KEY];
@@ -1003,6 +1045,19 @@ export default function Mockup() {
       }
     };
   }, [cartBtnBusy]);
+
+  const jumpHomeAndClean = useCallback((flowLike) => {
+    const flowStateLike = typeof flowLike?.get === 'function' ? flowLike.get() : flowLike;
+    const designHash = flowStateLike?.designHash;
+    if (designHash && typeof window !== 'undefined') {
+      try {
+        window.sessionStorage.removeItem(`mgm:flow:${designHash}`);
+      } catch (_) {
+        // noop
+      }
+    }
+    navigate('/', { replace: true });
+  }, [navigate]);
 
   const cartButtonLabel = CART_STATUS_LABELS[cartStatus] || CART_STATUS_LABELS.idle;
   const cartBusy = cartStatus !== 'idle';
@@ -2192,13 +2247,18 @@ export default function Mockup() {
   }
 
   // ---- Compra directa: evitar wrappers que cortan en silencio ----
-  async function buyDirect(mode) {
+  async function buyDirect(mode, overridesOverride, options = {}) {
+    const normalizedOptions = options && typeof options === 'object' ? options : {};
+    const skipEnsure = Boolean(normalizedOptions.skipEnsure);
+    const autoOpen = normalizedOptions.autoOpen !== false;
     try {
       console.log('[buy] direct:start', { mode });
-      try {
-        await ensureMockupPublicReady(flow);
-      } catch (mockupErr) {
-        logger.debug?.('[mockup] ensure_mockup_public_ready_failed', mockupErr);
+      if (!skipEnsure) {
+        try {
+          await ensureMockupPublicReady(flow);
+        } catch (mockupErr) {
+          logger.debug?.('[mockup] ensure_mockup_public_ready_failed', mockupErr);
+        }
       }
       const stateForLog = (typeof flow?.get === 'function' ? flow.get() : flow) || {};
       const basics = extractFlowBasics(stateForLog);
@@ -2229,7 +2289,13 @@ export default function Mockup() {
         setToast({ message: 'Faltan medidas del diseño. Volvé y tocá "Continuar" para guardarlas.' });
         return;
       }
-      const overrides = buildOverridesFromUi(mode);
+      const baseOverrides = overridesOverride || buildOverridesFromUi(mode) || {};
+      const overrides = {
+        ...baseOverrides,
+        options: {
+          ...(typeof baseOverrides.options === 'object' && baseOverrides.options ? baseOverrides.options : {}),
+        },
+      };
       try {
         console.log('[buy] direct:payload', {
           mode,
@@ -2255,7 +2321,7 @@ export default function Mockup() {
         w: overrides?.widthCm ?? null,
         h: overrides?.heightCm ?? null,
       });
-      if (result?.ok && openUrl) {
+      if (autoOpen && result?.ok && openUrl) {
         try {
           window.open(openUrl, '_blank', 'noopener');
         } catch (assignErr) {
@@ -2267,6 +2333,128 @@ export default function Mockup() {
       console.error('[buy] direct:error', mode, error);
       setToast((prev) => (prev ? prev : { message: 'No se pudo crear el producto.' }));
       throw error;
+    }
+  }
+
+  async function onCheckoutPublicClick() {
+    if (busy || buyBtnBusy || publicBusy) return null;
+
+    setBuyBtnBusy(true);
+    setPublicBusy(true);
+    setBusy(true);
+
+    const stub = openNewTabSafely();
+
+    try {
+      setBuyPromptOpen(false);
+      await ensureMockupPublicReady(flow);
+      const baseOverrides = buildOverridesFromUi('checkout') || {};
+      const overrides = {
+        ...baseOverrides,
+        options: {
+          ...(typeof baseOverrides.options === 'object' && baseOverrides.options ? baseOverrides.options : {}),
+        },
+        private: false,
+        visibility: 'public',
+      };
+      const result = await buyDirect('checkout', overrides, { skipEnsure: true, autoOpen: false });
+      const url = pickOpenUrl(result);
+      if (result?.ok && url) {
+        openUrlInTab(url, stub);
+        const flowStateForJump = typeof flow?.get === 'function' ? flow.get() : flow;
+        jumpHomeAndClean(flowStateForJump || flow);
+        return result;
+      }
+
+      if (stub && typeof stub.close === 'function') {
+        try {
+          stub.close();
+        } catch (_) {
+          // noop
+        }
+      }
+      logger.warn?.('[checkout-public-flow] missing_url', {
+        ok: result?.ok ?? null,
+        url,
+      });
+      setToast({ message: 'No se pudo abrir el checkout. Probá nuevamente.' });
+      return result;
+    } catch (error) {
+      if (stub && typeof stub.close === 'function') {
+        try {
+          stub.close();
+        } catch (_) {
+          // noop
+        }
+      }
+      logger.error('[checkout-public-flow]', error);
+      setToast({ message: 'Ocurrió un error al procesar el checkout.' });
+      return null;
+    } finally {
+      setPublicBusy(false);
+      setBusy(false);
+      setBuyBtnBusy(false);
+    }
+  }
+
+  async function onCheckoutPrivateClick() {
+    if (busy || buyBtnBusy || privateBusy) return null;
+
+    setBuyBtnBusy(true);
+    setPrivateBusy(true);
+    setBusy(true);
+
+    const stub = openNewTabSafely();
+
+    try {
+      setBuyPromptOpen(false);
+      await ensureMockupPublicReady(flow);
+      const baseOverrides = buildOverridesFromUi('private') || {};
+      const overrides = {
+        ...baseOverrides,
+        options: {
+          ...(typeof baseOverrides.options === 'object' && baseOverrides.options ? baseOverrides.options : {}),
+        },
+        private: true,
+        visibility: 'private',
+      };
+      const result = await buyDirect('private', overrides, { skipEnsure: true, autoOpen: false });
+      const url = pickOpenUrl(result) || result?.privateCheckoutUrl;
+      if (result?.ok && url) {
+        openUrlInTab(url, stub);
+        const flowStateForJump = typeof flow?.get === 'function' ? flow.get() : flow;
+        jumpHomeAndClean(flowStateForJump || flow);
+        return result;
+      }
+
+      if (stub && typeof stub.close === 'function') {
+        try {
+          stub.close();
+        } catch (_) {
+          // noop
+        }
+      }
+      logger.warn?.('[checkout-private-flow] missing_url', {
+        ok: result?.ok ?? null,
+        url,
+      });
+      setToast({ message: 'No se pudo abrir el checkout privado.' });
+      return result;
+    } catch (error) {
+      if (stub && typeof stub.close === 'function') {
+        try {
+          stub.close();
+        } catch (_) {
+          // noop
+        }
+      }
+      logger.error('[checkout-private-flow]', error);
+      setToast({ message: 'Ocurrió un error al procesar el checkout privado.' });
+      return null;
+    } finally {
+      setPrivateBusy(false);
+      setBusy(false);
+      setBuyBtnBusy(false);
     }
   }
 
@@ -2503,7 +2691,7 @@ export default function Mockup() {
               cta_type: 'private',
               product_handle: lastProduct?.productHandle,
             });
-            buyDirect('private');
+            onCheckoutPrivateClick();
           }}
           aria-hidden="true"
           tabIndex={-1}
@@ -2612,8 +2800,7 @@ export default function Mockup() {
                     cta_type: 'public',
                     product_handle: lastProduct?.productHandle,
                   });
-                  setBuyPromptOpen(false);
-                  return buyDirect('checkout');
+                  return onCheckoutPublicClick();
                 })}
               />
               <CtaButton
@@ -2633,10 +2820,9 @@ export default function Mockup() {
                     cta_type: 'private',
                     product_handle: lastProduct?.productHandle,
                   });
-                  setBuyPromptOpen(false);
-                  return buyDirect('private');
-              })}
-            />
+                  return onCheckoutPrivateClick();
+                })}
+              />
             </div>
           </div>
         </div>
