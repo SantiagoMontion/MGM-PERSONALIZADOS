@@ -6,7 +6,7 @@ import { useFlow } from '@/state/flow.js';
 import { downloadBlob, renderMockup1080 } from '@/lib/mockup.js';
 import styles from './Mockup.module.css';
 import { buildExportBaseName } from '@/lib/filename.ts';
-import { apiFetch, postJSON, getResolvedApiUrl } from '@/lib/api.js';
+import { apiFetch, getResolvedApiUrl } from '@/lib/api.js';
 import {
   createJobAndProduct,
   ONLINE_STORE_DISABLED_MESSAGE,
@@ -125,50 +125,6 @@ function normalizeMaterialLabelSafe(flow) {
   return candidates.find(Boolean) || 'Classic';
 }
 
-function sanitizeKeySegment(value) {
-  const base = (value ?? '').toString();
-  const normalized = base
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-zA-Z0-9 _-]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  return normalized;
-}
-
-function buildPreviewObjectKey(state, {
-  widthCm,
-  heightCm,
-  materialLabel,
-  designHash,
-  contentType = 'image/png',
-}) {
-  const now = new Date();
-  const folder = `mockups-${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
-  const baseTitle = sanitizeKeySegment(state?.designName || 'Design') || 'Design';
-  const width = Number.isFinite(widthCm) && widthCm > 0 ? Math.round(widthCm) : null;
-  const height = Number.isFinite(heightCm) && heightCm > 0 ? Math.round(heightCm) : null;
-  const dims = width && height ? `${width}x${height}` : null;
-  const material = sanitizeKeySegment(materialLabel) || 'Classic';
-  const hashSource = (designHash ?? state?.designHash ?? '').toString().trim();
-  const hashSegment = (hashSource.replace(/[^a-zA-Z0-9]+/g, '').slice(0, 8) || Math.random().toString(36).slice(2, 10))
-    .replace(/[^a-zA-Z0-9]/g, '');
-  const ext = contentType && /png/i.test(contentType) ? '.png' : '.png';
-  const nameParts = [baseTitle];
-  if (dims) nameParts.push(dims);
-  if (material) nameParts.push(material);
-  if (hashSegment) nameParts.push(hashSegment);
-  const filename = nameParts.filter(Boolean).join(' ').replace(/\s+/g, ' ').trim() || 'Design';
-  return `${folder}/${filename}${ext}`;
-}
-
-function buildSupabasePublicUrl(bucket, objectKey) {
-  const supabaseUrl = import.meta?.env?.VITE_SUPABASE_URL || '';
-  if (!supabaseUrl || !bucket || !objectKey) return null;
-  const sanitizedBase = supabaseUrl.replace(/\/+$/, '');
-  return `${sanitizedBase}/storage/v1/object/public/${bucket}/${objectKey}`;
-}
-
 function extractFlowBasics(flowLike = {}) {
   const name = safeStr(flowLike?.designName, 'Personalizado');
   let material = normalizeMaterialLabelSafe(flowLike);
@@ -192,213 +148,83 @@ function extractFlowBasics(flowLike = {}) {
     widthCm = 49;
     heightCm = 42;
   }
-  const designHash = safeStr(flowLike?.designHash);
+  widthCm = Number.isFinite(widthCm) && widthCm > 0 ? Math.max(1, Math.round(widthCm)) : 1;
+  heightCm = Number.isFinite(heightCm) && heightCm > 0 ? Math.max(1, Math.round(heightCm)) : 1;
+  const designHash = safeStr(flowLike?.designHash ?? flowLike?.designHashState);
+  const hash8 = designHash.slice(0, 8) || '00000000';
+  const base = `${name} ${widthCm}x${heightCm} ${material}`.replace(/\s+/g, ' ').trim();
+  const slug = base
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9 _-]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const now = new Date();
+  const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const objectKeyBase = `${slug || 'Personalizado'} ${hash8}`.replace(/\s+/g, ' ').trim();
+  const objectKey = `mockups-${ym}/${objectKeyBase}.png`;
+  const titleRaw = material === 'Glasspad'
+    ? `Glasspad ${name} 49x42 | PERSONALIZADO`
+    : `Mousepad ${name} ${widthCm}x${heightCm} ${material} | PERSONALIZADO`;
+  const title = titleRaw.replace(/\s+/g, ' ').trim();
   return {
     name,
     material,
-    widthCm: Number.isFinite(widthCm) && widthCm > 0 ? widthCm : null,
-    heightCm: Number.isFinite(heightCm) && heightCm > 0 ? heightCm : null,
+    widthCm,
+    heightCm,
     designHash,
-  };
-}
-
-async function signUpload({ bucket, contentType, objectKey, metadata }) {
-  const buildPayload = (bucketName) => ({
-    bucket: bucketName,
-    contentType,
+    title,
     objectKey,
-    upsert: true,
-    material: metadata?.material,
-    title: metadata?.title,
-    widthCm: metadata?.widthCm,
-    heightCm: metadata?.heightCm,
-    designHash: metadata?.designHash,
-  });
-
-  const trySign = async (bucketName) => {
-    try {
-      const json = await postJSON(
-        getResolvedApiUrl('/api/storage/sign'),
-        buildPayload(bucketName),
-        30000,
-      );
-      return {
-        ...json,
-        bucket: json?.bucket || bucketName,
-        objectKey: json?.objectKey || objectKey,
-      };
-    } catch (error) {
-      const reason = error?.message || error?.reason || 'sign_failed';
-      logger.debug?.('[mockup-sign] request_failed', { bucket: bucketName, error: reason });
-      return {
-        ok: false,
-        error: reason,
-        status: typeof error?.status === 'number' ? error.status : undefined,
-      };
-    }
+    hash8,
   };
-
-  const primaryBucket = bucket || 'preview';
-  let response = await trySign(primaryBucket);
-
-  if (response?.ok === true || response?.skipUpload) {
-    try {
-      console.log('[preview] signed', {
-        bucket: response?.bucket || primaryBucket,
-        key: response?.objectKey || objectKey,
-        skipUpload: Boolean(response?.skipUpload),
-      });
-    } catch (_) {
-      // noop
-    }
-    return response;
-  }
-
-  if (primaryBucket === 'preview') {
-    try {
-      console.warn('[preview] sign failed, retrying on outputs', {
-        bucket: primaryBucket,
-        error: response?.error || response?.reason || 'sign_failed',
-        status: response?.status,
-      });
-    } catch (_) {
-      // noop
-    }
-    response = await trySign('outputs');
-    if (response?.ok === true || response?.skipUpload) {
-      try {
-        console.log('[preview] signed', {
-          bucket: response?.bucket || 'outputs',
-          key: response?.objectKey || objectKey,
-          skipUpload: Boolean(response?.skipUpload),
-        });
-      } catch (_) {
-        // noop
-      }
-      return response;
-    }
-  }
-
-  logger.debug?.('[mockup-sign] unavailable', {
-    bucket: primaryBucket,
-    error: response?.error || response?.reason || 'sign_failed',
-    status: response?.status,
-  });
-  return null;
 }
 
-async function uploadViaSignedUrl(sign, blob, contentType, objectKey) {
-  if (!sign || typeof sign !== 'object') {
-    throw new Error('missing_sign_payload');
-  }
-  if (sign.skipUpload) {
-    return {
-      publicUrl: sign.publicUrl || buildSupabasePublicUrl(sign.bucket || 'preview', sign.objectKey || objectKey),
-      skipUpload: true,
+async function blobToDataUrl(blob) {
+  return await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result === 'string') {
+        resolve(result);
+      } else {
+        reject(new Error('dataurl_conversion_failed'));
+      }
     };
-  }
-  const uploadUrl = sign?.uploadUrl || sign?.signedUrl || null;
-  if (!uploadUrl || !blob) {
-    throw new Error('signed_url_or_blob_missing');
-  }
-  const method = typeof sign?.method === 'string' ? sign.method.toUpperCase() : 'POST';
-  const requiredHeaders = sign?.requiredHeaders && typeof sign.requiredHeaders === 'object'
-    ? sign.requiredHeaders
-    : {};
-  const bucket = sign?.bucket || 'preview';
-  const key = sign?.objectKey || objectKey || sign?.path || '';
-  const isSignedUpload = /\/storage\/v1\/object\/upload\/sign\//.test(uploadUrl);
-
-  if (method === 'POST' && isSignedUpload) {
-    const headers = new Headers();
-    for (const [k, v] of Object.entries(requiredHeaders)) {
-      if (v == null) continue;
-      headers.set(k, String(v));
-    }
-    if (!headers.has('authorization') && !headers.has('Authorization')) {
-      const anonKey = import.meta.env?.VITE_SUPABASE_ANON_KEY;
-      if (anonKey) {
-        headers.set('Authorization', `Bearer ${anonKey}`);
-      }
-    }
-    headers.delete('content-type');
-    const form = new FormData();
-    form.append('file', blob, key ? key.split('/').pop() || 'preview.png' : 'preview.png');
-    if (contentType) {
-      form.append('contentType', contentType);
-    }
-    const response = await fetch(uploadUrl, {
-      method: 'POST',
-      headers,
-      body: form,
-    });
-    if (!response.ok) {
-      const bodyText = await response.text().catch(() => '');
-      if (response.status === 400 || response.status === 401 || response.status === 403) {
-        console.error('[preview] POST failed', {
-          status: response.status,
-          body: typeof bodyText === 'string' ? bodyText.slice(0, 400) : null,
-          uploadUrl,
-        });
-      }
-      throw new Error('sign_upload_failed');
-    }
-  } else if (method === 'PUT') {
-    const headers = new Headers();
-    for (const [k, v] of Object.entries(requiredHeaders)) {
-      if (v == null) continue;
-      headers.set(k, String(v));
-    }
-    headers.set('content-type', contentType || blob.type || 'application/octet-stream');
-    const response = await fetch(uploadUrl, {
-      method: 'PUT',
-      headers,
-      body: blob,
-    });
-    if (!response.ok) {
-      const bodyText = await response.text().catch(() => '');
-      if (response.status === 400 || response.status === 401 || response.status === 403) {
-        console.error('[preview] PUT failed', {
-          status: response.status,
-          body: typeof bodyText === 'string' ? bodyText.slice(0, 400) : null,
-          uploadUrl,
-        });
-      }
-      throw new Error('sign_upload_failed');
-    }
-  } else {
-    const headers = new Headers();
-    for (const [k, v] of Object.entries(requiredHeaders)) {
-      if (v == null) continue;
-      headers.set(k, String(v));
-    }
-    const response = await fetch(uploadUrl, {
-      method,
-      headers,
-      body: blob,
-    });
-    if (!response.ok) {
-      const bodyText = await response.text().catch(() => '');
-      if (response.status === 400 || response.status === 401 || response.status === 403) {
-        console.error('[preview] upload failed', {
-          status: response.status,
-          body: typeof bodyText === 'string' ? bodyText.slice(0, 400) : null,
-          uploadUrl,
-        });
-      }
-      throw new Error('sign_upload_failed');
-    }
-  }
-
-  const publicUrl = sign?.publicUrl || buildSupabasePublicUrl(bucket, key);
-  return {
-    publicUrl,
-    skipUpload: false,
-  };
+    reader.onerror = (err) => reject(err);
+    reader.readAsDataURL(blob);
+  });
 }
 
-async function uploadBlobWithSignedUrl(sign, blob, objectKey, contentType) {
-  return await uploadViaSignedUrl(sign, blob, contentType || blob?.type || 'image/png', objectKey);
+async function uploadPreviewViaApi(objectKey, blob) {
+  if (!objectKey || !blob) throw new Error('preview_upload_missing_data');
+  const dataUrl = await blobToDataUrl(blob);
+  const response = await fetch(getResolvedApiUrl('/api/preview/upload'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      objectKey,
+      dataUrl,
+      contentType: blob.type || 'image/png',
+    }),
+  });
+  const json = await response.json().catch(() => null);
+  if (!response.ok || !json?.ok || !json?.publicUrl) {
+    console.error('[preview] api upload failed', {
+      status: response.status,
+      json,
+      objectKey,
+    });
+    throw new Error('preview_upload_failed');
+  }
+  try {
+    console.log('[preview] uploaded', {
+      objectKey,
+      skip: Boolean(json.skipUpload),
+    });
+  } catch (_) {
+    // noop
+  }
+  return String(json.publicUrl);
 }
 
 export async function ensureMockupUrlInFlow(flow, input) {
@@ -431,69 +257,24 @@ export async function ensureMockupUrlInFlow(flow, input) {
     dpi,
     material: state?.material ?? input?.material,
   };
-  const fallbackWidthCm = cmFromPx(composition.widthPx, dpi);
-  const fallbackHeightCm = cmFromPx(composition.heightPx, dpi);
   const basics = extractFlowBasics(state);
-  const materialLabel = basics.material || matLabelOf(state?.material ?? input?.material);
-  let widthCmValue = basics.widthCm ?? fallbackWidthCm;
-  let heightCmValue = basics.heightCm ?? fallbackHeightCm;
-  if (materialLabel === 'Glasspad') {
-    widthCmValue = 49;
-    heightCmValue = 42;
-  }
+  const materialLabel = basics.material;
+  const widthCmValue = basics.widthCm || cmFromPx(composition.widthPx, dpi);
+  const heightCmValue = basics.heightCm || cmFromPx(composition.heightPx, dpi);
   const mockupBlob = await renderMockup1080(image, {
     material: materialLabel,
     approxDpi: dpi,
     composition,
   });
-  const widthCmInt = Number.isFinite(widthCmValue) && widthCmValue > 0 ? Math.round(widthCmValue) : null;
-  const heightCmInt = Number.isFinite(heightCmValue) && heightCmValue > 0 ? Math.round(heightCmValue) : null;
-  const designHash = basics.designHash || (input?.designHash ?? '').toString().trim();
-  const objectKey = buildPreviewObjectKey(state, {
-    widthCm: widthCmInt ?? undefined,
-    heightCm: heightCmInt ?? undefined,
-    materialLabel,
-    designHash,
-    contentType: 'image/png',
-  });
-  const filename = objectKey.split('/').pop() || `${safeName(state?.designName)}.png`;
-  const sign = await signUpload({
-    bucket: 'preview',
-    contentType: 'image/png',
-    objectKey,
-    metadata: {
-      title: basics.name,
-      widthCm: widthCmInt ?? undefined,
-      heightCm: heightCmInt ?? undefined,
-      material: materialLabel,
-      designHash,
-    },
-  });
   let publicUrl = null;
-  if (sign) {
-    try {
-      const { publicUrl: resolvedPublicUrl, skipUpload } = await uploadBlobWithSignedUrl(
-        sign,
-        mockupBlob,
-        sign.objectKey || objectKey,
-        'image/png',
-      );
-      publicUrl = resolvedPublicUrl || null;
-      if (publicUrl) {
-        try {
-          console.log('[preview] uploaded', {
-            bucket: sign.bucket || 'preview',
-            key: sign.objectKey || objectKey,
-            skip: Boolean(skipUpload),
-          });
-        } catch (_) {
-          // noop
-        }
-      }
-    } catch (uploadErr) {
-      logger.debug?.('[mockup-sign] upload_failed', uploadErr);
-      publicUrl = null;
-    }
+  try {
+    publicUrl = await uploadPreviewViaApi(basics.objectKey, mockupBlob);
+  } catch (uploadErr) {
+    logger.debug?.('[mockup] preview_upload_failed', uploadErr);
+    publicUrl = null;
+  }
+  if (publicUrl) {
+    publicUrl = String(publicUrl);
   }
 
   const nextState = typeof flow?.get === 'function' ? flow.get() : state;
@@ -506,6 +287,12 @@ export async function ensureMockupUrlInFlow(flow, input) {
           mockupBlob,
           mockupPublicUrl: publicUrl,
           mockupUrl: publicUrl,
+          widthCm: basics.widthCm,
+          heightCm: basics.heightCm,
+          material: basics.material,
+          designName: basics.name,
+          title: basics.title ?? nextState?.title,
+          options: { ...(nextState?.options || {}), material: basics.material },
           mockupDataUrl: null,
         });
       }
@@ -2111,9 +1898,7 @@ export default function Mockup() {
     const isGlasspad = material === 'Glasspad';
     const effectiveWidth = isGlasspad ? 49 : widthCm;
     const effectiveHeight = isGlasspad ? 42 : heightCm;
-    const title = isGlasspad
-      ? `Glasspad ${name} 49x42 | PERSONALIZADO`
-      : `Mousepad ${name}${effectiveWidth && effectiveHeight ? ` ${effectiveWidth}x${effectiveHeight}` : ''} ${material} | PERSONALIZADO`.replace(/\s+/g, ' ').trim();
+    const title = basics.title;
     const overrides = {
       material,
       materialResolved: material,
@@ -2121,6 +1906,7 @@ export default function Mockup() {
       productType: isGlasspad ? 'glasspad' : 'mousepad',
       title,
       designName: name,
+      mockupUrl: safeStr(flowLike?.mockupPublicUrl) || safeStr(flowLike?.mockupUrl),
     };
     if (Number.isFinite(effectiveWidth) && effectiveWidth > 0) {
       overrides.widthCm = Math.round(effectiveWidth);
