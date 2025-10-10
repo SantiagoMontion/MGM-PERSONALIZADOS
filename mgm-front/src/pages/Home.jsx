@@ -1146,6 +1146,16 @@ export default function Home() {
         priceNormal: normalPrice,
         priceCurrency: PRICE_CURRENCY,
       });
+      try {
+        console.log('[audit:flow:persist]', {
+          designName: nameClean,
+          material: finalMaterial,
+          widthCm: finalWidthCm,
+          heightCm: finalHeightCm,
+        });
+      } catch (_) {
+        // noop
+      }
       // Actualizar el nombre global para handlers legacy que lean preservedCustom
       try {
         if (typeof window !== 'undefined') {

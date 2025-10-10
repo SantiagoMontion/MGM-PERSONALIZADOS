@@ -142,10 +142,48 @@ function normalizeMaterialLabelSafe(flow) {
 }
 
 function extractFlowBasics(flowLike = {}) {
-  const name = safeStr(flowLike?.designName, 'Personalizado');
+  let name = safeStr(flowLike?.designName, 'Personalizado');
   let material = normalizeMaterialLabelSafe(flowLike);
   let width = Number(flowLike?.widthCm);
   let height = Number(flowLike?.heightCm);
+  if ((!Number.isFinite(width) || width <= 0) && flowLike?.editorState) {
+    const editorWidth = Number(
+      flowLike.editorState?.widthCm
+        ?? flowLike.editorState?.size_cm?.w
+        ?? flowLike.editorState?.composition?.widthCm,
+    );
+    if (Number.isFinite(editorWidth) && editorWidth > 0) {
+      width = editorWidth;
+    }
+  }
+  if ((!Number.isFinite(height) || height <= 0) && flowLike?.editorState) {
+    const editorHeight = Number(
+      flowLike.editorState?.heightCm
+        ?? flowLike.editorState?.size_cm?.h
+        ?? flowLike.editorState?.composition?.heightCm,
+    );
+    if (Number.isFinite(editorHeight) && editorHeight > 0) {
+      height = editorHeight;
+    }
+  }
+  if (!material || material === 'Classic') {
+    const editorMaterial = safeStr(
+      flowLike?.editorState?.material
+        ?? flowLike?.editorState?.options?.material
+        ?? flowLike?.editorState?.productType,
+    );
+    if (editorMaterial) {
+      const lower = editorMaterial.toLowerCase();
+      if (lower.includes('glass')) material = 'Glasspad';
+      else if (lower.includes('pro')) material = 'PRO';
+    }
+  }
+  if (!name || name === 'Personalizado') {
+    const editorName = safeStr(flowLike?.editorState?.designName);
+    if (editorName) {
+      name = editorName;
+    }
+  }
   if (material === 'Glasspad') {
     width = 49;
     height = 42;
