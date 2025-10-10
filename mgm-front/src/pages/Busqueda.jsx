@@ -11,7 +11,7 @@ import {
   isGateValid,
 } from '@/lib/printsGate.js';
 import styles from './Busqueda.module.css';
-import logger from '../lib/logger';
+import { diag, warn, error } from '@/lib/log';
 
 const PAGE_LIMIT = 25;
 
@@ -250,7 +250,7 @@ export default function Busqueda() {
       if (requestError?.name === 'AbortError') {
         return;
       }
-      logger.error('[prints-search]', requestError);
+      error('[prints-search]', requestError);
       setError('Ocurrió un error al buscar en Supabase.');
       setResults([]);
       setTotal(0);
@@ -375,16 +375,16 @@ export default function Busqueda() {
                     try {
                       downloadHref = buildDownloadUrl(rawDownloadUrl, filename);
                     } catch (error) {
-                      if (import.meta.env?.DEV && typeof console !== 'undefined') {
-                        console.warn('[prints] invalid download URL', {
+                      if (import.meta.env?.DEV) {
+                        warn('[prints] invalid download URL', {
                           error,
                           rawDownloadUrl,
                         });
                       }
                     }
                   }
-                  if (import.meta.env?.DEV && typeof console !== 'undefined') {
-                    console.debug('[prints] preview', {
+                  if (import.meta.env?.DEV) {
+                    diag('[prints] preview', {
                       name: item.fileName || item.name,
                       preview: item.previewUrl,
                     });

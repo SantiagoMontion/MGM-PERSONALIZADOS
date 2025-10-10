@@ -17,7 +17,7 @@ import styles from './OptionsStep.module.css';
 import { buildSubmitJobBody, prevalidateSubmitBody } from '../lib/jobPayload';
 import { submitJob } from '../lib/submitJob';
 import { resolveIconAsset } from '../lib/iconRegistry.js';
-import logger from '../lib/logger';
+import { error } from '@/lib/log';
 
 const LOW_ACK_ERROR_MESSAGE = 'La calidad parece baja. Confirmá que aceptás continuar.';
 const CONTINUE_ICON_SRC = resolveIconAsset('continuar.svg');
@@ -151,7 +151,7 @@ export default function OptionsStep({ uploaded, onSubmitted }) {
 
     const pre = prevalidateSubmitBody(submitBody);
     if (!pre.ok) {
-      logger.error('[PREVALIDATE OptionsStep]', pre, submitBody);
+      error('[PREVALIDATE OptionsStep]', pre, submitBody);
       setErr('Corregí antes de enviar: ' + pre.problems.join(' | '));
       setBusy(false);
       return;

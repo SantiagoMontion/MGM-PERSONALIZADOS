@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { apiFetch } from '@/lib/api';
-import logger from '../lib/logger';
+import { diag, warn } from '@/lib/log';
 
 export default function Result() {
   const { jobId } = useParams();
@@ -56,11 +56,11 @@ export default function Result() {
         try {
           popup.opener = null;
         } catch (openerErr) {
-          logger.debug('[result] opener_clear_failed', openerErr);
+          diag('[result] opener_clear_failed', openerErr);
         }
       }
     } catch (openErr) {
-      logger.warn('[result] product_open_failed', openErr);
+      warn('[result] product_open_failed', openErr);
     } finally {
       setAutoOpened(true);
     }
