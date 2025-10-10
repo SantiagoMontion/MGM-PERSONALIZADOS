@@ -18,8 +18,19 @@ import logger from '../lib/logger';
 import { ensureTrackingRid, trackEvent } from '@/lib/tracking';
 
 const PUBLISH_MAX_PAYLOAD_KB = Number(import.meta.env?.VITE_PUBLISH_MAX_PAYLOAD_KB) || 200;
-// Guard legacy para evitar ReferenceError en builds antiguos
-const preservedCustom = false; // no se usa, pero evita 'is not defined'
+// Guard legacy: mapear preservedCustom al designName actual si existe
+const preservedCustom = (() => {
+  try {
+    const maybeFlow = typeof globalThis !== 'undefined'
+      ? globalThis.__MGM_FLOW__ || globalThis.__FLOW__ || null
+      : null;
+    const state = typeof maybeFlow?.get === 'function' ? maybeFlow.get() : maybeFlow;
+    const name = state?.designName;
+    return name != null ? name.toString() || null : null;
+  } catch {
+    return null;
+  }
+})();
 // Volvemos a mostrar el wrapper legacy para recuperar su TEXTO,
 // pero ocultamos SOLO su <img/> con CSS (ver estilo inyectado abajo).
 const SHOW_LEGACY_PREVIEW = true;
@@ -68,22 +79,31 @@ function matLabelOf(material) {
 }
 
 async function signUpload({ bucket, contentType, path }) {
-  let response = await postJSON(
-    getResolvedApiUrl('/api/storage/sign'),
-    { bucket, contentType, path },
-    30000,
-  );
-  if (!response?.ok && bucket === 'preview') {
-    console.warn('[diag] sign preview failed, falling back to outputs');
-    response = await postJSON(
-      getResolvedApiUrl('/api/storage/sign'),
-      { bucket: 'outputs', contentType, path },
-      30000,
-    );
+  const trySign = async (bucketName) => {
+    try {
+      return await postJSON(
+        getResolvedApiUrl('/api/storage/sign'),
+        { bucket: bucketName, contentType, path },
+        30000,
+      );
+    } catch (error) {
+      logger.debug?.('[mockup-sign] request_failed', { bucket: bucketName, error });
+      return { ok: false };
+    }
+  };
+
+  const primaryBucket = bucket || 'preview';
+  let response = await trySign(primaryBucket);
+
+  if (!response?.ok && primaryBucket === 'preview') {
+    response = await trySign('outputs');
   }
+
   if (!response?.ok) {
-    throw new Error('sign_failed');
+    logger.debug?.('[mockup-sign] unavailable', { bucket: primaryBucket, response });
+    return null;
   }
+
   return response;
 }
 
@@ -141,29 +161,76 @@ export async function ensureMockupUrlInFlow(flow, input) {
     contentType: 'image/png',
     path: `mockups-${yyyymm()}/${filename}`,
   });
-  const publicUrl = await uploadBlobWithSignedUrl(sign, mockupBlob, filename);
-  if (!publicUrl) {
-    const err = new Error('missing_mockup_url');
-    err.reason = 'missing_mockup_url';
-    throw err;
+  let publicUrl = null;
+  if (sign) {
+    try {
+      publicUrl = await uploadBlobWithSignedUrl(sign, mockupBlob, filename);
+    } catch (uploadErr) {
+      logger.debug?.('[mockup-sign] upload_failed', uploadErr);
+      publicUrl = null;
+    }
   }
-  try {
-    if (typeof flow?.set === 'function') {
-      const nextState = typeof flow.get === 'function' ? flow.get() : state;
-      // cuando aseguramos el mockup, además de setear mockupPublicUrl, anulamos los campos legacy (evita 2 imágenes)
+
+  const nextState = typeof flow?.get === 'function' ? flow.get() : state;
+
+  if (publicUrl) {
+    try {
+      if (typeof flow?.set === 'function') {
+        flow.set({
+          ...nextState,
+          mockupBlob,
+          mockupPublicUrl: publicUrl,
+          mockupUrl: null,
+          mockupDataUrl: null,
+        });
+      }
+    } catch (stateErr) {
+      logger.debug?.('[mockup] state_update_failed', stateErr);
+    }
+    console.log('[diag] mockup ensured', publicUrl);
+    return publicUrl;
+  }
+
+  const fallbackUrl = (() => {
+    if (typeof nextState?.mockupPublicUrl === 'string' && nextState.mockupPublicUrl) {
+      return nextState.mockupPublicUrl;
+    }
+    if (typeof nextState?.mockupUrl === 'string' && nextState.mockupUrl) {
+      return nextState.mockupUrl;
+    }
+    if (isDataUrl(nextState?.mockupDataUrl)) {
+      return nextState.mockupDataUrl;
+    }
+    try {
+      if (typeof URL !== 'undefined') {
+        return URL.createObjectURL(mockupBlob);
+      }
+    } catch (blobErr) {
+      logger.debug?.('[mockup] blob_url_failed', blobErr);
+    }
+    return null;
+  })();
+
+  if (fallbackUrl && typeof flow?.set === 'function') {
+    try {
       flow.set({
         ...nextState,
         mockupBlob,
-        mockupPublicUrl: publicUrl,
-        mockupUrl: null,
-        mockupDataUrl: null,
+        mockupPublicUrl: nextState?.mockupPublicUrl || null,
+        mockupUrl: fallbackUrl,
       });
+    } catch (stateErr) {
+      logger.debug?.('[mockup] fallback_state_failed', stateErr);
     }
-  } catch (stateErr) {
-    console.warn('[diag] mockup state update failed', stateErr);
   }
-  console.log('[diag] mockup ensured', publicUrl);
-  return publicUrl;
+
+  if (fallbackUrl) {
+    return fallbackUrl;
+  }
+
+  const err = new Error('missing_mockup_url');
+  err.reason = 'missing_mockup_url';
+  throw err;
 }
 
 async function waitUrlReady(url, tries = 8, delayMs = 350) {
