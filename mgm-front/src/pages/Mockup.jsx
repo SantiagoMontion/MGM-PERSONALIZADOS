@@ -622,6 +622,19 @@ function buildShopifyPayload(flowState, mode) {
     masterHeightPx: source?.masterHeightPx,
     ...(mode === 'private' ? { isPrivate: true } : {}),
   };
+  if (mode === 'private') {
+    const existingMetafields = Array.isArray(payload.metafields) ? payload.metafields : [];
+    const filteredMetafields = existingMetafields.filter(
+      (entry) => !entry || typeof entry !== 'object'
+        ? false
+        : entry.namespace !== 'custom' || entry.key !== 'private',
+    );
+    payload.private = true;
+    payload.metafields = [
+      ...filteredMetafields,
+      { namespace: 'custom', key: 'private', type: 'boolean', value: 'true' },
+    ];
+  }
   return payload;
 }
 
@@ -2386,7 +2399,7 @@ export default function Mockup() {
     const priceTransferRaw = Number(flowState?.priceTransfer ?? 0);
     const price = Number.isFinite(priceTransferRaw) ? priceTransferRaw : 0;
 
-    return {
+    const baseOverrides = {
       material: mat,
       materialResolved: mat,
       options: {
@@ -2405,6 +2418,23 @@ export default function Mockup() {
       price,
       priceTransfer: price,
     };
+    if (_mode === 'private') {
+      const existingMetafields = Array.isArray(baseOverrides.metafields) ? baseOverrides.metafields : [];
+      const filteredMetafields = existingMetafields.filter(
+        (entry) => !entry || typeof entry !== 'object'
+          ? false
+          : entry.namespace !== 'custom' || entry.key !== 'private',
+      );
+      return {
+        ...baseOverrides,
+        private: true,
+        metafields: [
+          ...filteredMetafields,
+          { namespace: 'custom', key: 'private', type: 'boolean', value: 'true' },
+        ],
+      };
+    }
+    return baseOverrides;
   }
 
   async function onCartClick() {
