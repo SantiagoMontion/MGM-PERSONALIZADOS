@@ -347,8 +347,8 @@ function buildShopifyPayload(flowState, mode) {
     designName,
     widthCm,
     heightCm, // ← viajan en cm tal cual eligió el cliente
-    // Enviar el material en los 3 campos para no perderlo en ninguna ruta
-    options: { ...(source?.options || {}), material: materialLabel },
+    // Mandar material en los 3 campos para que jamás se pierda en merges intermedios
+    options: { ...(source?.options || {}), material: materialLabel, productType: source?.productType },
     material: materialLabel,
     materialResolved: materialLabel,
     title,

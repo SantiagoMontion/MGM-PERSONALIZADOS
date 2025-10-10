@@ -1068,11 +1068,15 @@ export default function Home() {
 
       const transferPrice = Number(priceAmount) > 0 ? Number(priceAmount) : 0;
       const normalPrice = transferPrice;
+      const nameRaw = String(trimmedDesignName || flowState?.designName || '').trim();
+      const nameClean = nameRaw.replace(/\s+/g, ' ').slice(0, 40);
+      const chosenWidthCm = Math.round(Number(activeWcm));
+      const chosenHeightCm = Math.round(Number(activeHcm));
 
       flow.set({
         // Guardar SIEMPRE la medida elegida por el cliente (cm), para evitar caer a px/DPI
-        widthCm: Math.round(Number(activeWcm)),
-        heightCm: Math.round(Number(activeHcm)),
+        widthCm: chosenWidthCm,
+        heightCm: chosenHeightCm,
         productType: material === 'Glasspad' ? 'glasspad' : 'mousepad',
         editorState: layout,
         mockupBlob,
@@ -1091,7 +1095,7 @@ export default function Home() {
         uploadSizeBytes: designBlob.size,
         uploadContentType: designMime,
         uploadSha256: designSha,
-        designName: trimmedDesignName,
+        designName: nameClean || 'Personalizado',
         material,
         lowQualityAck: level === 'bad' ? Boolean(ackLow) : false,
         approxDpi: effDpi || null,
@@ -1099,6 +1103,11 @@ export default function Home() {
         priceNormal: normalPrice,
         priceCurrency: PRICE_CURRENCY,
       });
+      try {
+        if (typeof window !== 'undefined') {
+          window.preservedCustom = nameClean || 'Personalizado';
+        }
+      } catch {}
       try {
         await ensureMockupUrlInFlow(flow, {
           dataUrl: masterDataUrl,
