@@ -35,3 +35,11 @@ export const STANDARD = {
   ],
   Glasspad: [GLASSPAD_SIZE_CM],
 };
+
+export function normalizeMaterialLabel(value) {
+  const text = String(value ?? '').toLowerCase();
+  if (text.includes('glass')) return 'Glasspad';
+  if (text.includes('pro')) return 'PRO';
+  if (text.includes('classic')) return 'Classic';
+  return 'Classic';
+}

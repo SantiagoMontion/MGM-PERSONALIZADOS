@@ -15,6 +15,7 @@ import {
   pickCommerceTarget,
 } from '@/lib/shopify.ts';
 import logger from '../lib/logger';
+import { normalizeMaterialLabel } from '../lib/material.js';
 import { ensureTrackingRid, trackEvent } from '@/lib/tracking';
 
 const PUBLISH_MAX_PAYLOAD_KB = Number(import.meta.env?.VITE_PUBLISH_MAX_PAYLOAD_KB) || 200;
@@ -295,14 +296,6 @@ async function ensureMockupPublicReady(flowState) {
     return;
   }
   await waitUrlReady(url);
-}
-
-function normalizeMaterialLabel(value) {
-  const text = String(value || '').toLowerCase();
-  if (text.includes('glass')) return 'Glasspad';
-  if (text.includes('pro')) return 'PRO';
-  if (text.includes('classic')) return 'Classic';
-  return 'Classic';
 }
 
 function buildDimsFromFlowState(flowState) {
@@ -1803,6 +1796,42 @@ export default function Mockup() {
     }
   }
 
+  function buildOverridesFromUi() {
+    const flowLike = (typeof flow?.get === 'function' && flow.get()) || flow || {};
+    const rawMat = (flowLike?.options && flowLike.options.material)
+      || flowLike?.material
+      || flowLike?.productType
+      || '';
+    const material = normalizeMaterialLabel?.(rawMat) || 'Classic';
+    let widthCm = Number(flowLike?.widthCm ?? flowLike?.composition?.widthCm ?? NaN);
+    let heightCm = Number(flowLike?.heightCm ?? flowLike?.composition?.heightCm ?? NaN);
+    if (material === 'Glasspad') {
+      widthCm = 49;
+      heightCm = 42;
+    }
+    const overrides = {
+      material,
+      materialResolved: material,
+      options: { ...(flowLike?.options || {}), material },
+      productType: material === 'Glasspad' ? 'glasspad' : 'mousepad',
+    };
+    if (Number.isFinite(widthCm) && widthCm > 0) {
+      overrides.widthCm = Math.round(widthCm);
+    }
+    if (Number.isFinite(heightCm) && heightCm > 0) {
+      overrides.heightCm = Math.round(heightCm);
+    }
+    return overrides;
+  }
+
+  function pickOpenUrl(out) {
+    if (out?.url) return out.url;
+    if (out?.checkoutUrl) return out.checkoutUrl;
+    if (out?.productUrl) return out.productUrl;
+    if (out?.cartUrl) return out.cartUrl;
+    return null;
+  }
+
   // ---- Compra directa: evitar wrappers que cortan en silencio ----
   async function buyDirect(mode) {
     try {
@@ -1812,26 +1841,28 @@ export default function Mockup() {
       } catch (mockupErr) {
         logger.debug?.('[mockup] ensure_mockup_public_ready_failed', mockupErr);
       }
-      const payload = buildShopifyPayload(flow, mode);
-      dlog('direct:payload', {
-        mode,
-        title: payload?.title,
-        material: payload?.material ?? payload?.materialResolved,
-        widthCm: payload?.widthCm,
-        heightCm: payload?.heightCm,
-        hasPdf: Boolean(payload?.pdfPublicUrl),
-        hasMockup: Boolean(payload?.mockupUrl),
-        price: payload?.priceTransfer ?? payload?.price ?? null,
+      const overrides = buildOverridesFromUi();
+      const result = await createJobAndProduct(mode, flow, {
+        payloadOverrides: overrides,
+        discountCode: discountCode || undefined,
       });
-      const result = await handle(mode, { payloadOverrides: payload });
-      const targetUrl = typeof result?.url === 'string' && result.url
-        ? result.url
-        : typeof result?.checkoutUrl === 'string' && result.checkoutUrl
-          ? result.checkoutUrl
-          : typeof result?.productUrl === 'string' && result.productUrl
-            ? result.productUrl
-            : null;
-      dlog('direct:done', { mode, ok: result?.ok ?? true, url: targetUrl, reason: result?.reason });
+      const targetUrl = pickOpenUrl(result);
+      dlog('direct:done', {
+        mode,
+        ok: result?.ok ?? true,
+        url: targetUrl,
+        reason: result?.reason,
+        material: overrides?.material,
+        widthCm: overrides?.widthCm ?? null,
+        heightCm: overrides?.heightCm ?? null,
+      });
+      if (result?.ok && targetUrl) {
+        try {
+          window.location.assign(targetUrl);
+        } catch (assignErr) {
+          logger.warn?.('[mockup] direct_navigation_failed', assignErr);
+        }
+      }
       return result;
     } catch (error) {
       derr('direct:error', mode, error);
