@@ -18,6 +18,7 @@ import { normalizeMaterialLabel } from '../lib/material.js';
 import { ensureTrackingRid, trackEvent } from '@/lib/tracking';
 
 const PUBLISH_MAX_PAYLOAD_KB = Number(import.meta.env?.VITE_PUBLISH_MAX_PAYLOAD_KB) || 200;
+const FLOW_STORAGE_KEY = 'mgm_flow_v1';
 const BUY_DEBUG = true;
 const dlog = (...args) => { if (BUY_DEBUG) console.log('[buy]', ...args); };
 const derr = (...args) => { console.error('[buy]', ...args); };
@@ -128,6 +129,39 @@ function safeStr(value, fallback = '') {
 
 const safeReplace = (value, pattern, replacement) => asStr(value).replace(pattern, replacement);
 
+function loadPersistedFlow() {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(FLOW_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    const result = { ...parsed };
+    if ('widthCm' in result) {
+      const num = Number(result.widthCm);
+      if (Number.isFinite(num) && num > 0) {
+        result.widthCm = Math.round(num);
+      } else {
+        delete result.widthCm;
+      }
+    }
+    if ('heightCm' in result) {
+      const num = Number(result.heightCm);
+      if (Number.isFinite(num) && num > 0) {
+        result.heightCm = Math.round(num);
+      } else {
+        delete result.heightCm;
+      }
+    }
+    if (result.options && typeof result.options !== 'object') {
+      delete result.options;
+    }
+    return result;
+  } catch {
+    return null;
+  }
+}
+
 function normalizeMaterialLabelSafe(flow) {
   const candidates = [
     safeStr(flow?.material),
@@ -146,6 +180,19 @@ function extractFlowBasics(flowLike = {}) {
   let material = normalizeMaterialLabelSafe(flowLike);
   let width = Number(flowLike?.widthCm);
   let height = Number(flowLike?.heightCm);
+
+  if ((!Number.isFinite(width) || width <= 0) && flowLike?.composition) {
+    const compWidth = Number(flowLike?.composition?.widthCm);
+    if (Number.isFinite(compWidth) && compWidth > 0) {
+      width = compWidth;
+    }
+  }
+  if ((!Number.isFinite(height) || height <= 0) && flowLike?.composition) {
+    const compHeight = Number(flowLike?.composition?.heightCm);
+    if (Number.isFinite(compHeight) && compHeight > 0) {
+      height = compHeight;
+    }
+  }
   if ((!Number.isFinite(width) || width <= 0) && flowLike?.editorState) {
     const editorWidth = Number(
       flowLike.editorState?.widthCm
@@ -185,19 +232,16 @@ function extractFlowBasics(flowLike = {}) {
     }
   }
   if (material === 'Glasspad') {
-    width = 49;
-    height = 42;
+    if (!Number.isFinite(width) || width <= 0) width = 49;
+    if (!Number.isFinite(height) || height <= 0) height = 42;
   }
   const validatedWidth = Number.isFinite(width) && width > 0 ? Math.round(width) : null;
   const validatedHeight = Number.isFinite(height) && height > 0 ? Math.round(height) : null;
-  const titleRaw = material === 'Glasspad'
-    ? `Glasspad ${name} 49x42 | PERSONALIZADO`
-    : `Mousepad ${name} ${validatedWidth ?? ''}x${validatedHeight ?? ''} ${material} | PERSONALIZADO`;
-  const title = safeReplace(titleRaw, /\s+/g, ' ').trim();
+  const title = buildTitle(name, validatedWidth, validatedHeight, material);
   const designHash = safeStr(flowLike?.designHash ?? flowLike?.designHashState);
   const hash8 = designHash.slice(0, 8) || '00000000';
-  const baseForKey = safeReplace(`${name} ${validatedWidth ?? ''}x${validatedHeight ?? ''} ${material}`, /\s+/g, ' ').trim();
-  let slug = asStr(baseForKey);
+  const keyStem = safeReplace(title, /[^a-zA-Z0-9 _-]/g, '').replace(/\s+/g, ' ').trim();
+  let slug = asStr(keyStem || title || name || 'Personalizado');
   if (typeof slug.normalize === 'function') {
     slug = slug.normalize('NFKD');
   }
@@ -240,14 +284,6 @@ async function blobToDataUrl(blob) {
 async function uploadPreviewViaApi(objectKey, blob) {
   if (!objectKey || !blob) throw new Error('preview_upload_missing_data');
   const dataUrl = await blobToDataUrl(blob);
-  try {
-    console.log('[preview] about_to_upload', {
-      objectKey,
-      hasDataUrl: typeof dataUrl === 'string' && dataUrl.length > 0,
-    });
-  } catch (_) {
-    // noop
-  }
   const response = await fetch(getResolvedApiUrl('/api/preview/upload'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -309,8 +345,8 @@ export async function ensureMockupUrlInFlow(flow, input) {
   };
   const basics = extractFlowBasics(state);
   const materialLabel = basics.mat;
-  const widthCmValue = basics.width || cmFromPx(composition.widthPx, dpi);
-  const heightCmValue = basics.height || cmFromPx(composition.heightPx, dpi);
+  const widthCmValue = basics.width;
+  const heightCmValue = basics.height;
   const mockupBlob = await renderMockup1080(image, {
     material: materialLabel,
     approxDpi: dpi,
@@ -318,6 +354,12 @@ export async function ensureMockupUrlInFlow(flow, input) {
   });
   let publicUrl = null;
   try {
+    console.log('[preview] about_to_upload', {
+      objectKey: basics.objectKey,
+      mat: basics.mat,
+      w: basics.width,
+      h: basics.height,
+    });
     publicUrl = await uploadPreviewViaApi(basics.objectKey, mockupBlob);
   } catch (uploadErr) {
     logger.debug?.('[mockup] preview_upload_failed', uploadErr);
@@ -712,6 +754,107 @@ const BENEFITS = [
 
 export default function Mockup() {
   const flow = useFlow();
+  useEffect(() => {
+    const persisted = loadPersistedFlow();
+    const currentOptions = (flow?.options && typeof flow.options === 'object') ? flow.options : {};
+    const logBasics = (source) => {
+      try {
+        const basics = extractFlowBasics(source || {});
+        console.log('[audit:flow:rehydrated]', {
+          material: basics.mat,
+          optionsMaterial: source?.options?.material,
+          widthCm: basics.width,
+          heightCm: basics.height,
+          title: basics.title,
+          mockupPublicUrl: source?.mockupPublicUrl || null,
+        });
+      } catch (_) {
+        // noop
+      }
+    };
+    if (!persisted) {
+      logBasics(flow);
+      return;
+    }
+    if (!flow?.set) {
+      logBasics({ ...flow, ...persisted });
+      return;
+    }
+    const patch = {};
+    if (!safeStr(flow?.designName) && safeStr(persisted.designName)) {
+      patch.designName = safeStr(persisted.designName);
+    }
+    const persistedMaterial = safeStr(
+      persisted.material
+        ?? persisted.materialResolved
+        ?? persisted.options?.material,
+    );
+    const existingMaterial = safeStr(
+      flow?.material
+        ?? flow?.materialResolved
+        ?? currentOptions?.material,
+    );
+    const mergedOptions = { ...currentOptions };
+    let optionsChanged = false;
+    if (persisted.options && typeof persisted.options === 'object') {
+      Object.entries(persisted.options).forEach(([key, value]) => {
+        if (mergedOptions[key] !== value) {
+          mergedOptions[key] = value;
+          optionsChanged = true;
+        }
+      });
+    }
+    if (!existingMaterial && persistedMaterial) {
+      patch.material = persistedMaterial;
+      patch.materialResolved = persisted.materialResolved ?? persistedMaterial;
+      if (mergedOptions.material !== (persisted.options?.material ?? persistedMaterial)) {
+        mergedOptions.material = persisted.options?.material ?? persistedMaterial;
+        optionsChanged = true;
+      }
+    } else if (persistedMaterial && !mergedOptions.material) {
+      mergedOptions.material = persistedMaterial;
+      optionsChanged = true;
+    }
+    if (optionsChanged) {
+      patch.options = mergedOptions;
+    }
+    const existingWidth = Number(flow?.widthCm);
+    const persistedWidth = Number(persisted.widthCm);
+    if (!(Number.isFinite(existingWidth) && existingWidth > 0) && Number.isFinite(persistedWidth) && persistedWidth > 0) {
+      patch.widthCm = Math.round(persistedWidth);
+    }
+    const existingHeight = Number(flow?.heightCm);
+    const persistedHeight = Number(persisted.heightCm);
+    if (!(Number.isFinite(existingHeight) && existingHeight > 0) && Number.isFinite(persistedHeight) && persistedHeight > 0) {
+      patch.heightCm = Math.round(persistedHeight);
+    }
+    if (!safeStr(flow?.mockupPublicUrl) && safeStr(persisted.mockupPublicUrl || persisted.mockupUrl)) {
+      patch.mockupPublicUrl = safeStr(persisted.mockupPublicUrl || persisted.mockupUrl);
+    }
+    if (!safeStr(flow?.mockupUrl) && safeStr(persisted.mockupUrl || persisted.mockupPublicUrl)) {
+      patch.mockupUrl = safeStr(persisted.mockupUrl || persisted.mockupPublicUrl);
+    }
+    if (!safeStr(flow?.productType) && safeStr(persisted.productType)) {
+      patch.productType = safeStr(persisted.productType);
+    }
+    if (persisted.approxDpi && !flow?.approxDpi) {
+      patch.approxDpi = persisted.approxDpi;
+    }
+    if (persisted.masterWidthPx && !flow?.masterWidthPx) {
+      patch.masterWidthPx = persisted.masterWidthPx;
+    }
+    if (persisted.masterHeightPx && !flow?.masterHeightPx) {
+      patch.masterHeightPx = persisted.masterHeightPx;
+    }
+    if (Object.keys(patch).length > 0) {
+      flow.set(patch);
+      const merged = { ...flow, ...patch };
+      merged.options = patch.options || merged.options;
+      logBasics(merged);
+    } else {
+      logBasics(flow);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const flowState = typeof flow?.get === 'function' ? flow.get() : flow;
   const f = (typeof flow?.get === 'function' && flow.get()) || flowState || {};
   const designName = (f?.designName ?? '').toString();
@@ -2002,7 +2145,7 @@ export default function Mockup() {
       }
       if (!Number.isFinite(basicsForLog.width) || basicsForLog.width <= 0
         || !Number.isFinite(basicsForLog.height) || basicsForLog.height <= 0) {
-        setToast({ message: 'Faltan medidas del diseÃ±o. VolvÃ© y tocÃ¡ â€œContinuarâ€ para guardarlas.' });
+        setToast({ message: 'Faltan medidas del diseño. Volvé y tocá "Continuar" para guardarlas.' });
         return;
       }
       const overrides = buildOverridesFromUi(mode);
@@ -2431,3 +2574,4 @@ export default function Mockup() {
     </div>
   );
 }
+

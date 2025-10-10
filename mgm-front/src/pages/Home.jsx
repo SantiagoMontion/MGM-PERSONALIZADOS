@@ -84,8 +84,11 @@ const MOD_PREVIEW_FALLBACK_FORMATS = ['image/jpeg'];
 const MOD_PREVIEW_RETRY_QUALITIES = [0.8, 0.7, 0.6];
 const MOD_PREVIEW_RETRY_DIMENSIONS = [1024, 896, 768, 640];
 
-const LOADING_MESSAGES = ['Guardando cambios...', 'Creando tu pedido...', 'Últimos detalles...'];
-const OVERLAY_MSG_MS = Math.max(2000, Number(import.meta.env?.VITE_OVERLAY_MSG_MS || 2400));
+const LOADING_MESSAGES = [
+  '🐾 “Guardando… ¡Mishi en el teclado!”',
+  '🌀 “Haciendo magia… no toques nada 😼”',
+  '⚡ “Preparando todo… cruzá los dedos 🫡”', // este queda fijo
+];
 const SKIP_MASTER_UPLOAD = String(import.meta.env?.VITE_SKIP_MASTER_UPLOAD || '0') === '1';
 const MOCKUP_BUCKET = String(import.meta.env?.VITE_MOCKUP_UPLOAD_BUCKET || 'preview');
 
@@ -379,6 +382,7 @@ export default function Home() {
   const [err, setErr] = useState('');
   const [moderationNotice, setModerationNotice] = useState('');
   const [busy, setBusy] = useState(false);
+  const [msgIndex, setMsgIndex] = useState(0);
   const [masterPublicUrl, setMasterPublicUrl] = useState(null);
   const [masterWidthPx, setMasterWidthPx] = useState(null);
   const [masterHeightPx, setMasterHeightPx] = useState(null);
@@ -399,6 +403,20 @@ export default function Home() {
   const wasConfigOpenRef = useRef(false);
   const [canvasFit, setCanvasFit] = useState({ height: null, maxWidth: null, sectionOneMinHeight: null });
   const flow = useFlow();
+
+  useEffect(() => {
+    if (!busy) {
+      setMsgIndex(0);
+      return undefined;
+    }
+    setMsgIndex(0);
+    const t1 = setTimeout(() => setMsgIndex(1), 12000);
+    const t2 = setTimeout(() => setMsgIndex(2), 24000);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [busy]);
 
   const handleClearImage = useCallback(() => {
     setUploaded(null);
@@ -1846,9 +1864,9 @@ export default function Home() {
       {busy && (
         <LoadingOverlay
           visible
-          steps={LOADING_MESSAGES}
-          intervalMs={OVERLAY_MSG_MS}
-          subtitle="Esto puede demorar unos segundos"
+          steps={[]}
+          messages={[LOADING_MESSAGES[msgIndex]]}
+          subtitle="No cierres nada, esto puede demorar varios segundos."
         />
       )}
     </div>
