@@ -439,26 +439,39 @@ export default async function handler(req, res) {
     // noop
   }
 
-  let materialLabel = normalizeMaterial(
-    parsedBody?.material ?? parsedBody?.materialResolved ?? parsedBody?.options?.material,
-  );
-  // Fallback adicional: si vino vacío o Classic por default y productType indica pro/glasspad, respetarlo
-  if (!materialLabel || materialLabel === 'Classic') {
-    const productTypeRaw = parsedBody?.productType ?? parsedBody?.options?.productType;
-    const pt = String(productTypeRaw || '').toLowerCase();
-    if (pt.includes('pro')) materialLabel = 'PRO';
-    if (pt.includes('glass')) materialLabel = 'Glasspad';
+  let productType = String(
+    parsedBody?.options?.productType
+      ?? parsedBody?.productType
+      ?? 'mousepad',
+  ).trim().toLowerCase() || 'mousepad';
+  let mat = parsedBody?.materialResolved
+    ?? parsedBody?.options?.material
+    ?? parsedBody?.material
+    ?? '';
+  if (typeof mat === 'string' && mat.trim().toLowerCase() === 'mousepad') {
+    mat = 'Classic';
   }
-  // *** MEDIDAS: confiar en widthCm/heightCm enviados por el front (flow) ***
-  let widthCmSafe = Number(parsedBody?.widthCm);
-  let heightCmSafe = Number(parsedBody?.heightCm);
-  // Fallback súper conservador si faltan (evita casos como 111x89)
-  if (!Number.isFinite(widthCmSafe) || widthCmSafe <= 0 || !Number.isFinite(heightCmSafe) || heightCmSafe <= 0) {
-    widthCmSafe = null;
-    heightCmSafe = null; // sin inventar desde px/DPI
-  } else {
+  mat = normalizeMaterial(mat);
+  if (productType.includes('glass')) {
+    mat = 'Glasspad';
+  }
+  let widthCmSafe = Number(parsedBody?.widthCm ?? NaN);
+  let heightCmSafe = Number(parsedBody?.heightCm ?? NaN);
+  if (Number.isFinite(widthCmSafe) && widthCmSafe > 0) {
     widthCmSafe = Math.round(widthCmSafe);
+  }
+  if (Number.isFinite(heightCmSafe) && heightCmSafe > 0) {
     heightCmSafe = Math.round(heightCmSafe);
+  }
+  if (mat === 'Glasspad') {
+    widthCmSafe = 49;
+    heightCmSafe = 42;
+  }
+  if (!Number.isFinite(widthCmSafe) || widthCmSafe <= 0) {
+    widthCmSafe = undefined;
+  }
+  if (!Number.isFinite(heightCmSafe) || heightCmSafe <= 0) {
+    heightCmSafe = undefined;
   }
   const NAME_MAX_LEN = Number(process.env.NAME_MAX_LEN || 40);
   const normalizeDesignNameKeepSpaces = (value) => {
@@ -467,30 +480,28 @@ export default async function handler(req, res) {
     return trimmed.slice(0, NAME_MAX_LEN);
   };
   const designNameRaw = (
-    parsedBody.designName ??
-    parsedBody.design_name ??
-    parsedBody.name ??
-    ''
+    parsedBody.designName
+      ?? parsedBody.design_name
+      ?? parsedBody.name
+      ?? ''
   );
   const designNameNorm = normalizeDesignNameKeepSpaces(designNameRaw);
   const designName = designNameNorm.length ? designNameNorm : 'Personalizado';
-  const isGlass = materialLabel === 'Glasspad';
-  const baseCategory = isGlass ? 'Glasspad' : 'Mousepad';
-  // Glasspad: normalizar SIEMPRE a 49x42 para el título y metadatos
-  if (isGlass) { widthCmSafe = 49; heightCmSafe = 42; }
-  if (Number.isFinite(widthCmSafe)) widthCmSafe = Math.round(widthCmSafe);
-  if (Number.isFinite(heightCmSafe)) heightCmSafe = Math.round(heightCmSafe);
   const hasDims = Number.isFinite(widthCmSafe) && Number.isFinite(heightCmSafe) && widthCmSafe > 0 && heightCmSafe > 0;
-  // Formato EXACTO:
-  // - Mousepad: "Mousepad {Nombre} {WxH} {Material} | PERSONALIZADO"
-  // - Glasspad: "Glasspad {Nombre} {WxH} | PERSONALIZADO"
-  const finalTitle = isGlass
-    ? (hasDims
-      ? `${baseCategory} ${designName} ${widthCmSafe}x${heightCmSafe} | PERSONALIZADO`
-      : `${baseCategory} ${designName} | PERSONALIZADO`)
-    : (hasDims
-      ? `${baseCategory} ${designName} ${widthCmSafe}x${heightCmSafe} ${materialLabel} | PERSONALIZADO`
-      : `${baseCategory} ${designName} ${materialLabel} | PERSONALIZADO`);
+  const computedTitle = designName
+    ? (productType.includes('glass')
+      ? `Glasspad ${designName} 49x42 | PERSONALIZADO`
+      : `Mousepad ${designName} ${hasDims ? `${widthCmSafe}x${heightCmSafe} ` : ''}${mat} | PERSONALIZADO`)
+    : parsedBody.title;
+  const finalTitle = typeof parsedBody.title === 'string' && parsedBody.title.includes('| PERSONALIZADO')
+    ? parsedBody.title
+    : computedTitle;
+  parsedBody.materialResolved = mat;
+  parsedBody.options = { ...(parsedBody.options || {}), material: mat, productType };
+  parsedBody.productType = productType;
+  parsedBody.widthCm = Number.isFinite(widthCmSafe) && widthCmSafe > 0 ? widthCmSafe : undefined;
+  parsedBody.heightCm = Number.isFinite(heightCmSafe) && heightCmSafe > 0 ? heightCmSafe : undefined;
+  parsedBody.title = finalTitle;
   const priceTransfer = parseMoney(
     parsedBody.priceTransfer ?? parsedBody.price_transfer ?? parsedBody.priceTranferencia,
   );
@@ -504,8 +515,6 @@ export default async function handler(req, res) {
       ? priceNormal
       : 0;
   const currencyValue = String(parsedBody.currency || process.env.SHOPIFY_CART_PRESENTMENT_CURRENCY || 'USD');
-  parsedBody.title = finalTitle;
-  parsedBody.materialResolved = materialLabel;
   parsedBody.price = priceValue;
   parsedBody.currency = currencyValue;
   // Pasar mockupUrl simple; la imagen se adjunta en el handler vía REST
@@ -514,7 +523,7 @@ export default async function handler(req, res) {
   try {
     console.log('[audit:publish-product:resolved]', {
       diagId,
-      materialLabelFinal: materialLabel,
+      materialLabelFinal: mat,
       widthCmFinal: widthCmSafe,
       heightCmFinal: heightCmSafe,
       priceFinal: priceValue,
