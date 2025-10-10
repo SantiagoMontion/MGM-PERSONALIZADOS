@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { applyCORS } from '../../lib/cors.js';
 import getSupabaseAdmin from '../../lib/_lib/supabaseAdmin.js';
 import logger from '../../lib/_lib/logger.js';
 
@@ -30,13 +31,9 @@ function sendJson(res, status, payload) {
 }
 
 export default async function handler(req, res) {
+  if (applyCORS(req, res)) return;
   const diagId = randomUUID();
   withCORS(res);
-  if (req.method === 'OPTIONS') {
-    res.status(204).end();
-    return;
-  }
-
   if (req.method !== 'POST') {
     sendJson(res, 405, { ok: false, error: 'method_not_allowed', diagId });
     return;
@@ -111,6 +108,7 @@ export default async function handler(req, res) {
       diagId,
       err: err?.message || err,
     });
+    applyCORS(req, res);
     withCORS(res);
     sendJson(res, 500, { ok: false, error: 'internal_error', diagId });
   }

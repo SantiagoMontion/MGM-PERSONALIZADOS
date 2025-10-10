@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { ensureCors, respondCorsDenied } from '../../lib/cors.js';
+import { applyCORS, ensureCors, respondCorsDenied } from '../../lib/cors.js';
 import getSupabaseAdmin from '../../lib/_lib/supabaseAdmin.js';
 import logger from '../../lib/_lib/logger.js';
 
@@ -103,6 +103,7 @@ function isAlreadyExistsError(error) {
 }
 
 export default async function handler(req, res) {
+  if (applyCORS(req, res)) return;
   const diagId = randomUUID();
   const decision = ensureCors(req, res);
   if (!decision?.allowed || !decision?.allowedOrigin) {
@@ -330,6 +331,7 @@ export default async function handler(req, res) {
       objectKey,
       error: message,
     });
+    applyCORS(req, res);
     sendJson(res, 500, {
       ok: false,
       error: 'sign_failed',

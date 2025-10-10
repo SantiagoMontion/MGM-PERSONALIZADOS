@@ -1,6 +1,6 @@
 import { resolveEnvRequirements, collectMissingEnv } from './_lib/envChecks.js';
 import { createDiagId, logApiError } from './_lib/diag.js';
-import { getAllowedOriginsFromEnv, resolveCorsDecision } from '../lib/cors.js';
+import { applyCORS, getAllowedOriginsFromEnv, resolveCorsDecision } from '../lib/cors.js';
 
 const SHOPIFY_ENABLED = process.env.SHOPIFY_ENABLED === '1';
 const FRONT_ORIGIN = (process.env.FRONT_ORIGIN || 'https://mgm-app.vercel.app').replace(/\/$/, '');
@@ -344,23 +344,10 @@ function buildMockProduct(payload) {
 }
 
 export default async function handler(req, res) {
+  if (applyCORS(req, res)) return;
   const diagId = createDiagId();
   withCORS(res);
   const method = String(req.method || '').toUpperCase();
-
-  if (method === 'OPTIONS') {
-    applyCors(req, res);
-    if (typeof res.setHeader === 'function') {
-      res.setHeader('Allow', CORS_ALLOW_METHODS);
-    }
-    if (typeof res.status === 'function') {
-      res.status(204);
-    } else {
-      res.statusCode = 204;
-    }
-    res.end();
-    return;
-  }
 
   if (method !== 'POST') {
     if (typeof res.setHeader === 'function') {
@@ -370,16 +357,24 @@ export default async function handler(req, res) {
     return;
   }
 
-  let parsedBody = {};
+  let payload = {};
   let bytesRead = getContentLengthHeader(req);
 
   try {
-    const { body, bytesRead: totalBytes } = await obtainJsonBody(req);
-    if (body && typeof body === 'object') {
-      parsedBody = body;
-    }
-    if (typeof totalBytes === 'number') {
-      bytesRead = totalBytes;
+    if (typeof req.body === 'string') {
+      const raw = req.body || '';
+      bytesRead = Buffer.byteLength(raw, 'utf8');
+      payload = raw ? JSON.parse(raw) : {};
+    } else if (req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body)) {
+      payload = req.body;
+    } else {
+      const { body, bytesRead: totalBytes } = await obtainJsonBody(req);
+      if (body && typeof body === 'object') {
+        payload = body;
+      }
+      if (typeof totalBytes === 'number') {
+        bytesRead = totalBytes;
+      }
     }
   } catch (err) {
     if (err?.code === 'payload_too_large') {
@@ -393,12 +388,17 @@ export default async function handler(req, res) {
     return;
   }
 
-  req.body = parsedBody;
+  if (!payload || typeof payload !== 'object') {
+    payload = {};
+  }
 
-  const mockupUrlRaw = typeof parsedBody.mockupUrl === 'string' ? parsedBody.mockupUrl.trim() : '';
-  const mockupPublicRaw = typeof parsedBody.mockupPublicUrl === 'string' ? parsedBody.mockupPublicUrl.trim() : '';
-  const pdfUrlRaw = typeof parsedBody.pdfPublicUrl === 'string' ? parsedBody.pdfPublicUrl.trim() : '';
-  const designHashRaw = typeof parsedBody.designHash === 'string' ? parsedBody.designHash.trim().toLowerCase() : '';
+  const resolved = { ...(payload || {}) };
+  req.body = resolved;
+
+  const mockupUrlRaw = typeof resolved.mockupUrl === 'string' ? resolved.mockupUrl.trim() : '';
+  const mockupPublicRaw = typeof resolved.mockupPublicUrl === 'string' ? resolved.mockupPublicUrl.trim() : '';
+  const pdfUrlRaw = typeof resolved.pdfPublicUrl === 'string' ? resolved.pdfPublicUrl.trim() : '';
+  const designHashRaw = typeof resolved.designHash === 'string' ? resolved.designHash.trim().toLowerCase() : '';
   const effectiveMockupUrl = mockupUrlRaw || mockupPublicRaw;
   if (!effectiveMockupUrl) {
     sendJsonWithCors(req, res, 400, { ok: false, error: 'mockup_url_required', diagId });
@@ -413,48 +413,48 @@ export default async function handler(req, res) {
     return;
   }
 
-  const masterWidthPx = Number(parsedBody.masterWidthPx ?? parsedBody.master_width_px);
-  const masterHeightPx = Number(parsedBody.masterHeightPx ?? parsedBody.master_height_px);
-  if (parsedBody.masterWidthPx != null && (!Number.isFinite(masterWidthPx) || masterWidthPx <= 0)) {
+  const masterWidthPx = Number(resolved.masterWidthPx ?? resolved.master_width_px);
+  const masterHeightPx = Number(resolved.masterHeightPx ?? resolved.master_height_px);
+  if (resolved.masterWidthPx != null && (!Number.isFinite(masterWidthPx) || masterWidthPx <= 0)) {
     sendJsonWithCors(req, res, 400, { ok: false, error: 'master_width_invalid', diagId });
     return;
   }
-  if (parsedBody.masterHeightPx != null && (!Number.isFinite(masterHeightPx) || masterHeightPx <= 0)) {
+  if (resolved.masterHeightPx != null && (!Number.isFinite(masterHeightPx) || masterHeightPx <= 0)) {
     sendJsonWithCors(req, res, 400, { ok: false, error: 'master_height_invalid', diagId });
     return;
   }
 
-  parsedBody.mockupUrl = effectiveMockupUrl;
-  parsedBody.pdfPublicUrl = pdfUrlRaw;
-  parsedBody.designHash = designHashRaw;
-  parsedBody.masterWidthPx = Number.isFinite(masterWidthPx) && masterWidthPx > 0 ? Math.round(masterWidthPx) : null;
-  parsedBody.masterHeightPx = Number.isFinite(masterHeightPx) && masterHeightPx > 0 ? Math.round(masterHeightPx) : null;
+  resolved.mockupUrl = effectiveMockupUrl;
+  resolved.pdfPublicUrl = pdfUrlRaw;
+  resolved.designHash = designHashRaw;
+  resolved.masterWidthPx = Number.isFinite(masterWidthPx) && masterWidthPx > 0 ? Math.round(masterWidthPx) : null;
+  resolved.masterHeightPx = Number.isFinite(masterHeightPx) && masterHeightPx > 0 ? Math.round(masterHeightPx) : null;
 
   // Material canónico: usar lo que llegó del front (no adivinar salvo fallback explícito)
   try {
     console.log('[audit:publish-product:incoming]', {
       diagId,
-      material: parsedBody?.material,
-      materialResolved: parsedBody?.materialResolved,
-      optionsMaterial: parsedBody?.options?.material,
-      widthCm: parsedBody?.widthCm,
-      heightCm: parsedBody?.heightCm,
-      priceTransfer: parsedBody?.priceTransfer,
-      price: parsedBody?.price,
-      title: parsedBody?.title,
+      material: resolved?.material,
+      materialResolved: resolved?.materialResolved,
+      optionsMaterial: resolved?.options?.material,
+      widthCm: resolved?.widthCm,
+      heightCm: resolved?.heightCm,
+      priceTransfer: resolved?.priceTransfer,
+      price: resolved?.price,
+      title: resolved?.title,
     });
   } catch (_) {
     // noop
   }
 
   let productType = String(
-    parsedBody?.options?.productType
-      ?? parsedBody?.productType
+    resolved?.options?.productType
+      ?? resolved?.productType
       ?? 'mousepad',
   ).trim().toLowerCase() || 'mousepad';
-  let mat = parsedBody?.materialResolved
-    ?? parsedBody?.options?.material
-    ?? parsedBody?.material
+  let mat = resolved?.materialResolved
+    ?? resolved?.options?.material
+    ?? resolved?.material
     ?? '';
   if (typeof mat === 'string' && mat.trim().toLowerCase() === 'mousepad') {
     mat = 'Classic';
@@ -463,8 +463,8 @@ export default async function handler(req, res) {
   if (productType.includes('glass')) {
     mat = 'Glasspad';
   }
-  let widthCmSafe = Number(parsedBody?.widthCm ?? NaN);
-  let heightCmSafe = Number(parsedBody?.heightCm ?? NaN);
+  let widthCmSafe = Number(resolved?.widthCm ?? NaN);
+  let heightCmSafe = Number(resolved?.heightCm ?? NaN);
   if (Number.isFinite(widthCmSafe) && widthCmSafe > 0) {
     widthCmSafe = Math.round(widthCmSafe);
   }
@@ -488,9 +488,9 @@ export default async function handler(req, res) {
     return trimmed.slice(0, NAME_MAX_LEN);
   };
   const designNameRaw = (
-    parsedBody.designName
-      ?? parsedBody.design_name
-      ?? parsedBody.name
+    resolved.designName
+      ?? resolved.design_name
+      ?? resolved.name
       ?? ''
   );
   const designNameNorm = normalizeDesignNameKeepSpaces(designNameRaw);
@@ -500,21 +500,21 @@ export default async function handler(req, res) {
     ? (productType.includes('glass')
       ? `Glasspad ${designName} 49x42 | PERSONALIZADO`
       : `Mousepad ${designName} ${hasDims ? `${widthCmSafe}x${heightCmSafe} ` : ''}${mat} | PERSONALIZADO`)
-    : parsedBody.title;
-  const finalTitle = typeof parsedBody.title === 'string' && parsedBody.title.includes('| PERSONALIZADO')
-    ? parsedBody.title
+    : resolved.title;
+  const finalTitle = typeof resolved.title === 'string' && resolved.title.includes('| PERSONALIZADO')
+    ? resolved.title
     : computedTitle;
-  parsedBody.materialResolved = mat;
-  parsedBody.options = { ...(parsedBody.options || {}), material: mat, productType };
-  parsedBody.productType = productType;
-  parsedBody.widthCm = Number.isFinite(widthCmSafe) && widthCmSafe > 0 ? widthCmSafe : undefined;
-  parsedBody.heightCm = Number.isFinite(heightCmSafe) && heightCmSafe > 0 ? heightCmSafe : undefined;
-  parsedBody.title = finalTitle;
+  resolved.materialResolved = mat;
+  resolved.options = { ...(resolved.options || {}), material: mat, productType };
+  resolved.productType = productType;
+  resolved.widthCm = Number.isFinite(widthCmSafe) && widthCmSafe > 0 ? widthCmSafe : undefined;
+  resolved.heightCm = Number.isFinite(heightCmSafe) && heightCmSafe > 0 ? heightCmSafe : undefined;
+  resolved.title = finalTitle;
   const priceTransfer = parseMoney(
-    parsedBody.priceTransfer ?? parsedBody.price_transfer ?? parsedBody.priceTranferencia,
+    resolved.priceTransfer ?? resolved.price_transfer ?? resolved.priceTranferencia,
   );
   const priceNormal = parseMoney(
-    parsedBody.priceNormal ?? parsedBody.price_normal ?? parsedBody.price,
+    resolved.priceNormal ?? resolved.price_normal ?? resolved.price,
   );
   // Precio: usar SIEMPRE priceTransfer (tolerar string con miles/comas); si no hay, caer a priceNormal
   const priceValue = Number.isFinite(priceTransfer) && priceTransfer > 0
@@ -522,39 +522,39 @@ export default async function handler(req, res) {
     : Number.isFinite(priceNormal)
       ? priceNormal
       : 0;
-  const currencyValue = String(parsedBody.currency || process.env.SHOPIFY_CART_PRESENTMENT_CURRENCY || 'USD');
-  parsedBody.price = priceValue;
-  parsedBody.currency = currencyValue;
+  const currencyValue = String(resolved.currency || process.env.SHOPIFY_CART_PRESENTMENT_CURRENCY || 'USD');
+  resolved.price = priceValue;
+  resolved.currency = currencyValue;
   const privateCandidates = [
-    parsedBody?.private,
-    parsedBody?.isPrivate,
-    body?.private,
-    body?.isPrivate,
+    resolved?.private,
+    resolved?.isPrivate,
+    payload?.private,
+    payload?.isPrivate,
   ];
   const isPrivate = privateCandidates.some((candidate) => {
     if (candidate === true) return true;
     if (typeof candidate === 'string' && candidate.trim().toLowerCase() === 'true') return true;
     return false;
   });
-  parsedBody.private = isPrivate;
-  parsedBody.isPrivate = isPrivate;
+  resolved.private = isPrivate;
+  resolved.isPrivate = isPrivate;
   // Pasar mockupUrl simple; la imagen se adjunta en el handler via REST
-  parsedBody.mockupUrl = mockupUrlRaw || parsedBody.mockupUrl || null;
+  resolved.mockupUrl = mockupUrlRaw || resolved.mockupUrl || null;
   const imageSrcCandidate =
-    (typeof parsedBody.mockupUrl === 'string' && parsedBody.mockupUrl)
-    || (typeof parsedBody.mockupPublicUrl === 'string' && parsedBody.mockupPublicUrl)
-    || (typeof parsedBody.previewUrl === 'string' && parsedBody.previewUrl)
+    (typeof resolved.mockupUrl === 'string' && resolved.mockupUrl)
+    || (typeof resolved.mockupPublicUrl === 'string' && resolved.mockupPublicUrl)
+    || (typeof resolved.previewUrl === 'string' && resolved.previewUrl)
     || null;
-  parsedBody.imageSrc = typeof imageSrcCandidate === 'string' && imageSrcCandidate ? imageSrcCandidate : null;
+  resolved.imageSrc = typeof imageSrcCandidate === 'string' && imageSrcCandidate ? imageSrcCandidate : null;
   let imageReachable = null;
-  if (typeof parsedBody.imageSrc === 'string' && /^https?:\/\//i.test(parsedBody.imageSrc)) {
+  if (typeof resolved.imageSrc === 'string' && /^https?:\/\//i.test(resolved.imageSrc)) {
     imageReachable = false;
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
         const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
         const timeoutId = controller ? setTimeout(() => controller.abort(), 2000) : null;
         try {
-          const headResp = await fetch(parsedBody.imageSrc, {
+          const headResp = await fetch(resolved.imageSrc, {
             method: 'HEAD',
             cache: 'no-store',
             redirect: 'follow',
@@ -579,7 +579,7 @@ export default async function handler(req, res) {
   try {
     console.log('[audit:publish-product:image]', {
       diagId,
-      present: Boolean(parsedBody.imageSrc),
+      present: Boolean(resolved.imageSrc),
       reachable: imageReachable,
     });
   } catch (_) {
@@ -601,7 +601,7 @@ export default async function handler(req, res) {
 
   try {
     const images = [];
-    const dataUrl = typeof parsedBody.mockupDataUrl === 'string' ? parsedBody.mockupDataUrl.trim() : '';
+    const dataUrl = typeof resolved.mockupDataUrl === 'string' ? resolved.mockupDataUrl.trim() : '';
     const fallbackName = designName || 'Mockup';
     const filename = `${fallbackName}.png`;
     if (dataUrl.startsWith('data:image')) {
@@ -610,7 +610,7 @@ export default async function handler(req, res) {
         images.push({ attachment: base64, filename, altText: fallbackName });
       }
     } else {
-      const mockupUrlValue = typeof parsedBody.mockupUrl === 'string' ? parsedBody.mockupUrl.trim() : '';
+      const mockupUrlValue = typeof resolved.mockupUrl === 'string' ? resolved.mockupUrl.trim() : '';
       if (mockupUrlValue.startsWith('data:image')) {
         const base64 = (mockupUrlValue.split(',')[1] || '').trim();
         if (base64) {
@@ -621,24 +621,24 @@ export default async function handler(req, res) {
       }
     }
     if (images.length) {
-      parsedBody.images = images;
+      resolved.images = images;
     }
   } catch (_) {
     // no bloquear
   }
 
-  if (typeof parsedBody.mockupDataUrl === 'string' && parsedBody.mockupDataUrl.length > 200000) {
+  if (typeof resolved.mockupDataUrl === 'string' && resolved.mockupDataUrl.length > 200000) {
     sendJsonWithCors(req, res, 400, { ok: false, error: 'mockup_dataurl_too_large', diagId });
     return;
   }
-  delete parsedBody.mockupDataUrl;
-  delete parsedBody.mockupBytes;
-  delete parsedBody.mockupBuffer;
-  delete parsedBody.mockupBinary;
-  delete parsedBody.mockupData;
+  delete resolved.mockupDataUrl;
+  delete resolved.mockupBytes;
+  delete resolved.mockupBuffer;
+  delete resolved.mockupBinary;
+  delete resolved.mockupData;
 
   try {
-    const serialized = JSON.stringify(parsedBody ?? {});
+    const serialized = JSON.stringify(resolved ?? {});
     if (serialized && Buffer.byteLength(serialized, 'utf8') > 300_000) {
       logApiError('publish-product', { diagId, step: 'payload_json_too_large', error: 'payload_json_too_large' });
       sendJsonWithCors(req, res, 413, { ok: false, error: 'payload_too_large_defense', diagId });
@@ -650,7 +650,7 @@ export default async function handler(req, res) {
     return;
   }
 
-  const estimatedBytes = estimatePayloadBytes(parsedBody);
+  const estimatedBytes = estimatePayloadBytes(resolved);
   const headerBytes = typeof bytesRead === 'number' ? bytesRead : getContentLengthHeader(req);
   const effectiveEstimate = typeof estimatedBytes === 'number' ? estimatedBytes : headerBytes;
 
@@ -665,7 +665,7 @@ export default async function handler(req, res) {
   }
 
   if (!SHOPIFY_ENABLED) {
-    const payload = { ...buildMockProduct(parsedBody || {}), diagId };
+    const payload = { ...buildMockProduct(resolved || {}), diagId };
     sendJsonWithCors(req, res, 200, payload);
     return;
   }
@@ -689,6 +689,7 @@ export default async function handler(req, res) {
     const step = err?.code === 'SHOPIFY_TIMEOUT' ? err?.step || 'shopify_request' : 'real_handler';
     logApiError('publish-product', { diagId, step, error: err });
     if (!res.headersSent) {
+      applyCORS(req, res);
       if (err?.code === 'SHOPIFY_TIMEOUT') {
         sendJsonWithCors(req, res, SHOPIFY_TIMEOUT_STATUS, {
           ok: false,
