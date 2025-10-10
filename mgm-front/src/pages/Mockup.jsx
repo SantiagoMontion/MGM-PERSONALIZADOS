@@ -193,45 +193,23 @@ const asStr = (value, fallback = '') => {
 
 const safeReplace = (value, pattern, replacement) => asStr(value).replace(pattern, replacement);
 
-function openNewTabSafely() {
+function openInNewTab(url) {
+  if (!url) return;
   try {
-    const w = window.open('about:blank', '_blank', 'noopener,noreferrer');
-    return w || null;
+    const a = document.createElement('a');
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
   } catch {
-    return null;
-  }
-}
-
-function openUrlInTab(url, stub) {
-  if (!url) {
-    return;
-  }
-  if (stub) {
     try {
-      stub.location.href = url;
-      return;
-    } catch (_) {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch {
       // noop
     }
-  }
-  try {
-    if (typeof document !== 'undefined') {
-      const anchor = document.createElement('a');
-      anchor.href = url;
-      anchor.target = '_blank';
-      anchor.rel = 'noopener';
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      return;
-    }
-  } catch (_) {
-    // noop
-  }
-  try {
-    window.open(url, '_blank', 'noopener');
-  } catch (_) {
-    // noop
   }
 }
 
@@ -2255,55 +2233,21 @@ export default function Mockup() {
 
     setToast(null);
     setCartStatus('creating');
-    const stub = openNewTabSafely();
-
     try {
       const overrides = buildOverridesFromUi('cart');
-      const result = await buyDirect('cart', overrides);
+      const result = await buyDirect('cart', overrides, { autoOpen: false });
       const targetUrl = typeof result?.url === 'string' ? result.url : '';
 
       if (result?.ok && targetUrl) {
-        if (stub) {
-          try {
-            stub.location.href = targetUrl;
-          } catch {
-            // ignore
-          }
-        } else if (typeof document !== 'undefined') {
-          try {
-            const anchor = document.createElement('a');
-            anchor.href = targetUrl;
-            anchor.target = '_blank';
-            anchor.rel = 'noopener';
-            document.body.appendChild(anchor);
-            anchor.click();
-            anchor.remove();
-          } catch {
-            // ignore
-          }
-        }
+        openInNewTab(targetUrl);
         jumpHomeAndClean(flow);
         return;
       }
 
-      if (stub) {
-        try {
-          stub.close();
-        } catch {
-          // ignore
-        }
-      }
       const fallbackMessage = 'No se pudo abrir el producto. Intentalo de nuevo.';
       toastErr(fallbackMessage);
       setToast({ message: fallbackMessage });
     } catch (err) {
-      if (stub) {
-        try {
-          stub.close();
-        } catch {
-          // ignore
-        }
-      }
       warn('[cart] error', err);
       const fallbackMessage = 'Ocurrió un error al agregar al carrito.';
       toastErr(fallbackMessage);
@@ -2418,8 +2362,6 @@ export default function Mockup() {
     setPublicBusy(true);
     setBusy(true);
 
-    const stub = openNewTabSafely();
-
     try {
       setBuyPromptOpen(false);
       await ensureMockupPublicReady(flow);
@@ -2435,19 +2377,12 @@ export default function Mockup() {
       const result = await buyDirect('checkout', overrides, { skipEnsure: true, autoOpen: false });
       const url = pickOpenUrl(result);
       if (result?.ok && url) {
-        openUrlInTab(url, stub);
+        openInNewTab(url);
         const flowStateForJump = typeof flow?.get === 'function' ? flow.get() : flow;
         jumpHomeAndClean(flowStateForJump || flow);
         return result;
       }
 
-      if (stub && typeof stub.close === 'function') {
-        try {
-          stub.close();
-        } catch (_) {
-          // noop
-        }
-      }
       logger.warn?.('[checkout-public-flow] missing_url', {
         ok: result?.ok ?? null,
         url,
@@ -2455,13 +2390,6 @@ export default function Mockup() {
       setToast({ message: 'No se pudo abrir el checkout. Probá nuevamente.' });
       return result;
     } catch (error) {
-      if (stub && typeof stub.close === 'function') {
-        try {
-          stub.close();
-        } catch (_) {
-          // noop
-        }
-      }
       logger.error('[checkout-public-flow]', error);
       setToast({ message: 'Ocurrió un error al procesar el checkout.' });
       return null;
@@ -2479,8 +2407,6 @@ export default function Mockup() {
     setPrivateBusy(true);
     setBusy(true);
 
-    const stub = openNewTabSafely();
-
     try {
       setBuyPromptOpen(false);
       await ensureMockupPublicReady(flow);
@@ -2496,19 +2422,12 @@ export default function Mockup() {
       const result = await buyDirect('private', overrides, { skipEnsure: true, autoOpen: false });
       const url = pickOpenUrl(result) || result?.privateCheckoutUrl;
       if (result?.ok && url) {
-        openUrlInTab(url, stub);
+        openInNewTab(url);
         const flowStateForJump = typeof flow?.get === 'function' ? flow.get() : flow;
         jumpHomeAndClean(flowStateForJump || flow);
         return result;
       }
 
-      if (stub && typeof stub.close === 'function') {
-        try {
-          stub.close();
-        } catch (_) {
-          // noop
-        }
-      }
       logger.warn?.('[checkout-private-flow] missing_url', {
         ok: result?.ok ?? null,
         url,
@@ -2516,13 +2435,6 @@ export default function Mockup() {
       setToast({ message: 'No se pudo abrir el checkout privado.' });
       return result;
     } catch (error) {
-      if (stub && typeof stub.close === 'function') {
-        try {
-          stub.close();
-        } catch (_) {
-          // noop
-        }
-      }
       logger.error('[checkout-private-flow]', error);
       setToast({ message: 'Ocurrió un error al procesar el checkout privado.' });
       return null;
