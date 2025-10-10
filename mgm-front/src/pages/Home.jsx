@@ -85,9 +85,9 @@ const MOD_PREVIEW_RETRY_QUALITIES = [0.8, 0.7, 0.6];
 const MOD_PREVIEW_RETRY_DIMENSIONS = [1024, 896, 768, 640];
 
 const LOADING_MESSAGES = [
-  'Guardando… ¡Mishi trabajando en tu pedido!',
-  'Haciendo magia… no toques nada 😼',
-  'Renderizando… el gato aprobó tu diseño.', // este queda fijo
+  '¡Un Mishi ya está trabajando en tu pedido!',
+  'Haciendo magia… no toques nada.',
+  'Ya casi… el gato aprobó tu diseño.', // este queda fijo
 ];
 const SKIP_MASTER_UPLOAD = String(import.meta.env?.VITE_SKIP_MASTER_UPLOAD || '0') === '1';
 const MOCKUP_BUCKET = String(import.meta.env?.VITE_MOCKUP_UPLOAD_BUCKET || 'preview');
