@@ -409,6 +409,22 @@ export default async function handler(req, res) {
   parsedBody.masterHeightPx = Number.isFinite(masterHeightPx) && masterHeightPx > 0 ? Math.round(masterHeightPx) : null;
 
   // Material canónico: usar lo que llegó del front
+  try {
+    console.log('[audit:publish-product:incoming]', {
+      diagId,
+      material: parsedBody?.material,
+      materialResolved: parsedBody?.materialResolved,
+      optionsMaterial: parsedBody?.options?.material,
+      widthCm: parsedBody?.widthCm,
+      heightCm: parsedBody?.heightCm,
+      priceTransfer: parsedBody?.priceTransfer,
+      price: parsedBody?.price,
+      title: parsedBody?.title,
+    });
+  } catch (_) {
+    // noop
+  }
+
   const materialLabel = normalizeMaterial(
     parsedBody?.material ?? parsedBody?.materialResolved ?? parsedBody?.options?.material,
   );
@@ -481,13 +497,13 @@ export default async function handler(req, res) {
   parsedBody.mockupUrl = mockupUrlRaw || parsedBody.mockupUrl || null;
   // Diags para verificar qué llegó y qué se usó
   try {
-    console.log('[publish-product] resolved', {
+    console.log('[audit:publish-product:resolved]', {
       diagId,
-      materialLabel,
-      widthCm: widthCmSafe,
-      heightCm: heightCmSafe,
-      price: priceValue,
-      title: finalTitle,
+      materialLabelFinal: materialLabel,
+      widthCmFinal: widthCmSafe,
+      heightCmFinal: heightCmSafe,
+      priceFinal: priceValue,
+      titleFinal: finalTitle,
     });
   } catch (logErr) {
     // noop
