@@ -94,17 +94,30 @@ export default async function handler(req, res) {
 
     const ensureBucketExists = async (bucketName) => {
       try {
-        const { data: bucketInfo } = await supabase.storage.getBucket(bucketName);
-        if (!bucketInfo) {
-          const { error: createError } = await supabase.storage.createBucket(bucketName, {
-            public: bucketName !== 'uploads',
-          });
-          if (createError) {
-            return createError;
-          }
+        const { data: bucketInfo, error: getError } = await supabase.storage.getBucket(bucketName);
+        if (bucketInfo) {
+          return null;
+        }
+        if (getError && getError.message && /not found/i.test(getError.message)) {
+          // proceed to create
+        } else if (getError && !bucketInfo) {
+          // Unexpected error while fetching bucket metadata
+          logger.warn?.('[sign] get_bucket_error', { bucket: bucketName, error: getError.message });
+        }
+        const { error: createError } = await supabase.storage.createBucket(bucketName, {
+          public: bucketName !== 'uploads',
+        });
+        if (createError && createError.message && /already exists/i.test(createError.message)) {
+          return null;
+        }
+        if (createError) {
+          return createError;
         }
         return null;
       } catch (error) {
+        if (error?.message && /already exists/i.test(error.message)) {
+          return null;
+        }
         return error;
       }
     };
