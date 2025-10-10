@@ -634,6 +634,7 @@ function buildShopifyPayload(flowState, mode) {
       ...filteredMetafields,
       { namespace: 'custom', key: 'private', type: 'boolean', value: 'true' },
     ];
+    diag('[audit:private-override]', { mode: payload.mode, private: payload.private === true });
   }
   return payload;
 }
