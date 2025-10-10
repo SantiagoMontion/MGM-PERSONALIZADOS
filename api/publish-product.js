@@ -408,7 +408,7 @@ export default async function handler(req, res) {
   parsedBody.masterWidthPx = Number.isFinite(masterWidthPx) && masterWidthPx > 0 ? Math.round(masterWidthPx) : null;
   parsedBody.masterHeightPx = Number.isFinite(masterHeightPx) && masterHeightPx > 0 ? Math.round(masterHeightPx) : null;
 
-  // Material canónico: usar lo que llegó del front
+  // Material canónico: usar lo que llegó del front (no adivinar salvo fallback explícito)
   try {
     console.log('[audit:publish-product:incoming]', {
       diagId,
@@ -425,9 +425,16 @@ export default async function handler(req, res) {
     // noop
   }
 
-  const materialLabel = normalizeMaterial(
+  let materialLabel = normalizeMaterial(
     parsedBody?.material ?? parsedBody?.materialResolved ?? parsedBody?.options?.material,
   );
+  // Fallback adicional: si vino vacío o Classic por default y productType indica pro/glasspad, respetarlo
+  if (!materialLabel || materialLabel === 'Classic') {
+    const productTypeRaw = parsedBody?.productType ?? parsedBody?.options?.productType;
+    const pt = String(productTypeRaw || '').toLowerCase();
+    if (pt.includes('pro')) materialLabel = 'PRO';
+    else if (pt.includes('glass')) materialLabel = 'Glasspad';
+  }
   // *** MEDIDAS: confiar en widthCm/heightCm enviados por el front (flow) ***
   let widthCmSafe = Number(parsedBody?.widthCm);
   let heightCmSafe = Number(parsedBody?.heightCm);
