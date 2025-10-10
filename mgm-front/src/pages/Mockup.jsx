@@ -122,8 +122,13 @@ async function signUpload({ bucket, contentType, path }) {
         30000,
       );
     } catch (error) {
-      logger.debug?.('[mockup-sign] request_failed', { bucket: bucketName, error });
-      return { ok: false };
+      const reason = error?.message || error?.reason || 'sign_failed';
+      logger.debug?.('[mockup-sign] request_failed', { bucket: bucketName, error: reason });
+      return {
+        ok: false,
+        error: reason,
+        status: typeof error?.status === 'number' ? error.status : undefined,
+      };
     }
   };
 
@@ -131,34 +136,77 @@ async function signUpload({ bucket, contentType, path }) {
   let response = await trySign(primaryBucket);
 
   if (!response?.ok && primaryBucket === 'preview') {
+    try {
+      console.warn('[preview] sign failed, retrying on outputs', {
+        bucket: primaryBucket,
+        error: response?.error || response?.reason || 'sign_failed',
+        status: response?.status,
+      });
+    } catch (_) {
+      // noop
+    }
     response = await trySign('outputs');
   }
 
   if (!response?.ok) {
-    logger.debug?.('[mockup-sign] unavailable', { bucket: primaryBucket, response });
+    logger.debug?.('[mockup-sign] unavailable', {
+      bucket: primaryBucket,
+      error: response?.error || response?.reason || 'sign_failed',
+      status: response?.status,
+    });
     return null;
   }
 
   return response;
 }
 
-async function uploadViaSignedUrl({ uploadUrl, blob, contentType = 'image/jpeg', upsert = false }) {
+async function uploadViaSignedUrl({
+  uploadUrl,
+  blob,
+  contentType = blob?.type || 'image/jpeg',
+  upsert = false,
+  method,
+  requiredHeaders,
+}) {
   if (!uploadUrl || !blob) {
     throw new Error('signed_url_or_blob_missing');
   }
+  const normalizedContentType = contentType || 'application/octet-stream';
   const isSignedUpload = /\/storage\/v1\/object\/upload\/sign\//.test(uploadUrl);
   const headers = new Headers();
-  headers.set('Content-Type', contentType);
-  if (isSignedUpload) {
-    headers.set('x-upsert', upsert ? 'true' : 'false');
+  if (requiredHeaders && typeof requiredHeaders === 'object') {
+    for (const [key, value] of Object.entries(requiredHeaders)) {
+      if (value == null) continue;
+      headers.set(key, String(value));
+    }
+  }
+  if (!headers.has('Content-Type')) {
+    headers.set('Content-Type', normalizedContentType);
+  }
+  const normalizedMethod = typeof method === 'string' ? method.toUpperCase() : null;
+  const shouldUsePost = normalizedMethod ? normalizedMethod === 'POST' : isSignedUpload;
+  if (shouldUsePost) {
+    if (!headers.has('x-upsert')) {
+      headers.set('x-upsert', upsert ? 'true' : 'false');
+    }
     const response = await fetch(uploadUrl, { method: 'POST', headers, body: blob });
     if (!response.ok) {
+      const bodyText = await response.text().catch(() => '');
+      console.error('[preview] POST failed', {
+        status: response.status,
+        body: typeof bodyText === 'string' ? bodyText.slice(0, 400) : null,
+      });
       throw new Error('signed_upload_failed');
     }
     return true;
   }
   const response = await fetch(uploadUrl, { method: 'PUT', headers, body: blob });
   if (!response.ok) {
+    const bodyText = await response.text().catch(() => '');
+    console.error('[preview] PUT failed', {
+      status: response.status,
+      body: typeof bodyText === 'string' ? bodyText.slice(0, 400) : null,
+    });
     throw new Error('put_upload_failed');
   }
   return true;
@@ -170,9 +218,21 @@ async function uploadBlobWithSignedUrl(sign, blob, filename) {
     throw new Error('missing_upload_url');
   }
   const contentType = blob?.type || 'application/octet-stream';
-  await uploadViaSignedUrl({ uploadUrl, blob, contentType, upsert: false });
+  const upsert = Boolean(sign?.upsert);
+  const method = typeof sign?.method === 'string' ? sign.method : undefined;
+  const requiredHeaders = sign?.requiredHeaders && typeof sign.requiredHeaders === 'object'
+    ? sign.requiredHeaders
+    : undefined;
+  await uploadViaSignedUrl({
+    uploadUrl,
+    blob,
+    contentType,
+    upsert,
+    method,
+    requiredHeaders,
+  });
   const bucket = sign?.bucket || 'preview';
-  const objectKey = sign?.path || filename || '';
+  const objectKey = sign?.path || sign?.objectKey || filename || '';
   try {
     console.log('[preview] uploaded', { bucket, key: objectKey });
   } catch (_) {

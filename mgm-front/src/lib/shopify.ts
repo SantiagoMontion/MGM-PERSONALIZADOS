@@ -157,22 +157,44 @@ async function signUpload({
       { bucket, contentType, path },
       controller ? { signal: controller.signal } : undefined,
     );
-    const json = await res.json().catch(() => null);
-    if (res.ok && json && json.ok !== false) {
-      return json as { bucket?: string; path: string; token: string; publicUrl?: string };
+    const text = await res.text().catch(() => '');
+    let json: any = null;
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch (_) {
+      json = null;
     }
-
+    if (res.ok && json && json.ok !== false) {
+      return json as { bucket?: string; path: string; token?: string; publicUrl?: string };
+    }
+    const reason =
+      (json && (json.error || json.message || json.reason))
+        ? String(json.error || json.message || json.reason)
+        : text || `HTTP ${res.status}`;
     if (allowFallback && bucket === 'preview') {
       console.warn('[shopify] sign preview failed, retrying on outputs', {
         bucket,
         status: res.status,
+        error: reason,
       });
       return signUpload({ bucket: 'outputs', contentType, path, allowFallback: false });
     }
-
-    const err = new Error('sign_upload_failed');
-    (err as Error & { status?: number }).status = res.status;
+    const err: Error & { status?: number; reason?: string } = new Error('sign_upload_failed');
+    err.status = res.status;
+    err.reason = reason;
     throw err;
+  } catch (error) {
+    if (allowFallback && bucket === 'preview') {
+      console.warn('[shopify] sign preview failed, retrying on outputs', {
+        bucket,
+        status: typeof (error as Error & { status?: number })?.status === 'number'
+          ? (error as Error & { status?: number }).status
+          : undefined,
+        error: (error as Error & { reason?: string })?.reason || (error as Error).message || String(error),
+      });
+      return signUpload({ bucket: 'outputs', contentType, path, allowFallback: false });
+    }
+    throw error;
   } finally {
     if (timeout) clearTimeout(timeout);
   }

@@ -1,10 +1,35 @@
 import { randomUUID } from 'node:crypto';
 import { ensureCors, respondCorsDenied } from '../../lib/cors.js';
 import getSupabaseAdmin from '../../lib/_lib/supabaseAdmin.js';
+import logger from '../../lib/_lib/logger.js';
 
 const ALLOWED_BUCKETS = new Set(['outputs', 'preview', 'uploads']);
 const DEFAULT_BUCKET = 'outputs';
-const DEFAULT_EXPIRES = 900;
+const DEFAULT_EXPIRES = 600;
+
+function guessExtension(contentType) {
+  if (typeof contentType !== 'string') return '';
+  const lower = contentType.toLowerCase();
+  if (lower.includes('png')) return 'png';
+  if (lower.includes('jpeg') || lower.includes('jpg')) return 'jpg';
+  if (lower.includes('pdf')) return 'pdf';
+  if (lower.includes('webp')) return 'webp';
+  return '';
+}
+
+function buildObjectPath(path, contentType) {
+  const trimmed = typeof path === 'string' ? path.trim().replace(/^\/+/, '') : '';
+  if (trimmed) return trimmed;
+  const ext = guessExtension(contentType);
+  const suffix = ext ? `.${ext}` : '';
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}${suffix}`;
+}
+
+function buildStorageUrl(base, bucket, key, isPublic) {
+  const normalizedBase = String(base || '').replace(/\/+$/, '');
+  const visibility = isPublic ? 'public/' : '';
+  return `${normalizedBase}/storage/v1/object/${visibility}${bucket}/${key}`;
+}
 
 export default async function handler(req, res) {
   const diagId = randomUUID();
@@ -54,15 +79,13 @@ export default async function handler(req, res) {
       ? Math.min(Math.round(Number(body.expiresIn)), 60 * 60 * 24)
       : DEFAULT_EXPIRES;
 
-    const extension = (() => {
-      if (/pdf/i.test(contentType)) return '.pdf';
-      if (/png/i.test(contentType)) return '.png';
-      if (/jpe?g/i.test(contentType)) return '.jpg';
-      return '';
-    })();
-    const objectKey = typeof body.path === 'string' && body.path.trim()
-      ? body.path.trim()
-      : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}${extension}`;
+    const requestedPath = typeof body.path === 'string'
+      ? body.path
+      : typeof body.objectKey === 'string'
+        ? body.objectKey
+        : '';
+    const objectKey = buildObjectPath(requestedPath, contentType);
+    const upsertRequested = Boolean(body.upsert);
 
     const supabase = getSupabaseAdmin();
 
@@ -102,7 +125,7 @@ export default async function handler(req, res) {
     let bucket = requestedBucket;
     let signResult = await signInBucket(bucket);
     if (signResult.error && bucket !== DEFAULT_BUCKET) {
-      console.debug('[sign] retry_default_bucket', {
+      logger.warn?.('[sign] retry_default_bucket', {
         diagId,
         requestedBucket,
         bucket,
@@ -115,7 +138,7 @@ export default async function handler(req, res) {
 
     if (signResult.error || !signResult?.data?.signedUrl || !signResult?.data?.token) {
       const reason = signResult.error?.message || signResult.error || 'missing_signed_url';
-      console.debug('[sign] nonfatal_failure', { diagId, bucket, requestedBucket, objectKey, reason });
+      logger.warn?.('[sign] nonfatal_failure', { diagId, bucket, requestedBucket, objectKey, reason });
       res.setHeader?.('Content-Type', 'application/json; charset=utf-8');
       res.status(200).json({
         ok: false,
@@ -129,22 +152,36 @@ export default async function handler(req, res) {
 
     const signedData = signResult.data;
     const publicData = signResult.publicData;
+    const supabaseUrl = process.env.SUPABASE_URL || '';
+    const resolvedPublicUrl = (() => {
+      if (bucket === 'uploads') return null;
+      if (publicData?.publicUrl) return publicData.publicUrl;
+      if (!supabaseUrl || !objectKey) return null;
+      return buildStorageUrl(supabaseUrl, bucket, objectKey, bucket !== 'uploads');
+    })();
 
     res.setHeader?.('Content-Type', 'application/json; charset=utf-8');
     res.status(200).json({
       ok: true,
       bucket,
       path: objectKey,
+      objectKey,
       uploadUrl: signedData?.signedUrl || null,
-      publicUrl: publicData?.publicUrl || null,
+      publicUrl: resolvedPublicUrl,
       expiresIn: expiresInRaw,
       token: signedData?.token || null,
       signedUrl: signedData?.signedUrl || null,
       diagId,
       requestedBucket,
+      method: 'POST',
+      requiredHeaders: {
+        'content-type': contentType,
+        'x-upsert': upsertRequested ? 'true' : 'false',
+      },
+      upsert: upsertRequested,
     });
   } catch (err) {
-    console.debug('[sign] catch_nonfatal', { diagId, error: err?.message || err });
+    logger.debug?.('[sign] catch_nonfatal', { diagId, error: err?.message || err });
     res.setHeader?.('Content-Type', 'application/json; charset=utf-8');
     res.status(200).json({
       ok: false,
