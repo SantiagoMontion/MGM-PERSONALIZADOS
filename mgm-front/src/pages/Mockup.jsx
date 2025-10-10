@@ -884,8 +884,9 @@ export default function Mockup() {
     };
   }, []);
 
-  function showFriendlyError(error) {
-    logger.error('[mockup]', error);
+  function showFriendlyError(error, options = {}) {
+    const { scope = 'mockup' } = options || {};
+    logger.error(`[${scope}]`, error);
     const reasonRaw = typeof error?.reason === 'string' && error.reason
       ? error.reason
       : typeof error?.message === 'string' && error.message
@@ -932,6 +933,7 @@ export default function Mockup() {
         friendly = 'Shopify rechazó el carrito generado. Intentá nuevamente en unos segundos.';
       }
     }
+    setToast({ message: friendly, tone: 'error', persist: true });
     alert(friendly);
   }
 
@@ -1043,7 +1045,11 @@ export default function Mockup() {
       if (normalizedDiscountCode) {
         baseOptions.discountCode = normalizedDiscountCode;
       }
+      logger.info('[cart-flow] create_job_and_product_start');
       const result = await createJobAndProduct('cart', flow, baseOptions);
+      logger.info('[cart-flow] create_job_and_product_success', {
+        keys: result && typeof result === 'object' ? Object.keys(result) : null,
+      });
       if (SHOULD_LOG_COMMERCE) {
         try {
           const jsonForLog = result && typeof result === 'object' ? result : null;
@@ -1170,9 +1176,10 @@ export default function Mockup() {
       });
       return;
     } catch (err) {
+      logger.error('[cart-flow] create_job_and_product_failed', err);
       setCartStatus('idle');
       if (err?.name === 'AbortError') return;
-      showFriendlyError(err);
+      showFriendlyError(err, { scope: 'cart-flow' });
     } finally {
       setBusy(false);
     }
@@ -1258,7 +1265,11 @@ export default function Mockup() {
         mode === 'private' || !normalizedDiscountCode
           ? jobOptions
           : { ...jobOptions, discountCode: normalizedDiscountCode };
+      logger.info(`[${mode}-flow] create_job_and_product_start`);
       const result = await createJobAndProduct(mode, submissionFlow, jobOptionsWithDiscount);
+      logger.info(`[${mode}-flow] create_job_and_product_success`, {
+        keys: result && typeof result === 'object' ? Object.keys(result) : null,
+      });
       const warningMessages = extractWarningMessages(result?.warnings, result?.warningMessages);
       if (warningMessages.length) {
         try {
@@ -1694,7 +1705,8 @@ export default function Mockup() {
         });
         return;
       }
-      showFriendlyError(error);
+      logger.error(`[${mode}-flow] create_job_and_product_failed`, error);
+      showFriendlyError(error, { scope: `${mode}-flow` });
     } finally {
       if (mode === 'checkout') {
         setPublicBusy(false);
