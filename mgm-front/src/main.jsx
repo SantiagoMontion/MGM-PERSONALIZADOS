@@ -17,6 +17,7 @@ import ComoFunciona from './pages/ComoFunciona.jsx';
 import PreguntasFrecuentes from './pages/PreguntasFrecuentes.jsx';
 import Busqueda from './pages/Busqueda.jsx';
 import Tutorial from './pages/Tutorial.jsx';
+import Bridge from './pages/Bridge.jsx';
 import NotFound, { NotFoundBoundary } from './pages/NotFound.jsx';
 import { OrderFlowProvider } from './store/orderFlow';
 import { FlowProvider } from './state/flow.js';
@@ -49,6 +50,7 @@ const routes = [
       { path: '/busqueda', element: <Busqueda /> },
       { path: '/confirm', element: <Confirm /> },
       { path: '/mockup', element: <Mockup /> },
+      { path: '/bridge', element: <Bridge /> },
       { path: '/calculadora', element: <CalculadoraPage /> },
       { path: '/creating/:jobId', element: <Creating /> },
       { path: '/result/:jobId', element: <Result /> },

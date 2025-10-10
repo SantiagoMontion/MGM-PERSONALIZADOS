@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { PDFDocument } from 'pdf-lib';
 import Toast from '@/components/Toast.jsx';
@@ -220,6 +220,35 @@ const safeReplace = (value, pattern, replacement) => asStr(value).replace(patter
 
 function isHttpUrl(u) {
   return typeof u === 'string' && /^https?:\/\//i.test(u.trim());
+}
+
+function generateBridgeRid() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `bridge_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function bridgeStorageKey(rid) {
+  return `bridge:${rid}`;
+}
+
+function publishBridgeUrl(rid, url) {
+  if (!rid || !url) return;
+  try {
+    localStorage.setItem(bridgeStorageKey(rid), JSON.stringify({ url, ts: Date.now() }));
+  } catch (err) {
+    diag('[bridge] storage_failed', err);
+  }
+}
+
+function clearBridgeKey(rid) {
+  if (!rid) return;
+  try {
+    localStorage.removeItem(bridgeStorageKey(rid));
+  } catch (_) {
+    // noop
+  }
 }
 
 function openInNewTabSafe(url) {
@@ -2401,13 +2430,19 @@ export default function Mockup() {
     });
 
     setToast(null);
+    const bridgeRid = generateBridgeRid();
+    clearBridgeKey(bridgeRid);
+    window.open(`/bridge?rid=${encodeURIComponent(bridgeRid)}`, '_blank', 'noopener');
     setCartStatus('creating');
     try {
-      const overrides = buildOverridesFromUi('cart');
+      await ensureMockupUrlInFlow(flow);
+      const overrides = { ...buildOverridesFromUi('cart'), private: false };
       const result = await buyDirect('cart', overrides, { autoOpen: false });
-      return finalizePurchase(result, flow);
+      const outcome = finalizePurchase(result, flow, bridgeRid, 'No se pudo abrir el producto. Intenta de nuevo.');
+      return outcome;
     } catch (err) {
       warn('[cart] error', err);
+      clearBridgeKey(bridgeRid);
       const fallbackMessage = 'Ocurrió un error al agregar al carrito.';
       toastErr(fallbackMessage);
       setToast({ message: fallbackMessage });
@@ -2425,14 +2460,18 @@ export default function Mockup() {
     return null;
   }
 
-  function finalizePurchase(result, flowRef) {
+  function finalizePurchase(result, flowRef, bridgeRid, fallbackMessage = 'No se pudo abrir el producto. Intenta de nuevo.') {
     if (!result) {
+      if (bridgeRid) {
+        clearBridgeKey(bridgeRid);
+      }
       return { ok: false };
     }
     const targetUrl = pickOpenUrl(result);
     if (isHttpUrl(targetUrl)) {
-      const opened = openInNewTabSafe(targetUrl);
-      if (!opened) {
+      if (bridgeRid) {
+        publishBridgeUrl(bridgeRid, targetUrl);
+      } else if (!openInNewTabSafe(targetUrl)) {
         try {
           window.location.assign(targetUrl);
         } catch (assignErr) {
@@ -2443,7 +2482,9 @@ export default function Mockup() {
       jumpHomeAndClean(flowStateForJump || flowRef);
       return { ok: true, url: targetUrl };
     }
-    const fallbackMessage = 'No se pudo abrir el producto. Intentá de nuevo.';
+    if (bridgeRid) {
+      clearBridgeKey(bridgeRid);
+    }
     toastErr(fallbackMessage);
     setToast({ message: fallbackMessage });
     return { ok: false };
@@ -2553,22 +2594,27 @@ export default function Mockup() {
     setPublicBusy(true);
     setBusy(true);
 
+    const bridgeRid = generateBridgeRid();
+    clearBridgeKey(bridgeRid);
+    window.open(`/bridge?rid=${encodeURIComponent(bridgeRid)}`, '_blank', 'noopener');
+
     try {
       setBuyPromptOpen(false);
       await ensureMockupPublicReady(flow);
+      await ensureMockupUrlInFlow(flow);
       const baseOverrides = buildOverridesFromUi('checkout') || {};
       const overrides = {
         ...baseOverrides,
         options: {
           ...(typeof baseOverrides.options === 'object' && baseOverrides.options ? baseOverrides.options : {}),
         },
-        private: false,
         visibility: 'public',
       };
-      const result = await buyDirect('checkout', overrides, { skipEnsure: true, autoOpen: false });
-      return finalizePurchase(result, flow);
+      const result = await buyDirect('checkout', { ...overrides, private: false }, { skipEnsure: true, autoOpen: false });
+      return finalizePurchase(result, flow, bridgeRid, 'No se pudo abrir el checkout. Intenta nuevamente.');
     } catch (err) {
       error('[checkout-public-flow]', err);
+      clearBridgeKey(bridgeRid);
       setToast({ message: 'Ocurrió un error al procesar el checkout.' });
       return null;
     } finally {
@@ -2585,22 +2631,27 @@ export default function Mockup() {
     setPrivateBusy(true);
     setBusy(true);
 
+    const bridgeRid = generateBridgeRid();
+    clearBridgeKey(bridgeRid);
+    window.open(`/bridge?rid=${encodeURIComponent(bridgeRid)}`, '_blank', 'noopener');
+
     try {
       setBuyPromptOpen(false);
       await ensureMockupPublicReady(flow);
+      await ensureMockupUrlInFlow(flow);
       const baseOverrides = buildOverridesFromUi('private') || {};
       const overrides = {
         ...baseOverrides,
         options: {
           ...(typeof baseOverrides.options === 'object' && baseOverrides.options ? baseOverrides.options : {}),
         },
-        private: true,
         visibility: 'private',
       };
-      const result = await buyDirect('private', overrides, { skipEnsure: true, autoOpen: false });
-      return finalizePurchase(result, flow);
+      const result = await buyDirect('checkout', { ...overrides, private: true }, { skipEnsure: true, autoOpen: false });
+      return finalizePurchase(result, flow, bridgeRid, 'No se pudo abrir el checkout privado. Proba de nuevo.');
     } catch (err) {
       error('[checkout-private-flow]', err);
+      clearBridgeKey(bridgeRid);
       setToast({ message: 'Ocurrió un error al procesar el checkout privado.' });
       return null;
     } finally {
@@ -2981,5 +3032,8 @@ export default function Mockup() {
     </div>
   );
 }
+
+
+
 
 
