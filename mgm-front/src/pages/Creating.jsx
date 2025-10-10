@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import LoadingOverlay from '../components/LoadingOverlay';
 import { apiFetch } from '@/lib/api';
-import logger from '../lib/logger';
+import { diag, warn, error } from '@/lib/log';
 
 export default function Creating() {
   const { jobId } = useParams();
@@ -75,21 +75,21 @@ export default function Creating() {
           const summaryMessage = typeof summaryJson?.error === 'string' && summaryJson.error
             ? summaryJson.error
             : summaryText;
-          logger.warn('[creating] job_summary_failed', {
+          warn('[creating] job_summary_failed', {
             status: summaryRes.status,
             bodyText: summaryText,
             message: summaryMessage,
           });
         }
       } catch (summaryErr) {
-        logger.warn('[creating] job_summary_failed', {
+        warn('[creating] job_summary_failed', {
           message: summaryErr?.message || summaryErr,
           status: summaryErr?.status,
           bodyText: summaryErr?.bodyText,
         });
       }
     } catch (err) {
-      logger.error('[creating] finalize_failed', {
+      error('[creating] finalize_failed', {
         message: err?.message || err,
         status: err?.status,
         bodyText: err?.bodyText,
@@ -112,11 +112,11 @@ export default function Creating() {
         try {
           popup.opener = null;
         } catch (openerErr) {
-          logger.debug('[creating] opener_clear_failed', openerErr);
+          diag('[creating] opener_clear_failed', openerErr);
         }
       }
     } catch (openErr) {
-      logger.warn('[creating] product_open_failed', openErr);
+      warn('[creating] product_open_failed', openErr);
     } finally {
       setAutoOpened(true);
     }
