@@ -1,4 +1,5 @@
 import { PDFDocument } from 'pdf-lib';
+import { bytesToMB, formatHeavyImageToastMessage } from './imageLimits.js';
 import { MAX_IMAGE_MB, MAX_IMAGE_BYTES } from './imageSizeLimit.js';
 
 const MM_TO_PT = 72 / 25.4;
@@ -15,7 +16,9 @@ export async function buildPdfFromMaster(masterBlob, options = {}) {
 
   const masterSize = Number(masterBlob?.size);
   if (Number.isFinite(masterSize) && masterSize > MAX_IMAGE_BYTES) {
-    window?.toast?.error?.(`La imagen supera ${MAX_IMAGE_MB} MB. No podemos procesarla.`);
+    const actualMb = bytesToMB(masterSize);
+    console.warn('[guard:file_too_heavy]', { maxMB: MAX_IMAGE_MB, actualMB: actualMb });
+    window?.toast?.error?.(formatHeavyImageToastMessage(actualMb, MAX_IMAGE_MB), { duration: 6000 });
     const err = new Error('image_too_heavy');
     err.reason = 'image_too_heavy';
     throw err;

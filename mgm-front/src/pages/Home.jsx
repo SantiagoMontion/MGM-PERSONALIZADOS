@@ -38,7 +38,7 @@ import { ensureMockupUrlInFlow } from './Mockup.jsx';
 import { quickHateSymbolCheck } from '@/lib/moderation.ts';
 import { scanNudityClient } from '@/lib/moderation/nsfw.client.js';
 import { useFlow } from '@/state/flow.js';
-import { getMaxImageMb, bytesToMB } from '@/lib/imageLimits.js';
+import { getMaxImageMb, bytesToMB, formatHeavyImageToastMessage } from '@/lib/imageLimits.js';
 import { MAX_IMAGE_MB as MAX_IMAGE_MB_BASE } from '../lib/imageSizeLimit.js';
 
 const MAX_IMAGE_MB = MAX_IMAGE_MB_BASE; // ajustar fácilmente; hoy 40MB
@@ -440,6 +440,17 @@ export default function Home() {
   const wasConfigOpenRef = useRef(false);
   const [canvasFit, setCanvasFit] = useState({ height: null, maxWidth: null, sectionOneMinHeight: null });
   const flow = useFlow();
+  const heavyToastShownRef = useRef(false);
+
+  const showHeavyImageToast = useCallback((actualMb, maxMb) => {
+    console.warn('[guard:file_too_heavy]', { maxMB: maxMb, actualMB: actualMb });
+    if (heavyToastShownRef.current) {
+      return;
+    }
+    heavyToastShownRef.current = true;
+    const toast = window?.toast;
+    toast?.error?.(formatHeavyImageToastMessage(actualMb, maxMb), { duration: 6000 });
+  }, []);
 
   useEffect(() => {
     if (!busy) {
@@ -456,6 +467,7 @@ export default function Home() {
   }, [busy]);
 
   const handleClearImage = useCallback(() => {
+    heavyToastShownRef.current = false;
     setUploaded(null);
     setLayout(null);
     setAckLowError(false);
@@ -662,12 +674,7 @@ export default function Home() {
       const flowState = (typeof flow?.get === 'function' ? flow.get() : flow) || {};
       const maxImageMb = getMaxImageMb();
       const notifyTooHeavy = (actualMB) => {
-        console.warn('[guard:file_too_heavy]', { maxMB: maxImageMb, actualMB });
-        const toast = window?.toast;
-        toast?.error?.(
-          `La imagen supera el peso máximo permitido (Máx: ${maxImageMb} MB, tu imagen: ${actualMB} MB).\n`
-            + 'Elegí una imagen más liviana y volvé a intentar.',
-        );
+        showHeavyImageToast(actualMB, maxImageMb);
         setBusy(false);
       };
       const masterFile = uploaded?.file || flowState?.masterFile || null;
@@ -1866,6 +1873,7 @@ export default function Home() {
                         const file = info?.file;
                         if (!file) return;
 
+                        heavyToastShownRef.current = false;
                         if (file.size > MAX_IMAGE_BYTES) {
                           try {
                             if (info?.localUrl) URL.revokeObjectURL(info.localUrl);
@@ -1874,9 +1882,11 @@ export default function Home() {
                           setImageUrl(null);
                           flow?.set?.({ mockupUrl: null, mockupPublicUrl: null, masterBytes: null });
                           const toast = window?.toast;
-                          toast?.error?.(
-                            `La imagen pesa ${(file.size / 1048576).toFixed(1)} MB y supera el máximo permitido (${MAX_IMAGE_MB} MB). Subí una imagen más liviana.`,
+                          const tooHeavyMessage = formatHeavyImageToastMessage(
+                            bytesToMB(file.size),
+                            MAX_IMAGE_MB,
                           );
+                          toast?.error?.(tooHeavyMessage, { duration: 6000 });
                           return;
                         }
 
