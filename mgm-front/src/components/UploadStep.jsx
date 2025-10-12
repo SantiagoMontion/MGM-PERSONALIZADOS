@@ -1,6 +1,7 @@
 import { error } from '@/lib/log';
 // src/components/UploadStep.jsx
 import { useRef, useState } from 'react';
+import { getMaxImageMb, bytesToMB } from '@/lib/imageLimits.js';
 import styles from './UploadStep.module.css';
 import LoadingOverlay from './LoadingOverlay';
 
@@ -18,6 +19,18 @@ export default function UploadStep({ onUploaded, className = '', renderTrigger }
   async function handlePicked(e) {
     const file = e.target.files?.[0];
     if (!file) return;
+    const maxMB = getMaxImageMb();
+    const sizeMB = bytesToMB(file.size || 0);
+    if (sizeMB > maxMB) {
+      console.warn('[guard:file_too_heavy]', { maxMB, actualMB: sizeMB });
+      const toast = window?.toast;
+      toast?.error?.(
+        `La imagen supera el peso máximo permitido (Máx: ${maxMB} MB, tu imagen: ${sizeMB} MB).\n`
+          + 'Elegí una imagen más liviana y volvé a intentar.',
+      );
+      if (inputRef.current) inputRef.current.value = '';
+      return;
+    }
     setBusy(true);
     setErr('');
     try {
