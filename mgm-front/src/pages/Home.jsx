@@ -38,6 +38,7 @@ import { ensureMockupUrlInFlow } from './Mockup.jsx';
 import { quickHateSymbolCheck } from '@/lib/moderation.ts';
 import { scanNudityClient } from '@/lib/moderation/nsfw.client.js';
 import { useFlow } from '@/state/flow.js';
+import { getMaxImageMb, bytesToMB } from '@/lib/imageLimits.js';
 
 const asStr = (value) => (typeof value === 'string' ? value : value == null ? '' : String(value));
 const safeStr = (value, fallback = '') => {
@@ -112,6 +113,38 @@ function diagTime(label, t0) {
     diag(`[perf] ${label}: ${seconds.toFixed(2)}s`);
   } catch (_) {
     // noop
+  }
+}
+
+async function probeRemoteImageSizeMb(url, timeoutMs = 3000) {
+  if (!url || typeof url !== 'string') return null;
+  const trimmed = url.trim();
+  if (!trimmed) return null;
+  if (!/^https?:/i.test(trimmed)) return null;
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  let timeoutId = null;
+  try {
+    if (controller) {
+      timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    }
+    const response = await fetch(trimmed, {
+      method: 'HEAD',
+      signal: controller?.signal,
+    });
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+      timeoutId = null;
+    }
+    if (!response.ok) return null;
+    const lengthHeader = response.headers?.get?.('content-length');
+    if (!lengthHeader) return null;
+    const bytes = Number(lengthHeader);
+    if (!Number.isFinite(bytes) || bytes <= 0) return null;
+    return bytesToMB(bytes);
+  } catch (_) {
+    return null;
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
   }
 }
 
@@ -621,6 +654,43 @@ export default function Home() {
     try {
       setModerationNotice('');
       setBusy(true);
+      const flowState = (typeof flow?.get === 'function' ? flow.get() : flow) || {};
+      const maxImageMb = getMaxImageMb();
+      const notifyTooHeavy = (actualMB) => {
+        console.warn('[guard:file_too_heavy]', { maxMB: maxImageMb, actualMB });
+        const toast = window?.toast;
+        toast?.error?.(
+          `La imagen supera el peso máximo permitido (Máx: ${maxImageMb} MB, tu imagen: ${actualMB} MB).\n`
+            + 'Elegí una imagen más liviana y volvé a intentar.',
+        );
+        setBusy(false);
+      };
+      const masterFile = uploaded?.file || flowState?.masterFile || null;
+      if (masterFile?.size) {
+        const masterSizeMb = bytesToMB(masterFile.size);
+        if (masterSizeMb > maxImageMb) {
+          notifyTooHeavy(masterSizeMb);
+          return;
+        }
+      } else {
+        const remoteUrlCandidates = [
+          typeof masterPublicUrl === 'string' ? masterPublicUrl : null,
+          typeof flowState?.masterPublicUrl === 'string' ? flowState.masterPublicUrl : null,
+          typeof flowState?.fileOriginalUrl === 'string' ? flowState.fileOriginalUrl : null,
+        ].filter(Boolean);
+        let remoteImageSizeMb = null;
+        for (const candidate of remoteUrlCandidates) {
+          const probed = await probeRemoteImageSizeMb(candidate, 3000);
+          if (probed != null) {
+            remoteImageSizeMb = probed;
+            break;
+          }
+        }
+        if (remoteImageSizeMb != null && remoteImageSizeMb > maxImageMb) {
+          notifyTooHeavy(remoteImageSizeMb);
+          return;
+        }
+      }
       await nextPaint(2);
       const designBlob = await canvasRef.current.exportPadAsBlob?.();
       if (!designBlob || !designBlob.size) {
@@ -837,7 +907,6 @@ export default function Home() {
       const masterWidthMm = activeWcm * 10;
       const masterHeightMm = activeHcm * 10;
       const dpiForMockup = layout?.dpi || effDpi || 300;
-      const flowState = (typeof flow?.get === 'function' ? flow.get() : flow) || {};
       const designMime = designBlob.type || 'image/png';
       const shouldUploadMaster = KEEP_MASTER && !SKIP_MASTER_UPLOAD;
       const sanitizeForFileName = (value, fallback = 'Design') => {
