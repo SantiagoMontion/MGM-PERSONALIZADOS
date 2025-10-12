@@ -1,4 +1,5 @@
 import { PDFDocument } from 'pdf-lib';
+import { MAX_IMAGE_MB, MAX_IMAGE_BYTES } from './imageSizeLimit.js';
 
 const MM_TO_PT = 72 / 25.4;
 
@@ -10,6 +11,14 @@ function mmToPt(mm) {
 export async function buildPdfFromMaster(masterBlob, options = {}) {
   if (!masterBlob || typeof masterBlob.arrayBuffer !== 'function') {
     throw new Error('master_blob_required');
+  }
+
+  const masterSize = Number(masterBlob?.size);
+  if (Number.isFinite(masterSize) && masterSize > MAX_IMAGE_BYTES) {
+    window?.toast?.error?.(`La imagen supera ${MAX_IMAGE_MB} MB. No podemos procesarla.`);
+    const err = new Error('image_too_heavy');
+    err.reason = 'image_too_heavy';
+    throw err;
   }
 
   const {

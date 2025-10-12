@@ -39,6 +39,10 @@ import { quickHateSymbolCheck } from '@/lib/moderation.ts';
 import { scanNudityClient } from '@/lib/moderation/nsfw.client.js';
 import { useFlow } from '@/state/flow.js';
 import { getMaxImageMb, bytesToMB } from '@/lib/imageLimits.js';
+import { MAX_IMAGE_MB as MAX_IMAGE_MB_BASE } from '../lib/imageSizeLimit.js';
+
+const MAX_IMAGE_MB = MAX_IMAGE_MB_BASE; // ajustar fácilmente; hoy 40MB
+const MAX_IMAGE_BYTES = MAX_IMAGE_MB * 1024 * 1024;
 
 const asStr = (value) => (typeof value === 'string' ? value : value == null ? '' : String(value));
 const safeStr = (value, fallback = '') => {
@@ -461,7 +465,8 @@ export default function Home() {
     setErr('');
     setModerationNotice('');
     setPriceAmount(0);
-  }, []);
+    flow?.set?.({ mockupUrl: null, mockupPublicUrl: null, masterBytes: null });
+  }, [flow]);
 
   const effDpi = useMemo(() => {
     if (!layout) return null;
@@ -1858,6 +1863,24 @@ export default function Home() {
                     <UploadStep
                       className={styles.uploadControl}
                       onUploaded={info => {
+                        const file = info?.file;
+                        if (!file) return;
+
+                        if (file.size > MAX_IMAGE_BYTES) {
+                          try {
+                            if (info?.localUrl) URL.revokeObjectURL(info.localUrl);
+                          } catch {}
+                          setUploaded(null);
+                          setImageUrl(null);
+                          flow?.set?.({ mockupUrl: null, mockupPublicUrl: null, masterBytes: null });
+                          const toast = window?.toast;
+                          toast?.error?.(
+                            `La imagen pesa ${(file.size / 1048576).toFixed(1)} MB y supera el máximo permitido (${MAX_IMAGE_MB} MB). Subí una imagen más liviana.`,
+                          );
+                          return;
+                        }
+
+                        flow?.set?.({ masterBytes: file.size });
                         setUploaded(info);
                         setAckLow(false);
                         setAckLowError(false);

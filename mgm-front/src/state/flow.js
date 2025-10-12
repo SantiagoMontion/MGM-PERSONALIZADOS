@@ -29,6 +29,7 @@ const defaultState = {
   mockupBlob: null,
   mockupUrl: null,
   mockupPublicUrl: null,
+  masterBytes: null,
   printFullResDataUrl: null,
   fileOriginalUrl: null,
   uploadObjectKey: null,
