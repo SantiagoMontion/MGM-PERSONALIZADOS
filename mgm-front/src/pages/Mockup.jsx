@@ -14,6 +14,7 @@ import {
   pickCommerceTarget,
 } from '@/lib/shopify.ts';
 import { diag, warn, error } from '@/lib/log';
+import { bytesToMB, formatHeavyImageToastMessage } from '@/lib/imageLimits.js';
 import { MAX_IMAGE_MB, MAX_IMAGE_BYTES } from '../lib/imageSizeLimit.js';
 
 const safeStr = (v) => (typeof v === 'string' ? v : '').trim();
@@ -358,7 +359,9 @@ export async function ensureMockupUrlInFlow(flow, input) {
   const state = typeof flow?.get === 'function' ? flow.get() : flow;
   const bytes = state?.masterBytes;
   if (bytes && bytes > MAX_IMAGE_BYTES) {
-    window?.toast?.error?.(`La imagen supera ${MAX_IMAGE_MB} MB. No podemos procesarla.`);
+    const actualMb = bytesToMB(bytes);
+    console.warn('[guard:file_too_heavy]', { maxMB: MAX_IMAGE_MB, actualMB: actualMb });
+    window?.toast?.error?.(formatHeavyImageToastMessage(actualMb, MAX_IMAGE_MB), { duration: 6000 });
     const err = new Error('image_too_heavy');
     err.reason = 'image_too_heavy';
     throw err;
