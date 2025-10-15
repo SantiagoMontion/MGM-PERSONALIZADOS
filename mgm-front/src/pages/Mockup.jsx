@@ -1163,6 +1163,234 @@ export default function Mockup() {
       return { x, y };
     };
 
+    const nowMs = () => {
+      if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
+        return performance.now();
+      }
+      return Date.now();
+    };
+
+    const resolveEditorApi = () => {
+      if (typeof window === 'undefined') return null;
+      const candidates = [];
+      const pushCandidate = (value) => {
+        if (!value || typeof value !== 'object') return;
+        candidates.push(value);
+        if (value.bridge && typeof value.bridge === 'object') {
+          candidates.push(value.bridge);
+        }
+        if (value.api && typeof value.api === 'object') {
+          candidates.push(value.api);
+        }
+      };
+
+      pushCandidate(window.__MGM_EDITOR__);
+      pushCandidate(window.__MGM_CANVAS__);
+      pushCandidate(window.__EDITOR__);
+      pushCandidate(window.__CANVAS__);
+      pushCandidate(window.editorBridge);
+      pushCandidate(window.editor);
+      pushCandidate(window.mockupEditor);
+
+      const flowMaybe = (() => {
+        try {
+          return window.__MGM_FLOW__ || window.__FLOW__ || null;
+        } catch (_) {
+          return null;
+        }
+      })();
+      pushCandidate(flowMaybe?.editor);
+      pushCandidate(flowMaybe?.bridge);
+
+      for (const candidate of candidates) {
+        if (!candidate || typeof candidate !== 'object') continue;
+        const hasHit = ['hitTest', 'hitTestPoint', 'hitTestHandles', 'pickAt', 'pickPoint']
+          .some((key) => typeof candidate[key] === 'function');
+        const hasClear = ['clearSelection', 'deselectAll', 'selectNone', 'resetSelection']
+          .some((key) => typeof candidate[key] === 'function');
+        const hasStage =
+          candidate.stage || candidate.stageRef || candidate.getStage || candidate.stageNode;
+        if (hasHit || hasClear || hasStage) {
+          return candidate;
+        }
+      }
+      return null;
+    };
+
+    const interpretHitResult = (value) => {
+      if (!value) return false;
+      if (typeof value === 'boolean') return value;
+      if (Array.isArray(value)) return value.length > 0;
+      if (typeof value === 'object') {
+        const keys = Object.keys(value);
+        if (keys.length === 0) return false;
+        if ('hit' in value) {
+          const hitVal = value.hit;
+          if (typeof hitVal === 'boolean') return hitVal;
+        }
+        if ('node' in value) return Boolean(value.node);
+        if ('handle' in value) return Boolean(value.handle);
+        if ('targets' in value && Array.isArray(value.targets)) {
+          return value.targets.length > 0;
+        }
+        return true;
+      }
+      return Boolean(value);
+    };
+
+    const resolveStageFromApi = (api) => {
+      if (!api || typeof api !== 'object') return null;
+      const stageCandidates = [];
+      if (api.stage && typeof api.stage === 'object') stageCandidates.push(api.stage);
+      if (api.stageRef?.current) stageCandidates.push(api.stageRef.current);
+      if (api.stageNode && typeof api.stageNode === 'object') stageCandidates.push(api.stageNode);
+      if (typeof api.getStage === 'function') {
+        try {
+          const stage = api.getStage();
+          if (stage) stageCandidates.push(stage);
+        } catch (_) {}
+      }
+      if (typeof window !== 'undefined') {
+        try {
+          const konvaStages = window.Konva?.stages;
+          if (Array.isArray(konvaStages)) {
+            stageCandidates.push(...konvaStages);
+          }
+        } catch (_) {
+          // ignore
+        }
+      }
+      for (const stage of stageCandidates) {
+        if (stage && typeof stage.getIntersection === 'function') {
+          return stage;
+        }
+      }
+      return null;
+    };
+
+    const didHitAtPoint = (point) => {
+      const api = resolveEditorApi();
+      if (!api) {
+        return null;
+      }
+
+      const candidates = [];
+      const pushFn = (fn) => {
+        if (typeof fn === 'function') {
+          candidates.push(fn);
+        }
+      };
+
+      pushFn(api.hitTest);
+      pushFn(api.hitTestPoint);
+      pushFn(api.hitTestHandles);
+      pushFn(api.hitTestHandle);
+      pushFn(api.hitTestNode);
+      pushFn(api.pickAt);
+      pushFn(api.pickPoint);
+      pushFn(api.pickHandleAt);
+      pushFn(api.pickNodeAt);
+
+      for (const fn of candidates) {
+        try {
+          const result = fn.call(api, point);
+          if (interpretHitResult(result)) {
+            return true;
+          }
+        } catch (_) {
+          // ignore individual hit-test errors
+        }
+      }
+
+      const stage = resolveStageFromApi(api);
+      if (stage) {
+        try {
+          const intersection = stage.getIntersection(point);
+          if (intersection) {
+            return true;
+          }
+        } catch (_) {
+          // ignore stage hit-test errors
+        }
+      }
+
+      return false;
+    };
+
+    const clearEditorSelection = () => {
+      const api = resolveEditorApi();
+      if (!api) {
+        return false;
+      }
+
+      const commands = [];
+      const pushCommand = (fn, ctx = api) => {
+        if (typeof fn === 'function') {
+          commands.push(() => {
+            try {
+              fn.call(ctx);
+              return true;
+            } catch (_) {
+              return false;
+            }
+          });
+        }
+      };
+
+      pushCommand(api.clearSelection);
+      pushCommand(api.deselectAll);
+      pushCommand(api.selectNone);
+      pushCommand(api.resetSelection);
+      if (typeof api.setSelection === 'function') {
+        commands.push(() => {
+          try {
+            api.setSelection(null);
+            return true;
+          } catch (_) {
+            return false;
+          }
+        });
+      }
+      if (api.selection && typeof api.selection.clear === 'function') {
+        commands.push(() => {
+          try {
+            api.selection.clear();
+            return true;
+          } catch (_) {
+            return false;
+          }
+        });
+      }
+
+      for (const run of commands) {
+        if (run()) {
+          if (typeof api.render === 'function') {
+            try {
+              api.render();
+            } catch (_) {}
+          }
+          if (typeof api.draw === 'function') {
+            try {
+              api.draw();
+            } catch (_) {}
+          }
+          if (typeof api.requestRender === 'function') {
+            try {
+              api.requestRender();
+            } catch (_) {}
+          }
+          return true;
+        }
+      }
+
+      return false;
+    };
+
+    const isInteractiveTarget = (target) => {
+      if (!target || typeof target.closest !== 'function') return false;
+      return Boolean(target.closest('[data-interactive="true"]'));
+    };
+
     // MOBILE-ONLY: ensure high-DPR devices keep pointer precision aligned
     const dprScaleIfMobile = (canvas) => {
       if (!canvas) return;
@@ -1191,22 +1419,55 @@ export default function Mockup() {
       mobileCanvasRef.current = canvas;
       dprScaleIfMobile(canvas);
 
-      const state = { isDown: false, lastX: 0, lastY: 0, pointers: new Map() };
+      const state = {
+        isDown: false,
+        lastX: 0,
+        lastY: 0,
+        pointers: new Map(),
+        tapStart: null,
+        tapMaxDistance: 0,
+        tapHadMulti: false,
+      };
       const opts = { passive: false };
 
       const onDown = (event) => {
         if (!isMobile) return;
+        if (isInteractiveTarget(event.target)) {
+          return;
+        }
         event.preventDefault();
         const { x, y } = getCanvasPoint(event, canvas);
         state.isDown = true;
         state.lastX = x;
         state.lastY = y;
+        const isCanvasTarget = event.target instanceof window.HTMLCanvasElement;
+        if (state.pointers.size === 0 && isCanvasTarget) {
+          state.tapStart = {
+            x,
+            y,
+            time: nowMs(),
+            pointerId: event.pointerId,
+          };
+          state.tapMaxDistance = 0;
+          state.tapHadMulti = false;
+        } else {
+          state.tapStart = null;
+          if (!isCanvasTarget || state.pointers.size > 0) {
+            state.tapHadMulti = true;
+          }
+        }
         state.pointers.set(event.pointerId, { x, y });
+        if (state.pointers.size >= 2) {
+          state.tapHadMulti = true;
+        }
         canvas.setPointerCapture?.(event.pointerId);
       };
 
       const onMove = (event) => {
         if (!isMobile) return;
+        if (isInteractiveTarget(event.target)) {
+          return;
+        }
         if (!state.isDown && state.pointers.size < 2) return;
         event.preventDefault();
         const { x, y } = getCanvasPoint(event, canvas);
@@ -1215,13 +1476,25 @@ export default function Mockup() {
         state.lastX = x;
         state.lastY = y;
         state.pointers.set(event.pointerId, { x, y });
+        if (state.pointers.size >= 2) {
+          state.tapHadMulti = true;
+        }
+        if (state.tapStart && event.pointerId === state.tapStart.pointerId) {
+          const dist = Math.hypot(x - state.tapStart.x, y - state.tapStart.y);
+          if (dist > state.tapMaxDistance) {
+            state.tapMaxDistance = dist;
+          }
+        }
         // MOBILE-ONLY: existing pan handlers keep receiving the bubbling event
         // existingPanUpdate?.(dx, dy);
       };
 
       const onUp = (event) => {
         if (!isMobile) return;
-        event.preventDefault();
+        const interactive = isInteractiveTarget(event.target);
+        if (!interactive) {
+          event.preventDefault();
+        }
         state.isDown = false;
         state.pointers.clear();
         try {
@@ -1229,6 +1502,31 @@ export default function Mockup() {
         } catch (_) {
           // ignore
         }
+        if (event.type === 'pointerup' && !interactive) {
+          const tapStart = state.tapStart;
+          if (tapStart && tapStart.pointerId === event.pointerId && !state.tapHadMulti) {
+            const duration = nowMs() - tapStart.time;
+            const { x, y } = getCanvasPoint(event, canvas);
+            const totalDist = Math.hypot(x - tapStart.x, y - tapStart.y);
+            const maxDist = Math.max(totalDist, state.tapMaxDistance || 0);
+            if (duration < 300 && maxDist < 6) {
+              const hitResult = didHitAtPoint({ x: tapStart.x, y: tapStart.y });
+              if (hitResult === false) {
+                const cleared = clearEditorSelection();
+                if (!cleared && typeof diag === 'function') {
+                  try {
+                    diag('[mobile-touch] tap_clear_failed');
+                  } catch (_) {
+                    // ignore logging failures
+                  }
+                }
+              }
+            }
+          }
+        }
+        state.tapStart = null;
+        state.tapMaxDistance = 0;
+        state.tapHadMulti = false;
       };
 
       canvas.addEventListener('pointerdown', onDown, opts);
