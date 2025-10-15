@@ -1148,6 +1148,135 @@ export default function Mockup() {
     }
 
     const isMobile = mediaQuery.matches;
+    const DEBUG_MOBILE_HITS = false;
+
+    const isSelectableKonvaNode = (node) => {
+      if (!node || typeof node !== 'object') {
+        return false;
+      }
+      const Konva = window?.Konva;
+      if (!Konva || typeof Konva.Shape !== 'function') {
+        return false;
+      }
+      if (!(node instanceof Konva.Shape)) {
+        return false;
+      }
+      try {
+        if (typeof node.visible === 'function' && !node.visible()) {
+          return false;
+        }
+      } catch (_) {
+        return false;
+      }
+      try {
+        if (typeof node.listening === 'function' && !node.listening()) {
+          return false;
+        }
+      } catch (_) {
+        return false;
+      }
+
+      let isDraggable = false;
+      try {
+        if (typeof node.draggable === 'function') {
+          isDraggable = Boolean(node.draggable());
+        }
+      } catch (_) {
+        isDraggable = false;
+      }
+
+      let hasSelectableAttr = false;
+      try {
+        if (typeof node.getAttr === 'function') {
+          const mgmSelectable = node.getAttr('mgmSelectable');
+          const selectable = node.getAttr('selectable');
+          hasSelectableAttr = Boolean(mgmSelectable ?? selectable);
+        }
+      } catch (_) {
+        hasSelectableAttr = false;
+      }
+
+      const selectableNames = ['image', 'text', 'rect', 'group'];
+      let hasSelectableName = false;
+      try {
+        if (typeof node.hasName === 'function') {
+          hasSelectableName = selectableNames.some((name) => {
+            try {
+              return node.hasName(name);
+            } catch (_) {
+              return false;
+            }
+          });
+        } else if (typeof node.name === 'function') {
+          const rawName = node.name();
+          if (typeof rawName === 'string' && rawName.trim()) {
+            const parts = rawName.split(/\s+/g);
+            hasSelectableName = parts.some((part) => selectableNames.includes(part));
+          }
+        } else if (typeof node?.attrs?.name === 'string') {
+          const parts = node.attrs.name.split(/\s+/g);
+          hasSelectableName = parts.some((part) => selectableNames.includes(part));
+        }
+      } catch (_) {
+        hasSelectableName = false;
+      }
+
+      return Boolean(isDraggable || hasSelectableAttr || hasSelectableName);
+    };
+
+    const toSelectable = (node) => {
+      if (!node || typeof node !== 'object') {
+        return null;
+      }
+      try {
+        const ancestor = node.findAncestor?.((n) => isSelectableKonvaNode(n), true);
+        if (ancestor && isSelectableKonvaNode(ancestor)) {
+          return ancestor;
+        }
+      } catch (_) {
+        // ignore ancestor lookup errors
+      }
+      return isSelectableKonvaNode(node) ? node : null;
+    };
+
+    const tryGetSelectableNode = (value) => {
+      if (!value) return null;
+      const direct = toSelectable(value);
+      if (direct) return direct;
+      if (Array.isArray(value)) {
+        for (const item of value) {
+          const found = tryGetSelectableNode(item);
+          if (found) {
+            return found;
+          }
+        }
+        return null;
+      }
+      if (typeof value === 'object') {
+        const keysToCheck = [
+          'node',
+          'target',
+          'shape',
+          'shapeRef',
+          'value',
+          'item',
+          'group',
+          'container',
+          'nodes',
+          'targets',
+          'children',
+          'handle',
+        ];
+        for (const key of keysToCheck) {
+          if (!(key in value)) continue;
+          const maybe = tryGetSelectableNode(value[key]);
+          if (maybe) {
+            return maybe;
+          }
+        }
+      }
+      return null;
+    };
 
     const getCanvasPoint = (event, canvas) => {
       if (!canvas) {
@@ -1219,23 +1348,14 @@ export default function Mockup() {
 
     const interpretHitResult = (value) => {
       if (!value) return false;
-      if (typeof value === 'boolean') return value;
-      if (Array.isArray(value)) return value.length > 0;
-      if (typeof value === 'object') {
-        const keys = Object.keys(value);
-        if (keys.length === 0) return false;
-        if ('hit' in value) {
-          const hitVal = value.hit;
-          if (typeof hitVal === 'boolean') return hitVal;
-        }
-        if ('node' in value) return Boolean(value.node);
-        if ('handle' in value) return Boolean(value.handle);
-        if ('targets' in value && Array.isArray(value.targets)) {
-          return value.targets.length > 0;
-        }
+      if (tryGetSelectableNode(value)) {
         return true;
       }
-      return Boolean(value);
+      if (typeof value === 'boolean') return value;
+      if (Array.isArray(value)) {
+        return value.some((item) => interpretHitResult(item));
+      }
+      return false;
     };
 
     const resolveStageFromApi = (api) => {
@@ -1305,8 +1425,9 @@ export default function Mockup() {
       const stage = resolveStageFromApi(api);
       if (stage) {
         try {
-          const intersection = stage.getIntersection(point);
-          if (intersection) {
+          const raw = stage.getIntersection(point);
+          const selectable = toSelectable(raw);
+          if (selectable) {
             return true;
           }
         } catch (_) {
@@ -1510,8 +1631,21 @@ export default function Mockup() {
             const totalDist = Math.hypot(x - tapStart.x, y - tapStart.y);
             const maxDist = Math.max(totalDist, state.tapMaxDistance || 0);
             if (duration < 300 && maxDist < 6) {
-              const hitResult = didHitAtPoint({ x: tapStart.x, y: tapStart.y });
-              if (hitResult === false) {
+              const pt = { x: tapStart.x, y: tapStart.y };
+              const tappedSelectable = didHitAtPoint(pt);
+              if (DEBUG_MOBILE_HITS) {
+                try {
+                  console.log('[touch] up', {
+                    pt,
+                    tappedSelectable,
+                    dist: maxDist,
+                    dur: duration,
+                  });
+                } catch (_) {
+                  // ignore logging failures
+                }
+              }
+              if (!tappedSelectable) {
                 const cleared = clearEditorSelection();
                 if (!cleared && typeof diag === 'function') {
                   try {
@@ -1520,6 +1654,14 @@ export default function Mockup() {
                     // ignore logging failures
                   }
                 }
+                const editor = resolveEditorApi();
+                const stage = resolveStageFromApi(editor);
+                try {
+                  editor?.draw?.();
+                } catch (_) {}
+                try {
+                  stage?.batchDraw?.();
+                } catch (_) {}
               }
             }
           }
