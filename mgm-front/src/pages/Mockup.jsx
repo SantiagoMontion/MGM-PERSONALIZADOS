@@ -845,6 +845,8 @@ export default function Mockup() {
   }
 
   const queryOverridesRef = useRef(parseQueryOverrides());
+  const canvasWrapRef = useRef(null); // MOBILE-ONLY: wrapper for touch interactions
+  const mobileCanvasRef = useRef(null); // MOBILE-ONLY: track current canvas element
   const [flowReady, setFlowReady] = useState(false);
 
   useEffect(() => {
@@ -1131,6 +1133,166 @@ export default function Mockup() {
   const firstActionButtonRef = useRef(null);
   const wasModalOpenedRef = useRef(false);
   const successToastTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
+    if (typeof window.matchMedia !== 'function') {
+      return undefined;
+    }
+
+    const mediaQuery = window.matchMedia('(pointer: coarse)');
+    if (!mediaQuery?.matches) {
+      return undefined;
+    }
+
+    // MOBILE-ONLY: ensure high-DPR devices keep pointer precision aligned
+    const dprScaleIfMobile = (canvas) => {
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      if (rect.width > 0 && rect.height > 0) {
+        canvas.width = Math.round(rect.width * dpr);
+        canvas.height = Math.round(rect.height * dpr);
+        const ctx = canvas.getContext('2d');
+        if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+    };
+
+    const wrap = canvasWrapRef.current;
+    if (!wrap) {
+      return undefined;
+    }
+
+    let cleanupListeners = null;
+
+    const attachToCanvas = (canvas) => {
+      if (!canvas || mobileCanvasRef.current === canvas) {
+        return;
+      }
+      cleanupListeners?.();
+      mobileCanvasRef.current = canvas;
+      dprScaleIfMobile(canvas);
+
+      const state = { isDown: false, lastX: 0, lastY: 0, pointers: new Map() };
+      const opts = { passive: false };
+
+      const onDown = (event) => {
+        canvas.setPointerCapture?.(event.pointerId);
+        state.isDown = true;
+        state.lastX = event.offsetX;
+        state.lastY = event.offsetY;
+        state.pointers.set(event.pointerId, { x: event.offsetX, y: event.offsetY });
+        event.preventDefault();
+      };
+
+      const onMove = (event) => {
+        if (state.isDown) {
+          const dx = event.offsetX - state.lastX;
+          const dy = event.offsetY - state.lastY;
+          state.lastX = event.offsetX;
+          state.lastY = event.offsetY;
+          // MOBILE-ONLY: existing pan handlers keep receiving the bubbling event
+          // existingPanUpdate?.(dx, dy);
+          event.preventDefault();
+        }
+        if (state.pointers.size >= 2) {
+          state.pointers.set(event.pointerId, { x: event.offsetX, y: event.offsetY });
+          event.preventDefault();
+        }
+      };
+
+      const onUp = (event) => {
+        state.pointers.delete(event.pointerId);
+        if (state.pointers.size === 0) {
+          state.isDown = false;
+        }
+        try {
+          canvas.releasePointerCapture?.(event.pointerId);
+        } catch (_) {
+          // ignore
+        }
+        event.preventDefault();
+      };
+
+      canvas.addEventListener('pointerdown', onDown, opts);
+      canvas.addEventListener('pointermove', onMove, opts);
+      canvas.addEventListener('pointerup', onUp, opts);
+      canvas.addEventListener('pointercancel', onUp, opts);
+      canvas.addEventListener('pointerleave', onUp, opts);
+
+      let resizeTimeout = null;
+      const onResize = () => {
+        if (resizeTimeout != null) {
+          window.clearTimeout(resizeTimeout);
+        }
+        resizeTimeout = window.setTimeout(() => {
+          resizeTimeout = null;
+          dprScaleIfMobile(canvas);
+        }, 150);
+      };
+
+      window.addEventListener('resize', onResize);
+
+      cleanupListeners = () => {
+        canvas.removeEventListener('pointerdown', onDown, opts);
+        canvas.removeEventListener('pointermove', onMove, opts);
+        canvas.removeEventListener('pointerup', onUp, opts);
+        canvas.removeEventListener('pointercancel', onUp, opts);
+        canvas.removeEventListener('pointerleave', onUp, opts);
+        window.removeEventListener('resize', onResize);
+        if (resizeTimeout != null) {
+          window.clearTimeout(resizeTimeout);
+          resizeTimeout = null;
+        }
+        state.pointers.clear();
+        state.isDown = false;
+        if (mobileCanvasRef.current === canvas) {
+          mobileCanvasRef.current = null;
+        }
+      };
+    };
+
+    const detachIfGone = () => {
+      if (mobileCanvasRef.current && !wrap.contains(mobileCanvasRef.current)) {
+        cleanupListeners?.();
+      }
+    };
+
+    const tryAttach = () => {
+      detachIfGone();
+      const candidate = wrap.querySelector('canvas');
+      if (candidate) {
+        attachToCanvas(candidate);
+      }
+    };
+
+    tryAttach();
+
+    const observer = typeof MutationObserver === 'function'
+      ? new MutationObserver(() => {
+        tryAttach();
+      })
+      : null;
+
+    if (observer) {
+      observer.observe(wrap, { childList: true, subtree: true });
+    }
+
+    const rafId = typeof window.requestAnimationFrame === 'function'
+      ? window.requestAnimationFrame(tryAttach)
+      : null;
+
+    return () => {
+      observer?.disconnect();
+      if (rafId != null && typeof window.cancelAnimationFrame === 'function') {
+        window.cancelAnimationFrame(rafId);
+      }
+      cleanupListeners?.();
+      mobileCanvasRef.current = null;
+    };
+  }, []);
 
   const withBuyBtnSpin = useCallback((fn) => {
     return async (...args) => {
@@ -2809,13 +2971,15 @@ export default function Mockup() {
             >
               ¿Te gustó cómo quedó?
             </h1>
-            {hasMockupImage ? (
-              <img
-                src={mockupImageSrc}
-                className={styles.mockupImage}
-                alt="Vista previa de tu mousepad personalizado"
-              />
-            ) : null}
+            <div className="canvas-wrap" ref={canvasWrapRef}>
+              {hasMockupImage ? (
+                <img
+                  src={mockupImageSrc}
+                  className={styles.mockupImage}
+                  alt="Vista previa de tu mousepad personalizado"
+                />
+              ) : null}
+            </div>
 
           </div>
         ) : null}
