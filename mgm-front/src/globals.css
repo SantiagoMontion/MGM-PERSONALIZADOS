@@ -80,14 +80,12 @@ button:hover:not(:disabled) {
   }
 
   .canvas-wrap .overlay,
-  .canvas-wrap .loader,
   .canvas-wrap .backdrop,
-  .canvas-wrap .fx-layer {
-    pointer-events: none;
+  .canvas-wrap .fx-layer,
+  .canvas-wrap .loader {
+    pointer-events: none !important;
   }
 
-  .canvas-wrap .controls,
-  .canvas-wrap button,
   .canvas-wrap [data-interactive="true"] {
     pointer-events: auto;
   }
