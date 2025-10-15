@@ -72,3 +72,23 @@ button:hover:not(:disabled) {
   color: #9ca3af;
   margin: 0;
 }
+
+@media (pointer: coarse) {
+  .canvas-wrap {
+    touch-action: none;
+    position: relative;
+  }
+
+  .canvas-wrap .overlay,
+  .canvas-wrap .loader,
+  .canvas-wrap .backdrop,
+  .canvas-wrap .fx-layer {
+    pointer-events: none;
+  }
+
+  .canvas-wrap .controls,
+  .canvas-wrap button,
+  .canvas-wrap [data-interactive="true"] {
+    pointer-events: auto;
+  }
+}
