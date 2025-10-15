@@ -1544,11 +1544,76 @@ export default function Mockup() {
         isDown: false,
         lastX: 0,
         lastY: 0,
-        pointers: new Map(),
         tapStart: null,
         tapMaxDistance: 0,
         tapHadMulti: false,
       };
+      let isStagePan = false;
+      const pointers = new Map();
+      let pinchStartDist = 0;
+      let pinchStartScale = 1;
+      let pinchAnchor = null;
+      let hadStagePan = false;
+      let hadStagePinch = false;
+
+      const clamp = (value, min, max) => {
+        return Math.min(Math.max(value, min), max);
+      };
+
+      const readStageNumber = (stage, keys) => {
+        for (const key of keys) {
+          if (!stage) continue;
+          try {
+            if (typeof stage.getAttr === 'function') {
+              const attrValue = stage.getAttr(key);
+              const num = Number(attrValue);
+              if (Number.isFinite(num)) {
+                return num;
+              }
+            }
+          } catch (_) {}
+          try {
+            if (stage.attrs && Object.prototype.hasOwnProperty.call(stage.attrs, key)) {
+              const num = Number(stage.attrs[key]);
+              if (Number.isFinite(num)) {
+                return num;
+              }
+            }
+          } catch (_) {}
+          try {
+            const directValue = stage[key];
+            if (typeof directValue === 'function') {
+              const result = directValue.call(stage);
+              const num = Number(result);
+              if (Number.isFinite(num)) {
+                return num;
+              }
+            } else if (directValue != null) {
+              const num = Number(directValue);
+              if (Number.isFinite(num)) {
+                return num;
+              }
+            }
+          } catch (_) {}
+        }
+        return null;
+      };
+
+      const getStageScaleBounds = (stage) => {
+        const fallback = { min: 0.25, max: 4 };
+        if (!stage) {
+          return fallback;
+        }
+        const minCandidate = readStageNumber(stage, ['minScale', 'scaleMin', 'zoomMin', 'minZoom']);
+        const maxCandidate = readStageNumber(stage, ['maxScale', 'scaleMax', 'zoomMax', 'maxZoom']);
+        const minScale = Number.isFinite(minCandidate) && minCandidate > 0 ? minCandidate : fallback.min;
+        const maxScale = Number.isFinite(maxCandidate) && maxCandidate > 0 ? maxCandidate : fallback.max;
+        if (minScale > maxScale) {
+          return { min: maxScale, max: minScale };
+        }
+        return { min: minScale, max: maxScale };
+      };
+
       const opts = { passive: false };
 
       const onDown = (event) => {
@@ -1561,8 +1626,13 @@ export default function Mockup() {
         state.isDown = true;
         state.lastX = x;
         state.lastY = y;
+        const pointerWasEmpty = pointers.size === 0;
+        if (pointerWasEmpty) {
+          hadStagePan = false;
+          hadStagePinch = false;
+        }
         const isCanvasTarget = event.target instanceof window.HTMLCanvasElement;
-        if (state.pointers.size === 0 && isCanvasTarget) {
+        if (pointerWasEmpty && isCanvasTarget) {
           state.tapStart = {
             x,
             y,
@@ -1573,14 +1643,93 @@ export default function Mockup() {
           state.tapHadMulti = false;
         } else {
           state.tapStart = null;
-          if (!isCanvasTarget || state.pointers.size > 0) {
+          if (!isCanvasTarget || !pointerWasEmpty) {
             state.tapHadMulti = true;
           }
         }
-        state.pointers.set(event.pointerId, { x, y });
-        if (state.pointers.size >= 2) {
+
+        pointers.set(event.pointerId, { x, y });
+        if (pointers.size >= 2) {
           state.tapHadMulti = true;
         }
+
+        const pt = { x, y };
+        const tappedSelectable = didHitAtPoint(pt);
+        const editor = resolveEditorApi();
+        const stage = resolveStageFromApi(editor);
+
+        if (pointers.size === 1 && !tappedSelectable) {
+          isStagePan = true;
+          if (stage) {
+            try {
+              stage.draggable?.(true);
+            } catch (_) {}
+            try {
+              stage.startDrag?.();
+            } catch (_) {}
+          }
+        }
+
+        if (pointers.size === 2) {
+          isStagePan = false;
+          if (stage) {
+            try {
+              stage.stopDrag?.();
+            } catch (_) {}
+            const values = Array.from(pointers.values());
+            const [first, second] = values;
+            const midpoint = {
+              x: (first.x + second.x) / 2,
+              y: (first.y + second.y) / 2,
+            };
+            const dist = Math.hypot(second.x - first.x, second.y - first.y);
+            pinchStartDist = dist > 0 ? dist : 1;
+            pinchAnchor = null;
+            pinchStartScale = (() => {
+              try {
+                if (typeof stage.scaleX === 'function') {
+                  const scaleX = stage.scaleX();
+                  if (Number.isFinite(scaleX)) {
+                    return scaleX;
+                  }
+                }
+              } catch (_) {}
+              try {
+                if (typeof stage.scale === 'function') {
+                  const scaleObj = stage.scale();
+                  if (scaleObj && Number.isFinite(scaleObj.x)) {
+                    return scaleObj.x;
+                  }
+                }
+              } catch (_) {}
+              return 1;
+            })();
+            try {
+              const transform = stage.getAbsoluteTransform?.();
+              const inv = transform?.copy?.()?.invert?.();
+              if (inv && typeof inv.point === 'function') {
+                pinchAnchor = inv.point(midpoint);
+              }
+            } catch (_) {
+              pinchAnchor = null;
+            }
+            if (!pinchAnchor) {
+              try {
+                const pointerPos = stage.getPointerPosition?.();
+                if (pointerPos && Number.isFinite(pointerPos.x) && Number.isFinite(pointerPos.y)) {
+                  pinchAnchor = { x: pointerPos.x, y: pointerPos.y };
+                }
+              } catch (_) {
+                pinchAnchor = null;
+              }
+            }
+          } else {
+            pinchStartDist = 0;
+            pinchStartScale = 1;
+            pinchAnchor = null;
+          }
+        }
+
         canvas.setPointerCapture?.(event.pointerId);
       };
 
@@ -1589,21 +1738,118 @@ export default function Mockup() {
         if (isInteractiveTarget(event.target)) {
           return;
         }
-        if (!state.isDown && state.pointers.size < 2) return;
+        if (!state.isDown && pointers.size < 2) return;
         event.preventDefault();
         const { x, y } = getCanvasPoint(event, canvas);
         const dx = x - state.lastX;
         const dy = y - state.lastY;
         state.lastX = x;
         state.lastY = y;
-        state.pointers.set(event.pointerId, { x, y });
-        if (state.pointers.size >= 2) {
+        pointers.set(event.pointerId, { x, y });
+        if (pointers.size >= 2) {
           state.tapHadMulti = true;
         }
         if (state.tapStart && event.pointerId === state.tapStart.pointerId) {
           const dist = Math.hypot(x - state.tapStart.x, y - state.tapStart.y);
           if (dist > state.tapMaxDistance) {
             state.tapMaxDistance = dist;
+          }
+        }
+
+        const editor = resolveEditorApi();
+        const stage = resolveStageFromApi(editor);
+
+        if (pointers.size >= 2 && stage) {
+          const values = Array.from(pointers.values());
+          if (values.length >= 2) {
+            const [first, second] = values;
+            const midpoint = {
+              x: (first.x + second.x) / 2,
+              y: (first.y + second.y) / 2,
+            };
+            const dist = Math.hypot(second.x - first.x, second.y - first.y);
+            const { min: minScale, max: maxScale } = getStageScaleBounds(stage);
+            const scaleFactor = pinchStartDist > 0 ? dist / pinchStartDist : 1;
+            let nextScale = pinchStartScale * scaleFactor;
+            nextScale = clamp(nextScale, minScale, maxScale);
+            try {
+              let anchorPoint = pinchAnchor;
+              if (!anchorPoint) {
+                try {
+                  const transform = stage.getAbsoluteTransform?.();
+                  const inv = transform?.copy?.()?.invert?.();
+                  if (inv && typeof inv.point === 'function') {
+                    anchorPoint = inv.point(midpoint);
+                  }
+                } catch (_) {
+                  anchorPoint = null;
+                }
+              }
+              const currentScale = (() => {
+                try {
+                  if (typeof stage.scaleX === 'function') {
+                    const scaleX = stage.scaleX();
+                    if (Number.isFinite(scaleX)) {
+                      return scaleX;
+                    }
+                  }
+                } catch (_) {}
+                try {
+                  if (typeof stage.scale === 'function') {
+                    const scaleObj = stage.scale();
+                    if (scaleObj && Number.isFinite(scaleObj.x)) {
+                      return scaleObj.x;
+                    }
+                  }
+                } catch (_) {}
+                return pinchStartScale;
+              })() || pinchStartScale;
+              const stageX = (() => {
+                try {
+                  if (typeof stage.x === 'function') {
+                    const value = stage.x();
+                    if (Number.isFinite(value)) {
+                      return value;
+                    }
+                  }
+                } catch (_) {}
+                return 0;
+              })();
+              const stageY = (() => {
+                try {
+                  if (typeof stage.y === 'function') {
+                    const value = stage.y();
+                    if (Number.isFinite(value)) {
+                      return value;
+                    }
+                  }
+                } catch (_) {}
+                return 0;
+              })();
+              stage.scale({ x: nextScale, y: nextScale });
+              if (anchorPoint) {
+                stage.position({
+                  x: midpoint.x - anchorPoint.x * nextScale,
+                  y: midpoint.y - anchorPoint.y * nextScale,
+                });
+              } else {
+                const oldScale = currentScale || 1;
+                const mousePointTo = {
+                  x: (midpoint.x - stageX) / oldScale,
+                  y: (midpoint.y - stageY) / oldScale,
+                };
+                stage.position({
+                  x: midpoint.x - mousePointTo.x * nextScale,
+                  y: midpoint.y - mousePointTo.y * nextScale,
+                });
+              }
+              stage.batchDraw?.();
+            } catch (_) {}
+            hadStagePinch = true;
+          }
+        } else if (isStagePan && pointers.size === 1) {
+          if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
+            hadStagePan = true;
           }
         }
         // MOBILE-ONLY: existing pan handlers keep receiving the bubbling event
@@ -1616,56 +1862,102 @@ export default function Mockup() {
         if (!interactive) {
           event.preventDefault();
         }
-        state.isDown = false;
-        state.pointers.clear();
+
+        const pointerId = event.pointerId;
+        const tapStart = state.tapStart;
+        const wasTapCandidate =
+          tapStart && tapStart.pointerId === pointerId && !state.tapHadMulti;
+        pointers.delete(pointerId);
         try {
-          canvas.releasePointerCapture?.(event.pointerId);
+          canvas.releasePointerCapture?.(pointerId);
         } catch (_) {
           // ignore
         }
-        if (event.type === 'pointerup' && !interactive) {
-          const tapStart = state.tapStart;
-          if (tapStart && tapStart.pointerId === event.pointerId && !state.tapHadMulti) {
-            const duration = nowMs() - tapStart.time;
-            const { x, y } = getCanvasPoint(event, canvas);
-            const totalDist = Math.hypot(x - tapStart.x, y - tapStart.y);
-            const maxDist = Math.max(totalDist, state.tapMaxDistance || 0);
-            if (duration < 300 && maxDist < 6) {
-              const pt = { x: tapStart.x, y: tapStart.y };
-              const tappedSelectable = didHitAtPoint(pt);
-              if (DEBUG_MOBILE_HITS) {
+
+        const editor = resolveEditorApi();
+        const stage = resolveStageFromApi(editor);
+
+        if (pointers.size === 0) {
+          state.isDown = false;
+          isStagePan = false;
+          try {
+            stage?.stopDrag?.();
+          } catch (_) {}
+          try {
+            stage?.draggable?.(false);
+          } catch (_) {}
+        } else {
+          state.isDown = true;
+          if (pointers.size < 2) {
+            pinchAnchor = null;
+            pinchStartDist = 0;
+            pinchStartScale = (() => {
+              try {
+                if (stage && typeof stage.scaleX === 'function') {
+                  const scaleX = stage.scaleX();
+                  if (Number.isFinite(scaleX)) {
+                    return scaleX;
+                  }
+                }
+              } catch (_) {}
+              return 1;
+            })();
+            hadStagePinch = false;
+          }
+        }
+
+        if (
+          pointers.size === 0 &&
+          event.type === 'pointerup' &&
+          !interactive &&
+          wasTapCandidate
+        ) {
+          const { x, y } = getCanvasPoint(event, canvas);
+          const duration = nowMs() - tapStart.time;
+          const totalDist = Math.hypot(x - tapStart.x, y - tapStart.y);
+          const maxDist = Math.max(totalDist, state.tapMaxDistance || 0);
+          if (duration < 300 && maxDist < 6 && !hadStagePan && !hadStagePinch) {
+            const pt = { x: tapStart.x, y: tapStart.y };
+            const tappedSelectable = didHitAtPoint(pt);
+            if (DEBUG_MOBILE_HITS) {
+              try {
+                console.log('[touch] up', {
+                  pt,
+                  tappedSelectable,
+                  dist: maxDist,
+                  dur: duration,
+                });
+              } catch (_) {
+                // ignore logging failures
+              }
+            }
+            if (!tappedSelectable) {
+              const cleared = clearEditorSelection();
+              if (!cleared && typeof diag === 'function') {
                 try {
-                  console.log('[touch] up', {
-                    pt,
-                    tappedSelectable,
-                    dist: maxDist,
-                    dur: duration,
-                  });
+                  diag('[mobile-touch] tap_clear_failed');
                 } catch (_) {
                   // ignore logging failures
                 }
               }
-              if (!tappedSelectable) {
-                const cleared = clearEditorSelection();
-                if (!cleared && typeof diag === 'function') {
-                  try {
-                    diag('[mobile-touch] tap_clear_failed');
-                  } catch (_) {
-                    // ignore logging failures
-                  }
-                }
-                const editor = resolveEditorApi();
-                const stage = resolveStageFromApi(editor);
-                try {
-                  editor?.draw?.();
-                } catch (_) {}
-                try {
-                  stage?.batchDraw?.();
-                } catch (_) {}
-              }
+              try {
+                editor?.draw?.();
+              } catch (_) {}
+              try {
+                stage?.batchDraw?.();
+              } catch (_) {}
             }
           }
         }
+
+        if (pointers.size === 0) {
+          hadStagePan = false;
+          hadStagePinch = false;
+          pinchAnchor = null;
+          pinchStartDist = 0;
+          pinchStartScale = 1;
+        }
+
         state.tapStart = null;
         state.tapMaxDistance = 0;
         state.tapHadMulti = false;
@@ -1701,8 +1993,17 @@ export default function Mockup() {
           window.clearTimeout(resizeTimeout);
           resizeTimeout = null;
         }
-        state.pointers.clear();
+        pointers.clear();
         state.isDown = false;
+        state.tapStart = null;
+        state.tapMaxDistance = 0;
+        state.tapHadMulti = false;
+        isStagePan = false;
+        hadStagePan = false;
+        hadStagePinch = false;
+        pinchAnchor = null;
+        pinchStartDist = 0;
+        pinchStartScale = 1;
         if (mobileCanvasRef.current === canvas) {
           mobileCanvasRef.current = null;
         }
