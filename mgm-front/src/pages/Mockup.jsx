@@ -1147,6 +1147,22 @@ export default function Mockup() {
       return undefined;
     }
 
+    const isMobile = mediaQuery.matches;
+
+    const getCanvasPoint = (event, canvas) => {
+      if (!canvas) {
+        return { x: 0, y: 0 };
+      }
+      const rect = canvas.getBoundingClientRect();
+      const cx = event.clientX ?? event.touches?.[0]?.clientX ?? event.changedTouches?.[0]?.clientX;
+      const cy = event.clientY ?? event.touches?.[0]?.clientY ?? event.changedTouches?.[0]?.clientY;
+      const resolvedCx = typeof cx === 'number' ? cx : rect.left;
+      const resolvedCy = typeof cy === 'number' ? cy : rect.top;
+      const x = Math.max(0, Math.min(rect.width, resolvedCx - rect.left));
+      const y = Math.max(0, Math.min(rect.height, resolvedCy - rect.top));
+      return { x, y };
+    };
+
     // MOBILE-ONLY: ensure high-DPR devices keep pointer precision aligned
     const dprScaleIfMobile = (canvas) => {
       if (!canvas) return;
@@ -1179,41 +1195,40 @@ export default function Mockup() {
       const opts = { passive: false };
 
       const onDown = (event) => {
-        canvas.setPointerCapture?.(event.pointerId);
-        state.isDown = true;
-        state.lastX = event.offsetX;
-        state.lastY = event.offsetY;
-        state.pointers.set(event.pointerId, { x: event.offsetX, y: event.offsetY });
+        if (!isMobile) return;
         event.preventDefault();
+        const { x, y } = getCanvasPoint(event, canvas);
+        state.isDown = true;
+        state.lastX = x;
+        state.lastY = y;
+        state.pointers.set(event.pointerId, { x, y });
+        canvas.setPointerCapture?.(event.pointerId);
       };
 
       const onMove = (event) => {
-        if (state.isDown) {
-          const dx = event.offsetX - state.lastX;
-          const dy = event.offsetY - state.lastY;
-          state.lastX = event.offsetX;
-          state.lastY = event.offsetY;
-          // MOBILE-ONLY: existing pan handlers keep receiving the bubbling event
-          // existingPanUpdate?.(dx, dy);
-          event.preventDefault();
-        }
-        if (state.pointers.size >= 2) {
-          state.pointers.set(event.pointerId, { x: event.offsetX, y: event.offsetY });
-          event.preventDefault();
-        }
+        if (!isMobile) return;
+        if (!state.isDown && state.pointers.size < 2) return;
+        event.preventDefault();
+        const { x, y } = getCanvasPoint(event, canvas);
+        const dx = x - state.lastX;
+        const dy = y - state.lastY;
+        state.lastX = x;
+        state.lastY = y;
+        state.pointers.set(event.pointerId, { x, y });
+        // MOBILE-ONLY: existing pan handlers keep receiving the bubbling event
+        // existingPanUpdate?.(dx, dy);
       };
 
       const onUp = (event) => {
-        state.pointers.delete(event.pointerId);
-        if (state.pointers.size === 0) {
-          state.isDown = false;
-        }
+        if (!isMobile) return;
+        event.preventDefault();
+        state.isDown = false;
+        state.pointers.clear();
         try {
           canvas.releasePointerCapture?.(event.pointerId);
         } catch (_) {
           // ignore
         }
-        event.preventDefault();
       };
 
       canvas.addEventListener('pointerdown', onDown, opts);
