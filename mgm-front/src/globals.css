@@ -73,6 +73,7 @@ button:hover:not(:disabled) {
   margin: 0;
 }
 
+/* ==== [MOBILE TEMP DISABLED] ====
 @media (pointer: coarse) {
   .konvajs-content {
     touch-action: none;
@@ -95,3 +96,5 @@ button:hover:not(:disabled) {
     pointer-events: auto;
   }
 }
+==== [MOBILE TEMP DISABLED END] ==== */
+
