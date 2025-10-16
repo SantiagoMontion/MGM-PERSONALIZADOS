@@ -74,6 +74,11 @@ button:hover:not(:disabled) {
 }
 
 @media (pointer: coarse) {
+  .konvajs-content {
+    touch-action: none;
+    pointer-events: auto !important;
+  }
+
   .canvas-wrap {
     touch-action: none;
     position: relative;

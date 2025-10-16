@@ -846,7 +846,7 @@ export default function Mockup() {
 
   const queryOverridesRef = useRef(parseQueryOverrides());
   const canvasWrapRef = useRef(null); // MOBILE-ONLY: wrapper for touch interactions
-  const mobileCanvasRef = useRef(null); // MOBILE-ONLY: track current canvas element
+  const mobileContainerRef = useRef(null); // MOBILE-ONLY: track current stage container element
   const [flowReady, setFlowReady] = useState(false);
 
   useEffect(() => {
@@ -1278,11 +1278,11 @@ export default function Mockup() {
       return null;
     };
 
-    const getCanvasPoint = (event, canvas) => {
-      if (!canvas) {
+    const getCanvasPoint = (event, container) => {
+      if (!container) {
         return { x: 0, y: 0 };
       }
-      const rect = canvas.getBoundingClientRect();
+      const rect = container.getBoundingClientRect();
       const cx = event.clientX ?? event.touches?.[0]?.clientX ?? event.changedTouches?.[0]?.clientX;
       const cy = event.clientY ?? event.touches?.[0]?.clientY ?? event.changedTouches?.[0]?.clientY;
       const resolvedCx = typeof cx === 'number' ? cx : rect.left;
@@ -1290,6 +1290,10 @@ export default function Mockup() {
       const x = Math.max(0, Math.min(rect.width, resolvedCx - rect.left));
       const y = Math.max(0, Math.min(rect.height, resolvedCy - rect.top));
       return { x, y };
+    };
+
+    const getCanvasPointFromEvent = (event) => {
+      return getCanvasPoint(event, mobileContainerRef.current);
     };
 
     const nowMs = () => {
@@ -1513,9 +1517,11 @@ export default function Mockup() {
     };
 
     // MOBILE-ONLY: ensure high-DPR devices keep pointer precision aligned
-    const dprScaleIfMobile = (canvas) => {
+    const dprScaleIfMobile = (container) => {
+      if (!container || typeof container.querySelector !== 'function') return;
+      const canvas = container.querySelector('canvas');
       if (!canvas) return;
-      const rect = canvas.getBoundingClientRect();
+      const rect = container.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
       if (rect.width > 0 && rect.height > 0) {
         canvas.width = Math.round(rect.width * dpr);
@@ -1531,14 +1537,28 @@ export default function Mockup() {
     }
 
     let cleanupListeners = null;
+    let activeStage = null;
 
-    const attachToCanvas = (canvas) => {
-      if (!canvas || mobileCanvasRef.current === canvas) {
+    const attachToContainer = (container, stage) => {
+      if (!container) {
+        return;
+      }
+      let stageNode = stage;
+      if (!stageNode) {
+        try {
+          const editor = resolveEditorApi();
+          stageNode = resolveStageFromApi(editor);
+        } catch (_) {
+          stageNode = null;
+        }
+      }
+      if (mobileContainerRef.current === container && activeStage === stageNode) {
         return;
       }
       cleanupListeners?.();
-      mobileCanvasRef.current = canvas;
-      dprScaleIfMobile(canvas);
+      mobileContainerRef.current = container;
+      activeStage = stageNode || null;
+      dprScaleIfMobile(container);
 
       const state = {
         isDown: false,
@@ -1614,7 +1634,7 @@ export default function Mockup() {
         return { min: minScale, max: maxScale };
       };
 
-      const opts = { passive: false };
+      const opts = { passive: false, capture: true };
 
       const onDown = (event) => {
         if (!isMobile) return;
@@ -1622,7 +1642,7 @@ export default function Mockup() {
           return;
         }
         event.preventDefault();
-        const { x, y } = getCanvasPoint(event, canvas);
+        const { x, y } = getCanvasPoint(event, container);
         state.isDown = true;
         state.lastX = x;
         state.lastY = y;
@@ -1631,7 +1651,8 @@ export default function Mockup() {
           hadStagePan = false;
           hadStagePinch = false;
         }
-        const isCanvasTarget = event.target instanceof window.HTMLCanvasElement;
+        const isCanvasTarget =
+          event.target instanceof window.HTMLCanvasElement || event.target === container;
         if (pointerWasEmpty && isCanvasTarget) {
           state.tapStart = {
             x,
@@ -1730,7 +1751,7 @@ export default function Mockup() {
           }
         }
 
-        canvas.setPointerCapture?.(event.pointerId);
+        container.setPointerCapture?.(event.pointerId);
       };
 
       const onMove = (event) => {
@@ -1740,7 +1761,7 @@ export default function Mockup() {
         }
         if (!state.isDown && pointers.size < 2) return;
         event.preventDefault();
-        const { x, y } = getCanvasPoint(event, canvas);
+        const { x, y } = getCanvasPoint(event, container);
         const dx = x - state.lastX;
         const dy = y - state.lastY;
         state.lastX = x;
@@ -1869,7 +1890,7 @@ export default function Mockup() {
           tapStart && tapStart.pointerId === pointerId && !state.tapHadMulti;
         pointers.delete(pointerId);
         try {
-          canvas.releasePointerCapture?.(pointerId);
+          container.releasePointerCapture?.(pointerId);
         } catch (_) {
           // ignore
         }
@@ -1912,7 +1933,7 @@ export default function Mockup() {
           !interactive &&
           wasTapCandidate
         ) {
-          const { x, y } = getCanvasPoint(event, canvas);
+          const { x, y } = getCanvasPoint(event, container);
           const duration = nowMs() - tapStart.time;
           const totalDist = Math.hypot(x - tapStart.x, y - tapStart.y);
           const maxDist = Math.max(totalDist, state.tapMaxDistance || 0);
@@ -1963,11 +1984,11 @@ export default function Mockup() {
         state.tapHadMulti = false;
       };
 
-      canvas.addEventListener('pointerdown', onDown, opts);
-      canvas.addEventListener('pointermove', onMove, opts);
-      canvas.addEventListener('pointerup', onUp, opts);
-      canvas.addEventListener('pointercancel', onUp, opts);
-      canvas.addEventListener('pointerleave', onUp, opts);
+      container.addEventListener('pointerdown', onDown, opts);
+      container.addEventListener('pointermove', onMove, opts);
+      container.addEventListener('pointerup', onUp, opts);
+      container.addEventListener('pointercancel', onUp, opts);
+      container.addEventListener('pointerleave', onUp, opts);
 
       let resizeTimeout = null;
       const onResize = () => {
@@ -1976,22 +1997,46 @@ export default function Mockup() {
         }
         resizeTimeout = window.setTimeout(() => {
           resizeTimeout = null;
-          dprScaleIfMobile(canvas);
+          dprScaleIfMobile(container);
         }, 150);
       };
 
       window.addEventListener('resize', onResize);
 
+      const stageTapHandler = stageNode
+        ? (e) => {
+          if (!isMobile) return;
+          if (!e || !e.evt) return;
+          if (!didHitAtPoint(getCanvasPointFromEvent(e.evt))) {
+            clearEditorSelection();
+          }
+          try {
+            stageNode?.batchDraw?.();
+          } catch (_) {}
+        }
+        : null;
+
+      if (stageTapHandler) {
+        try {
+          stageNode.on('contentTap contentClick', stageTapHandler);
+        } catch (_) {}
+      }
+
       cleanupListeners = () => {
-        canvas.removeEventListener('pointerdown', onDown, opts);
-        canvas.removeEventListener('pointermove', onMove, opts);
-        canvas.removeEventListener('pointerup', onUp, opts);
-        canvas.removeEventListener('pointercancel', onUp, opts);
-        canvas.removeEventListener('pointerleave', onUp, opts);
+        container.removeEventListener('pointerdown', onDown, opts);
+        container.removeEventListener('pointermove', onMove, opts);
+        container.removeEventListener('pointerup', onUp, opts);
+        container.removeEventListener('pointercancel', onUp, opts);
+        container.removeEventListener('pointerleave', onUp, opts);
         window.removeEventListener('resize', onResize);
         if (resizeTimeout != null) {
           window.clearTimeout(resizeTimeout);
           resizeTimeout = null;
+        }
+        if (stageTapHandler) {
+          try {
+            stageNode.off('contentTap contentClick', stageTapHandler);
+          } catch (_) {}
         }
         pointers.clear();
         state.isDown = false;
@@ -2004,23 +2049,32 @@ export default function Mockup() {
         pinchAnchor = null;
         pinchStartDist = 0;
         pinchStartScale = 1;
-        if (mobileCanvasRef.current === canvas) {
-          mobileCanvasRef.current = null;
+        if (mobileContainerRef.current === container) {
+          mobileContainerRef.current = null;
+        }
+        if (activeStage === stageNode) {
+          activeStage = null;
         }
       };
     };
 
     const detachIfGone = () => {
-      if (mobileCanvasRef.current && !wrap.contains(mobileCanvasRef.current)) {
+      if (mobileContainerRef.current && !wrap.contains(mobileContainerRef.current)) {
         cleanupListeners?.();
       }
     };
 
     const tryAttach = () => {
       detachIfGone();
-      const candidate = wrap.querySelector('canvas');
-      if (candidate) {
-        attachToCanvas(candidate);
+      let stage = null;
+      try {
+        stage = window?.Konva?.stages?.[0] ?? window?.__MGM_CANVAS__?.stage ?? null;
+      } catch (_) {
+        stage = null;
+      }
+      const container = stage?.container?.() || wrap.querySelector('.konvajs-content');
+      if (container) {
+        attachToContainer(container, stage);
       }
     };
 
@@ -2046,7 +2100,8 @@ export default function Mockup() {
         window.cancelAnimationFrame(rafId);
       }
       cleanupListeners?.();
-      mobileCanvasRef.current = null;
+      mobileContainerRef.current = null;
+      activeStage = null;
     };
   }, []);
 
