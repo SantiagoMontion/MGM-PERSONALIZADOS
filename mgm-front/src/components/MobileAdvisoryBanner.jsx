@@ -16,6 +16,8 @@ const bannerTitle = `Vers\u00edon m\u00f3vil en camino ${bannerEmoji}`;
 const defaultCopy =
   'Por ahora us\u00e1 la web desde una computadora para personalizar y comprar sin problemas.';
 
+const SHOW_MOBILE_BLOCK = false;
+
 export default function MobileAdvisoryBanner() {
   const [isMobileContext, setIsMobileContext] = useState(false);
   const [isBodyExcluded, setIsBodyExcluded] = useState(false);
@@ -53,7 +55,7 @@ export default function MobileAdvisoryBanner() {
     return typeof override === 'string' && override.trim().length ? override.trim() : defaultCopy;
   }, []);
 
-  if (!advisoryEnabled || !isMobileContext || isBodyExcluded) {
+  if (!SHOW_MOBILE_BLOCK || !advisoryEnabled || !isMobileContext || isBodyExcluded) {
     return null;
   }
 
