@@ -1140,6 +1140,7 @@ export default function Mockup() {
   const wasModalOpenedRef = useRef(false);
   const successToastTimeoutRef = useRef(null);
 
+  /* ==== [MOBILE TEMP DISABLED] Versión móvil en camino (comentado para pruebas reales) ====
   useEffect(() => {
     if (typeof window === 'undefined') {
       return undefined;
@@ -2472,6 +2473,9 @@ export default function Mockup() {
       activeStage = null;
     };
   }, []);
+  ==== [MOBILE TEMP DISABLED END] ==== */
+
+
 
   const withBuyBtnSpin = useCallback((fn) => {
     return async (...args) => {
