@@ -2517,6 +2517,7 @@ export default function Mockup() {
     }
   }, [frontTitle]);
 
+  /* ==== [MOBILE TEMP DISABLED] Flow restore para coarse pointer (comentado para pruebas reales) ====
   useEffect(() => {
     if (!flowReady) return;
     if (typeof window === 'undefined') return;
@@ -2599,6 +2600,7 @@ export default function Mockup() {
     flow?.designName,
     flow,
   ]);
+  ==== [MOBILE TEMP DISABLED END] ==== */
 
   const mockupSrc = useMemo(() => {
     const state = flowState && typeof flowState === 'object' ? flowState : {};
