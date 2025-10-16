@@ -1150,6 +1150,89 @@ export default function Mockup() {
     const isMobile = mediaQuery.matches;
     const DEBUG_MOBILE_HITS = false;
 
+    let bgHitStageRef = null;
+
+    const cleanupBgHitRect = (stage) => {
+      if (!stage) return;
+      try {
+        const bg = stage.findOne?.('.__bgHit');
+        if (bg) {
+          try {
+            if (bg._ro?.disconnect) {
+              bg._ro.disconnect();
+            }
+          } catch (_) {}
+          try {
+            bg.off('tap click pointerdown');
+          } catch (_) {}
+          try {
+            bg.destroy();
+          } catch (_) {}
+        }
+      } catch (_) {}
+      try {
+        stage.batchDraw?.();
+      } catch (_) {}
+    };
+
+    const ensureBgHitRect = (stage, onEmptyTap) => {
+      if (!stage) return;
+      const layer = stage.getLayers?.()?.[0];
+      if (!layer) return;
+
+      let bg = stage.findOne?.('.__bgHit');
+      if (!bg) {
+        bg = new window.Konva.Rect({
+          name: '__bgHit',
+          x: 0,
+          y: 0,
+          width: stage.width(),
+          height: stage.height(),
+          fill: 'rgba(0,0,0,0.0001)',
+          listening: true,
+        });
+        layer.add(bg);
+        try {
+          bg.moveToBottom?.();
+        } catch (_) {}
+        layer.batchDraw?.();
+
+        const handler = (e) => {
+          e.cancelBubble = true;
+          try {
+            onEmptyTap?.();
+          } catch (_) {}
+          try {
+            stage.batchDraw?.();
+          } catch (_) {}
+        };
+        bg.on('tap click pointerdown', handler);
+
+        try {
+          const ro = new ResizeObserver(() => {
+            try {
+              bg.size({ width: stage.width(), height: stage.height() });
+            } catch (_) {}
+            try {
+              layer.batchDraw?.();
+            } catch (_) {}
+          });
+          const container = stage.container?.();
+          if (container) {
+            ro.observe(container);
+            bg._ro = ro;
+          }
+        } catch (_) {}
+      } else {
+        try {
+          bg.size({ width: stage.width(), height: stage.height() });
+        } catch (_) {}
+        layer.batchDraw?.();
+      }
+
+      bgHitStageRef = stage;
+    };
+
     const isSelectableKonvaNode = (node) => {
       if (!node || typeof node !== 'object') {
         return false;
@@ -1559,6 +1642,10 @@ export default function Mockup() {
       mobileContainerRef.current = container;
       activeStage = stageNode || null;
       dprScaleIfMobile(container);
+
+      ensureBgHitRect(stageNode, () => {
+        clearEditorSelection();
+      });
 
       const state = {
         isDown: false,
@@ -2038,6 +2125,12 @@ export default function Mockup() {
             stageNode.off('contentTap contentClick', stageTapHandler);
           } catch (_) {}
         }
+        if (stageNode) {
+          cleanupBgHitRect(stageNode);
+          if (bgHitStageRef === stageNode) {
+            bgHitStageRef = null;
+          }
+        }
         pointers.clear();
         state.isDown = false;
         state.tapStart = null;
@@ -2100,6 +2193,10 @@ export default function Mockup() {
         window.cancelAnimationFrame(rafId);
       }
       cleanupListeners?.();
+      if (bgHitStageRef) {
+        cleanupBgHitRect(bgHitStageRef);
+        bgHitStageRef = null;
+      }
       mobileContainerRef.current = null;
       activeStage = null;
     };
