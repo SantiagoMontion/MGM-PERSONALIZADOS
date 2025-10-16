@@ -847,6 +847,12 @@ export default function Mockup() {
   const queryOverridesRef = useRef(parseQueryOverrides());
   const canvasWrapRef = useRef(null); // MOBILE-ONLY: wrapper for touch interactions
   const mobileContainerRef = useRef(null); // MOBILE-ONLY: track current stage container element
+  const preservedFlowSnapshotRef = useRef({
+    widthCm: null,
+    heightCm: null,
+    material: null,
+    designName: null,
+  });
   const [flowReady, setFlowReady] = useState(false);
 
   useEffect(() => {
@@ -1143,11 +1149,32 @@ export default function Mockup() {
     }
 
     const mediaQuery = window.matchMedia('(pointer: coarse)');
-    if (!mediaQuery?.matches) {
-      return undefined;
-    }
+    const coarseMatchesRef = { current: Boolean(mediaQuery?.matches) };
+    const TOUCH_DEBUG_ENABLED = (() => {
+      try {
+        if (typeof import.meta !== 'undefined' && import.meta.env && 'DEV' in import.meta.env) {
+          return Boolean(import.meta.env.DEV);
+        }
+      } catch (_) {}
+      try {
+        if (typeof process !== 'undefined' && process?.env?.NODE_ENV) {
+          return process.env.NODE_ENV !== 'production';
+        }
+      } catch (_) {}
+      return false;
+    })();
+    const debugTouch = (...args) => {
+      if (!TOUCH_DEBUG_ENABLED) return;
+      try {
+        console.debug('[touch-mobile]', ...args);
+      } catch (_) {
+        // ignore logging failures
+      }
+    };
+    const isMobileActive = () => coarseMatchesRef.current === true;
 
-    const isMobile = mediaQuery.matches;
+    debugTouch('effect:init', { coarseInitial: coarseMatchesRef.current });
+
     const DEBUG_MOBILE_HITS = false;
 
     let bgHitStageRef = null;
@@ -1621,8 +1648,35 @@ export default function Mockup() {
 
     let cleanupListeners = null;
     let activeStage = null;
+    let pendingAttachFrame = null;
+    let pendingAttachTimeout = null;
 
-    const attachToContainer = (containerNode, stage) => {
+    const cancelPendingAttach = () => {
+      if (pendingAttachFrame != null && typeof window.cancelAnimationFrame === 'function') {
+        window.cancelAnimationFrame(pendingAttachFrame);
+      }
+      if (pendingAttachTimeout != null) {
+        window.clearTimeout(pendingAttachTimeout);
+      }
+      pendingAttachFrame = null;
+      pendingAttachTimeout = null;
+    };
+
+    const cleanupActiveListeners = (reason) => {
+      if (!cleanupListeners) {
+        return;
+      }
+      const fn = cleanupListeners;
+      cleanupListeners = null;
+      debugTouch('listeners:cleanup', { reason });
+      try {
+        fn();
+      } catch (err) {
+        debugTouch('listeners:cleanup:error', err);
+      }
+    };
+
+    const attachToContainer = (containerNode, stage, reason = 'attach') => {
       if (!containerNode) {
         return;
       }
@@ -1640,9 +1694,17 @@ export default function Mockup() {
         return;
       }
       if (mobileContainerRef.current === target && activeStage === stageNode) {
+        debugTouch('listeners:attach:noop', { reason, reuse: true });
         return;
       }
-      cleanupListeners?.();
+      cleanupActiveListeners('rebind');
+      debugTouch('listeners:attach', {
+        reason,
+        hasStage: Boolean(stageNode),
+        containerTag: target?.tagName ?? null,
+        pointerEvents: target?.style?.pointerEvents ?? null,
+      });
+      cancelPendingAttach();
       mobileContainerRef.current = target;
       activeStage = stageNode || null;
       dprScaleIfMobile(target);
@@ -1665,12 +1727,22 @@ export default function Mockup() {
           return '';
         }
       })();
+      const previousPointerEvents = (() => {
+        try {
+          return target.style.pointerEvents;
+        } catch (_) {
+          return '';
+        }
+      })();
 
       try {
         target.style.touchAction = 'none';
       } catch (_) {}
       try {
         target.style.webkitUserSelect = 'none';
+      } catch (_) {}
+      try {
+        target.style.pointerEvents = 'auto';
       } catch (_) {}
 
       const state = {
@@ -1771,12 +1843,19 @@ export default function Mockup() {
       };
 
       const onDown = (event) => {
-        if (!isMobile) return;
+        if (!isMobileActive()) return;
         if (isInteractiveTarget(event.target)) {
+          debugTouch('pointerdown:skip', { reason: 'interactive-target' });
           return;
         }
         event.preventDefault();
         const { x, y } = getCanvasPoint(event, target);
+        debugTouch('pointerdown', {
+          pointerId: event.pointerId,
+          x,
+          y,
+          fallback: Boolean(event.__isTouchFallback),
+        });
         state.isDown = true;
         state.lastX = x;
         state.lastY = y;
@@ -1895,7 +1974,7 @@ export default function Mockup() {
       };
 
       const onMove = (event) => {
-        if (!isMobile) return;
+        if (!isMobileActive()) return;
         if (isInteractiveTarget(event.target)) {
           return;
         }
@@ -2018,7 +2097,7 @@ export default function Mockup() {
       };
 
       const onUp = (event) => {
-        if (!isMobile) return;
+        if (!isMobileActive()) return;
         const interactive = isInteractiveTarget(event.target);
         if (!interactive) {
           event.preventDefault();
@@ -2028,6 +2107,8 @@ export default function Mockup() {
         const tapStart = state.tapStart;
         const wasTapCandidate =
           tapStart && tapStart.pointerId === pointerId && !state.tapHadMulti;
+        let emptyTapCleared = false;
+        let tapMeta = null;
         pointers.delete(pointerId);
         if (
           (event.type === 'pointerup' ||
@@ -2085,6 +2166,7 @@ export default function Mockup() {
           const totalDist = Math.hypot(x - tapStart.x, y - tapStart.y);
           const maxDist = Math.max(totalDist, state.tapMaxDistance || 0);
           if (duration < 300 && maxDist < 6 && !hadStagePan && !hadStagePinch) {
+            tapMeta = { duration, maxDist };
             const pt = { x: tapStart.x, y: tapStart.y };
             const tappedSelectable = didHitAtPoint(pt);
             if (DEBUG_MOBILE_HITS) {
@@ -2101,6 +2183,7 @@ export default function Mockup() {
             }
             if (!tappedSelectable) {
               const cleared = clearEditorSelection();
+              emptyTapCleared = Boolean(cleared);
               if (!cleared && typeof diag === 'function') {
                 try {
                   diag('[mobile-touch] tap_clear_failed');
@@ -2108,6 +2191,14 @@ export default function Mockup() {
                   // ignore logging failures
                 }
               }
+              debugTouch('tap:empty', {
+                cleared: Boolean(cleared),
+                pointerId,
+                duration,
+                maxDist,
+                x: tapStart.x,
+                y: tapStart.y,
+              });
               try {
                 editor?.draw?.();
               } catch (_) {}
@@ -2129,6 +2220,15 @@ export default function Mockup() {
         state.tapStart = null;
         state.tapMaxDistance = 0;
         state.tapHadMulti = false;
+        debugTouch('pointerup', {
+          pointerId,
+          interactive,
+          tapCandidate: Boolean(wasTapCandidate),
+          emptyTapCleared,
+          fallback: Boolean(event.__isTouchFallback),
+          tapMeta,
+          pointersRemaining: pointers.size,
+        });
       };
 
       const onDownWrap = (event) => onDown(event);
@@ -2165,7 +2265,7 @@ export default function Mockup() {
 
       const stageTapHandler = stageNode
         ? (e) => {
-          if (!isMobile) return;
+          if (!isMobileActive()) return;
           if (!e || !e.evt) return;
           if (!didHitAtPoint(getCanvasPointFromEvent(e.evt))) {
             clearEditorSelection();
@@ -2231,17 +2331,30 @@ export default function Mockup() {
         try {
           target.style.webkitUserSelect = previousWebkitUserSelect || '';
         } catch (_) {}
+        try {
+          target.style.pointerEvents = previousPointerEvents || '';
+        } catch (_) {}
       };
+      debugTouch('listeners:attached', {
+        reason,
+        stageId: stageNode?._id ?? null,
+        pointerEvents: target?.style?.pointerEvents ?? null,
+      });
     };
 
     const detachIfGone = () => {
       if (mobileContainerRef.current && !wrap.contains(mobileContainerRef.current)) {
-        cleanupListeners?.();
+        cleanupActiveListeners('detached-from-dom');
       }
     };
 
-    const tryAttach = () => {
+    const tryAttach = (reason = 'manual') => {
       detachIfGone();
+      if (!isMobileActive()) {
+        debugTouch('attach:skip', { reason, coarse: false });
+        cleanupActiveListeners('coarse-off');
+        return;
+      }
       let stage = null;
       try {
         stage = window?.Konva?.stages?.[0] ?? window?.__MGM_CANVAS__?.stage ?? null;
@@ -2250,15 +2363,41 @@ export default function Mockup() {
       }
       const container = stage?.container?.() || wrap.querySelector('.konvajs-content');
       if (container) {
-        attachToContainer(container, stage);
+        attachToContainer(container, stage, reason);
+      } else {
+        debugTouch('attach:pending', { reason, hasStage: Boolean(stage) });
       }
     };
 
-    tryAttach();
+    const scheduleAttach = (reason) => {
+      if (!isMobileActive()) {
+        debugTouch('schedule:skip', { reason, coarse: false });
+        cleanupActiveListeners('schedule-coarse-off');
+        cancelPendingAttach();
+        return;
+      }
+      if (pendingAttachFrame != null || pendingAttachTimeout != null) {
+        return;
+      }
+      debugTouch('schedule', { reason });
+      if (typeof window.requestAnimationFrame === 'function') {
+        pendingAttachFrame = window.requestAnimationFrame(() => {
+          pendingAttachFrame = null;
+          tryAttach(reason);
+        });
+      } else {
+        pendingAttachTimeout = window.setTimeout(() => {
+          pendingAttachTimeout = null;
+          tryAttach(reason);
+        }, 0);
+      }
+    };
+
+    scheduleAttach('init');
 
     const observer = typeof MutationObserver === 'function'
       ? new MutationObserver(() => {
-        tryAttach();
+        scheduleAttach('mutation');
       })
       : null;
 
@@ -2266,16 +2405,65 @@ export default function Mockup() {
       observer.observe(wrap, { childList: true, subtree: true });
     }
 
-    const rafId = typeof window.requestAnimationFrame === 'function'
-      ? window.requestAnimationFrame(tryAttach)
-      : null;
+    let visibilityListenerAttached = false;
+    const handleVisibility = () => {
+      if (typeof document === 'undefined') return;
+      if (document.visibilityState !== 'visible') return;
+      scheduleAttach('visibilitychange');
+    };
+    if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+      document.addEventListener('visibilitychange', handleVisibility);
+      visibilityListenerAttached = true;
+    }
+
+    const handleResize = () => scheduleAttach('resize');
+    const handleOrientation = () => scheduleAttach('orientationchange');
+
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleOrientation);
+
+    const mediaChangeHandler = (event) => {
+      const matches = Boolean(event?.matches);
+      coarseMatchesRef.current = matches;
+      debugTouch('media:change', { matches });
+      if (matches) {
+        scheduleAttach('media-enter');
+      } else {
+        cleanupActiveListeners('media-exit');
+        cancelPendingAttach();
+      }
+    };
+
+    let mediaCleanup = null;
+    try {
+      if (mediaQuery) {
+        if (typeof mediaQuery.addEventListener === 'function') {
+          mediaQuery.addEventListener('change', mediaChangeHandler);
+          mediaCleanup = () => {
+            mediaQuery.removeEventListener('change', mediaChangeHandler);
+          };
+        } else if (typeof mediaQuery.addListener === 'function') {
+          mediaQuery.addListener(mediaChangeHandler);
+          mediaCleanup = () => {
+            mediaQuery.removeListener(mediaChangeHandler);
+          };
+        }
+      }
+    } catch (_) {
+      mediaCleanup = null;
+    }
 
     return () => {
+      debugTouch('effect:cleanup');
       observer?.disconnect();
-      if (rafId != null && typeof window.cancelAnimationFrame === 'function') {
-        window.cancelAnimationFrame(rafId);
+      if (visibilityListenerAttached && typeof document !== 'undefined' && typeof document.removeEventListener === 'function') {
+        document.removeEventListener('visibilitychange', handleVisibility);
       }
-      cleanupListeners?.();
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleOrientation);
+      cancelPendingAttach();
+      mediaCleanup?.();
+      cleanupActiveListeners('effect-cleanup');
       if (bgHitStageRef) {
         cleanupBgHitRect(bgHitStageRef);
         bgHitStageRef = null;
@@ -2324,6 +2512,89 @@ export default function Mockup() {
       diag('[mockup] title_update_failed', err);
     }
   }, [frontTitle]);
+
+  useEffect(() => {
+    if (!flowReady) return;
+    if (typeof window === 'undefined') return;
+    if (typeof window.matchMedia !== 'function') return;
+    const media = window.matchMedia('(pointer: coarse)');
+    if (!media?.matches) return;
+
+    const state = (typeof flow?.get === 'function' ? flow.get() : flow) || {};
+    if (!state || typeof state !== 'object') return;
+
+    const snapshot = preservedFlowSnapshotRef.current || {};
+    const normalizeDim = (value) => {
+      const num = Number(value);
+      return Number.isFinite(num) && num > 0 ? Math.round(num) : null;
+    };
+
+    const widthValue = normalizeDim(state.widthCm);
+    const heightValue = normalizeDim(state.heightCm);
+    const materialValue = safeStr(
+      state.material
+        ?? state.materialResolved
+        ?? state.options?.material,
+    ) || null;
+    const designValue = safeStr(state.designName) || null;
+
+    if (widthValue != null) {
+      snapshot.widthCm = widthValue;
+    }
+    if (heightValue != null) {
+      snapshot.heightCm = heightValue;
+    }
+    if (materialValue) {
+      snapshot.material = materialValue;
+    }
+    if (designValue) {
+      snapshot.designName = designValue;
+    }
+    preservedFlowSnapshotRef.current = snapshot;
+
+    if (typeof flow?.set !== 'function') {
+      return;
+    }
+
+    const restorePayload = {};
+    if (snapshot.widthCm != null && widthValue == null) {
+      restorePayload.widthCm = snapshot.widthCm;
+    }
+    if (snapshot.heightCm != null && heightValue == null) {
+      restorePayload.heightCm = snapshot.heightCm;
+    }
+    if (snapshot.material && !materialValue) {
+      restorePayload.material = snapshot.material;
+      restorePayload.materialResolved = snapshot.material;
+      const currentOptions = state?.options && typeof state.options === 'object'
+        ? state.options
+        : {};
+      if (safeStr(currentOptions.material) !== snapshot.material) {
+        restorePayload.options = { ...currentOptions, material: snapshot.material };
+      }
+    }
+    if (snapshot.designName && !designValue) {
+      restorePayload.designName = snapshot.designName;
+    }
+
+    if (Object.keys(restorePayload).length > 0) {
+      try {
+        flow.set(restorePayload);
+        diag('[mockup] flow_mobile_restore', restorePayload);
+      } catch (restoreErr) {
+        diag('[mockup] flow_mobile_restore_failed', restoreErr);
+      }
+    }
+  }, [
+    flowReady,
+    flow?.widthCm,
+    flow?.heightCm,
+    flow?.material,
+    flow?.materialResolved,
+    flow?.options?.material,
+    flow?.designName,
+    flow,
+  ]);
 
   const mockupSrc = useMemo(() => {
     const state = flowState && typeof flowState === 'object' ? flowState : {};
