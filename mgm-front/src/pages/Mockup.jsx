@@ -1622,8 +1622,8 @@ export default function Mockup() {
     let cleanupListeners = null;
     let activeStage = null;
 
-    const attachToContainer = (container, stage) => {
-      if (!container) {
+    const attachToContainer = (containerNode, stage) => {
+      if (!containerNode) {
         return;
       }
       let stageNode = stage;
@@ -1635,17 +1635,43 @@ export default function Mockup() {
           stageNode = null;
         }
       }
-      if (mobileContainerRef.current === container && activeStage === stageNode) {
+      const target = stageNode?.container?.() ?? containerNode;
+      if (!target) {
+        return;
+      }
+      if (mobileContainerRef.current === target && activeStage === stageNode) {
         return;
       }
       cleanupListeners?.();
-      mobileContainerRef.current = container;
+      mobileContainerRef.current = target;
       activeStage = stageNode || null;
-      dprScaleIfMobile(container);
+      dprScaleIfMobile(target);
 
       ensureBgHitRect(stageNode, () => {
         clearEditorSelection();
       });
+
+      const previousTouchAction = (() => {
+        try {
+          return target.style.touchAction;
+        } catch (_) {
+          return '';
+        }
+      })();
+      const previousWebkitUserSelect = (() => {
+        try {
+          return target.style.webkitUserSelect;
+        } catch (_) {
+          return '';
+        }
+      })();
+
+      try {
+        target.style.touchAction = 'none';
+      } catch (_) {}
+      try {
+        target.style.webkitUserSelect = 'none';
+      } catch (_) {}
 
       const state = {
         isDown: false,
@@ -1723,13 +1749,34 @@ export default function Mockup() {
 
       const opts = { passive: false, capture: true };
 
+      const feedTouchEvent = (touchEvent, type, handler) => {
+        const touches = touchEvent?.changedTouches;
+        if (!touches || touches.length === 0) {
+          return;
+        }
+        for (let i = 0; i < touches.length; i += 1) {
+          const touch = touches[i];
+          const pointer = {
+            clientX: touch.clientX,
+            clientY: touch.clientY,
+            pointerId: touch.identifier ?? 1,
+            preventDefault: () => touchEvent.preventDefault(),
+            target: touchEvent.target,
+            type,
+            pointerType: 'touch',
+            __isTouchFallback: true,
+          };
+          handler(pointer);
+        }
+      };
+
       const onDown = (event) => {
         if (!isMobile) return;
         if (isInteractiveTarget(event.target)) {
           return;
         }
         event.preventDefault();
-        const { x, y } = getCanvasPoint(event, container);
+        const { x, y } = getCanvasPoint(event, target);
         state.isDown = true;
         state.lastX = x;
         state.lastY = y;
@@ -1739,7 +1786,7 @@ export default function Mockup() {
           hadStagePinch = false;
         }
         const isCanvasTarget =
-          event.target instanceof window.HTMLCanvasElement || event.target === container;
+          event.target instanceof window.HTMLCanvasElement || event.target === target;
         if (pointerWasEmpty && isCanvasTarget) {
           state.tapStart = {
             x,
@@ -1838,7 +1885,13 @@ export default function Mockup() {
           }
         }
 
-        container.setPointerCapture?.(event.pointerId);
+        if (event.type === 'pointerdown' && !event.__isTouchFallback) {
+          try {
+            target.setPointerCapture?.(event.pointerId);
+          } catch (_) {
+            // ignore pointer capture failures
+          }
+        }
       };
 
       const onMove = (event) => {
@@ -1848,7 +1901,7 @@ export default function Mockup() {
         }
         if (!state.isDown && pointers.size < 2) return;
         event.preventDefault();
-        const { x, y } = getCanvasPoint(event, container);
+        const { x, y } = getCanvasPoint(event, target);
         const dx = x - state.lastX;
         const dy = y - state.lastY;
         state.lastX = x;
@@ -1976,10 +2029,17 @@ export default function Mockup() {
         const wasTapCandidate =
           tapStart && tapStart.pointerId === pointerId && !state.tapHadMulti;
         pointers.delete(pointerId);
-        try {
-          container.releasePointerCapture?.(pointerId);
-        } catch (_) {
-          // ignore
+        if (
+          (event.type === 'pointerup' ||
+            event.type === 'pointercancel' ||
+            event.type === 'pointerleave') &&
+          !event.__isTouchFallback
+        ) {
+          try {
+            target.releasePointerCapture?.(pointerId);
+          } catch (_) {
+            // ignore release failures
+          }
         }
 
         const editor = resolveEditorApi();
@@ -2020,7 +2080,7 @@ export default function Mockup() {
           !interactive &&
           wasTapCandidate
         ) {
-          const { x, y } = getCanvasPoint(event, container);
+          const { x, y } = getCanvasPoint(event, target);
           const duration = nowMs() - tapStart.time;
           const totalDist = Math.hypot(x - tapStart.x, y - tapStart.y);
           const maxDist = Math.max(totalDist, state.tapMaxDistance || 0);
@@ -2071,11 +2131,24 @@ export default function Mockup() {
         state.tapHadMulti = false;
       };
 
-      container.addEventListener('pointerdown', onDown, opts);
-      container.addEventListener('pointermove', onMove, opts);
-      container.addEventListener('pointerup', onUp, opts);
-      container.addEventListener('pointercancel', onUp, opts);
-      container.addEventListener('pointerleave', onUp, opts);
+      const onDownWrap = (event) => onDown(event);
+      const onMoveWrap = (event) => onMove(event);
+      const onUpWrap = (event) => onUp(event);
+
+      const touchDown = (event) => feedTouchEvent(event, 'pointerdown', onDown);
+      const touchMove = (event) => feedTouchEvent(event, 'pointermove', onMove);
+      const touchUp = (event) => feedTouchEvent(event, 'pointerup', onUp);
+      const touchCancel = (event) => feedTouchEvent(event, 'pointercancel', onUp);
+
+      target.addEventListener('pointerdown', onDownWrap, opts);
+      target.addEventListener('pointermove', onMoveWrap, opts);
+      target.addEventListener('pointerup', onUpWrap, opts);
+      target.addEventListener('pointercancel', onUpWrap, opts);
+      target.addEventListener('pointerleave', onUpWrap, opts);
+      target.addEventListener('touchstart', touchDown, opts);
+      target.addEventListener('touchmove', touchMove, opts);
+      target.addEventListener('touchend', touchUp, opts);
+      target.addEventListener('touchcancel', touchCancel, opts);
 
       let resizeTimeout = null;
       const onResize = () => {
@@ -2084,7 +2157,7 @@ export default function Mockup() {
         }
         resizeTimeout = window.setTimeout(() => {
           resizeTimeout = null;
-          dprScaleIfMobile(container);
+          dprScaleIfMobile(target);
         }, 150);
       };
 
@@ -2110,11 +2183,15 @@ export default function Mockup() {
       }
 
       cleanupListeners = () => {
-        container.removeEventListener('pointerdown', onDown, opts);
-        container.removeEventListener('pointermove', onMove, opts);
-        container.removeEventListener('pointerup', onUp, opts);
-        container.removeEventListener('pointercancel', onUp, opts);
-        container.removeEventListener('pointerleave', onUp, opts);
+        target.removeEventListener('pointerdown', onDownWrap, opts);
+        target.removeEventListener('pointermove', onMoveWrap, opts);
+        target.removeEventListener('pointerup', onUpWrap, opts);
+        target.removeEventListener('pointercancel', onUpWrap, opts);
+        target.removeEventListener('pointerleave', onUpWrap, opts);
+        target.removeEventListener('touchstart', touchDown, opts);
+        target.removeEventListener('touchmove', touchMove, opts);
+        target.removeEventListener('touchend', touchUp, opts);
+        target.removeEventListener('touchcancel', touchCancel, opts);
         window.removeEventListener('resize', onResize);
         if (resizeTimeout != null) {
           window.clearTimeout(resizeTimeout);
@@ -2142,12 +2219,18 @@ export default function Mockup() {
         pinchAnchor = null;
         pinchStartDist = 0;
         pinchStartScale = 1;
-        if (mobileContainerRef.current === container) {
+        if (mobileContainerRef.current === target) {
           mobileContainerRef.current = null;
         }
         if (activeStage === stageNode) {
           activeStage = null;
         }
+        try {
+          target.style.touchAction = previousTouchAction || '';
+        } catch (_) {}
+        try {
+          target.style.webkitUserSelect = previousWebkitUserSelect || '';
+        } catch (_) {}
       };
     };
 
