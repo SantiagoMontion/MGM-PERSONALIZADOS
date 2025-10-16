@@ -1140,6 +1140,7 @@ export default function Mockup() {
   const wasModalOpenedRef = useRef(false);
   const successToastTimeoutRef = useRef(null);
 
+  /* ==== [MOBILE TEMP DISABLED] Versión móvil en camino (comentado para pruebas reales) ====
   useEffect(() => {
     if (typeof window === 'undefined') {
       return undefined;
@@ -2472,6 +2473,9 @@ export default function Mockup() {
       activeStage = null;
     };
   }, []);
+  ==== [MOBILE TEMP DISABLED END] ==== */
+
+
 
   const withBuyBtnSpin = useCallback((fn) => {
     return async (...args) => {
@@ -2513,6 +2517,7 @@ export default function Mockup() {
     }
   }, [frontTitle]);
 
+  /* ==== [MOBILE TEMP DISABLED] Flow restore para coarse pointer (comentado para pruebas reales) ====
   useEffect(() => {
     if (!flowReady) return;
     if (typeof window === 'undefined') return;
@@ -2595,6 +2600,7 @@ export default function Mockup() {
     flow?.designName,
     flow,
   ]);
+  ==== [MOBILE TEMP DISABLED END] ==== */
 
   const mockupSrc = useMemo(() => {
     const state = flowState && typeof flowState === 'object' ? flowState : {};
