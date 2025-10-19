@@ -95,6 +95,14 @@ const CalculadoraPage = () => {
 
   return (
     <section className={styles.container}>
+      {/*
+      <section className="_overlay_e1zwy_1" role="region" aria-live="polite">
+        <div className="_card_e1zwy_15">
+          <h1 className="_title_e1zwy_25">Versíon móvil en camino 🚧</h1>
+          <p className="_message_e1zwy_31">Por ahora usá la web desde una computadora para personalizar y comprar sin problemas.</p>
+        </div>
+      </section>
+      */}
       <div className={styles.content}>
         <h1 className={styles.title}>Calculadora de precios</h1>
         <p className={styles.subtitle}>
