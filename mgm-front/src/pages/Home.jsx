@@ -426,6 +426,14 @@ export default function Home() {
   const [designHashState, setDesignHashState] = useState(null);
   const [pdfPublicUrl, setPdfPublicUrl] = useState(null);
   const navigate = useNavigate();
+  useEffect(() => {
+    const isMobile = typeof window !== 'undefined'
+      && window.matchMedia
+      && window.matchMedia('(pointer: coarse)').matches;
+    if (isMobile) {
+      navigate('/calculadora', { replace: true });
+    }
+  }, [navigate]);
   const canvasRef = useRef(null);
   const designNameInputRef = useRef(null);
   const pageRef = useRef(null);
@@ -1781,6 +1789,15 @@ export default function Home() {
           sameAs: ['https://www.instagram.com/mgmgamers.store']
         }}
       />
+
+      {/*
+      <section className="_overlay_e1zwy_1" role="region" aria-live="polite">
+        <div className="_card_e1zwy_15">
+          <h1 className="_title_e1zwy_25">Versíon móvil en camino 🚧</h1>
+          <p className="_message_e1zwy_31">Por ahora usá la web desde una computadora para personalizar y comprar sin problemas.</p>
+        </div>
+      </section>
+      */}
 
       <section
         className={styles.sectionOne}
