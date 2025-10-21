@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import Calculadora from '../components/Calculadora.jsx';
+import mobileAdvisoryStyles from '../components/MobileAdvisoryBanner.module.css';
 import styles from './Calculadora.module.css';
 
 const priceFormatter = new Intl.NumberFormat('es-AR', {
@@ -12,6 +13,28 @@ const CalculadoraPage = () => {
   const [height, setHeight] = useState('');
   const [material, setMaterial] = useState('Classic');
   const [transferPrice, setTransferPrice] = useState(0);
+  const [showMobilePopup, setShowMobilePopup] = useState(false);
+
+  useEffect(() => {
+    // Sólo móviles (coarse pointer) y si no fue descartado en esta sesión
+    const isMobile =
+      typeof window !== 'undefined' &&
+      window.matchMedia &&
+      window.matchMedia('(pointer: coarse)').matches;
+    const dismissed =
+      typeof window !== 'undefined' &&
+      window.sessionStorage &&
+      window.sessionStorage.getItem('mobile_info_dismissed') === '1';
+
+    if (isMobile && !dismissed) setShowMobilePopup(true);
+  }, []);
+
+  const closeMobilePopup = () => {
+    try {
+      window.sessionStorage.setItem('mobile_info_dismissed', '1');
+    } catch {}
+    setShowMobilePopup(false);
+  };
 
   const materialOptions = useMemo(
     () => [
@@ -95,6 +118,46 @@ const CalculadoraPage = () => {
 
   return (
     <section className={styles.container}>
+      {showMobilePopup && (
+        <section
+          className={mobileAdvisoryStyles.overlay}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Aviso para móviles"
+          style={{ zIndex: 9999 }}
+        >
+          <div className={mobileAdvisoryStyles.card} style={{ position: 'relative' }}>
+            {/* Botón X para cerrar */}
+            <button
+              type="button"
+              aria-label="Cerrar"
+              onClick={closeMobilePopup}
+              style={{
+                position: 'absolute',
+                top: '8px',
+                right: '8px',
+                width: '36px',
+                height: '36px',
+                display: 'grid',
+                placeItems: 'center',
+                fontSize: '22px',
+                lineHeight: 1,
+                background: 'transparent',
+                border: '1px solid rgba(255,255,255,0.25)',
+                borderRadius: '8px',
+                color: '#EEECE4',
+              }}
+            >
+              ×
+            </button>
+
+            <h1 className={mobileAdvisoryStyles.title}>Versión móvil en camino 🚧</h1>
+            <p className={mobileAdvisoryStyles.message}>
+              Por ahora usá la web desde una computadora para personalizar y comprar sin problemas.
+            </p>
+          </div>
+        </section>
+      )}
       {/*
       <section className="_overlay_e1zwy_1" role="region" aria-live="polite">
         <div className="_card_e1zwy_15">
