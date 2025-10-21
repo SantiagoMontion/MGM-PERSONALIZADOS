@@ -52,24 +52,24 @@ button:hover:not(:disabled) {
   right: 10px;
   width: 44px;
   height: 44px;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
   border-radius: 9999px;
-  border: 1px solid rgba(255,255,255,.25);
-  background: rgba(0,0,0,.35);
-  backdrop-filter: blur(4px);
-  box-shadow: 0 2px 8px rgba(0,0,0,.35);
-  color: #EEECE4;
+  background: none;
+  color: #ffffff;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  transition: transform .12s ease, background .12s ease, border-color .12s ease;
-}
-._mobileModalClose:active {
-  transform: scale(.96);
+  appearance: none;
 }
 ._mobileModalClose:focus-visible {
-  outline: 2px solid rgba(255,255,255,.45);
+  outline: 2px solid rgba(255, 255, 255, 0.65);
   outline-offset: 2px;
+}
+._mobileModalClose svg {
+  pointer-events: none;
 }
 
 /* Loading spinner */
