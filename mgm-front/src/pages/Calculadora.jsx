@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import Calculadora from '../components/Calculadora.jsx';
+import mobileAdvisoryStyles from '../components/MobileAdvisoryBanner.module.css';
 import styles from './Calculadora.module.css';
 
 const priceFormatter = new Intl.NumberFormat('es-AR', {
@@ -119,13 +120,13 @@ const CalculadoraPage = () => {
     <section className={styles.container}>
       {showMobilePopup && (
         <section
-          className="_overlay_e1zwy_1"
+          className={mobileAdvisoryStyles.overlay}
           role="dialog"
           aria-modal="true"
           aria-label="Aviso para móviles"
           style={{ zIndex: 9999 }}
         >
-          <div className="_card_e1zwy_15" style={{ position: 'relative' }}>
+          <div className={mobileAdvisoryStyles.card} style={{ position: 'relative' }}>
             {/* Botón X para cerrar */}
             <button
               type="button"
@@ -150,8 +151,8 @@ const CalculadoraPage = () => {
               ×
             </button>
 
-            <h1 className="_title_e1zwy_25">Versíon móvil en camino 🚧</h1>
-            <p className="_message_e1zwy_31">
+            <h1 className={mobileAdvisoryStyles.title}>Versión móvil en camino 🚧</h1>
+            <p className={mobileAdvisoryStyles.message}>
               Por ahora usá la web desde una computadora para personalizar y comprar sin problemas.
             </p>
           </div>
