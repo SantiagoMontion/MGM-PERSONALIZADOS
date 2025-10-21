@@ -45,6 +45,33 @@ button:hover:not(:disabled) {
   border-color: #1b1b1b;
 }
 
+/* Sólo afecta al popup móvil de calculadora */
+._mobileModalClose {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: 9999px;
+  background: none;
+  color: #ffffff;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  appearance: none;
+}
+._mobileModalClose:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.65);
+  outline-offset: 2px;
+}
+._mobileModalClose svg {
+  pointer-events: none;
+}
+
 /* Loading spinner */
 .spinner {
   display: inline-block;
