@@ -16,25 +16,13 @@ const CalculadoraPage = () => {
   const [showMobilePopup, setShowMobilePopup] = useState(false);
 
   useEffect(() => {
-    // Sólo móviles (coarse pointer) y si no fue descartado en esta sesión
     const isMobile =
       typeof window !== 'undefined' &&
-      window.matchMedia &&
-      window.matchMedia('(pointer: coarse)').matches;
-    const dismissed =
-      typeof window !== 'undefined' &&
-      window.sessionStorage &&
-      window.sessionStorage.getItem('mobile_info_dismissed') === '1';
-
-    if (isMobile && !dismissed) setShowMobilePopup(true);
+      window.matchMedia?.('(pointer: coarse)').matches;
+    if (isMobile) setShowMobilePopup(true);
   }, []);
 
-  const closeMobilePopup = () => {
-    try {
-      window.sessionStorage.setItem('mobile_info_dismissed', '1');
-    } catch {}
-    setShowMobilePopup(false);
-  };
+  const closeMobilePopup = () => setShowMobilePopup(false);
 
   const materialOptions = useMemo(
     () => [
@@ -127,28 +115,20 @@ const CalculadoraPage = () => {
           style={{ zIndex: 9999 }}
         >
           <div className={mobileAdvisoryStyles.card} style={{ position: 'relative' }}>
-            {/* Botón X para cerrar */}
             <button
               type="button"
               aria-label="Cerrar"
               onClick={closeMobilePopup}
-              style={{
-                position: 'absolute',
-                top: '8px',
-                right: '8px',
-                width: '36px',
-                height: '36px',
-                display: 'grid',
-                placeItems: 'center',
-                fontSize: '22px',
-                lineHeight: 1,
-                background: 'transparent',
-                border: '1px solid rgba(255,255,255,0.25)',
-                borderRadius: '8px',
-                color: '#EEECE4',
-              }}
+              className="_mobileModalClose"
             >
-              ×
+              <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M18 6L6 18M6 6l12 12"
+                  stroke="#EEECE4"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                />
+              </svg>
             </button>
 
             <h1 className={mobileAdvisoryStyles.title}>Versión móvil en camino 🚧</h1>
