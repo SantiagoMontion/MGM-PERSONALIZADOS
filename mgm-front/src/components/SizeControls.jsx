@@ -52,7 +52,13 @@ const MATERIAL_OPTIONS = [
   { value: 'Glasspad', main: 'GLASSPAD', variant: 'speed' },
   { value: 'PRO', main: 'PRO', variant: 'control' },
   { value: 'Classic', main: 'CLASSIC', variant: 'híbrido' },
-];
+].map((option) => {
+  const identifier = String(option.main || option.value || option.id || '').toUpperCase();
+  if (identifier === 'GLASSPAD') {
+    return { ...option, disabled: true };
+  }
+  return option;
+});
 
 const MOBILE_QUERY = '(max-width: 768px)';
 
@@ -553,9 +559,16 @@ export default function SizeControls({ material, size, onChange, locked = false,
                   role="option"
                   key={option.value}
                   aria-selected={isActive}
+                  aria-disabled={option.disabled ? 'true' : 'false'}
+                  data-disabled={option.disabled ? 'true' : 'false'}
                   className={styles.selectOption}
-                  tabIndex={0}
+                  tabIndex={option.disabled ? -1 : 0}
                   onClick={(event) => {
+                    if (option.disabled) {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      return;
+                    }
                     event.preventDefault();
 
                     closeSeriesMenu();
@@ -563,6 +576,11 @@ export default function SizeControls({ material, size, onChange, locked = false,
                   }}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter' || event.key === ' ') {
+                      if (option.disabled) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        return;
+                      }
                       event.preventDefault();
 
                       closeSeriesMenu();

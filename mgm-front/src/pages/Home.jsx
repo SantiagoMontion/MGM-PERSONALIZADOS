@@ -504,6 +504,13 @@ export default function Home() {
   const trimmedDesignName = useMemo(() => (designName || '').trim(), [designName]);
 
   function handleSizeChange(next) {
+    if (
+      next.material
+      && String(next.material).toUpperCase() === 'GLASSPAD'
+      && material !== 'Glasspad'
+    ) {
+      return;
+    }
     if (next.material && next.material !== material) {
       if (material !== 'Glasspad') {
         lastSize.current[material] = { ...size };
