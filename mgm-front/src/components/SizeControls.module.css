@@ -247,6 +247,13 @@
   transition: background-color 0.18s ease;
 }
 
+.selectOption[data-disabled='true'] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+  filter: grayscale(0.15);
+}
+
 .selectOption:hover {
   background: rgba(255, 255, 255, 0.05);
 }
