@@ -52,13 +52,7 @@ const MATERIAL_OPTIONS = [
   { value: 'Glasspad', main: 'GLASSPAD', variant: 'speed' },
   { value: 'PRO', main: 'PRO', variant: 'control' },
   { value: 'Classic', main: 'CLASSIC', variant: 'híbrido' },
-].map((option) => {
-  const identifier = String(option.main || option.value || option.id || '').toUpperCase();
-  if (identifier === 'GLASSPAD') {
-    return { ...option, disabled: true };
-  }
-  return option;
-});
+];
 
 const MOBILE_QUERY = '(max-width: 768px)';
 
