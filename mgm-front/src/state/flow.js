@@ -9,6 +9,7 @@ const PERSIST_KEYS = [
   'options',
   'mockupUrl',
   'mockupPublicUrl',
+  'mockupHash',
 ];
 
 const asStr = (value) => (typeof value === 'string' ? value : value == null ? '' : String(value));
@@ -29,6 +30,7 @@ const defaultState = {
   mockupBlob: null,
   mockupUrl: null,
   mockupPublicUrl: null,
+  mockupHash: null,
   masterBytes: null,
   printFullResDataUrl: null,
   fileOriginalUrl: null,
@@ -91,6 +93,13 @@ export function FlowProvider({ children }) {
             }
             return;
           }
+          if (key === 'mockupHash') {
+            const hash = String(parsed[key] || '').trim();
+            if (hash) {
+              next.mockupHash = hash;
+            }
+            return;
+          }
           if (key === 'material') {
             const normalized = normalizeMaterial(parsed.material);
             if (normalized) {
@@ -148,6 +157,13 @@ export function FlowProvider({ children }) {
           }
           return;
         }
+        if (key === 'mockupHash') {
+          const hash = String(value || '').trim();
+          if (hash) {
+            payload.mockupHash = hash;
+          }
+          return;
+        }
         payload[key] = key === 'material' ? normalizeMaterial(value) || state.material : value;
       });
       window.localStorage.setItem(FLOW_STORAGE_KEY, JSON.stringify(payload));
@@ -158,11 +174,12 @@ export function FlowProvider({ children }) {
     state.designName,
     state.material,
     state.widthCm,
-    state.heightCm,
-    state.options,
-    state.mockupUrl,
-    state.mockupPublicUrl,
-  ]);
+      state.heightCm,
+      state.options,
+      state.mockupUrl,
+      state.mockupPublicUrl,
+      state.mockupHash,
+    ]);
 
   const value = {
     ...state,
