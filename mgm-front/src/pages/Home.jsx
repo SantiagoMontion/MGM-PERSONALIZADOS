@@ -1231,6 +1231,7 @@ export default function Home() {
         mockupBlob,
         mockupUrl,
         mockupPublicUrl: mockupPublicUrl || flowState?.mockupPublicUrl || null,
+        mockupHash: null,
         printFullResDataUrl: masterDataUrl,
         masterPublicUrl: nextMasterUrl,
         pdfPublicUrl: nextPdfUrl,
