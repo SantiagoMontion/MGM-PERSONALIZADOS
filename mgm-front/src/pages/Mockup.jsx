@@ -323,32 +323,36 @@ async function blobToDataUrl(blob) {
   });
 }
 
-async function uploadPreviewViaApi(metadata, blob) {
-  if (!blob) throw new Error('preview_upload_missing_data');
+async function uploadPreviewViaApi(objectKey, blob) {
+  if (!objectKey || !blob) throw new Error('preview_upload_missing_data');
   const dataUrl = await blobToDataUrl(blob);
   const response = await fetch(getResolvedApiUrl('/api/preview/upload'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
+      objectKey,
       dataUrl,
-      title: metadata?.title,
-      widthCm: metadata?.widthCm,
-      heightCm: metadata?.heightCm,
-      material: metadata?.material,
+      contentType: blob.type || 'image/png',
     }),
   });
   const json = await response.json().catch(() => null);
-  if (!response.ok) {
+  if (!response.ok || !json?.ok || !json?.publicUrl) {
     error('[preview] api upload failed', {
       status: response.status,
       json,
+      objectKey,
     });
-    const err = new Error('preview_upload_failed');
-    err.response = response;
-    err.payload = json;
-    throw err;
+    throw new Error('preview_upload_failed');
   }
-  return json || { ok: false };
+  try {
+    diag('[preview] uploaded', {
+      objectKey,
+      skip: Boolean(json.skipUpload),
+    });
+  } catch (_) {
+    // noop
+  }
+  return String(json.publicUrl);
 }
 
 export async function ensureMockupUrlInFlow(flow, input) {
@@ -362,21 +366,11 @@ export async function ensureMockupUrlInFlow(flow, input) {
     err.reason = 'image_too_heavy';
     throw err;
   }
-  const existingHash = safeStr(state?.mockupHash);
-  if (
-    typeof state?.mockupPublicUrl === 'string'
-    && state.mockupPublicUrl
-    && existingHash.length === 8
-  ) {
+  if (typeof state?.mockupPublicUrl === 'string' && state.mockupPublicUrl) {
     return state.mockupPublicUrl;
   }
-  if (typeof state?.mockupUrl === 'string' && state.mockupUrl) {
-    if (state.mockupUrl.startsWith('data:')) {
-      return state.mockupUrl;
-    }
-    if (!state.mockupUrl.startsWith('blob:') && existingHash.length === 8) {
-      return state.mockupUrl;
-    }
+  if (typeof state?.mockupUrl === 'string' && state.mockupUrl && !state.mockupUrl.startsWith('blob:')) {
+    return state.mockupUrl;
   }
   const payloadLimitBytes = PUBLISH_MAX_PAYLOAD_KB * 1024;
   if (isDataUrl(state?.mockupDataUrl) && state.mockupDataUrl.length <= payloadLimitBytes) {
@@ -405,40 +399,37 @@ export async function ensureMockupUrlInFlow(flow, input) {
     dpi,
     material: mat,
   };
+  const designHash = safeStr(state?.designHash ?? state?.designHashState ?? input?.designHash);
+  const hash8 = (designHash && designHash.slice(0, 8)) || '00000000';
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  let objectKeyTitle = safeReplace(title, /\s+/g, ' ').trim();
+  if (typeof objectKeyTitle.normalize === 'function') {
+    objectKeyTitle = objectKeyTitle.normalize('NFKD');
+  }
+  objectKeyTitle = objectKeyTitle
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9 _-]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const objectKey = `mockups-${yyyy}-${mm}/${objectKeyTitle || 'Personalizado'} ${hash8}.png`;
   const mockupBlob = await renderMockup1080(image, {
     material: mat,
     approxDpi: dpi,
     composition,
   });
-  const uploadMeta = {
-    title,
-    widthCm: widthRounded,
-    heightCm: heightRounded,
-    material: mat,
-  };
   let publicUrl = null;
-  let uploadHash = null;
-  let uploadOk = false;
   try {
     diag('[preview] about_to_upload', {
-      title,
+      objectKey,
       mat,
       w: Number.isFinite(widthRounded) ? widthRounded : null,
       h: Number.isFinite(heightRounded) ? heightRounded : null,
     });
-    const result = await uploadPreviewViaApi(uploadMeta, mockupBlob);
-    if (result?.ok && result?.publicUrl && result?.hash8) {
-      publicUrl = String(result.publicUrl);
-      uploadHash = String(result.hash8);
-      uploadOk = true;
-    } else if (result && result.ok === false) {
-      toastErr('No pudimos generar la vista previa. Reintentá.');
-    } else {
-      toastErr('No pudimos generar la vista previa. Reintentá.');
-    }
+    publicUrl = await uploadPreviewViaApi(objectKey, mockupBlob);
   } catch (uploadErr) {
     diag('[mockup] preview_upload_failed', uploadErr);
-    toastErr('No pudimos generar la vista previa. Reintentá.');
     publicUrl = null;
   }
   if (publicUrl) {
@@ -447,20 +438,7 @@ export async function ensureMockupUrlInFlow(flow, input) {
 
   const nextState = typeof flow?.get === 'function' ? flow.get() : state;
 
-  if (!uploadOk && typeof flow?.set === 'function') {
-    try {
-      flow.set({
-        ...nextState,
-        mockupBlob,
-        mockupPublicUrl: null,
-        mockupHash: null,
-      });
-    } catch (stateErr) {
-      diag('[mockup] clear_state_failed', stateErr);
-    }
-  }
-
-  if (publicUrl && uploadHash && uploadHash.length === 8 && uploadOk) {
+  if (publicUrl) {
     try {
       if (typeof flow?.set === 'function') {
         flow.set({
@@ -468,7 +446,6 @@ export async function ensureMockupUrlInFlow(flow, input) {
           mockupBlob,
           mockupPublicUrl: publicUrl,
           mockupUrl: publicUrl,
-          mockupHash: uploadHash,
           widthCm: Number.isFinite(widthRounded) ? widthRounded : nextState?.widthCm ?? null,
           heightCm: Number.isFinite(heightRounded) ? heightRounded : nextState?.heightCm ?? null,
           material: mat,
@@ -521,9 +498,8 @@ export async function ensureMockupUrlInFlow(flow, input) {
       flow.set({
         ...nextState,
         mockupBlob,
-        mockupPublicUrl: null,
+        mockupPublicUrl: nextState?.mockupPublicUrl || null,
         mockupUrl: fallbackUrl,
-        mockupHash: null,
       });
     } catch (stateErr) {
       diag('[mockup] fallback_state_failed', stateErr);
@@ -636,7 +612,6 @@ function buildShopifyPayload(flowState, mode) {
   const priceNormal = Number(source?.priceNormal ?? 0);
   const currency = source?.priceCurrency;
   const mockupUrl = source?.mockupPublicUrl || source?.mockupUrl || null;
-  const mockupHash = source?.mockupHash || null;
   const payload = {
     mode,
     designName,
@@ -651,8 +626,6 @@ function buildShopifyPayload(flowState, mode) {
     currency,
     productType,
     mockupUrl,
-    mockupPublicUrl: source?.mockupPublicUrl || null,
-    mockupHash,
     pdfPublicUrl: source?.pdfPublicUrl,
     masterPublicUrl: source?.masterPublicUrl || null,
     designHash: source?.designHash,
@@ -1161,11 +1134,6 @@ export default function Mockup() {
   const [cartBtnBusy, setCartBtnBusy] = useState(false);
   const [toast, setToast] = useState(null);
   const [isBuyPromptOpen, setBuyPromptOpen] = useState(false);
-  const previewReady = useMemo(() => {
-    const publicUrl = safeStr(flow?.mockupPublicUrl);
-    const hash = safeStr(flow?.mockupHash);
-    return Boolean(publicUrl && hash.length === 8);
-  }, [flow?.mockupPublicUrl, flow?.mockupHash]);
   const buyNowButtonRef = useRef(null);
   const modalRef = useRef(null);
   const firstActionButtonRef = useRef(null);
@@ -3151,7 +3119,7 @@ export default function Mockup() {
       return;
     }
 
-    if (busy || !previewReady) return;
+    if (busy) return;
 
     setToast(null);
     try {
@@ -3760,9 +3728,8 @@ export default function Mockup() {
       heightCm: height ?? undefined,
       designName: resolvedDesignName,
       title,
-      mockupPublicUrl: flowState?.mockupPublicUrl || undefined,
+      mockupPublicUrl: flowState?.mockupPublicUrl || flowState?.mockupUrl || undefined,
       mockupUrl: flowState?.mockupUrl || flowState?.mockupPublicUrl || undefined,
-      mockupHash: flowState?.mockupHash || undefined,
       pdfPublicUrl: flowState?.pdfPublicUrl || undefined,
       productType,
       price,
@@ -3790,7 +3757,7 @@ export default function Mockup() {
   }
 
   async function onCartClick() {
-    if (busy || cartInteractionBusy || !previewReady) return;
+    if (busy || cartInteractionBusy) return;
 
     debugTrackFire('cta_click_cart', rid);
     trackEvent('cta_click_cart', {
@@ -3998,7 +3965,7 @@ export default function Mockup() {
   }
 
   async function onCheckoutPrivateClick() {
-    if (busy || buyBtnBusy || privateBusy || !previewReady) return null;
+    if (busy || buyBtnBusy || privateBusy) return null;
 
     setBuyBtnBusy(true);
     setPrivateBusy(true);
@@ -4186,7 +4153,7 @@ export default function Mockup() {
               label={CART_STATUS_LABELS.idle}
               busyLabel={cartButtonLabel}
               isBusy={cartInteractionBusy}
-              disabled={busy || cartInteractionBusy || !previewReady}
+              disabled={busy || cartInteractionBusy}
               onClick={withCartBtnSpin(onCartClick)}
             />
             <p className={styles.ctaHint}>
@@ -4202,11 +4169,11 @@ export default function Mockup() {
               label="Comprar ahora"
               busyLabel="Procesando…"
               isBusy={buyBtnBusy}
-              disabled={busy || buyBtnBusy || !previewReady}
+              disabled={busy || buyBtnBusy}
               buttonRef={buyNowButtonRef}
               ariaLabel="Comprar ahora"
               onClick={() => {
-                if (busy || buyBtnBusy || !previewReady) return;
+                if (busy || buyBtnBusy) return;
                 setBuyPromptOpen(true);
               }}
             />
@@ -4249,7 +4216,7 @@ export default function Mockup() {
         </section>
         <button
           type="button"
-          disabled={busy || !previewReady}
+          disabled={busy}
           className={styles.hiddenButton}
           onClick={() => {
             debugTrackFire('cta_click_private', rid);
@@ -4358,9 +4325,9 @@ export default function Mockup() {
                 label="Comprar público"
                 busyLabel="Procesando…"
                 isBusy={publicBusy}
-                disabled={busy || buyBtnBusy || !previewReady}
+                disabled={busy || buyBtnBusy}
                 onClick={withBuyBtnSpin(async () => {
-                  if (busy || publicBusy || buyBtnBusy || !previewReady) return;
+                  if (busy || publicBusy || buyBtnBusy) return;
                   debugTrackFire('cta_click_public', rid);
                   trackEvent('cta_click_public', {
                     rid,
@@ -4378,9 +4345,9 @@ export default function Mockup() {
                 label="Comprar en privado"
                 busyLabel="Procesando…"
                 isBusy={privateBusy}
-                disabled={busy || buyBtnBusy || !previewReady}
+                disabled={busy || buyBtnBusy}
                 onClick={withBuyBtnSpin(async () => {
-                  if (busy || privateBusy || buyBtnBusy || !previewReady) return;
+                  if (busy || privateBusy || buyBtnBusy) return;
                   debugTrackFire('cta_click_private', rid);
                   trackEvent('cta_click_private', {
                     rid,
