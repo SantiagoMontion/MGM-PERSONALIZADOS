@@ -450,6 +450,13 @@ export default function Home() {
   const flow = useFlow();
   const heavyToastShownRef = useRef(false);
 
+  const clearMockupVersion = useCallback(() => {
+    if (!flow?.set) return;
+    if (flow?.mockupV != null) {
+      flow.set({ mockupV: null });
+    }
+  }, [flow]);
+
   const showHeavyImageToast = useCallback((actualMb, maxMb) => {
     console.warn('[guard:file_too_heavy]', { maxMB: maxMb, actualMB: actualMb });
     if (heavyToastShownRef.current) {
@@ -485,8 +492,9 @@ export default function Home() {
     setErr('');
     setModerationNotice('');
     setPriceAmount(0);
-    flow?.set?.({ mockupUrl: null, mockupPublicUrl: null, masterBytes: null });
-  }, [flow]);
+    clearMockupVersion();
+    flow?.set?.({ mockupUrl: null, mockupPublicUrl: null, masterBytes: null, mockupV: null });
+  }, [clearMockupVersion, flow]);
 
   const effDpi = useMemo(() => {
     if (!layout) return null;
@@ -504,6 +512,7 @@ export default function Home() {
   const trimmedDesignName = useMemo(() => (designName || '').trim(), [designName]);
 
   function handleSizeChange(next) {
+    let updated = false;
     if (next.material && next.material !== material) {
       if (material !== 'Glasspad') {
         lastSize.current[material] = { ...size };
@@ -512,6 +521,7 @@ export default function Home() {
         setMaterial('Glasspad');
         setMode('standard');
         setSize({ w: GLASSPAD_SIZE_CM.w, h: GLASSPAD_SIZE_CM.h });
+        updated = true;
         return;
       }
       const lim = LIMITS[next.material];
@@ -536,6 +546,7 @@ export default function Home() {
 
       setMaterial(next.material);
       setSize(clamped);
+      updated = true;
 
       let nextModeValue = 'custom';
       if (!preservedCustom) {
@@ -545,7 +556,9 @@ export default function Home() {
         nextModeValue = isStd ? 'standard' : 'custom';
       }
 
-      setMode(nextModeValue);
+      if (nextModeValue !== mode) {
+        setMode(nextModeValue);
+      }
 
       if (!stored || stored.w !== clamped.w || stored.h !== clamped.h) {
         lastSize.current[next.material] = clamped;
@@ -559,17 +572,25 @@ export default function Home() {
         if (material !== 'Glasspad') {
           lastSize.current[material] = { w: next.w, h: next.h };
         }
+        updated = true;
       }
+      updated = true;
     }
     if (typeof next.w === 'number' || typeof next.h === 'number') {
       const nextSize = {
         w: typeof next.w === 'number' ? next.w : size.w,
         h: typeof next.h === 'number' ? next.h : size.h,
       };
+      if (nextSize.w !== size.w || nextSize.h !== size.h) {
+        updated = true;
+      }
       setSize(nextSize);
       if (material !== 'Glasspad') {
         lastSize.current[material] = nextSize;
       }
+    }
+    if (updated) {
+      clearMockupVersion();
     }
   }
 
@@ -581,6 +602,13 @@ export default function Home() {
       setDesignNameError('');
     }
   }
+
+  const handleLayoutChange = useCallback((nextLayout) => {
+    setLayout(nextLayout);
+    if (nextLayout) {
+      clearMockupVersion();
+    }
+  }, [clearMockupVersion]);
 
   async function uploadOriginal(payload) {
     const { file, ...rest } = payload || {};
@@ -1222,6 +1250,12 @@ export default function Home() {
         finalHeightCm = 42;
       }
 
+      const widthForVersion = Number.isFinite(finalWidthCm) && finalWidthCm > 0 ? Math.round(finalWidthCm) : 0;
+      const heightForVersion = Number.isFinite(finalHeightCm) && finalHeightCm > 0 ? Math.round(finalHeightCm) : 0;
+      const materialForVersion = safeReplace(String(finalMaterial || '').trim() || 'Classic', /\s+/g, '-');
+      const versionSeed = designHash || Date.now().toString(36);
+      const mockupVersion = `${versionSeed}-${widthForVersion}x${heightForVersion}-${materialForVersion}`;
+
       flow.set({
         // Guardar SIEMPRE la medida elegida por el cliente (cm), para evitar caer a px/DPI
         widthCm: finalWidthCm,
@@ -1231,6 +1265,7 @@ export default function Home() {
         mockupBlob,
         mockupUrl,
         mockupPublicUrl: mockupPublicUrl || flowState?.mockupPublicUrl || null,
+        mockupV: mockupVersion,
         printFullResDataUrl: masterDataUrl,
         masterPublicUrl: nextMasterUrl,
         pdfPublicUrl: nextPdfUrl,
@@ -1876,7 +1911,7 @@ export default function Home() {
                   sizeCm={activeSizeCm}
                   bleedMm={3}
                   dpi={300}
-                  onLayoutChange={setLayout}
+                  onLayoutChange={handleLayoutChange}
                   onClearImage={handleClearImage}
                   showCanvas={isCanvasReady}
                   topLeftOverlay={configDropdown}
@@ -1897,7 +1932,8 @@ export default function Home() {
                           } catch {}
                           setUploaded(null);
                           setImageUrl(null);
-                          flow?.set?.({ mockupUrl: null, mockupPublicUrl: null, masterBytes: null });
+                          clearMockupVersion();
+                          flow?.set?.({ mockupUrl: null, mockupPublicUrl: null, masterBytes: null, mockupV: null });
                           const toast = window?.toast;
                           const tooHeavyMessage = formatHeavyImageToastMessage(
                             bytesToMB(file.size),
@@ -1907,7 +1943,8 @@ export default function Home() {
                           return;
                         }
 
-                        flow?.set?.({ masterBytes: file.size });
+                        clearMockupVersion();
+                        flow?.set?.({ masterBytes: file.size, mockupV: null });
                         setUploaded(info);
                         setAckLow(false);
                         setAckLowError(false);

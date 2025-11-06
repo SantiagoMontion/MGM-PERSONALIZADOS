@@ -9,6 +9,7 @@ const PERSIST_KEYS = [
   'options',
   'mockupUrl',
   'mockupPublicUrl',
+  'mockupV',
 ];
 
 const asStr = (value: unknown, fallback = ''): string =>
@@ -30,6 +31,7 @@ export type FlowState = {
   mockupBlob?: Blob;
   mockupUrl?: string;
   mockupPublicUrl?: string;
+  mockupV?: string | null;
   printFullResDataUrl?: string;
   fileOriginalUrl?: string | null;
   uploadObjectKey?: string | null;
@@ -75,6 +77,7 @@ const defaultState: Omit<FlowState, 'set' | 'reset'> = {
   mockupBlob: undefined,
   mockupUrl: undefined,
   mockupPublicUrl: undefined,
+  mockupV: undefined,
   printFullResDataUrl: undefined,
   fileOriginalUrl: undefined,
   uploadObjectKey: undefined,
@@ -215,6 +218,7 @@ export function FlowProvider({ children }: { children: ReactNode }) {
     state.options,
     state.mockupUrl,
     state.mockupPublicUrl,
+    state.mockupV,
   ]);
 
   return <FlowContext.Provider value={value}>{children}</FlowContext.Provider>;

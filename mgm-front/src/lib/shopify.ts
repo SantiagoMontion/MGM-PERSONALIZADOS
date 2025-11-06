@@ -80,6 +80,20 @@ function formatDimension(value?: number | null): string | undefined {
   return rounded.toFixed(1).replace(/\.0+$/, '');
 }
 
+const isHttpUrl = (u?: string | null): u is string => typeof u === 'string' && u.startsWith('https://') && !u.startsWith('blob:');
+const withV = (u: string, v?: string | null): string => {
+  if (!isHttpUrl(u)) return u;
+  const version = typeof v === 'string' && v ? v : null;
+  if (!version) return u;
+  try {
+    const parsed = new URL(u);
+    parsed.searchParams.set('v', version);
+    return parsed.toString();
+  } catch {
+    return u.includes('?') ? `${u}&v=${encodeURIComponent(version)}` : `${u}?v=${encodeURIComponent(version)}`;
+  }
+};
+
 function formatMeasurement(width?: number | null, height?: number | null): string | undefined {
   const w = formatDimension(width);
   const h = formatDimension(height);
@@ -532,6 +546,8 @@ export async function createJobAndProduct(
   let collectedWarningMessages: string[] | undefined;
 
   let mockupUrlForPayload = '';
+  let mockupSrcForShopify: string | undefined;
+  let versionFromFlow: string | undefined;
   let productType: 'glasspad' | 'mousepad' = flow.productType === 'glasspad' ? 'glasspad' : 'mousepad';
   let productLabel = PRODUCT_LABELS[productType];
   const designNameInput = (flow as any)?.designName;
@@ -613,6 +629,13 @@ export async function createJobAndProduct(
       throw err;
     }
 
+    versionFromFlow = typeof (flow as any)?.mockupV === 'string'
+      ? String((flow as any).mockupV)
+      : undefined;
+    mockupSrcForShopify = versionFromFlow && isHttpUrl(mockupUrlForPayload)
+      ? withV(mockupUrlForPayload, versionFromFlow)
+      : undefined;
+
     if (isPrivate) {
       const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailPattern.test(customerEmail)) {
@@ -632,7 +655,7 @@ export async function createJobAndProduct(
 
     const payload = {
       productType,
-      mockupUrl: mockupUrlForPayload,
+      ...(mockupSrcForShopify ? { mockupUrl: mockupSrcForShopify } : {}),
       designName: designNameRaw, // nombre exacto del input (sin recortar aquí)
       title: productTitle,
       material: materialLabel, // enviar material explícito plano
@@ -745,6 +768,18 @@ export async function createJobAndProduct(
       if (typeof heightOverride === 'number' && Number.isFinite(heightOverride) && heightOverride > 0) {
         payload.heightCm = heightOverride;
       }
+    }
+
+    const finalMockupCandidate = typeof payload.mockupUrl === 'string' ? payload.mockupUrl.trim() : '';
+    if (finalMockupCandidate && versionFromFlow && isHttpUrl(finalMockupCandidate)) {
+      const versioned = withV(finalMockupCandidate, versionFromFlow);
+      payload.mockupUrl = versioned;
+      mockupSrcForShopify = versioned;
+    } else if (finalMockupCandidate && (!versionFromFlow || !isHttpUrl(finalMockupCandidate))) {
+      delete (payload as Record<string, unknown>).mockupUrl;
+      mockupSrcForShopify = undefined;
+    } else if (!finalMockupCandidate && mockupSrcForShopify) {
+      payload.mockupUrl = mockupSrcForShopify;
     }
 
     const payloadBytes = jsonByteLength(payload);

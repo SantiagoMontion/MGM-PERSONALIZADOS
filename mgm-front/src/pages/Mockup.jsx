@@ -19,6 +19,20 @@ import { MAX_IMAGE_MB, MAX_IMAGE_BYTES } from '../lib/imageSizeLimit.js';
 
 const safeStr = (v) => (typeof v === 'string' ? v : '').trim();
 
+const isHttpUrl = (u) => typeof u === 'string' && u.startsWith('https://') && !u.startsWith('blob:');
+const withV = (u, v) => {
+  if (!isHttpUrl(u)) return u;
+  const version = typeof v === 'string' && v ? v : null;
+  if (!version) return u;
+  try {
+    const parsed = new URL(u);
+    parsed.searchParams.set('v', version);
+    return parsed.toString();
+  } catch {
+    return u.includes('?') ? `${u}&v=${encodeURIComponent(version)}` : `${u}?v=${encodeURIComponent(version)}`;
+  }
+};
+
 const normalizeMaterialLabel = (raw) => {
   const s = safeStr(raw).toLowerCase();
   if (s.includes('glass')) return 'Glasspad';
@@ -539,14 +553,48 @@ export async function ensureMockupPublicReady(flow) {
   // Reusar la rutina ya existente para asegurar URL pública.
   // Debe devolver la URL pública final o null si no pudo.
   try {
-    const url = await ensureMockupUrlInFlow(flow);
-    if (typeof url === 'string' && url.startsWith('http')) return url;
-
-    // Si ensureMockupUrlInFlow no devuelve string, tomarla del flow luego de ejecutar.
+    const ensured = await ensureMockupUrlInFlow(flow);
     const state = typeof flow?.get === 'function' ? flow.get() : flow;
-    const resolved = state?.mockupPublicUrl || state?.mockupUrl || null;
-    return (typeof resolved === 'string' && resolved.startsWith('http')) ? resolved : null;
-  } catch {
+    const baseUrl = (() => {
+      if (typeof ensured === 'string' && ensured.startsWith('http')) return ensured;
+      const fallback = state?.mockupPublicUrl || state?.mockupUrl || null;
+      return typeof fallback === 'string' && fallback.startsWith('http') ? fallback : null;
+    })();
+    if (!baseUrl) {
+      return null;
+    }
+
+    if (isHttpUrl(baseUrl)) {
+      const versionValue = (state && typeof state === 'object' && 'mockupV' in state)
+        ? state.mockupV
+        : flow?.mockupV;
+      const versionedForHead = withV(baseUrl, versionValue);
+      const headBase = versionedForHead || baseUrl;
+      const urlForHead = `${headBase}${headBase.includes('?') ? '&' : '?'}cb=${Date.now()}`;
+      const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      let timeoutId = null;
+      try {
+        if (controller) {
+          timeoutId = setTimeout(() => controller.abort(), 2000);
+        }
+        const response = await fetch(urlForHead, {
+          method: 'HEAD',
+          cache: 'no-store',
+          signal: controller?.signal,
+        });
+        if (!response?.ok) {
+          console.warn('[mockup] head_warn', { status: response?.status, url: baseUrl });
+        }
+      } catch (err) {
+        console.warn('[mockup] head_warn', err?.message || err);
+      } finally {
+        if (timeoutId) clearTimeout(timeoutId);
+      }
+    }
+
+    return baseUrl;
+  } catch (error) {
+    console.warn('[mockup] ensure_public_ready_failed', error?.message || error);
     return null;
   }
 }
@@ -611,7 +659,9 @@ function buildShopifyPayload(flowState, mode) {
   const priceTransfer = Number(source?.priceTransfer ?? 0);
   const priceNormal = Number(source?.priceNormal ?? 0);
   const currency = source?.priceCurrency;
-  const mockupUrl = source?.mockupPublicUrl || source?.mockupUrl || null;
+  const mockupSrcForShopify = isHttpUrl(source?.mockupPublicUrl)
+    ? withV(source.mockupPublicUrl, source?.mockupV)
+    : undefined;
   const payload = {
     mode,
     designName,
@@ -625,7 +675,7 @@ function buildShopifyPayload(flowState, mode) {
     priceNormal,
     currency,
     productType,
-    mockupUrl,
+    ...(mockupSrcForShopify ? { mockupUrl: mockupSrcForShopify } : {}),
     pdfPublicUrl: source?.pdfPublicUrl,
     masterPublicUrl: source?.masterPublicUrl || null,
     designHash: source?.designHash,
@@ -939,6 +989,10 @@ export default function Mockup() {
     const mockupUrlPersisted = safeStr(persisted.mockupUrl || persisted.mockupPublicUrl);
     if (!safeStr(current.mockupUrl) && mockupUrlPersisted) {
       patch.mockupUrl = mockupUrlPersisted;
+    }
+    const mockupVPersisted = safeStr(persisted.mockupV);
+    if (!safeStr(current.mockupV) && mockupVPersisted) {
+      patch.mockupV = mockupVPersisted;
     }
     if (!safeStr(current.productType) && safeStr(persisted.productType)) {
       patch.productType = safeStr(persisted.productType);
@@ -2480,10 +2534,10 @@ export default function Mockup() {
   const mockupSrc = useMemo(() => {
     const state = flowState && typeof flowState === 'object' ? flowState : {};
     if (typeof state.mockupPublicUrl === 'string' && state.mockupPublicUrl) {
-      return state.mockupPublicUrl;
+      return withV(state.mockupPublicUrl, state.mockupV);
     }
     if (typeof state.mockupUrl === 'string' && state.mockupUrl) {
-      return state.mockupUrl;
+      return withV(state.mockupUrl, state.mockupV);
     }
     if (isDataUrl(state.mockupDataUrl)) {
       return state.mockupDataUrl;
@@ -2562,8 +2616,8 @@ export default function Mockup() {
 
   const mockupImageSrc = useMemo(() => {
     const state = typeof flow?.get === 'function' ? flow.get() : flow;
-    if (state?.mockupPublicUrl) return state.mockupPublicUrl;
-    if (state?.mockupUrl) return state.mockupUrl;
+    if (state?.mockupPublicUrl) return withV(state.mockupPublicUrl, state?.mockupV);
+    if (state?.mockupUrl) return withV(state.mockupUrl, state?.mockupV);
     return isDataUrl(state?.mockupDataUrl) ? state.mockupDataUrl : null;
   }, [flow]);
 
@@ -3716,6 +3770,18 @@ export default function Mockup() {
     const priceTransferRaw = Number(flowState?.priceTransfer ?? 0);
     const price = Number.isFinite(priceTransferRaw) ? priceTransferRaw : 0;
 
+    const rawPublicUrl = typeof flowState?.mockupPublicUrl === 'string' && flowState.mockupPublicUrl
+      ? flowState.mockupPublicUrl
+      : undefined;
+    const rawMockupUrl = typeof flowState?.mockupUrl === 'string' && flowState.mockupUrl
+      ? flowState.mockupUrl
+      : undefined;
+    const mockupPublicUrlView = rawPublicUrl && isHttpUrl(rawPublicUrl)
+      ? withV(rawPublicUrl, flowState?.mockupV)
+      : rawMockupUrl && isHttpUrl(rawMockupUrl)
+        ? withV(rawMockupUrl, flowState?.mockupV)
+        : rawPublicUrl || rawMockupUrl || undefined;
+
     const baseOverrides = {
       material: mat,
       materialResolved: mat,
@@ -3728,8 +3794,9 @@ export default function Mockup() {
       heightCm: height ?? undefined,
       designName: resolvedDesignName,
       title,
-      mockupPublicUrl: flowState?.mockupPublicUrl || flowState?.mockupUrl || undefined,
-      mockupUrl: flowState?.mockupUrl || flowState?.mockupPublicUrl || undefined,
+      mockupPublicUrl: rawPublicUrl || rawMockupUrl || undefined,
+      mockupPublicUrlView: mockupPublicUrlView || undefined,
+      mockupUrl: mockupPublicUrlView || rawMockupUrl || rawPublicUrl || undefined,
       pdfPublicUrl: flowState?.pdfPublicUrl || undefined,
       productType,
       price,
@@ -3880,6 +3947,24 @@ export default function Mockup() {
           ...(typeof baseOverrides.options === 'object' && baseOverrides.options ? baseOverrides.options : {}),
         },
       };
+      const mockupBaseHttp = isHttpUrl(stateForLog?.mockupPublicUrl)
+        ? stateForLog.mockupPublicUrl
+        : isHttpUrl(stateForLog?.mockupUrl)
+          ? stateForLog.mockupUrl
+          : undefined;
+      const mockupSrcForShopify = mockupBaseHttp
+        ? withV(mockupBaseHttp, stateForLog?.mockupV)
+        : undefined;
+      if (mockupSrcForShopify) {
+        overrides.mockupPublicUrl = mockupSrcForShopify;
+        overrides.mockupUrl = mockupSrcForShopify;
+        overrides.mockupPublicUrlView = mockupSrcForShopify;
+      } else if (!('mockupPublicUrlView' in overrides)) {
+        const fallbackView = overrides.mockupPublicUrl || overrides.mockupUrl || null;
+        if (fallbackView) {
+          overrides.mockupPublicUrlView = fallbackView;
+        }
+      }
       try {
         diag('[buy] direct:payload', {
           mode,
