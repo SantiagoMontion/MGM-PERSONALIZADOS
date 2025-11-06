@@ -485,6 +485,7 @@ export default function Home() {
     setErr('');
     setModerationNotice('');
     setPriceAmount(0);
+    flow?.clearMockupVersion?.();
     flow?.set?.({ mockupUrl: null, mockupPublicUrl: null, masterBytes: null });
   }, [flow]);
 
@@ -1253,6 +1254,7 @@ export default function Home() {
         priceNormal: normalPrice,
         priceCurrency: PRICE_CURRENCY,
       });
+      flow?.setMockupVersion?.(String(Date.now()));
       try {
         diag('[audit:flow:persist]', {
           designName: nameClean,
@@ -1897,6 +1899,7 @@ export default function Home() {
                           } catch {}
                           setUploaded(null);
                           setImageUrl(null);
+                          flow?.clearMockupVersion?.();
                           flow?.set?.({ mockupUrl: null, mockupPublicUrl: null, masterBytes: null });
                           const toast = window?.toast;
                           const tooHeavyMessage = formatHeavyImageToastMessage(

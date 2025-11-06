@@ -91,6 +91,16 @@ function isDataUrl(value: unknown): value is string {
   return typeof value === 'string' && value.startsWith('data:');
 }
 
+const withV = (u: string | null | undefined, v: string | null | undefined): string | null | undefined => {
+  if (!u) return u;
+  return u.includes('?')
+    ? `${u}&v=${encodeURIComponent(v ?? '')}`
+    : `${u}?v=${encodeURIComponent(v ?? '')}`;
+};
+
+const isHttpUrl = (u: unknown): u is string =>
+  typeof u === 'string' && u.startsWith('https://') && !u.startsWith('blob:');
+
 async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
   const response = await fetch(dataUrl);
   return await response.blob();
@@ -314,6 +324,8 @@ export async function ensureMockupUrl(flow: FlowState): Promise<string> {
     if (typeof flow.set === 'function') {
       flow.set({ mockupBlob, mockupPublicUrl: publicUrl } as Partial<FlowState>);
     }
+    const flowWithVersion = flow as FlowState & { setMockupVersion?: (v?: string | null) => void };
+    flowWithVersion.setMockupVersion?.(String(Date.now()));
   } catch (stateErr) {
     try {
       diag('[ensureMockupUrl] state_update_failed', stateErr);
@@ -630,9 +642,15 @@ export async function createJobAndProduct(
       }
     }
 
+    const flowWithGet = flow as FlowState & { get?: () => FlowState };
+    const flowStateForUrl = typeof flowWithGet.get === 'function' ? flowWithGet.get() : flowWithGet;
+    const versionForShopify = typeof flowStateForUrl?.mockupV === 'string' ? flowStateForUrl.mockupV || '' : '';
+    const mockupSrcForShopify = isHttpUrl(mockupUrlForPayload)
+      ? withV(mockupUrlForPayload, versionForShopify)
+      : undefined;
+
     const payload = {
       productType,
-      mockupUrl: mockupUrlForPayload,
       designName: designNameRaw, // nombre exacto del input (sin recortar aquí)
       title: productTitle,
       material: materialLabel, // enviar material explícito plano
@@ -664,6 +682,7 @@ export async function createJobAndProduct(
       masterHeightPx: masterHeightPx ?? undefined,
       customerEmail: customerEmail || undefined,
       options: materialLabel ? { material: materialLabel } : undefined, // enviar material explícito
+      ...(mockupSrcForShopify ? { mockupUrl: mockupSrcForShopify } : {}),
     };
 
     const overrides =
