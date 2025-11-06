@@ -30,6 +30,7 @@ export type FlowState = {
   mockupBlob?: Blob;
   mockupUrl?: string;
   mockupPublicUrl?: string;
+  mockupV?: string | null;
   printFullResDataUrl?: string;
   fileOriginalUrl?: string | null;
   uploadObjectKey?: string | null;
@@ -67,6 +68,8 @@ export type FlowState = {
   };
   set: (p: Partial<FlowState>) => void;
   reset: () => void;
+  setMockupVersion?: (v?: string | null) => void;
+  clearMockupVersion?: () => void;
 };
 
 const defaultState: Omit<FlowState, 'set' | 'reset'> = {
@@ -75,6 +78,7 @@ const defaultState: Omit<FlowState, 'set' | 'reset'> = {
   mockupBlob: undefined,
   mockupUrl: undefined,
   mockupPublicUrl: undefined,
+  mockupV: null,
   printFullResDataUrl: undefined,
   fileOriginalUrl: undefined,
   uploadObjectKey: undefined,
@@ -102,6 +106,8 @@ const FlowContext = createContext<FlowState>({
   ...defaultState,
   set: () => {},
   reset: () => {},
+  setMockupVersion: () => {},
+  clearMockupVersion: () => {},
 });
 
 export function FlowProvider({ children }: { children: ReactNode }) {
@@ -177,6 +183,12 @@ export function FlowProvider({ children }: { children: ReactNode }) {
         // ignore
       }
       setState(defaultState);
+    },
+    setMockupVersion: (v) => {
+      setState((s) => ({ ...s, mockupV: v || null }));
+    },
+    clearMockupVersion: () => {
+      setState((s) => ({ ...s, mockupV: null }));
     },
   };
 

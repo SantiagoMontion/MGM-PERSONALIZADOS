@@ -29,6 +29,7 @@ const defaultState = {
   mockupBlob: null,
   mockupUrl: null,
   mockupPublicUrl: null,
+  mockupV: null,
   masterBytes: null,
   printFullResDataUrl: null,
   fileOriginalUrl: null,
@@ -57,6 +58,8 @@ const FlowContext = createContext({
   ...defaultState,
   set: () => {},
   reset: () => {},
+  setMockupVersion: () => {},
+  clearMockupVersion: () => {},
 });
 
 export function FlowProvider({ children }) {
@@ -181,6 +184,12 @@ export function FlowProvider({ children }) {
         // ignore
       }
       setState({ ...defaultState });
+    },
+    setMockupVersion: (v) => {
+      setState((s) => ({ ...s, mockupV: v || null }));
+    },
+    clearMockupVersion: () => {
+      setState((s) => ({ ...s, mockupV: null }));
     },
   };
   return React.createElement(FlowContext.Provider, { value }, children);

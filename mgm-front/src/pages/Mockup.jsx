@@ -19,6 +19,15 @@ import { MAX_IMAGE_MB, MAX_IMAGE_BYTES } from '../lib/imageSizeLimit.js';
 
 const safeStr = (v) => (typeof v === 'string' ? v : '').trim();
 
+const withV = (u, v) =>
+  u
+    ? u.includes('?')
+      ? `${u}&v=${encodeURIComponent(v || '')}`
+      : `${u}?v=${encodeURIComponent(v || '')}`
+    : u;
+
+const isHttpUrl = (u) => !!u && typeof u === 'string' && u.startsWith('https://') && !u.startsWith('blob:');
+
 const normalizeMaterialLabel = (raw) => {
   const s = safeStr(raw).toLowerCase();
   if (s.includes('glass')) return 'Glasspad';
@@ -219,10 +228,6 @@ const asStr = (value, fallback = '') => {
 };
 
 const safeReplace = (value, pattern, replacement) => asStr(value).replace(pattern, replacement);
-
-function isHttpUrl(u) {
-  return typeof u === 'string' && /^https?:\/\//i.test(u.trim());
-}
 
 function generateBridgeRid() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -455,6 +460,7 @@ export async function ensureMockupUrlInFlow(flow, input) {
           options: { ...(nextState?.options || {}), material: mat, productType },
           mockupDataUrl: null,
         });
+        flow?.setMockupVersion?.(String(Date.now()));
       }
     } catch (stateErr) {
       diag('[mockup] state_update_failed', stateErr);
@@ -501,6 +507,7 @@ export async function ensureMockupUrlInFlow(flow, input) {
         mockupPublicUrl: nextState?.mockupPublicUrl || null,
         mockupUrl: fallbackUrl,
       });
+      flow?.setMockupVersion?.(String(Date.now()));
     } catch (stateErr) {
       diag('[mockup] fallback_state_failed', stateErr);
     }
@@ -536,19 +543,46 @@ async function waitUrlReady(url, tries = 8, delayMs = 350) {
 }
 
 export async function ensureMockupPublicReady(flow) {
-  // Reusar la rutina ya existente para asegurar URL pública.
-  // Debe devolver la URL pública final o null si no pudo.
-  try {
-    const url = await ensureMockupUrlInFlow(flow);
-    if (typeof url === 'string' && url.startsWith('http')) return url;
+  const resolveState = () => {
+    try {
+      return (typeof flow?.get === 'function' ? flow.get() : flow) || {};
+    } catch {
+      return flow || {};
+    }
+  };
 
-    // Si ensureMockupUrlInFlow no devuelve string, tomarla del flow luego de ejecutar.
-    const state = typeof flow?.get === 'function' ? flow.get() : flow;
-    const resolved = state?.mockupPublicUrl || state?.mockupUrl || null;
-    return (typeof resolved === 'string' && resolved.startsWith('http')) ? resolved : null;
-  } catch {
+  let ensuredUrl = null;
+  try {
+    const candidate = await ensureMockupUrlInFlow(flow);
+    ensuredUrl = isHttpUrl(candidate) ? candidate : null;
+  } catch (_) {
+    ensuredUrl = null;
+  }
+
+  const state = resolveState();
+  const base = ensuredUrl
+    || (isHttpUrl(state?.mockupPublicUrl) ? state.mockupPublicUrl : null)
+    || (isHttpUrl(state?.mockupUrl) ? state.mockupUrl : null);
+
+  if (!isHttpUrl(base)) {
     return null;
   }
+
+  const v = state?.mockupV || '';
+  const baseWithV = withV(base, v);
+  const urlForHead = baseWithV
+    ? `${baseWithV}${base.includes('?') ? '&' : '?'}cb=${Date.now()}`
+    : baseWithV;
+
+  if (urlForHead) {
+    try {
+      await waitUrlReady(urlForHead, 8, 350);
+    } catch {
+      // Mantener comportamiento actual: ignorar errores de HEAD.
+    }
+  }
+
+  return baseWithV;
 }
 
 function buildDimsFromFlowState(flowState) {
@@ -611,7 +645,14 @@ function buildShopifyPayload(flowState, mode) {
   const priceTransfer = Number(source?.priceTransfer ?? 0);
   const priceNormal = Number(source?.priceNormal ?? 0);
   const currency = source?.priceCurrency;
-  const mockupUrl = source?.mockupPublicUrl || source?.mockupUrl || null;
+  const baseMockupUrl =
+    typeof source?.mockupPublicUrl === 'string' && source.mockupPublicUrl
+      ? source.mockupPublicUrl
+      : typeof source?.mockupUrl === 'string' && source.mockupUrl
+        ? source.mockupUrl
+        : null;
+  const v = source?.mockupV || '';
+  const mockupSrcForShopify = isHttpUrl(baseMockupUrl) ? withV(baseMockupUrl, v) : undefined;
   const payload = {
     mode,
     designName,
@@ -625,7 +666,7 @@ function buildShopifyPayload(flowState, mode) {
     priceNormal,
     currency,
     productType,
-    mockupUrl,
+    ...(mockupSrcForShopify ? { mockupUrl: mockupSrcForShopify } : {}),
     pdfPublicUrl: source?.pdfPublicUrl,
     masterPublicUrl: source?.masterPublicUrl || null,
     designHash: source?.designHash,
