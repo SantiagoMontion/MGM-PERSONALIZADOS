@@ -645,8 +645,9 @@ export async function createJobAndProduct(
     const flowWithGet = flow as FlowState & { get?: () => FlowState };
     const flowStateForUrl = typeof flowWithGet.get === 'function' ? flowWithGet.get() : flowWithGet;
     const versionForShopify = typeof flowStateForUrl?.mockupV === 'string' ? flowStateForUrl.mockupV || '' : '';
-    const mockupSrcForShopify = isHttpUrl(mockupUrlForPayload)
-      ? withV(mockupUrlForPayload, versionForShopify)
+    const httpUrl = flowStateForUrl?.mockupPublicUrl;
+    const mockupSrcForShopify = isHttpUrl(httpUrl)
+      ? withV(httpUrl, versionForShopify)
       : undefined;
 
     const payload = {
@@ -754,7 +755,10 @@ export async function createJobAndProduct(
       }
       const mockupOverride = overrides.mockupUrl;
       if (typeof mockupOverride === 'string' && mockupOverride.trim()) {
-        payload.mockupUrl = mockupOverride.trim();
+        const overrideTrimmed = mockupOverride.trim();
+        if (isHttpUrl(overrideTrimmed)) {
+          payload.mockupUrl = overrideTrimmed;
+        }
       }
       const widthOverride = overrides.widthCm;
       if (typeof widthOverride === 'number' && Number.isFinite(widthOverride) && widthOverride > 0) {

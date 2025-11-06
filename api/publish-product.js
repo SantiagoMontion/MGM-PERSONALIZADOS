@@ -12,6 +12,8 @@ const CORS_ALLOW_HEADERS = 'content-type, authorization, x-diag';
 const CORS_ALLOW_METHODS = 'POST, OPTIONS';
 const CORS_MAX_AGE = '86400';
 
+const isHttpsUrl = (value) => typeof value === 'string' && value.startsWith('https://');
+
 export const config = {
   memory: 256,
   maxDuration: 60,
@@ -391,7 +393,11 @@ export default async function handler(req, res) {
   const mockupPublicRaw = typeof parsedBody.mockupPublicUrl === 'string' ? parsedBody.mockupPublicUrl.trim() : '';
   const pdfUrlRaw = typeof parsedBody.pdfPublicUrl === 'string' ? parsedBody.pdfPublicUrl.trim() : '';
   const designHashRaw = typeof parsedBody.designHash === 'string' ? parsedBody.designHash.trim().toLowerCase() : '';
-  const effectiveMockupUrl = mockupUrlRaw || mockupPublicRaw;
+  const effectiveMockupUrl = isHttpsUrl(mockupUrlRaw)
+    ? mockupUrlRaw
+    : isHttpsUrl(mockupPublicRaw)
+      ? mockupPublicRaw
+      : '';
   if (!effectiveMockupUrl) {
     sendJsonWithCors(req, res, 400, { ok: false, error: 'mockup_url_required', diagId });
     return;
@@ -547,7 +553,8 @@ export default async function handler(req, res) {
     // noop
   }
   // Pasar mockupUrl simple; la imagen se adjunta en el handler vía REST
-  parsedBody.mockupUrl = mockupUrlRaw || parsedBody.mockupUrl || null;
+  const preferredRawMockup = isHttpsUrl(mockupUrlRaw) ? mockupUrlRaw : null;
+  parsedBody.mockupUrl = preferredRawMockup || parsedBody.mockupUrl || null;
   // Diags para verificar qué llegó y qué se usó
   try {
     console.log('[audit:publish-product:resolved]', {
@@ -579,7 +586,7 @@ export default async function handler(req, res) {
         if (base64) {
           images.push({ attachment: base64, filename, altText: fallbackName });
         }
-      } else if (mockupUrlValue) {
+      } else if (mockupUrlValue && isHttpsUrl(mockupUrlValue)) {
         images.push({ src: mockupUrlValue, altText: fallbackName });
       }
     }
