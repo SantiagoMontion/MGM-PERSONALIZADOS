@@ -387,17 +387,13 @@ export default async function handler(req, res) {
 
   req.body = parsedBody;
 
+  const mockupUrlRaw = typeof parsedBody.mockupUrl === 'string' ? parsedBody.mockupUrl.trim() : '';
   const mockupPublicRaw = typeof parsedBody.mockupPublicUrl === 'string' ? parsedBody.mockupPublicUrl.trim() : '';
   const pdfUrlRaw = typeof parsedBody.pdfPublicUrl === 'string' ? parsedBody.pdfPublicUrl.trim() : '';
   const designHashRaw = typeof parsedBody.designHash === 'string' ? parsedBody.designHash.trim().toLowerCase() : '';
-  const mockupPublicUrl = mockupPublicRaw;
-  if (!mockupPublicUrl || mockupPublicUrl.startsWith('blob:')) {
-    sendJsonWithCors(req, res, 400, { ok: false, error: 'mockup_missing', diagId });
-    return;
-  }
-  const mockupHashRaw = typeof parsedBody.mockupHash === 'string' ? parsedBody.mockupHash.trim().toLowerCase() : '';
-  if (!/^[a-f0-9]{8}$/.test(mockupHashRaw)) {
-    sendJsonWithCors(req, res, 400, { ok: false, error: 'mockup_hash_invalid', diagId });
+  const effectiveMockupUrl = mockupUrlRaw || mockupPublicRaw;
+  if (!effectiveMockupUrl) {
+    sendJsonWithCors(req, res, 400, { ok: false, error: 'mockup_url_required', diagId });
     return;
   }
   if (!pdfUrlRaw) {
@@ -420,9 +416,7 @@ export default async function handler(req, res) {
     return;
   }
 
-  parsedBody.mockupPublicUrl = mockupPublicUrl;
-  parsedBody.mockupUrl = mockupPublicUrl;
-  parsedBody.mockupHash = mockupHashRaw;
+  parsedBody.mockupUrl = effectiveMockupUrl;
   parsedBody.pdfPublicUrl = pdfUrlRaw;
   parsedBody.designHash = designHashRaw;
   parsedBody.masterWidthPx = Number.isFinite(masterWidthPx) && masterWidthPx > 0 ? Math.round(masterWidthPx) : null;
@@ -553,7 +547,7 @@ export default async function handler(req, res) {
     // noop
   }
   // Pasar mockupUrl simple; la imagen se adjunta en el handler vía REST
-  parsedBody.mockupUrl = mockupPublicUrl;
+  parsedBody.mockupUrl = mockupUrlRaw || parsedBody.mockupUrl || null;
   // Diags para verificar qué llegó y qué se usó
   try {
     console.log('[audit:publish-product:resolved]', {
@@ -579,16 +573,14 @@ export default async function handler(req, res) {
         images.push({ attachment: base64, filename, altText: fallbackName });
       }
     } else {
-      const mockupUrlValue = typeof parsedBody.mockupPublicUrl === 'string' ? parsedBody.mockupPublicUrl.trim() : '';
+      const mockupUrlValue = typeof parsedBody.mockupUrl === 'string' ? parsedBody.mockupUrl.trim() : '';
       if (mockupUrlValue.startsWith('data:image')) {
         const base64 = (mockupUrlValue.split(',')[1] || '').trim();
         if (base64) {
           images.push({ attachment: base64, filename, altText: fallbackName });
         }
       } else if (mockupUrlValue) {
-        const versionSeparator = mockupUrlValue.includes('?') ? '&' : '?';
-        const versionedUrl = `${mockupUrlValue}${versionSeparator}v=${mockupHashRaw}`;
-        images.push({ src: versionedUrl, altText: fallbackName });
+        images.push({ src: mockupUrlValue, altText: fallbackName });
       }
     }
     if (images.length) {
