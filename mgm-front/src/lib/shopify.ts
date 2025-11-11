@@ -1,5 +1,4 @@
 import { apiFetch, getResolvedApiUrl } from './api';
-import { supa } from './supa.js';
 import { renderMockup1080 } from './mockup.js';
 import { FlowState } from '@/state/flow';
 import { diag, info, warn, error } from '@/lib/log';
@@ -94,6 +93,22 @@ function isDataUrl(value: unknown): value is string {
 async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
   const response = await fetch(dataUrl);
   return await response.blob();
+}
+
+async function blobToDataUrl(blob: Blob): Promise<string> {
+  return await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result === 'string') {
+        resolve(result);
+      } else {
+        reject(new Error('dataurl_conversion_failed'));
+      }
+    };
+    reader.onerror = (err) => reject(err);
+    reader.readAsDataURL(blob);
+  });
 }
 
 async function imgFromDataUrl(dataUrl: string): Promise<HTMLImageElement> {
@@ -201,20 +216,6 @@ async function signUpload({
   }
 }
 
-async function uploadBlobWithSignedUrl(
-  { bucket, path, token }: { bucket?: string; path: string; token: string },
-  blob: Blob,
-  filename: string,
-) {
-  const file = new File([blob], filename, { type: blob.type });
-  const result = await supa
-    .storage.from(bucket || 'preview')
-    .uploadToSignedUrl(path, token, file, { upsert: false, contentType: blob.type });
-  if (result?.error) {
-    throw result.error;
-  }
-}
-
 function jsonByteLength(value: unknown): number {
   try {
     const json = JSON.stringify(value ?? null);
@@ -234,7 +235,15 @@ function jsonByteLength(value: unknown): number {
 export async function ensureMockupUrl(flow: FlowState): Promise<string> {
   const flowAny = flow as Record<string, any>;
   const existingPublicUrl = typeof flowAny?.mockupPublicUrl === 'string' ? flowAny.mockupPublicUrl.trim() : '';
-  if (existingPublicUrl) return existingPublicUrl;
+  const existingHash = typeof flowAny?.mockupHash === 'string' ? flowAny.mockupHash.trim() : '';
+  if (
+    existingPublicUrl
+    && !existingPublicUrl.startsWith('blob:')
+    && existingHash.length >= 6
+    && flowAny?.mockupUploadOk !== false
+  ) {
+    return existingPublicUrl;
+  }
 
   const payloadLimitBytes = PUBLISH_MAX_PAYLOAD_KB * 1024;
   let mockupBlob: Blob | null = typeof Blob !== 'undefined' && flow.mockupBlob instanceof Blob
@@ -242,19 +251,18 @@ export async function ensureMockupUrl(flow: FlowState): Promise<string> {
     : null;
 
   const mockupUrlCandidate = typeof flow.mockupUrl === 'string' ? flow.mockupUrl.trim() : '';
-  if (mockupUrlCandidate && !mockupUrlCandidate.startsWith('blob:')) {
-    if (isDataUrl(mockupUrlCandidate) && mockupUrlCandidate.length > payloadLimitBytes) {
-      mockupBlob = mockupBlob || await dataUrlToBlob(mockupUrlCandidate);
-    } else {
-      return mockupUrlCandidate;
+  if (mockupUrlCandidate) {
+    if (isDataUrl(mockupUrlCandidate)) {
+      if (mockupUrlCandidate.length > payloadLimitBytes) {
+        mockupBlob = mockupBlob || await dataUrlToBlob(mockupUrlCandidate);
+      } else {
+        mockupBlob = mockupBlob || await dataUrlToBlob(mockupUrlCandidate);
+      }
     }
   }
 
   const mockupDataUrlCandidate = typeof flowAny?.mockupDataUrl === 'string' ? flowAny.mockupDataUrl.trim() : '';
   if (isDataUrl(mockupDataUrlCandidate)) {
-    if (mockupDataUrlCandidate.length <= payloadLimitBytes) {
-      return mockupDataUrlCandidate;
-    }
     mockupBlob = mockupBlob || await dataUrlToBlob(mockupDataUrlCandidate);
   }
 
@@ -300,28 +308,77 @@ export async function ensureMockupUrl(flow: FlowState): Promise<string> {
   const heightCm = cmFromPx(masterHeightPx, dpi);
   const mat = matLabelOf(flowAny?.material) || 'Classic';
   const filenameBase = `${safeName(flowAny?.designName)} ${widthCm}x${heightCm} ${mat}`.replace(/\s+/g, ' ').trim();
-  const filename = `${filenameBase}.png`;
+  const title = typeof flowAny?.title === 'string' && flowAny.title.trim()
+    ? flowAny.title.trim()
+    : filenameBase || safeName(flowAny?.designName);
   const contentType = mockupBlob.type || 'image/png';
-  const sign = await signUpload({ bucket: 'preview', contentType, path: `mockups-${yyyymm()}/${filename}` });
-  await uploadBlobWithSignedUrl(sign, mockupBlob, filename);
-  const publicUrl = typeof sign?.publicUrl === 'string' ? sign.publicUrl : '';
-  if (!publicUrl) {
-    const err: Error & { reason?: string } = new Error('missing_mockup_url');
-    err.reason = 'missing_mockup_url';
-    throw err;
-  }
+  const dataUrl = await blobToDataUrl(mockupBlob);
+
+  let uploadErrorCode: string | null = null;
+
   try {
-    if (typeof flow.set === 'function') {
-      flow.set({ mockupBlob, mockupPublicUrl: publicUrl } as Partial<FlowState>);
-    }
-  } catch (stateErr) {
+    const response = await apiFetch('POST', '/api/preview/upload', {
+      title,
+      widthCm,
+      heightCm,
+      material: mat,
+      dataUrl,
+      contentType,
+    });
+    const text = await response.text().catch(() => '');
+    let json: any = null;
     try {
-      diag('[ensureMockupUrl] state_update_failed', stateErr);
+      json = text ? JSON.parse(text) : null;
     } catch {
-      // ignore state log failures
+      json = null;
     }
+    if (!response.ok || !json?.ok || !json?.publicUrl || !json?.hash8) {
+      uploadErrorCode = typeof json?.code === 'string' ? json.code : 'upload_failed';
+      const err: Error & { code?: string } = new Error('preview_upload_failed');
+      if (uploadErrorCode) err.code = uploadErrorCode;
+      throw err;
+    }
+    const publicUrl = String(json.publicUrl);
+    const hash8 = String(json.hash8);
+    try {
+      if (typeof flow.set === 'function') {
+        flow.set({
+          mockupBlob,
+          mockupPublicUrl: publicUrl,
+          mockupUrl: publicUrl,
+          mockupHash: hash8,
+          mockupUploadOk: true,
+          mockupUploadError: null,
+        } as Partial<FlowState>);
+      }
+    } catch (stateErr) {
+      try {
+        diag('[ensureMockupUrl] state_update_failed', stateErr);
+      } catch {
+        // ignore state log failures
+      }
+    }
+    return publicUrl;
+  } catch (error) {
+    try {
+      if (typeof flow.set === 'function') {
+        flow.set({
+          mockupBlob,
+          mockupPublicUrl: null,
+          mockupHash: null,
+          mockupUploadOk: false,
+          mockupUploadError: uploadErrorCode || (error as Error & { code?: string })?.code || 'upload_failed',
+        } as Partial<FlowState>);
+      }
+    } catch (stateErr) {
+      try {
+        diag('[ensureMockupUrl] state_update_failed_after_error', stateErr);
+      } catch {
+        // ignore
+      }
+    }
+    throw error;
   }
-  return publicUrl;
 }
 
 function readJobId(flow: FlowState): string {
@@ -532,6 +589,9 @@ export async function createJobAndProduct(
   let collectedWarningMessages: string[] | undefined;
 
   let mockupUrlForPayload = '';
+  let mockupHashForPayload = typeof (flow as any)?.mockupHash === 'string'
+    ? ((flow as any).mockupHash as string).trim()
+    : '';
   let productType: 'glasspad' | 'mousepad' = flow.productType === 'glasspad' ? 'glasspad' : 'mousepad';
   let productLabel = PRODUCT_LABELS[productType];
   const designNameInput = (flow as any)?.designName;
@@ -613,6 +673,15 @@ export async function createJobAndProduct(
       throw err;
     }
 
+    mockupHashForPayload = typeof (flow as any)?.mockupHash === 'string'
+      ? ((flow as any).mockupHash as string).trim()
+      : mockupHashForPayload;
+    if (!mockupHashForPayload) {
+      const err: Error & { reason?: string } = new Error('mockup_hash_missing');
+      err.reason = 'mockup_hash_missing';
+      throw err;
+    }
+
     if (isPrivate) {
       const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailPattern.test(customerEmail)) {
@@ -630,9 +699,15 @@ export async function createJobAndProduct(
       }
     }
 
+    const versionedMockupUrl = mockupHashForPayload
+      ? `${mockupUrlForPayload}${mockupUrlForPayload.includes('?') ? '&' : '?'}v=${mockupHashForPayload}`
+      : mockupUrlForPayload;
+
     const payload = {
       productType,
-      mockupUrl: mockupUrlForPayload,
+      mockupPublicUrl: mockupUrlForPayload,
+      mockupHash: mockupHashForPayload || undefined,
+      mockupUrl: versionedMockupUrl,
       designName: designNameRaw, // nombre exacto del input (sin recortar aquí)
       title: productTitle,
       material: materialLabel, // enviar material explícito plano
@@ -737,6 +812,14 @@ export async function createJobAndProduct(
       if (typeof mockupOverride === 'string' && mockupOverride.trim()) {
         payload.mockupUrl = mockupOverride.trim();
       }
+      const mockupPublicOverride = overrides.mockupPublicUrl;
+      if (typeof mockupPublicOverride === 'string' && mockupPublicOverride.trim()) {
+        payload.mockupPublicUrl = mockupPublicOverride.trim();
+      }
+      const mockupHashOverride = overrides.mockupHash;
+      if (typeof mockupHashOverride === 'string' && mockupHashOverride.trim()) {
+        payload.mockupHash = mockupHashOverride.trim();
+      }
       const widthOverride = overrides.widthCm;
       if (typeof widthOverride === 'number' && Number.isFinite(widthOverride) && widthOverride > 0) {
         payload.widthCm = widthOverride;
@@ -745,6 +828,11 @@ export async function createJobAndProduct(
       if (typeof heightOverride === 'number' && Number.isFinite(heightOverride) && heightOverride > 0) {
         payload.heightCm = heightOverride;
       }
+    }
+
+    if (payload.mockupPublicUrl && payload.mockupHash) {
+      const separator = payload.mockupPublicUrl.includes('?') ? '&' : '?';
+      payload.mockupUrl = `${payload.mockupPublicUrl}${separator}v=${payload.mockupHash}`;
     }
 
     const payloadBytes = jsonByteLength(payload);
