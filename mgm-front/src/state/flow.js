@@ -9,6 +9,7 @@ const PERSIST_KEYS = [
   'options',
   'mockupUrl',
   'mockupPublicUrl',
+  'mockupHash',
 ];
 
 const asStr = (value) => (typeof value === 'string' ? value : value == null ? '' : String(value));
@@ -29,6 +30,9 @@ const defaultState = {
   mockupBlob: null,
   mockupUrl: null,
   mockupPublicUrl: null,
+  mockupHash: null,
+  mockupUploadOk: false,
+  mockupUploadError: null,
   masterBytes: null,
   printFullResDataUrl: null,
   fileOriginalUrl: null,
@@ -162,6 +166,7 @@ export function FlowProvider({ children }) {
     state.options,
     state.mockupUrl,
     state.mockupPublicUrl,
+    state.mockupHash,
   ]);
 
   const value = {

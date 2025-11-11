@@ -323,36 +323,50 @@ async function blobToDataUrl(blob) {
   });
 }
 
-async function uploadPreviewViaApi(objectKey, blob) {
-  if (!objectKey || !blob) throw new Error('preview_upload_missing_data');
+async function uploadPreviewViaApi(metadata, blob) {
+  if (!blob) throw new Error('preview_upload_missing_data');
   const dataUrl = await blobToDataUrl(blob);
+  const payload = {
+    ...(metadata || {}),
+    dataUrl,
+    contentType: blob.type || 'image/png',
+  };
   const response = await fetch(getResolvedApiUrl('/api/preview/upload'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      objectKey,
-      dataUrl,
-      contentType: blob.type || 'image/png',
-    }),
+    body: JSON.stringify(payload),
   });
   const json = await response.json().catch(() => null);
-  if (!response.ok || !json?.ok || !json?.publicUrl) {
+  if (!response.ok) {
     error('[preview] api upload failed', {
       status: response.status,
       json,
-      objectKey,
+      metadata,
     });
-    throw new Error('preview_upload_failed');
+    return { ok: false, status: response.status, json: json || null };
+  }
+  if (!json || !json.ok || !json.publicUrl || !json.hash8) {
+    error('[preview] api upload incomplete', {
+      status: response.status,
+      json,
+      metadata,
+    });
+    return json && typeof json === 'object' ? json : { ok: false };
   }
   try {
     diag('[preview] uploaded', {
-      objectKey,
+      key: json.objectKey,
       skip: Boolean(json.skipUpload),
     });
   } catch (_) {
     // noop
   }
-  return String(json.publicUrl);
+  return {
+    ok: true,
+    publicUrl: String(json.publicUrl),
+    hash8: String(json.hash8),
+    objectKey: json.objectKey,
+  };
 }
 
 export async function ensureMockupUrlInFlow(flow, input) {
@@ -399,38 +413,44 @@ export async function ensureMockupUrlInFlow(flow, input) {
     dpi,
     material: mat,
   };
-  const designHash = safeStr(state?.designHash ?? state?.designHashState ?? input?.designHash);
-  const hash8 = (designHash && designHash.slice(0, 8)) || '00000000';
-  const now = new Date();
-  const yyyy = now.getFullYear();
-  const mm = String(now.getMonth() + 1).padStart(2, '0');
-  let objectKeyTitle = safeReplace(title, /\s+/g, ' ').trim();
-  if (typeof objectKeyTitle.normalize === 'function') {
-    objectKeyTitle = objectKeyTitle.normalize('NFKD');
-  }
-  objectKeyTitle = objectKeyTitle
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-zA-Z0-9 _-]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-  const objectKey = `mockups-${yyyy}-${mm}/${objectKeyTitle || 'Personalizado'} ${hash8}.png`;
   const mockupBlob = await renderMockup1080(image, {
     material: mat,
     approxDpi: dpi,
     composition,
   });
+  let hashFromUpload = null;
+  let uploadFailed = false;
+  let uploadErrorCode = null;
   let publicUrl = null;
   try {
     diag('[preview] about_to_upload', {
-      objectKey,
       mat,
       w: Number.isFinite(widthRounded) ? widthRounded : null,
       h: Number.isFinite(heightRounded) ? heightRounded : null,
     });
-    publicUrl = await uploadPreviewViaApi(objectKey, mockupBlob);
+    const uploadResult = await uploadPreviewViaApi(
+      {
+        title,
+        widthCm: Number.isFinite(widthRounded) ? widthRounded : undefined,
+        heightCm: Number.isFinite(heightRounded) ? heightRounded : undefined,
+        material: mat,
+      },
+      mockupBlob,
+    );
+    if (uploadResult?.ok && uploadResult.publicUrl) {
+      publicUrl = uploadResult.publicUrl;
+      hashFromUpload = uploadResult.hash8;
+    } else {
+      uploadFailed = true;
+      uploadErrorCode = uploadResult?.code || uploadErrorCode || 'upload_failed';
+    }
   } catch (uploadErr) {
     diag('[mockup] preview_upload_failed', uploadErr);
     publicUrl = null;
+    uploadFailed = true;
+    if (!uploadErrorCode) {
+      uploadErrorCode = uploadErr?.code || uploadErr?.reason || 'upload_failed';
+    }
   }
   if (publicUrl) {
     publicUrl = String(publicUrl);
@@ -446,6 +466,9 @@ export async function ensureMockupUrlInFlow(flow, input) {
           mockupBlob,
           mockupPublicUrl: publicUrl,
           mockupUrl: publicUrl,
+          mockupHash: hashFromUpload || null,
+          mockupUploadOk: true,
+          mockupUploadError: null,
           widthCm: Number.isFinite(widthRounded) ? widthRounded : nextState?.widthCm ?? null,
           heightCm: Number.isFinite(heightRounded) ? heightRounded : nextState?.heightCm ?? null,
           material: mat,
@@ -498,8 +521,11 @@ export async function ensureMockupUrlInFlow(flow, input) {
       flow.set({
         ...nextState,
         mockupBlob,
-        mockupPublicUrl: nextState?.mockupPublicUrl || null,
+        mockupPublicUrl: null,
         mockupUrl: fallbackUrl,
+        mockupHash: null,
+        mockupUploadOk: false,
+        mockupUploadError: uploadFailed ? (uploadErrorCode || 'upload_failed') : null,
       });
     } catch (stateErr) {
       diag('[mockup] fallback_state_failed', stateErr);
@@ -676,6 +702,10 @@ function notifyMissingAssetsError(error) {
   }
   if (code === 'missing_mockup_url') {
     toastErr('Falta la imagen de mockup. Reintentá "Continuar" o recargá la vista.');
+    return;
+  }
+  if (code === 'mockup_missing' || code === 'mockup_hash_invalid' || code === 'mockup_hash_missing') {
+    toastErr('No pudimos generar la vista previa. Reintentá.');
     return;
   }
   if (code === 'missing_print_fullres_dataurl') {
@@ -933,8 +963,12 @@ export default function Mockup() {
     }
 
     const mockupPersisted = safeStr(persisted.mockupPublicUrl || persisted.mockupUrl);
-    if (!safeStr(current.mockupPublicUrl) && mockupPersisted) {
+    const mockupHashPersisted = safeStr(persisted.mockupHash);
+    if (!safeStr(current.mockupPublicUrl) && mockupPersisted && mockupHashPersisted) {
       patch.mockupPublicUrl = mockupPersisted;
+      patch.mockupHash = mockupHashPersisted;
+      patch.mockupUploadOk = true;
+      patch.mockupUploadError = null;
     }
     const mockupUrlPersisted = safeStr(persisted.mockupUrl || persisted.mockupPublicUrl);
     if (!safeStr(current.mockupUrl) && mockupUrlPersisted) {
@@ -1116,7 +1150,7 @@ export default function Mockup() {
       return;
     }
     ensureMockupUrlInFlow(flow).catch((error) => {
-      diag('[mockup] ensure_mockup_url_initial_failed', err);
+      diag('[mockup] ensure_mockup_url_initial_failed', error);
     });
   }, [
     flowReady,
@@ -2681,10 +2715,41 @@ export default function Mockup() {
 
   const mockupImageSrc = useMemo(() => {
     const state = typeof flow?.get === 'function' ? flow.get() : flow;
-    if (state?.mockupPublicUrl) return state.mockupPublicUrl;
+    if (state?.mockupPublicUrl) {
+      const hash = safeStr(state?.mockupHash);
+      const url = safeStr(state.mockupPublicUrl);
+      if (hash) {
+        const separator = url.includes('?') ? '&' : '?';
+        return `${url}${separator}v=${hash}`;
+      }
+      return url;
+    }
     if (state?.mockupUrl) return state.mockupUrl;
     return isDataUrl(state?.mockupDataUrl) ? state.mockupDataUrl : null;
   }, [flow]);
+
+  const mockupPublicUrlValue = safeStr(flow?.mockupPublicUrl);
+  const mockupHashValue = safeStr(flow?.mockupHash);
+  const mockupReady = flow?.mockupUploadOk === true
+    && Boolean(mockupPublicUrlValue)
+    && !mockupPublicUrlValue.startsWith('blob:')
+    && mockupHashValue.length >= 6;
+  const purchaseLocked = !mockupReady;
+
+  const lastMockupErrorRef = useRef(null);
+  useEffect(() => {
+    const rawError = flow?.mockupUploadError;
+    const errorCode = typeof rawError === 'string' ? rawError.trim() : '';
+    if (!errorCode) {
+      lastMockupErrorRef.current = null;
+      return;
+    }
+    if (lastMockupErrorRef.current === errorCode) {
+      return;
+    }
+    lastMockupErrorRef.current = errorCode;
+    setToast({ message: 'No pudimos generar la vista previa. Reintentá.' });
+  }, [flow?.mockupUploadError]);
 
   function debugTrackFire(eventName, ridValue) {
     if (typeof window === 'undefined') return;
@@ -3847,8 +3912,9 @@ export default function Mockup() {
       heightCm: height ?? undefined,
       designName: resolvedDesignName,
       title,
-      mockupPublicUrl: flowState?.mockupPublicUrl || flowState?.mockupUrl || undefined,
-      mockupUrl: flowState?.mockupUrl || flowState?.mockupPublicUrl || undefined,
+      mockupPublicUrl: flowState?.mockupPublicUrl || undefined,
+      mockupHash: flowState?.mockupHash || undefined,
+      mockupUrl: flowState?.mockupPublicUrl || flowState?.mockupUrl || undefined,
       pdfPublicUrl: flowState?.pdfPublicUrl || undefined,
       productType,
       price,
@@ -3876,7 +3942,7 @@ export default function Mockup() {
   }
 
   async function onCartClick() {
-    if (busy || cartInteractionBusy) return;
+    if (busy || cartInteractionBusy || purchaseLocked) return;
 
     debugTrackFire('cta_click_cart', rid);
     trackEvent('cta_click_cart', {
@@ -4047,7 +4113,7 @@ export default function Mockup() {
   }
 
   async function onCheckoutPublicClick() {
-    if (busy || buyBtnBusy || publicBusy) return null;
+    if (busy || buyBtnBusy || publicBusy || purchaseLocked) return null;
 
     setBuyBtnBusy(true);
     setPublicBusy(true);
@@ -4084,7 +4150,7 @@ export default function Mockup() {
   }
 
   async function onCheckoutPrivateClick() {
-    if (busy || buyBtnBusy || privateBusy) return null;
+    if (busy || buyBtnBusy || privateBusy || purchaseLocked) return null;
 
     setBuyBtnBusy(true);
     setPrivateBusy(true);
@@ -4272,7 +4338,7 @@ export default function Mockup() {
               label={CART_STATUS_LABELS.idle}
               busyLabel={cartButtonLabel}
               isBusy={cartInteractionBusy}
-              disabled={busy || cartInteractionBusy}
+              disabled={busy || cartInteractionBusy || purchaseLocked}
               onClick={withCartBtnSpin(onCartClick)}
             />
             <p className={styles.ctaHint}>
@@ -4288,11 +4354,11 @@ export default function Mockup() {
               label="Comprar ahora"
               busyLabel="Procesando…"
               isBusy={buyBtnBusy}
-              disabled={busy || buyBtnBusy}
+              disabled={busy || buyBtnBusy || purchaseLocked}
               buttonRef={buyNowButtonRef}
               ariaLabel="Comprar ahora"
               onClick={() => {
-                if (busy || buyBtnBusy) return;
+                if (busy || buyBtnBusy || purchaseLocked) return;
                 setBuyPromptOpen(true);
               }}
             />
@@ -4444,9 +4510,9 @@ export default function Mockup() {
                 label="Comprar público"
                 busyLabel="Procesando…"
                 isBusy={publicBusy}
-                disabled={busy || buyBtnBusy}
+                disabled={busy || buyBtnBusy || purchaseLocked}
                 onClick={withBuyBtnSpin(async () => {
-                  if (busy || publicBusy || buyBtnBusy) return;
+                  if (busy || publicBusy || buyBtnBusy || purchaseLocked) return;
                   debugTrackFire('cta_click_public', rid);
                   trackEvent('cta_click_public', {
                     rid,
@@ -4464,9 +4530,9 @@ export default function Mockup() {
                 label="Comprar en privado"
                 busyLabel="Procesando…"
                 isBusy={privateBusy}
-                disabled={busy || buyBtnBusy}
+                disabled={busy || buyBtnBusy || purchaseLocked}
                 onClick={withBuyBtnSpin(async () => {
-                  if (busy || privateBusy || buyBtnBusy) return;
+                  if (busy || privateBusy || buyBtnBusy || purchaseLocked) return;
                   debugTrackFire('cta_click_private', rid);
                   trackEvent('cta_click_private', {
                     rid,

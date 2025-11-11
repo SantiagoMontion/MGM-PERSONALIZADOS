@@ -1,7 +1,8 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { ensureCors, respondCorsDenied } from '../../lib/cors.js';
 import getSupabaseAdmin from '../../lib/_lib/supabaseAdmin.js';
 import logger from '../../lib/_lib/logger.js';
+import { slugifyName } from '../../lib/_lib/slug.js';
 
 export const config = { api: { bodyParser: { sizeLimit: '3mb' } } };
 
@@ -11,6 +12,35 @@ function parseDataUrl(dataUrl = '') {
   const contentType = match[1] || 'image/png';
   const buffer = Buffer.from(match[2], 'base64');
   return { contentType, buffer };
+}
+
+function sanitizeMaterial(material) {
+  const value = (material ?? '').toString().trim();
+  if (!value) return 'material';
+  return value.replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').slice(0, 64);
+}
+
+function safeNumberSegment(value) {
+  const num = Number(value);
+  if (Number.isFinite(num) && num > 0) {
+    return String(Math.round(num));
+  }
+  return 'NA';
+}
+
+export function stableMockupKey(meta = {}, pngBytes = Buffer.alloc(0)) {
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const slug = slugifyName(meta?.title || '') || 'personalizado';
+  const widthSegment = safeNumberSegment(meta?.widthCm);
+  const heightSegment = safeNumberSegment(meta?.heightCm);
+  const materialSegment = slugifyName(sanitizeMaterial(meta?.material)) || sanitizeMaterial(meta?.material);
+  const hash8 = createHash('sha1').update(pngBytes).digest('hex').slice(0, 8);
+  return {
+    key: `mockups-${yyyy}-${mm}/${slug} ${widthSegment}x${heightSegment} ${materialSegment} ${hash8}.png`,
+    hash8,
+  };
 }
 
 function sendJson(res, status, payload) {
@@ -39,12 +69,8 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { objectKey, dataUrl, contentType: ctOverride } = req.body || {};
+    const { title, widthCm, heightCm, material, dataUrl } = req.body || {};
 
-    if (typeof objectKey !== 'string' || !objectKey.trim()) {
-      sendJson(res, 400, { ok: false, error: 'object_key_required', diagId });
-      return;
-    }
     if (typeof dataUrl !== 'string' || dataUrl.length < 32) {
       sendJson(res, 400, { ok: false, error: 'data_url_required', diagId });
       return;
@@ -58,23 +84,25 @@ export default async function handler(req, res) {
 
     const supabase = getSupabaseAdmin();
     const bucket = 'preview';
-    const key = objectKey.trim();
+    const { key, hash8 } = stableMockupKey({ title, widthCm, heightCm, material }, buffer);
 
-    const uploadResult = await supabase.storage
+    const { error: uploadError } = await supabase.storage
       .from(bucket)
       .upload(key, buffer, {
         upsert: true,
-        contentType: ctOverride || contentType || 'image/png',
+        contentType: 'image/png',
         cacheControl: '31536000',
       });
 
-    if (uploadResult.error && !uploadResult.data) {
+    if (uploadError) {
       logger.warn('[preview:upload:error]', {
         diagId,
         bucket,
         key,
-        error: uploadResult.error.message,
+        error: uploadError.message,
       });
+      res.status(500).json({ ok: false, code: 'upload_failed', detail: uploadError.message });
+      return;
     }
 
     const { data: publicData, error: publicError } = supabase.storage
@@ -82,7 +110,35 @@ export default async function handler(req, res) {
       .getPublicUrl(key);
 
     if (publicError) {
-      sendJson(res, 500, { ok: false, error: 'public_url_failed', diagId });
+      logger.warn('[preview:upload:public_url_failed]', { diagId, bucket, key, error: publicError.message });
+      res.status(500).json({ ok: false, code: 'upload_failed', detail: publicError.message });
+      return;
+    }
+
+    const publicUrl = publicData?.publicUrl || null;
+    if (!publicUrl) {
+      logger.warn('[preview:upload:public_url_missing]', { diagId, bucket, key });
+      res.status(500).json({ ok: false, code: 'upload_failed', detail: 'public_url_missing' });
+      return;
+    }
+
+    let head;
+    try {
+      head = await fetch(publicUrl, { method: 'HEAD' });
+    } catch (headErr) {
+      logger.warn('[preview:upload:mockup_head_failed]', {
+        diagId,
+        bucket,
+        key,
+        error: headErr?.message || headErr,
+      });
+      res.status(502).json({ ok: false, code: 'mockup_not_ready' });
+      return;
+    }
+    const size = Number(head.headers.get('content-length') || '0');
+    if (!head.ok || !Number.isFinite(size) || size < 1024) {
+      logger.warn('[preview:upload:mockup_not_ready]', { diagId, bucket, key, status: head.status, size });
+      res.status(502).json({ ok: false, code: 'mockup_not_ready' });
       return;
     }
 
@@ -91,22 +147,14 @@ export default async function handler(req, res) {
       bucket,
       key,
       size: buffer.length,
-      skipUpload: Boolean(uploadResult.error),
     });
 
-    sendJson(res, 200, {
-      ok: true,
-      bucket,
-      objectKey: key,
-      publicUrl: publicData?.publicUrl || null,
-      skipUpload: Boolean(uploadResult.error),
-      diagId,
-    });
+    res.json({ ok: true, publicUrl, hash8 });
   } catch (err) {
     logger.error('[preview:upload:exception]', {
       diagId,
       err: err?.message || err,
     });
-    sendJson(res, 500, { ok: false, error: 'internal_error', diagId });
+    res.status(500).json({ ok: false, code: 'upload_failed', detail: err?.message || 'internal_error' });
   }
 }
