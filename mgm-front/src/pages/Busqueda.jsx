@@ -15,48 +15,6 @@ import { diag, warn, error } from '@/lib/log';
 
 const PAGE_LIMIT = 25;
 
-function PreviewImage({ src, alt }) {
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    setFailed(false);
-  }, [src]);
-
-  if (!src || failed) {
-    return (
-      <span className={styles.previewPlaceholder} aria-label="PDF">
-        PDF
-      </span>
-    );
-  }
-
-  return (
-    <img
-      src={src}
-      alt={alt}
-      className={styles.previewImage}
-      loading="lazy"
-      decoding="async"
-      referrerPolicy="no-referrer"
-      style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 8 }}
-      onError={(event) => {
-        event.currentTarget.onerror = null;
-        event.currentTarget.src = '';
-        setFailed(true);
-      }}
-    />
-  );
-}
-
-function getPreviewAlt(name) {
-  if (typeof name !== 'string' || !name) {
-    return 'Vista previa';
-  }
-  const base = name.split(/[/\\]/).pop() || name;
-  const withoutPdf = base.replace(/\.pdf$/i, '');
-  return withoutPdf || base;
-}
-
 function formatBytes(size) {
   const value = Number(size);
   if (!Number.isFinite(value) || value <= 0) return '-';
@@ -309,6 +267,40 @@ export default function Busqueda() {
   const hasResults = normalizedResults.length > 0;
   const noResultsMessage = searched && !loading && !hasResults && !error;
 
+  // === Helpers para resolver URL pública del preview (Supabase) ===
+  const SUPA_URL = (import.meta?.env?.VITE_SUPABASE_URL || '').replace(/\/$/, '');
+
+  const isHttp = (u) => typeof u === 'string' && u.startsWith('http');
+  const buildPreviewPublic = (key) =>
+    SUPA_URL ? `${SUPA_URL}/storage/v1/object/public/preview/${encodeURI(key)}` : null;
+
+  // A partir del path del PDF: outputs/pdf-YYYY-MM/<base>.pdf  -> preview/mockups-YYYY-MM/<base>.png
+  const guessPreviewFromPdfKey = (pdfKeyOrUrl) => {
+    if (!pdfKeyOrUrl) return null;
+    const path = pdfKeyOrUrl.startsWith('http')
+      ? new URL(pdfKeyOrUrl).pathname
+      : pdfKeyOrUrl;
+
+    const m = path.match(/\/outputs\/pdf-(\d{4}-\d{2})\/(.+)\.pdf$/i);
+    if (!m) return null;
+    const [, ym, base] = m;
+    const key = `mockups-${ym}/${base}.png`;
+    return buildPreviewPublic(key);
+  };
+
+  // Resuelve la mejor URL pública disponible para el preview de una fila
+  const resolvePreviewUrl = (row) => {
+    // 1) Si ya tenemos una pública directa (https)
+    if (isHttp(row?.mockupPublicUrl)) return row.mockupPublicUrl;
+
+    // 2) Si guardamos la key del preview (ej: "mockups-2025-11/NOMBRE.png")
+    const k = row?.previewKey || row?.mockupKey || row?.previewObjectKey;
+    if (k) return buildPreviewPublic(k);
+
+    // 3) Inferir desde el PDF
+    return guessPreviewFromPdfKey(row?.pdf || row?.pdfKey || row?.path);
+  };
+
   return (
     <div className={styles.page}>
       <Helmet>
@@ -365,11 +357,11 @@ export default function Busqueda() {
             </thead>
             <tbody>
               {hasResults ? (
-                normalizedResults.map((item) => {
-                  const key = item.id || item.path || item.fileName;
-                  const measurement = formatMeasurement(item.widthCm, item.heightCm);
-                  const filename = item.name || item.fileName || 'archivo.pdf';
-                  const rawDownloadUrl = item.downloadUrl || item.url || item.publicUrl || '';
+                normalizedResults.map((row) => {
+                  const key = row.id || row.path || row.fileName;
+                  const measurement = formatMeasurement(row.widthCm, row.heightCm);
+                  const filename = row.name || row.fileName || 'archivo.pdf';
+                  const rawDownloadUrl = row.downloadUrl || row.url || row.publicUrl || '';
                   let downloadHref = '';
                   if (rawDownloadUrl) {
                     try {
@@ -385,26 +377,63 @@ export default function Busqueda() {
                   }
                   if (import.meta.env?.DEV) {
                     diag('[prints] preview', {
-                      name: item.fileName || item.name,
-                      preview: item.previewUrl,
+                      name: row.fileName || row.name,
+                      preview: row.previewUrl,
                     });
                   }
-                  const previewContent = (
-                    <PreviewImage
-                      src={item.previewUrl}
-                      alt={getPreviewAlt(item.fileName || item.name)}
-                    />
-                  );
                   return (
                     <tr key={key}>
-                      <td className={styles.previewCell}>
-                        {previewContent}
+                      <td className={`${styles.previewCell} preview-cell`}>
+                        {(() => {
+                          const src = resolvePreviewUrl(row);
+                          const fallbackStyle = {
+                            display: src ? 'none' : 'inline-flex',
+                            width: 64,
+                            height: 64,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            borderRadius: 12,
+                            border: '1px dashed #555',
+                            fontWeight: 700,
+                            fontSize: 12,
+                            color: '#bbb',
+                          };
+                          return (
+                            <>
+                              {src ? (
+                                <img
+                                  src={src}
+                                  alt=""
+                                  loading="lazy"
+                                  referrerPolicy="no-referrer"
+                                  onError={(e) => {
+                                    // Si falla, ocultamos imagen y dejamos el fallback "PDF"
+                                    e.currentTarget.style.display = 'none';
+                                    const fb = e.currentTarget.nextElementSibling;
+                                    if (fb) fb.style.display = 'inline-flex';
+                                  }}
+                                  style={{
+                                    width: 64,
+                                    height: 64,
+                                    objectFit: 'cover',
+                                    borderRadius: 12,
+                                    display: 'block',
+                                    boxShadow: '0 2px 10px rgba(0,0,0,.25)',
+                                  }}
+                                />
+                              ) : null}
+                              <span className="preview-fallback" style={fallbackStyle}>
+                                PDF
+                              </span>
+                            </>
+                          );
+                        })()}
                       </td>
-                      <td className={styles.fileCell}>{item.fileName || item.name || '-'}</td>
+                      <td className={styles.fileCell}>{row.fileName || row.name || '-'}</td>
                       <td className={styles.measureCell}>{measurement}</td>
-                      <td className={styles.materialCell}>{item.material || '-'}</td>
-                      <td className={styles.sizeCell}>{formatBytes(item.sizeBytes ?? item.size)}</td>
-                      <td className={styles.dateCell}>{formatDate(item.createdAt)}</td>
+                      <td className={styles.materialCell}>{row.material || '-'}</td>
+                      <td className={styles.sizeCell}>{formatBytes(row.sizeBytes ?? row.size)}</td>
+                      <td className={styles.dateCell}>{formatDate(row.createdAt)}</td>
                       <td>
                         {downloadHref ? (
                           <a
