@@ -1,3 +1,5 @@
+import { buildMockupBaseName } from './preview.js';
+
 const DEFAULT_NAME = 'Design';
 
 function normalizeCandidate(value) {
@@ -9,7 +11,7 @@ export function safeName(value) {
   const cleaned = normalizeCandidate(value)
     .replace(/[-_]+/g, ' ')
     .replace(/[\s]+/g, ' ')
-    .replace(/[\/\\:*?"<>|]+/g, ' ')
+    .replace(/[/\\:*?"<>|]+/g, ' ')
     .trim();
   return cleaned || DEFAULT_NAME;
 }
@@ -83,7 +85,17 @@ export function resolveDimensions(row) {
 export function buildMockupFileName({ designName, widthCm, heightCm, material }) {
   const safeDesign = safeName(designName);
   const materialTag = materialLabel(material);
-  return `${safeDesign} ${widthCm}x${heightCm} ${materialTag}.png`;
+  const widthNumeric = Number(widthCm);
+  const heightNumeric = Number(heightCm);
+  const widthValue = Number.isFinite(widthNumeric) && widthNumeric > 0 ? widthNumeric : 0;
+  const heightValue = Number.isFinite(heightNumeric) && heightNumeric > 0 ? heightNumeric : 0;
+  const baseName = buildMockupBaseName({
+    designName: safeDesign,
+    widthCm: widthValue,
+    heightCm: heightValue,
+    material: materialTag,
+  }).replace(/[/\\:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim();
+  return `${baseName}.png`;
 }
 
 export function buildMockupPath({ designName, widthCm, heightCm, material, createdAt }) {

@@ -2,6 +2,7 @@ import { apiFetch, getResolvedApiUrl } from './api';
 import { renderMockup1080 } from './mockup.js';
 import { FlowState } from '@/state/flow';
 import { diag, info, warn, error } from '@/lib/log';
+import { normalizePreviewUrl, pdfKeyToPreviewKey, headOk, buildMockupBaseName } from '@/lib/preview.js';
 
 const DEFAULT_STORE_BASE = 'https://kw0f4u-ji.myshopify.com';
 const RAW_PUBLISH_MAX_PAYLOAD_KB = readEnv(['VITE_PUBLISH_MAX_PAYLOAD_KB']);
@@ -26,6 +27,9 @@ const SHOULD_LOG_COMMERCE = (() => {
     || normalized === 'yes'
     || normalized === 'on';
 })();
+
+const RAW_SUPABASE_URL = readEnv(['VITE_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_URL', 'SUPABASE_URL']);
+const SUPABASE_PUBLIC_URL = RAW_SUPABASE_URL.replace(/\/+$/, '');
 
 const PRODUCT_LABELS = {
   mousepad: 'Mousepad',
@@ -307,7 +311,13 @@ export async function ensureMockupUrl(flow: FlowState): Promise<string> {
   const widthCm = cmFromPx(masterWidthPx, dpi);
   const heightCm = cmFromPx(masterHeightPx, dpi);
   const mat = matLabelOf(flowAny?.material) || 'Classic';
-  const filenameBase = `${safeName(flowAny?.designName)} ${widthCm}x${heightCm} ${mat}`.replace(/\s+/g, ' ').trim();
+  const filenameBaseRaw = buildMockupBaseName({
+    designName: safeName(flowAny?.designName),
+    widthCm,
+    heightCm,
+    material: mat.replace(/\s+.*/, ''),
+  });
+  const filenameBase = filenameBaseRaw.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim();
   const title = typeof flowAny?.title === 'string' && flowAny.title.trim()
     ? flowAny.title.trim()
     : filenameBase || safeName(flowAny?.designName);
@@ -632,6 +642,17 @@ export async function createJobAndProduct(
     ? buildGlasspadTitle(designName, measurementLabel)
     : buildDefaultTitle(productLabel, designName, measurementLabel, materialLabel);
   let metaDescription = buildMetaDescription(productLabel, designName, measurementLabel, materialLabel);
+  const widthForName = typeof widthCm === 'number' && Number.isFinite(widthCm) ? widthCm : 0;
+  const heightForName = typeof heightCm === 'number' && Number.isFinite(heightCm) ? heightCm : 0;
+  const materialForName = (materialLabel || 'Classic').replace(/\s+.*/, '');
+  const mockupBaseNameRaw = buildMockupBaseName({
+    designName: designName || productTitle || 'Mousepad',
+    widthCm: widthForName,
+    heightCm: heightForName,
+    material: materialForName,
+  });
+  const mockupBaseName = mockupBaseNameRaw.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const fallbackMockupName = mockupBaseName || designName || productTitle || 'Mockup';
 
   if (!pdfPublicUrl) {
     const err: Error & { reason?: string } = new Error('missing_pdf_public_url');
@@ -662,8 +683,9 @@ export async function createJobAndProduct(
   }
   if (flow.lowQualityAck) extraTags.push('calidad-baja');
   if (isPrivate) extraTags.push('private');
-  let filename = `${slugify(designName || productTitle)}.png`;
+  let filename = `${slugify(fallbackMockupName)}.png`;
   let imageAlt = `Mockup ${productTitle}`;
+  let mockupUrlPublic: string | null = null;
 
   if (!canReuse) {
     mockupUrlForPayload = (await ensureMockupUrl(flow))?.trim();
@@ -699,15 +721,68 @@ export async function createJobAndProduct(
       }
     }
 
-    const versionedMockupUrl = mockupHashForPayload
+    const supaUrl = SUPABASE_PUBLIC_URL;
+    const candidatePublic = typeof (flow as any)?.mockupPublicUrl === 'string'
+      ? ((flow as any).mockupPublicUrl as string).trim()
+      : '';
+    const candidateUrl = typeof (flow as any)?.mockupUrl === 'string'
+      ? ((flow as any).mockupUrl as string).trim()
+      : '';
+    const masterPdfKey = typeof (flow as any)?.master?.pdfKey === 'string'
+      ? ((flow as any).master.pdfKey as string).trim()
+      : '';
+    const pdfKeyFromPublicUrl = (() => {
+      if (typeof pdfPublicUrl !== 'string') return '';
+      if (!pdfPublicUrl) return '';
+      if (/^https?:\/\//i.test(pdfPublicUrl)) {
+        try {
+          const parsed = new URL(pdfPublicUrl);
+          return parsed.pathname.replace(/^\/+/, '');
+        } catch {
+          return pdfPublicUrl;
+        }
+      }
+      return pdfPublicUrl;
+    })();
+    const previewKeyCandidates = [masterPdfKey, pdfKeyFromPublicUrl]
+      .map((key) => (typeof key === 'string' && key ? pdfKeyToPreviewKey(key) : null))
+      .filter((key): key is string => Boolean(key));
+    mockupUrlPublic = normalizePreviewUrl(candidatePublic, supaUrl)
+      || normalizePreviewUrl(candidateUrl, supaUrl)
+      || normalizePreviewUrl(mockupUrlForPayload, supaUrl)
+      || null;
+    if (!mockupUrlPublic) {
+      for (const previewKey of previewKeyCandidates) {
+        const normalized = normalizePreviewUrl(previewKey, supaUrl);
+        if (normalized) {
+          mockupUrlPublic = normalized;
+          break;
+        }
+      }
+    }
+    if (mockupUrlPublic) {
+      const headReady = await headOk(mockupUrlPublic);
+      if (!headReady) {
+        const failedUrl = mockupUrlPublic;
+        mockupUrlPublic = null;
+        mockupUrlForPayload = '';
+        warn('[shopify] mockup_head_not_ready', { url: failedUrl });
+      } else {
+        mockupUrlForPayload = mockupUrlPublic;
+      }
+    } else if (supaUrl) {
+      mockupUrlForPayload = '';
+    }
+
+    const versionedMockupUrl = mockupUrlForPayload && mockupHashForPayload
       ? `${mockupUrlForPayload}${mockupUrlForPayload.includes('?') ? '&' : '?'}v=${mockupHashForPayload}`
-      : mockupUrlForPayload;
+      : mockupUrlForPayload || undefined;
 
     const payload = {
       productType,
-      mockupPublicUrl: mockupUrlForPayload,
-      mockupHash: mockupHashForPayload || undefined,
-      mockupUrl: versionedMockupUrl,
+      ...(mockupUrlForPayload ? { mockupPublicUrl: mockupUrlForPayload } : {}),
+      ...(mockupHashForPayload ? { mockupHash: mockupHashForPayload } : {}),
+      ...(versionedMockupUrl ? { mockupUrl: versionedMockupUrl } : {}),
       designName: designNameRaw, // nombre exacto del input (sin recortar aquí)
       title: productTitle,
       material: materialLabel, // enviar material explícito plano
@@ -810,11 +885,14 @@ export async function createJobAndProduct(
       }
       const mockupOverride = overrides.mockupUrl;
       if (typeof mockupOverride === 'string' && mockupOverride.trim()) {
-        payload.mockupUrl = mockupOverride.trim();
+        const trimmed = mockupOverride.trim();
+        payload.mockupUrl = normalizePreviewUrl(trimmed, SUPABASE_PUBLIC_URL) || trimmed;
       }
       const mockupPublicOverride = overrides.mockupPublicUrl;
       if (typeof mockupPublicOverride === 'string' && mockupPublicOverride.trim()) {
-        payload.mockupPublicUrl = mockupPublicOverride.trim();
+        const trimmed = mockupPublicOverride.trim();
+        const normalized = normalizePreviewUrl(trimmed, SUPABASE_PUBLIC_URL);
+        payload.mockupPublicUrl = normalized || trimmed;
       }
       const mockupHashOverride = overrides.mockupHash;
       if (typeof mockupHashOverride === 'string' && mockupHashOverride.trim()) {
@@ -833,6 +911,8 @@ export async function createJobAndProduct(
     if (payload.mockupPublicUrl && payload.mockupHash) {
       const separator = payload.mockupPublicUrl.includes('?') ? '&' : '?';
       payload.mockupUrl = `${payload.mockupPublicUrl}${separator}v=${payload.mockupHash}`;
+    } else if (payload.mockupPublicUrl && !payload.mockupUrl) {
+      payload.mockupUrl = payload.mockupPublicUrl;
     }
 
     const payloadBytes = jsonByteLength(payload);
