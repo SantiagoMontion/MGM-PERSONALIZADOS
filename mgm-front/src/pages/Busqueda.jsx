@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { apiFetch } from '@/lib/api.js';
 import { publicUrlForMockup } from '@/lib/previewPath.js';
+import { normalizePreviewUrl, pdfKeyToPreviewKey } from '@/lib/preview.js';
 import {
   PRINTS_GATE_PASSWORD,
   createGateRecord,
@@ -11,7 +12,7 @@ import {
   isGateValid,
 } from '@/lib/printsGate.js';
 import styles from './Busqueda.module.css';
-import { diag, warn, error } from '@/lib/log';
+import { diag, warn } from '@/lib/log';
 
 const PAGE_LIMIT = 25;
 
@@ -106,21 +107,72 @@ export default function Busqueda() {
     return `Mostrando ${from}-${to} de ${total}`;
   }, [searched, total, results.length, offset]);
 
+  const SUPA_URL = (import.meta.env?.VITE_SUPABASE_URL
+    || import.meta.env?.NEXT_PUBLIC_SUPABASE_URL
+    || '').replace(/\/+$/, '');
+
+  const getPreviewUrlFromRecord = useCallback((rec) => {
+    if (!rec) return null;
+    if (typeof rec.mockupPublicUrl === 'string') {
+      const normalized = normalizePreviewUrl(rec.mockupPublicUrl.trim(), SUPA_URL);
+      if (normalized) return normalized;
+    }
+    if (typeof rec.mockup_public_url === 'string') {
+      const normalized = normalizePreviewUrl(rec.mockup_public_url.trim(), SUPA_URL);
+      if (normalized) return normalized;
+    }
+    if (typeof rec.mockupUrl === 'string') {
+      const normalized = normalizePreviewUrl(rec.mockupUrl.trim(), SUPA_URL);
+      if (normalized) return normalized;
+    }
+    const previewKeyCandidates = [rec.previewKey, rec.preview_key, rec.mockupKey, rec.mockup_key, rec.previewObjectKey];
+    for (const candidate of previewKeyCandidates) {
+      if (typeof candidate !== 'string') continue;
+      const trimmed = candidate.trim();
+      if (!trimmed) continue;
+      const prefixed = trimmed.startsWith('preview/')
+        ? trimmed
+        : `preview/${trimmed.replace(/^\/+/, '')}`;
+      const normalized = normalizePreviewUrl(trimmed, SUPA_URL)
+        || normalizePreviewUrl(prefixed, SUPA_URL);
+      if (normalized) return normalized;
+    }
+    const pdfCandidates = [rec.pdfKey, rec.pdf, rec.path, rec.pdfPublicUrl, rec.pdf_public_url];
+    for (const candidate of pdfCandidates) {
+      if (typeof candidate !== 'string') continue;
+      const trimmed = candidate.trim();
+      if (!trimmed) continue;
+      let key = trimmed;
+      if (/^https?:\/\//i.test(trimmed)) {
+        try {
+          const parsed = new URL(trimmed);
+          key = parsed.pathname.replace(/^\/+/, '');
+        } catch {
+          key = trimmed;
+        }
+      }
+      key = key.replace(/^storage\/v1\/object\/public\//i, '');
+      const previewKey = pdfKeyToPreviewKey(key);
+      if (previewKey) {
+        const normalized = normalizePreviewUrl(previewKey, SUPA_URL);
+        if (normalized) return normalized;
+      }
+    }
+    const fallback = publicUrlForMockup(rec)
+      || rec.image
+      || rec.thumbnail
+      || rec.thumbUrl
+      || rec.thumb_url
+      || null;
+    return fallback;
+  }, [SUPA_URL]);
+
   const normalizedResults = useMemo(
-    () => results.map((row) => {
-      const previewUrl =
-        row.previewUrl ||
-        row.mockupPublicUrl ||
-        row.mockup_public_url ||
-        publicUrlForMockup(row) ||
-        row.image ||
-        row.thumbnail ||
-        row.thumbUrl ||
-        row.thumb_url ||
-        null;
-      return { ...row, previewUrl };
-    }),
-    [results],
+    () => results.map((row) => ({
+      ...row,
+      previewUrl: getPreviewUrlFromRecord(row),
+    })),
+    [results, getPreviewUrlFromRecord],
   );
 
   async function performSearch(nextQuery, nextOffset = 0) {
@@ -268,38 +320,7 @@ export default function Busqueda() {
   const noResultsMessage = searched && !loading && !hasResults && !error;
 
   // === Helpers para resolver URL pública del preview (Supabase) ===
-  const SUPA_URL = (import.meta?.env?.VITE_SUPABASE_URL || '').replace(/\/$/, '');
-
-  const isHttp = (u) => typeof u === 'string' && u.startsWith('http');
-  const buildPreviewPublic = (key) =>
-    SUPA_URL ? `${SUPA_URL}/storage/v1/object/public/preview/${encodeURI(key)}` : null;
-
-  // A partir del path del PDF: outputs/pdf-YYYY-MM/<base>.pdf  -> preview/mockups-YYYY-MM/<base>.png
-  const guessPreviewFromPdfKey = (pdfKeyOrUrl) => {
-    if (!pdfKeyOrUrl) return null;
-    const path = pdfKeyOrUrl.startsWith('http')
-      ? new URL(pdfKeyOrUrl).pathname
-      : pdfKeyOrUrl;
-
-    const m = path.match(/\/outputs\/pdf-(\d{4}-\d{2})\/(.+)\.pdf$/i);
-    if (!m) return null;
-    const [, ym, base] = m;
-    const key = `mockups-${ym}/${base}.png`;
-    return buildPreviewPublic(key);
-  };
-
-  // Resuelve la mejor URL pública disponible para el preview de una fila
-  const resolvePreviewUrl = (row) => {
-    // 1) Si ya tenemos una pública directa (https)
-    if (isHttp(row?.mockupPublicUrl)) return row.mockupPublicUrl;
-
-    // 2) Si guardamos la key del preview (ej: "mockups-2025-11/NOMBRE.png")
-    const k = row?.previewKey || row?.mockupKey || row?.previewObjectKey;
-    if (k) return buildPreviewPublic(k);
-
-    // 3) Inferir desde el PDF
-    return guessPreviewFromPdfKey(row?.pdf || row?.pdfKey || row?.path);
-  };
+  const resolvePreviewUrl = (row) => row?.previewUrl || null;
 
   return (
     <div className={styles.page}>
