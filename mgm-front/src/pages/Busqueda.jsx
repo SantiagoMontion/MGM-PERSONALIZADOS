@@ -113,6 +113,15 @@ export default function Busqueda() {
 
   const getPreviewUrlFromRecord = useCallback((rec) => {
     if (!rec) return null;
+    const previewUrlCandidates = [rec.previewUrl, rec.preview_url];
+    for (const candidate of previewUrlCandidates) {
+      if (typeof candidate !== 'string') continue;
+      const trimmed = candidate.trim();
+      if (!trimmed) continue;
+      if (/^https?:\/\//i.test(trimmed)) return trimmed;
+      const normalized = normalizePreviewUrl(trimmed, SUPA_URL);
+      if (normalized) return normalized;
+    }
     if (typeof rec.mockupPublicUrl === 'string') {
       const normalized = normalizePreviewUrl(rec.mockupPublicUrl.trim(), SUPA_URL);
       if (normalized) return normalized;
