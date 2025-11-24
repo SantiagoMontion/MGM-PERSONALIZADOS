@@ -52,6 +52,7 @@ const MATERIAL_OPTIONS = [
   { value: 'Glasspad', main: 'GLASSPAD', variant: 'speed' },
   { value: 'PRO', main: 'PRO', variant: 'control' },
   { value: 'Classic', main: 'CLASSIC', variant: 'híbrido' },
+  { value: 'Alfombra', main: 'ALFOMBRA', variant: 'para piso', disabled: true },
 ];
 
 const MOBILE_QUERY = '(max-width: 768px)';
@@ -96,7 +97,7 @@ const useMediaQuery = (query) => {
 
 /**
  * Props:
- * - material: 'Classic' | 'PRO' | 'Glasspad'
+ * - material: 'Classic' | 'PRO' | 'Glasspad' | 'Alfombra'
  * - size: { w, h }
  * - onChange: ({ material?, w?, h? }) => void
  */
@@ -537,11 +538,17 @@ export default function SizeControls({ material, size, onChange, locked = false,
           >
             {MATERIAL_OPTIONS.map((option) => {
               const isActive = material === option.value;
+              const optionClasses = [
+                styles.selectOption,
+                option.disabled ? styles.selectOptionDisabled : '',
+              ]
+                .filter(Boolean)
+                .join(' ');
               const closeSeriesMenu = () => {
 
                 setSeriesOpen(false);
 
-                if (disabled) return;
+                if (disabled || option.disabled) return;
                 if (String(option.value) !== String(material)) {
                   onChange({ material: option.value });
                 }
@@ -553,11 +560,13 @@ export default function SizeControls({ material, size, onChange, locked = false,
                   role="option"
                   key={option.value}
                   aria-selected={isActive}
-                  className={styles.selectOption}
-                  tabIndex={0}
+                  aria-disabled={option.disabled ? 'true' : 'false'}
+                  className={optionClasses}
+                  tabIndex={option.disabled ? -1 : 0}
                   onClick={(event) => {
                     event.preventDefault();
 
+                    if (option.disabled) return;
                     closeSeriesMenu();
 
                   }}
@@ -565,6 +574,7 @@ export default function SizeControls({ material, size, onChange, locked = false,
                     if (event.key === 'Enter' || event.key === ' ') {
                       event.preventDefault();
 
+                      if (option.disabled) return;
                       closeSeriesMenu();
 
                     }
