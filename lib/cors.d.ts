@@ -4,6 +4,8 @@ export interface CorsDecision {
   allowedOrigin: string | null;
   allowed: boolean;
   allowHeaders?: string;
+  allowMethods?: string;
+  reason?: string;
 }
 
 export declare const BASE_ALLOW_HEADERS: string[];
