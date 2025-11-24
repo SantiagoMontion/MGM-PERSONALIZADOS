@@ -3,6 +3,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { createDiagId, logApiError } from '../_lib/diag.js';
 import { applyLenientCors } from '../_lib/lenientCors.js';
 import { extractDims, publicUrlForMockup } from '../../lib/_lib/previewPath.js';
+import { slugifyName } from '../../lib/_lib/slug.js';
 
 const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 50;
@@ -567,6 +568,14 @@ async function resolvePreview(
     }
   };
 
+  const baseVariants = (() => {
+    if (!hasBase) return [];
+    const compact = baseLower.replace(/[\s_]+/g, '-');
+    const slug = slugifyName(baseLower);
+    const unique = new Set([baseLower, compact, slug].filter(Boolean));
+    return Array.from(unique);
+  })();
+
   const findMatch = (entries: StorageFileEntry[] | null): StorageFileEntry | null => {
     if (!entries) {
       return null;
@@ -591,6 +600,18 @@ async function resolvePreview(
       }
       if (nameLower === `${baseLower}.${ext}`) {
         return entry;
+      }
+      if (!baseVariants.length) {
+        if (!prefixMatch && nameLower.startsWith(baseLower)) {
+          prefixMatch = entry;
+        }
+        continue;
+      }
+      const nameBase = nameLower.replace(/\.[^./]+$/, '');
+      for (const variant of baseVariants) {
+        if (nameBase === variant || nameBase.startsWith(`${variant}-`) || nameBase.startsWith(`${variant} `)) {
+          return entry;
+        }
       }
       if (!prefixMatch && nameLower.startsWith(baseLower)) {
         prefixMatch = entry;
