@@ -936,6 +936,7 @@ export default function Home() {
       let materialLabel = String(material || '').trim();
       if (/pro/i.test(materialLabel)) materialLabel = 'PRO';
       else if (/glass/i.test(materialLabel)) materialLabel = 'Glasspad';
+      else if (/alfombr/i.test(materialLabel)) materialLabel = 'Alfombra';
       else if (!materialLabel || /classic/i.test(materialLabel)) materialLabel = 'Classic';
       const namePart = sanitizeForFileName(trimmedDesignName);
       const widthLabel = formatDimensionCm(activeWcm ?? (masterWidthMm ? masterWidthMm / 10 : undefined));

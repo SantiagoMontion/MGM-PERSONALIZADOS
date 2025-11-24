@@ -23,7 +23,7 @@ const LOW_ACK_ERROR_MESSAGE = 'La calidad parece baja. Confirmá que aceptás co
 const CONTINUE_ICON_SRC = resolveIconAsset('continuar.svg');
 
 const Form = z.object({
-  material: z.enum(['Classic','PRO','Glasspad']),
+  material: z.enum(['Classic','PRO','Glasspad','Alfombra']),
   w: z.number().positive(),
   h: z.number().positive(),
   fit: z.enum(['cover','contain','stretch']),
@@ -176,6 +176,7 @@ export default function OptionsStep({ uploaded, onSubmitted }) {
             <option>Classic</option>
             <option>PRO</option>
             <option>Glasspad</option>
+            <option disabled>Alfombra</option>
           </select>
         </label>
 
