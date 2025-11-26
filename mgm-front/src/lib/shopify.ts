@@ -158,6 +158,7 @@ function matLabelOf(material: unknown): string | null {
   const text = raw.toLowerCase();
   if (text.includes('glass')) return 'Glasspad';
   if (text.includes('pro')) return 'PRO';
+  if (text.includes('alfombr')) return 'Alfombra';
   if (text.includes('classic')) return 'Classic';
   return raw;
 }
