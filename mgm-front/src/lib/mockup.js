@@ -85,6 +85,7 @@ export async function renderMockup1080(imageOrOptions, maybeOptions) {
       ''
     ).toLowerCase();
     if (raw.includes('glass')) return 'Glasspad';
+    if (raw.includes('alfombr')) return 'Alfombra';
     if (raw.includes('pro')) return 'PRO';
     return 'Classic';
   }

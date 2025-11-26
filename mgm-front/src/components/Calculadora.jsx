@@ -3,6 +3,7 @@ import React, { useEffect, useMemo } from "react";
 const rolloData = {
   Pro:    { width: 125, pricePerMeter: 36145, multiplier: 3.2, baselineArea: 0.26 },
   Clasic: { width: 140, pricePerMeter: 23820, multiplier: 2.7, baselineArea: 0.36 },
+  Alfombra: { width: 140, pricePerMeter: 30000, multiplier: 2.5, baselineArea: 0.36 },
 };
 
 const GLASSPAD_TRANSFER_PRICE = 120000; // con transferencia (fijo)
@@ -18,6 +19,7 @@ function mapMode(material) {
   if (m === "pro") return "Pro";
   if (m === "classic") return "Clasic";
   if (m === "glasspad") return "Glasspad";
+  if (m.includes("alfombr")) return "Alfombra";
   return material; // fallback
 }
 
