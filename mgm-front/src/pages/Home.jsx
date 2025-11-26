@@ -603,6 +603,13 @@ export default function Home() {
         w: typeof next.w === 'number' ? next.w : size.w,
         h: typeof next.h === 'number' ? next.h : size.h,
       };
+      if (isCircular && material !== 'Glasspad') {
+        if (typeof next.w === 'number' && typeof next.h !== 'number') {
+          nextSize.h = next.w;
+        } else if (typeof next.h === 'number' && typeof next.w !== 'number') {
+          nextSize.w = next.h;
+        }
+      }
       const normalized = applyCircularConstraint(nextSize);
       setSize(normalized);
       if (material !== 'Glasspad') {
