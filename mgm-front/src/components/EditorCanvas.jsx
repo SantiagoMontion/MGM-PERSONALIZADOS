@@ -14,6 +14,7 @@ import {
   Layer,
   Rect,
   Group,
+  Shape,
   Image as KonvaImage,
   Transformer,
 } from "react-konva";
@@ -53,6 +54,21 @@ const CORNER_ANCHORS = new Set([
   "bottom-right",
 ]);
 
+const drawRoundedPath = (ctx, w, h, radius) => {
+  const rr = Math.max(0, Math.min(radius, Math.min(w, h) / 2));
+  ctx.beginPath();
+  ctx.moveTo(rr, 0);
+  ctx.lineTo(w - rr, 0);
+  ctx.arcTo(w, 0, w, rr, rr);
+  ctx.lineTo(w, h - rr);
+  ctx.arcTo(w, h, w - rr, h, rr);
+  ctx.lineTo(rr, h);
+  ctx.arcTo(0, h, 0, h - rr, rr);
+  ctx.lineTo(0, rr);
+  ctx.arcTo(0, 0, rr, 0, rr);
+  ctx.closePath();
+};
+
 
 
 const isTypingTarget = (el) => {
@@ -85,6 +101,8 @@ const ACTION_ICON_MAP = {
   cubrir: resolveIconAsset("cubrir.svg"),
   contener: resolveIconAsset("contener.svg"),
   estirar: resolveIconAsset("estirar.svg"),
+  circular: resolveIconAsset("shape-circle.svg"),
+  cuadrado: resolveIconAsset("shape-square.svg"),
 
 };
 
@@ -179,6 +197,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     dpi = 300,
     onLayoutChange,
     material,
+    isCircular = false,
+    onToggleCircular,
     onPickedColor,
     onClearImage,
     showCanvas = true,
@@ -192,11 +212,25 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const wCm = Number(sizeCm?.w ?? 90);
   const hCm = Number(sizeCm?.h ?? 40);
   const bleedCm = mmToCm(bleedMm);
-  const cornerRadiusCm = 1.5;
+  const BASE_CORNER_RADIUS_CM = 1.5;
   const workCm = useMemo(
     () => ({ w: wCm + 2 * bleedCm, h: hCm + 2 * bleedCm }),
     [wCm, hCm, bleedCm],
   );
+
+  const cornerRadiusCm = useMemo(
+    () => (isCircular ? Math.min(wCm, hCm) / 2 : BASE_CORNER_RADIUS_CM),
+    [BASE_CORNER_RADIUS_CM, isCircular, wCm, hCm],
+  );
+  const workCornerRadiusCm = useMemo(
+    () =>
+      isCircular
+        ? Math.min(workCm.w, workCm.h) / 2
+        : BASE_CORNER_RADIUS_CM + bleedCm,
+    [BASE_CORNER_RADIUS_CM, bleedCm, isCircular, workCm.h, workCm.w],
+  );
+  const primarySafeRadiusCm = Math.max(0, cornerRadiusCm - PRIMARY_SAFE_MARGIN_CM);
+  const secondarySafeRadiusCm = Math.max(0, cornerRadiusCm - SECONDARY_SAFE_MARGIN_CM);
 
   // viewport
   const wrapRef = useRef(null);
@@ -1246,6 +1280,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       rotate_deg,
       fit_mode: mode,
       bg_hex: bgColor,
+      shape: isCircular ? "circle" : "rounded_rect",
       w_cm: wCm,
       h_cm: hCm,
       bleed_mm: bleedMm,
@@ -1389,6 +1424,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         bleed_mm: bleedMm,
         flip_x: Boolean(imgTx.flipX),
         flip_y: Boolean(imgTx.flipY),
+        shape: isCircular ? "circle" : "rounded_rect",
       };
     },
     getRenderDescriptorV2,
@@ -1564,8 +1600,20 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       mode,
       background: mode === "contain" ? bgColor : "#ffffff",
       corner_radius_cm: cornerRadiusCm,
+      shape: isCircular ? "circle" : "rounded_rect",
     });
-  }, [dpi, bleedMm, wCm, hCm, imgEl, imgTx, mode, bgColor, cornerRadiusCm]);
+  }, [
+    dpi,
+    bleedMm,
+    wCm,
+    hCm,
+    imgEl,
+    imgTx,
+    mode,
+    bgColor,
+    cornerRadiusCm,
+    isCircular,
+  ]);
 
   // Confirmar y crear job
   async function onConfirmSubmit() {
@@ -1637,27 +1685,33 @@ const EditorCanvas = forwardRef(function EditorCanvas(
             />
 
             {/* Mesa de trabajo (gris) con borde redondeado SIEMPRE */}
-            <Rect
-              x={0}
-              y={0}
-              width={workCm.w}
-              height={workCm.h}
-              fill="#f3f4f6"
-              cornerRadius={cornerRadiusCm + bleedCm}
-              listening={false}
-            />
-
-            {/* Si 'contain': pintamos el color de fondo SIEMPRE debajo del arte (también al deseleccionar) */}
-            {mode === "contain" && (
+            <Group
+              clipFunc={(ctx) => drawRoundedPath(ctx, workCm.w, workCm.h, workCornerRadiusCm)}
+            >
               <Rect
                 x={0}
                 y={0}
                 width={workCm.w}
                 height={workCm.h}
-                fill={bgColor}
-                cornerRadius={cornerRadiusCm + bleedCm}
+                fill="#f3f4f6"
                 listening={false}
               />
+            </Group>
+
+            {/* Si 'contain': pintamos el color de fondo SIEMPRE debajo del arte (también al deseleccionar) */}
+            {mode === "contain" && (
+              <Group
+                clipFunc={(ctx) => drawRoundedPath(ctx, workCm.w, workCm.h, workCornerRadiusCm)}
+              >
+                <Rect
+                  x={0}
+                  y={0}
+                  width={workCm.w}
+                  height={workCm.h}
+                  fill={bgColor}
+                  listening={false}
+                />
+              </Group>
             )}
 
             {/* IMAGEN: seleccionada = sin recorte; deseleccionada = recortada con radio */}
@@ -1789,23 +1843,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                 </>
               ) : (
                 <Group
-                  clipFunc={(ctx) => {
-                    const r = cornerRadiusCm + bleedCm;
-                    const w = workCm.w;
-                    const h = workCm.h;
-                    const rr = Math.max(0, Math.min(r, Math.min(w, h) / 2));
-                    ctx.beginPath();
-                    ctx.moveTo(rr, 0);
-                    ctx.lineTo(w - rr, 0);
-                    ctx.arcTo(w, 0, w, rr, rr);
-                    ctx.lineTo(w, h - rr);
-                    ctx.arcTo(w, h, w - rr, h, rr);
-                    ctx.lineTo(rr, h);
-                    ctx.arcTo(0, h, 0, h - rr, rr);
-                    ctx.lineTo(0, rr);
-                    ctx.arcTo(0, 0, rr, 0, rr);
-                    ctx.closePath();
-                  }}
+                  clipFunc={(ctx) => drawRoundedPath(ctx, workCm.w, workCm.h, workCornerRadiusCm)}
                 >
                   <Rect
                     x={0}
@@ -1876,40 +1914,59 @@ const EditorCanvas = forwardRef(function EditorCanvas(
           )}
           <Layer listening={false}>
             {/* guías */}
-            <Rect
-              x={0}
-              y={0}
-              width={workCm.w}
-              height={workCm.h}
-              stroke="#ef4444"
+            <Shape
+              sceneFunc={(ctx, shape) => {
+                ctx.save();
+                ctx.setLineDash([]);
+                drawRoundedPath(ctx, workCm.w, workCm.h, workCornerRadiusCm);
+                ctx.strokeStyle = "#ef4444";
+                ctx.lineWidth = shape.strokeWidth();
+                ctx.stroke();
+                ctx.restore();
+              }}
               strokeWidth={0.04}
-              cornerRadius={cornerRadiusCm + bleedCm}
             />
-            <Rect
-              x={bleedCm + PRIMARY_SAFE_MARGIN_CM}
-              y={bleedCm + PRIMARY_SAFE_MARGIN_CM}
-              width={Math.max(0, wCm - 2 * PRIMARY_SAFE_MARGIN_CM)}
-              height={Math.max(0, hCm - 2 * PRIMARY_SAFE_MARGIN_CM)}
-              stroke="#111827"
-              dash={[0.4, 0.4]}
+            <Shape
+              sceneFunc={(ctx, shape) => {
+                ctx.save();
+                ctx.translate(
+                  bleedCm + PRIMARY_SAFE_MARGIN_CM,
+                  bleedCm + PRIMARY_SAFE_MARGIN_CM,
+                );
+                drawRoundedPath(
+                  ctx,
+                  Math.max(0, wCm - 2 * PRIMARY_SAFE_MARGIN_CM),
+                  Math.max(0, hCm - 2 * PRIMARY_SAFE_MARGIN_CM),
+                  primarySafeRadiusCm,
+                );
+                ctx.strokeStyle = "#111827";
+                ctx.setLineDash([0.4, 0.4]);
+                ctx.lineWidth = shape.strokeWidth();
+                ctx.stroke();
+                ctx.restore();
+              }}
               strokeWidth={0.04}
-              cornerRadius={Math.max(
-                0,
-                cornerRadiusCm - PRIMARY_SAFE_MARGIN_CM,
-              )}
             />
-            <Rect
-              x={bleedCm + SECONDARY_SAFE_MARGIN_CM}
-              y={bleedCm + SECONDARY_SAFE_MARGIN_CM}
-              width={Math.max(0, wCm - 2 * SECONDARY_SAFE_MARGIN_CM)}
-              height={Math.max(0, hCm - 2 * SECONDARY_SAFE_MARGIN_CM)}
-              stroke="#6b7280"
-              dash={[0.3, 0.3]}
+            <Shape
+              sceneFunc={(ctx, shape) => {
+                ctx.save();
+                ctx.translate(
+                  bleedCm + SECONDARY_SAFE_MARGIN_CM,
+                  bleedCm + SECONDARY_SAFE_MARGIN_CM,
+                );
+                drawRoundedPath(
+                  ctx,
+                  Math.max(0, wCm - 2 * SECONDARY_SAFE_MARGIN_CM),
+                  Math.max(0, hCm - 2 * SECONDARY_SAFE_MARGIN_CM),
+                  secondarySafeRadiusCm,
+                );
+                ctx.strokeStyle = "#6b7280";
+                ctx.setLineDash([0.3, 0.3]);
+                ctx.lineWidth = shape.strokeWidth();
+                ctx.stroke();
+                ctx.restore();
+              }}
               strokeWidth={0.03}
-              cornerRadius={Math.max(
-                0,
-                cornerRadiusCm - SECONDARY_SAFE_MARGIN_CM,
-              )}
             />
           </Layer>
         </Stage>
@@ -1922,10 +1979,14 @@ const EditorCanvas = forwardRef(function EditorCanvas(
           <Layer>
             <Group
               ref={padGroupRef}
-              clipX={0}
-              clipY={0}
-              clipWidth={padRectPx.w}
-              clipHeight={padRectPx.h}
+              clipFunc={(ctx) =>
+                drawRoundedPath(
+                  ctx,
+                  padRectPx.w,
+                  padRectPx.h,
+                  isCircular ? padRectPx.w / 2 : padRectPx.radius_px,
+                )
+              }
             >
               <Rect
                 x={0}
@@ -2312,6 +2373,37 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               )}
             </button>
           </ToolbarTooltip>
+
+          {material !== "Glasspad" && onToggleCircular && (
+            <ToolbarTooltip
+              label={isCircular ? "Volver a rectangular" : "Lienzo circular"}
+              disabled={!imgEl}
+            >
+              <button
+                type="button"
+                onClick={onToggleCircular}
+                disabled={!imgEl}
+                aria-label={isCircular ? "Volver a rectangular" : "Lienzo circular"}
+                aria-pressed={isCircular}
+                className={iconButtonClass(isCircular)}
+              >
+                {missingIcons[isCircular ? "cuadrado" : "circular"] ? (
+                  <span className={styles.iconFallback} aria-hidden="true" />
+                ) : (
+                  <img
+                    src={
+                      isCircular
+                        ? ACTION_ICON_MAP.cuadrado
+                        : ACTION_ICON_MAP.circular
+                    }
+                    alt={isCircular ? "Volver a rectangular" : "Lienzo circular"}
+                    className={styles.iconOnlyButtonImage}
+                    onError={handleIconError(isCircular ? "cuadrado" : "circular")}
+                  />
+                )}
+              </button>
+            </ToolbarTooltip>
+          )}
 
         <span
           className={`${styles.qualityBadge} ${
