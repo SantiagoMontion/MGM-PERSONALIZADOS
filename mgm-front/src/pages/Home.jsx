@@ -639,6 +639,18 @@ export default function Home() {
   }, [material, normalizeCircularSizeForMaterial, size]);
 
 
+  useEffect(() => {
+    if (!isCircular || material === 'Glasspad') return;
+    const squared = normalizeCircularSizeForMaterial(size);
+    if (squared.w !== size.w || squared.h !== size.h) {
+      setSize(squared);
+      if (material !== 'Glasspad') {
+        lastSize.current[material] = squared;
+      }
+    }
+  }, [isCircular, material, normalizeCircularSizeForMaterial, size]);
+
+
   function handleDesignNameChange(event) {
     const { value } = event.target;
     setDesignName(value);
