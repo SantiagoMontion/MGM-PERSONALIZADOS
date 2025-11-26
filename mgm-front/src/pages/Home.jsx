@@ -386,6 +386,7 @@ export default function Home() {
   const [mode, setMode] = useState('standard');
 
   const [size, setSize] = useState(() => ({ ...DEFAULT_SIZE_CM.Classic }));
+  const [isCircular, setIsCircular] = useState(false);
   const sizeCm = useMemo(() => ({ w: Number(size.w) || 90, h: Number(size.h) || 40 }), [size.w, size.h]);
 
   const isGlasspad = material === 'Glasspad';
@@ -393,6 +394,59 @@ export default function Home() {
   const activeHcm = isGlasspad ? GLASSPAD_SIZE_CM.h : sizeCm.h;
   const activeSizeCm = useMemo(() => ({ w: activeWcm, h: activeHcm }), [activeWcm, activeHcm]);
   const lastSize = useRef({});
+  const lastRectSizeRef = useRef({});
+
+  const clampSizeForMaterial = useCallback(
+    (candidate, targetMaterial = material) => {
+      const min = MIN_DIMENSION_CM_BY_MATERIAL[targetMaterial] || { w: 1, h: 1 };
+      const lim = LIMITS[targetMaterial] || {};
+      const clamp = (value, minVal, maxVal) => {
+        const numeric = Number(value);
+        const lower = typeof minVal === 'number' ? minVal : 1;
+        const upper = typeof maxVal === 'number' ? maxVal : numeric;
+        if (!Number.isFinite(numeric)) return lower;
+        if (Number.isFinite(upper)) return Math.max(lower, Math.min(upper, numeric));
+        return Math.max(lower, numeric);
+      };
+      return {
+        w: clamp(candidate?.w, min.w, lim.maxW),
+        h: clamp(candidate?.h, min.h, lim.maxH),
+      };
+    },
+    [material],
+  );
+
+  const normalizeCircularSizeForMaterial = useCallback(
+    (candidate, targetMaterial = material) => {
+      const clamped = clampSizeForMaterial(candidate, targetMaterial);
+      const min = MIN_DIMENSION_CM_BY_MATERIAL[targetMaterial] || { w: 1, h: 1 };
+      const lim = LIMITS[targetMaterial] || {};
+      const minSide = Math.max(min.w ?? 1, min.h ?? 1);
+      const maxSide = Math.min(
+        typeof lim.maxW === 'number' ? lim.maxW : clamped.w,
+        typeof lim.maxH === 'number' ? lim.maxH : clamped.h,
+      );
+      const side = Math.max(minSide, Math.min(maxSide, Math.max(clamped.w, clamped.h)));
+      return { w: side, h: side };
+    },
+    [clampSizeForMaterial, material],
+  );
+
+  const applyCircularConstraint = useCallback(
+    (candidate, targetMaterial = material) => {
+      if (!isCircular || targetMaterial === 'Glasspad') {
+        return clampSizeForMaterial(candidate, targetMaterial);
+      }
+      return normalizeCircularSizeForMaterial(candidate, targetMaterial);
+    },
+    [clampSizeForMaterial, isCircular, material, normalizeCircularSizeForMaterial],
+  );
+
+  useEffect(() => {
+    if (material === 'Glasspad' && isCircular) {
+      setIsCircular(false);
+    }
+  }, [material, isCircular]);
 
   const glasspadInitRef = useRef(false);
   useEffect(() => {
@@ -501,12 +555,12 @@ export default function Home() {
         lastSize.current[material] = { ...size };
       }
       if (next.material === 'Glasspad') {
+        setIsCircular(false);
         setMaterial('Glasspad');
         setMode('standard');
         setSize({ w: GLASSPAD_SIZE_CM.w, h: GLASSPAD_SIZE_CM.h });
         return;
       }
-      const lim = LIMITS[next.material];
       const stored = lastSize.current[next.material];
 
       const shouldUseDefaultSize = !stored && material === 'Glasspad';
@@ -514,42 +568,33 @@ export default function Home() {
       const prev = shouldUseDefaultSize
         ? defaultSize || size
         : (mode === 'custom' || !stored ? size : stored);
-      const clamped = {
-        w: Math.min(
-          Math.max(prev.w, MIN_DIMENSION_CM_BY_MATERIAL[next.material]?.w ?? 1),
-          lim.maxW,
-        ),
-        h: Math.min(
-          Math.max(prev.h, MIN_DIMENSION_CM_BY_MATERIAL[next.material]?.h ?? 1),
-          lim.maxH,
-        ),
-
-      };
 
       setMaterial(next.material);
-      setSize(clamped);
+      const finalSize = applyCircularConstraint(prev, next.material);
+      setSize(finalSize);
 
       let nextModeValue = 'custom';
       if (!preservedCustom) {
         const isStd = (STANDARD[next.material] || []).some(
-          opt => Number(opt.w) === Number(clamped.w) && Number(opt.h) === Number(clamped.h)
+          opt => Number(opt.w) === Number(finalSize.w) && Number(opt.h) === Number(finalSize.h)
         );
         nextModeValue = isStd ? 'standard' : 'custom';
       }
 
       setMode(nextModeValue);
 
-      if (!stored || stored.w !== clamped.w || stored.h !== clamped.h) {
-        lastSize.current[next.material] = clamped;
+      if (!stored || stored.w !== finalSize.w || stored.h !== finalSize.h) {
+        lastSize.current[next.material] = finalSize;
       }
       return;
     }
     if (next.mode && next.mode !== mode) {
       setMode(next.mode);
       if (next.mode === 'standard' && typeof next.w === 'number' && typeof next.h === 'number') {
-        setSize({ w: next.w, h: next.h });
+        const normalized = applyCircularConstraint({ w: next.w, h: next.h });
+        setSize(normalized);
         if (material !== 'Glasspad') {
-          lastSize.current[material] = { w: next.w, h: next.h };
+          lastSize.current[material] = normalized;
         }
       }
     }
@@ -558,12 +603,52 @@ export default function Home() {
         w: typeof next.w === 'number' ? next.w : size.w,
         h: typeof next.h === 'number' ? next.h : size.h,
       };
-      setSize(nextSize);
+      const normalized = applyCircularConstraint(nextSize);
+      setSize(normalized);
       if (material !== 'Glasspad') {
-        lastSize.current[material] = nextSize;
+        lastSize.current[material] = normalized;
       }
     }
   }
+
+
+  const handleToggleCircular = useCallback(() => {
+    if (material === 'Glasspad') return;
+    setIsCircular((prev) => {
+      if (!prev) {
+        if (material !== 'Glasspad') {
+          lastRectSizeRef.current[material] = { ...size };
+        }
+        const squared = normalizeCircularSizeForMaterial(size);
+        setSize(squared);
+        if (material !== 'Glasspad') {
+          lastSize.current[material] = squared;
+        }
+        return true;
+      }
+      const restore = lastRectSizeRef.current[material];
+      if (restore) {
+        const clamped = clampSizeForMaterial(restore);
+        setSize(clamped);
+        if (material !== 'Glasspad') {
+          lastSize.current[material] = clamped;
+        }
+      }
+      return false;
+    });
+  }, [material, normalizeCircularSizeForMaterial, size]);
+
+
+  useEffect(() => {
+    if (!isCircular || material === 'Glasspad') return;
+    const squared = normalizeCircularSizeForMaterial(size);
+    if (squared.w !== size.w || squared.h !== size.h) {
+      setSize(squared);
+      if (material !== 'Glasspad') {
+        lastSize.current[material] = squared;
+      }
+    }
+  }, [isCircular, material, normalizeCircularSizeForMaterial, size]);
 
 
   function handleDesignNameChange(event) {
@@ -1862,6 +1947,9 @@ export default function Home() {
                   sizeCm={activeSizeCm}
                   bleedMm={3}
                   dpi={300}
+                  material={material}
+                  isCircular={isCircular}
+                  onToggleCircular={handleToggleCircular}
                   onLayoutChange={setLayout}
                   onClearImage={handleClearImage}
                   showCanvas={isCanvasReady}
