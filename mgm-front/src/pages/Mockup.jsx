@@ -2509,6 +2509,7 @@ export default function Mockup() {
       mobileContainerRef.current = null;
       activeStage = null;
     };
+  }
   }, []);
 
   const withBuyBtnSpin = useCallback((fn) => {
