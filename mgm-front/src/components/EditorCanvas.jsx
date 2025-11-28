@@ -1951,7 +1951,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                     scaleX={imgTx.flipX ? -1 : 1}
                     scaleY={imgTx.flipY ? -1 : 1}
                     rotation={imgTx.rotation_deg}
-                    draggable
+                    draggable={true}
                     dragBoundFunc={!isTouch ? dragBoundFunc : undefined}
                     onDragStart={!isTouch ? onImgDragStart : undefined}
                     onMouseDown={onImgMouseDown}
@@ -1959,7 +1959,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                     onTap={onImgMouseDown}
                     onDragMove={onImgDragMove}
                     onDragEnd={onImgDragEnd}
-                    listening
+                    listening={true}
                   />
                   {!isTouch && (
                     <Transformer
@@ -2091,7 +2091,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                     scaleX={imgTx.flipX ? -1 : 1}
                     scaleY={imgTx.flipY ? -1 : 1}
                     rotation={imgTx.rotation_deg}
-                    draggable
+                    draggable={true}
                     dragBoundFunc={dragBoundFunc}
                     onDragStart={onImgDragStart}
                     onMouseDown={onImgMouseDown}
@@ -2099,7 +2099,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                     onTap={onImgMouseDown}
                     onDragMove={onImgDragMove}
                     onDragEnd={onImgDragEnd}
-                    listening
+                    listening={true}
                   />
                 </Group>
               ))}
