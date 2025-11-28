@@ -1951,7 +1951,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                     scaleX={imgTx.flipX ? -1 : 1}
                     scaleY={imgTx.flipY ? -1 : 1}
                     rotation={imgTx.rotation_deg}
-                    draggable={!isTouch}
+                    draggable
                     dragBoundFunc={!isTouch ? dragBoundFunc : undefined}
                     onDragStart={!isTouch ? onImgDragStart : undefined}
                     onMouseDown={onImgMouseDown}
@@ -2080,12 +2080,12 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                       />
                     )}
                     <KonvaImage
-                      ref={imgRef}
-                      image={imgEl}
-                      x={imgTx.x_cm + dispW / 2}
-                      y={imgTx.y_cm + dispH / 2}
-                      width={dispW}
-                      height={dispH}
+                    ref={imgRef}
+                    image={imgEl}
+                    x={imgTx.x_cm + dispW / 2}
+                    y={imgTx.y_cm + dispH / 2}
+                    width={dispW}
+                    height={dispH}
                     offsetX={dispW / 2}
                     offsetY={dispH / 2}
                     scaleX={imgTx.flipX ? -1 : 1}

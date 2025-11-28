@@ -14,12 +14,8 @@ export function useMobileSelectedNodeGestures(stageRef, getSelectedNode) {
       container.style.touchAction = 'none';
     }
 
-    /** @type {'none' | 'dragNode' | 'pinchNode'} */
+    /** @type {'none' | 'pinchNode'} */
     let mode = 'none';
-
-    // DRAG (mover)
-    let dragOffsetX = 0;
-    let dragOffsetY = 0;
 
     // PINCH (zoom + rotate)
     let initialDistance = 0;
@@ -32,15 +28,6 @@ export function useMobileSelectedNodeGestures(stageRef, getSelectedNode) {
     const MAX_SCALE = 4;
 
     const getTouches = (evt) => evt.touches;
-
-    const isTouchOverNode = (stageInstance, node, clientX, clientY) => {
-      const rect = stageInstance.container().getBoundingClientRect();
-      const x = clientX - rect.left;
-      const y = clientY - rect.top;
-      const shape = stageInstance.getIntersection({ x, y });
-      if (!shape) return false;
-      return shape === node || (node.isAncestorOf && node.isAncestorOf(shape));
-    };
 
     const handleTouchStart = (e) => {
       const stageInstance = stageRef.current;
@@ -56,33 +43,14 @@ export function useMobileSelectedNodeGestures(stageRef, getSelectedNode) {
       const touchCount = touches?.length ?? 0;
       if (!touches || touchCount === 0) return;
 
-      let anyFingerOnNode = false;
-      for (let i = 0; i < touchCount; i++) {
-        const t = touches[i];
-        if (isTouchOverNode(stageInstance, node, t.clientX, t.clientY)) {
-          anyFingerOnNode = true;
-          break;
-        }
-      }
-
-      if (anyFingerOnNode) {
-        mode = 'dragNode';
-
-        stageInstance.setPointersPositions(e.evt);
-        const pointer = stageInstance.getPointerPosition();
-        if (!pointer) return;
-
-        dragOffsetX = pointer.x - node.x();
-        dragOffsetY = pointer.y - node.y();
-
-        e.evt.preventDefault();
-        return;
-      }
-
       if (touchCount === 2) {
         mode = 'pinchNode';
 
         const [t1, t2] = [touches[0], touches[1]];
+
+        if (typeof node.draggable === 'function') {
+          node.draggable(false);
+        }
 
         initialDistance = Math.hypot(
           t2.clientX - t1.clientX,
@@ -122,21 +90,6 @@ export function useMobileSelectedNodeGestures(stageRef, getSelectedNode) {
       const touches = getTouches(e.evt);
       const touchCount = touches?.length ?? 0;
       if (!touches || touchCount === 0) return;
-
-      if (mode === 'dragNode') {
-        stageInstance.setPointersPositions(e.evt);
-        const pointer = stageInstance.getPointerPosition();
-        if (!pointer) return;
-
-        node.position({
-          x: pointer.x - dragOffsetX,
-          y: pointer.y - dragOffsetY,
-        });
-
-        node.getLayer()?.batchDraw();
-        e.evt.preventDefault();
-        return;
-      }
 
       if (mode === 'pinchNode') {
         if (touchCount !== 2) {
@@ -185,6 +138,10 @@ export function useMobileSelectedNodeGestures(stageRef, getSelectedNode) {
 
       if (!touches || touchCount === 0) {
         mode = 'none';
+        const node = getSelectedNode?.();
+        if (node && typeof node.draggable === 'function') {
+          node.draggable(true);
+        }
         return;
       }
     };
