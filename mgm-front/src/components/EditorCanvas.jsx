@@ -1062,46 +1062,83 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     return { cx: imgTx.x_cm + w / 2, cy: imgTx.y_cm + h / 2 };
   };
 
-  // cover/contain/estirar con rotación
-  const applyFit = useCallback(
-    (mode, options = {}) => {
-      if (!imgBaseCm) return;
-      const fallbackCenter = currentCenter();
-      const targetCx =
-        options?.center?.x ??
-        options?.center?.cx ??
-        fallbackCenter.cx;
-      const targetCy =
-        options?.center?.y ??
-        options?.center?.cy ??
-        fallbackCenter.cy;
-      const w = imgBaseCm.w,
-        h = imgBaseCm.h;
-      const c = Math.abs(Math.cos(theta));
-      const s = Math.abs(Math.sin(theta));
+    const syncNodeToFit = useCallback((tx, width, height) => {
+      const node = imgRef.current;
+      if (!node || !(width > 0) || !(height > 0)) return;
+
+      node.width(width);
+      node.height(height);
+      node.scaleX(tx.flipX ? -1 : 1);
+      node.scaleY(tx.flipY ? -1 : 1);
+      node.rotation(tx.rotation_deg);
+      node.position({ x: tx.x_cm + width / 2, y: tx.y_cm + height / 2 });
+      node.getLayer()?.batchDraw();
+    }, []);
+
+    // cover/contain/estirar con rotación
+    const applyFit = useCallback(
+      (mode, options = {}) => {
+        if (!imgBaseCm) return;
+        const node = imgRef.current;
+        const liveState = (() => {
+          if (!node) return null;
+          const liveScaleX = node.scaleX();
+          const liveScaleY = node.scaleY();
+          const liveW = node.width() * Math.abs(liveScaleX);
+          const liveH = node.height() * Math.abs(liveScaleY);
+          if (!(liveW > 0) || !(liveH > 0)) return null;
+          return {
+            cx: node.x(),
+            cy: node.y(),
+            rotation_deg: node.rotation(),
+            flipX: liveScaleX < 0,
+            flipY: liveScaleY < 0,
+          };
+        })();
+
+        const fallbackCenter = liveState ?? currentCenter();
+        const targetCx =
+          options?.center?.x ??
+          options?.center?.cx ??
+          fallbackCenter.cx;
+        const targetCy =
+          options?.center?.y ??
+          options?.center?.cy ??
+          fallbackCenter.cy;
+        const currentRotation = liveState?.rotation_deg ?? imgTx.rotation_deg;
+        const currentFlipX = liveState?.flipX ?? imgTx.flipX;
+        const currentFlipY = liveState?.flipY ?? imgTx.flipY;
+        const w = imgBaseCm.w,
+          h = imgBaseCm.h;
+        const c = Math.abs(Math.cos(theta));
+        const s = Math.abs(Math.sin(theta));
 
       if (mode === "cover" || mode === "contain") {
         const denomW = w * c + h * s;
         const denomH = w * s + h * c;
-        const scale =
-          mode === "cover"
-            ? Math.max(workCm.w / denomW, workCm.h / denomH)
-            : Math.min(workCm.w / denomW, workCm.h / denomH);
-        const newW = w * scale,
-          newH = h * scale;
-        pushHistory(imgTx);
-        setImgTx((prev) => ({
-          x_cm: targetCx - newW / 2,
-          y_cm: targetCy - newH / 2,
-          scaleX: scale,
-          scaleY: scale,
-          rotation_deg: prev.rotation_deg,
-          flipX: prev.flipX,
-          flipY: prev.flipY,
-        }));
-        setMode(mode);
-        return;
-      }
+          const scale =
+            mode === "cover"
+              ? Math.max(workCm.w / denomW, workCm.h / denomH)
+              : Math.min(workCm.w / denomW, workCm.h / denomH);
+          const newW = w * scale,
+            newH = h * scale;
+          pushHistory(imgTx);
+          setImgTx((prev) => {
+            const next = {
+              x_cm: targetCx - newW / 2,
+              y_cm: targetCy - newH / 2,
+              scaleX: scale,
+              scaleY: scale,
+              rotation_deg: currentRotation,
+              flipX: currentFlipX,
+              flipY: currentFlipY,
+            };
+            syncNodeToFit(next, newW, newH);
+            return next;
+          });
+          setMode(mode);
+          return;
+        }
 
       if (mode === "stretch") {
         const A11 = w * c,
@@ -1121,35 +1158,41 @@ const EditorCanvas = forwardRef(function EditorCanvas(
           sx = sy = sCover;
         }
         sx = Math.max(sx, 0.02);
-        sy = Math.max(sy, 0.02);
-        const newW = w * sx,
-          newH = h * sy;
-        pushHistory(imgTx);
-        setImgTx((prev) => ({
-          x_cm: targetCx - newW / 2,
-          y_cm: targetCy - newH / 2,
-          scaleX: sx,
-          scaleY: sy,
-          rotation_deg: prev.rotation_deg,
-          flipX: prev.flipX,
-          flipY: prev.flipY,
-        }));
-        setMode("stretch");
-      }
-    },
-    [
-      imgBaseCm?.w,
-      imgBaseCm?.h,
-      workCm.w,
-      workCm.h,
-      theta,
-      imgTx.x_cm,
-      imgTx.y_cm,
-      imgTx.scaleX,
-      imgTx.scaleY,
-      imgTx.flipX,
-      imgTx.flipY,
-    ],
+          sy = Math.max(sy, 0.02);
+          const newW = w * sx,
+            newH = h * sy;
+          pushHistory(imgTx);
+          setImgTx((prev) => {
+            const next = {
+              x_cm: targetCx - newW / 2,
+              y_cm: targetCy - newH / 2,
+              scaleX: sx,
+              scaleY: sy,
+              rotation_deg: currentRotation,
+              flipX: currentFlipX,
+              flipY: currentFlipY,
+            };
+            syncNodeToFit(next, newW, newH);
+            return next;
+          });
+          setMode("stretch");
+        }
+      },
+      [
+        imgBaseCm?.w,
+        imgBaseCm?.h,
+        workCm.w,
+        workCm.h,
+        theta,
+        imgTx.x_cm,
+        imgTx.y_cm,
+        imgTx.scaleX,
+        imgTx.scaleY,
+        imgTx.flipX,
+        imgTx.flipY,
+        imgTx.rotation_deg,
+        syncNodeToFit,
+      ],
   );
 
   const fitCover = useCallback(() => {
@@ -1968,122 +2011,49 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                     />
                   )}
                 </>
-              ) : (
+                ) : (
                   <Group
                     clipFunc={(ctx) => drawRoundedPath(ctx, workCm.w, workCm.h, workCornerRadiusCm)}
                   >
-                  <Rect
-                    x={0}
-                    y={0}
-                    width={workCm.w}
-                    height={workCm.h}
-                    fill="transparent"
-                    onClick={handleBackgroundClick}
-                    onTap={handleBackgroundClick}
-                  />
-                  {/* si estás en 'contain', pintar el color debajo del arte */}
-                  {mode === "contain" && (
                     <Rect
                       x={0}
                       y={0}
                       width={workCm.w}
                       height={workCm.h}
-                      fill={bgColor}
+                      fill="transparent"
+                      onClick={handleBackgroundClick}
+                      onTap={handleBackgroundClick}
                     />
-                  )}
-                  <KonvaImage
-                    ref={imgRef}
-                    image={imgEl}
-                    x={imgTx.x_cm + dispW / 2}
-                    y={imgTx.y_cm + dispH / 2}
-                    width={dispW}
-                    height={dispH}
-                    offsetX={dispW / 2}
-                    offsetY={dispH / 2}
-                    scaleX={imgTx.flipX ? -1 : 1}
-                    scaleY={imgTx.flipY ? -1 : 1}
-                    rotation={imgTx.rotation_deg}
-                    draggable={false}
-                    listening
-                    onMouseDown={onImgMouseDown}
-                    onClick={onImgMouseDown}
-                    onTap={onImgMouseDown}
-                  />
-                  {isTouch && showTransformer && (
-                    <Group
+                    {/* si estás en 'contain', pintar el color debajo del arte */}
+                    {mode === "contain" && (
+                      <Rect
+                        x={0}
+                        y={0}
+                        width={workCm.w}
+                        height={workCm.h}
+                        fill={bgColor}
+                      />
+                    )}
+                    <KonvaImage
+                      ref={imgRef}
+                      image={imgEl}
                       x={imgTx.x_cm + dispW / 2}
                       y={imgTx.y_cm + dispH / 2}
                       width={dispW}
                       height={dispH}
                       offsetX={dispW / 2}
                       offsetY={dispH / 2}
+                      scaleX={imgTx.flipX ? -1 : 1}
+                      scaleY={imgTx.flipY ? -1 : 1}
                       rotation={imgTx.rotation_deg}
-                      listening={false}
-                    >
-                      <Rect
-                        x={0}
-                        y={0}
-                        width={dispW}
-                        height={dispH}
-                        stroke={selectionStrokeColor}
-                        strokeWidth={selectionStrokeWidth}
-                      />
-                      <Line
-                        points={[
-                          -dispW / 2,
-                          -dispH / 2 + selectionCornerSize,
-                          -dispW / 2,
-                          -dispH / 2,
-                          -dispW / 2 + selectionCornerSize,
-                          -dispH / 2,
-                        ]}
-                        stroke={selectionStrokeColor}
-                        strokeWidth={selectionStrokeWidth}
-                        lineCap="round"
-                      />
-                      <Line
-                        points={[
-                          dispW / 2 - selectionCornerSize,
-                          -dispH / 2,
-                          dispW / 2,
-                          -dispH / 2,
-                          dispW / 2,
-                          -dispH / 2 + selectionCornerSize,
-                        ]}
-                        stroke={selectionStrokeColor}
-                        strokeWidth={selectionStrokeWidth}
-                        lineCap="round"
-                      />
-                      <Line
-                        points={[
-                          -dispW / 2,
-                          dispH / 2 - selectionCornerSize,
-                          -dispW / 2,
-                          dispH / 2,
-                          -dispW / 2 + selectionCornerSize,
-                          dispH / 2,
-                        ]}
-                        stroke={selectionStrokeColor}
-                        strokeWidth={selectionStrokeWidth}
-                        lineCap="round"
-                      />
-                      <Line
-                        points={[
-                          dispW / 2,
-                          dispH / 2 - selectionCornerSize,
-                          dispW / 2,
-                          dispH / 2,
-                          dispW / 2 - selectionCornerSize,
-                          dispH / 2,
-                        ]}
-                        stroke={selectionStrokeColor}
-                        strokeWidth={selectionStrokeWidth}
-                        lineCap="round"
-                      />
-                    </Group>
-                  )}
-                </Group>
-              ))}
+                      draggable={false}
+                      listening
+                      onMouseDown={onImgMouseDown}
+                      onClick={onImgMouseDown}
+                      onTap={onImgMouseDown}
+                    />
+                  </Group>
+                ))}
 
             {/* máscara fuera del área */}
           </Layer>
