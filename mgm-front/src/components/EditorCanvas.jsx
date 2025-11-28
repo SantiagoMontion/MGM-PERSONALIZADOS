@@ -33,6 +33,7 @@ import {
 } from "../lib/dpi";
 import { resolveIconAsset } from "@/lib/iconRegistry.js";
 import { isTouchDevice } from "@/lib/device.ts";
+import { useMobileNodeGestures } from "@/hooks/useMobileNodeGestures";
 
 const CM_PER_INCH = 2.54;
 const mmToCm = (mm) => mm / 10;
@@ -304,6 +305,20 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const imgRef = useRef(null);
   const trRef = useRef(null);
   const [showTransformer, setShowTransformer] = useState(true);
+
+  const getSelectedNode = useCallback(() => {
+    const nodes = trRef.current?.nodes?.();
+    if (nodes && nodes.length > 0) return nodes[0];
+    return null;
+  }, []);
+
+  const mobileGesturesEnabled = isTouchDevice();
+
+  useMobileNodeGestures({
+    stageRef,
+    getSelectedNode,
+    enabled: mobileGesturesEnabled,
+  });
 
   const isTargetOnImageOrTransformer = (target) => {
     if (!target) return false;
