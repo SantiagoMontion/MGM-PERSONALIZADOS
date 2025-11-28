@@ -1855,27 +1855,6 @@ export default function Mockup() {
 
       const opts = { passive: false, capture: true };
 
-      const feedTouchEvent = (touchEvent, type, handler) => {
-        const touches = touchEvent?.changedTouches;
-        if (!touches || touches.length === 0) {
-          return;
-        }
-        for (let i = 0; i < touches.length; i += 1) {
-          const touch = touches[i];
-          const pointer = {
-            clientX: touch.clientX,
-            clientY: touch.clientY,
-            pointerId: touch.identifier ?? 1,
-            preventDefault: () => touchEvent.preventDefault(),
-            target: touchEvent.target,
-            type,
-            pointerType: 'touch',
-            __isTouchFallback: true,
-          };
-          handler(pointer);
-        }
-      };
-
       const onDown = (event) => {
         if (!isMobileActive()) return;
         if (isInteractiveTarget(event.target)) {
@@ -1888,7 +1867,6 @@ export default function Mockup() {
           pointerId: event.pointerId,
           x,
           y,
-          fallback: Boolean(event.__isTouchFallback),
         });
         state.isDown = true;
         state.lastX = x;
@@ -1941,6 +1919,9 @@ export default function Mockup() {
         if (pointers.size === 2) {
           isStagePan = false;
           if (stage) {
+            try {
+              stage.draggable?.(false);
+            } catch (_) {}
             try {
               stage.stopDrag?.();
             } catch (_) {}
@@ -1998,7 +1979,7 @@ export default function Mockup() {
           }
         }
 
-        if (event.type === 'pointerdown' && !event.__isTouchFallback) {
+        if (event.type === 'pointerdown') {
           try {
             target.setPointerCapture?.(event.pointerId);
           } catch (_) {
@@ -2145,10 +2126,9 @@ export default function Mockup() {
         let tapMeta = null;
         pointers.delete(pointerId);
         if (
-          (event.type === 'pointerup' ||
-            event.type === 'pointercancel' ||
-            event.type === 'pointerleave') &&
-          !event.__isTouchFallback
+          event.type === 'pointerup' ||
+          event.type === 'pointercancel' ||
+          event.type === 'pointerleave'
         ) {
           try {
             target.releasePointerCapture?.(pointerId);
@@ -2199,7 +2179,7 @@ export default function Mockup() {
           const duration = nowMs() - tapStart.time;
           const totalDist = Math.hypot(x - tapStart.x, y - tapStart.y);
           const maxDist = Math.max(totalDist, state.tapMaxDistance || 0);
-          if (duration < 300 && maxDist < 6 && !hadStagePan && !hadStagePinch) {
+          if (duration < 300 && maxDist <= 5 && !hadStagePan && !hadStagePinch) {
             tapMeta = { duration, maxDist };
             const pt = { x: tapStart.x, y: tapStart.y };
             const tappedSelectable = didHitAtPoint(pt);
@@ -2259,7 +2239,6 @@ export default function Mockup() {
           interactive,
           tapCandidate: Boolean(wasTapCandidate),
           emptyTapCleared,
-          fallback: Boolean(event.__isTouchFallback),
           tapMeta,
           pointersRemaining: pointers.size,
         });
@@ -2269,20 +2248,11 @@ export default function Mockup() {
       const onMoveWrap = (event) => onMove(event);
       const onUpWrap = (event) => onUp(event);
 
-      const touchDown = (event) => feedTouchEvent(event, 'pointerdown', onDown);
-      const touchMove = (event) => feedTouchEvent(event, 'pointermove', onMove);
-      const touchUp = (event) => feedTouchEvent(event, 'pointerup', onUp);
-      const touchCancel = (event) => feedTouchEvent(event, 'pointercancel', onUp);
-
       target.addEventListener('pointerdown', onDownWrap, opts);
       target.addEventListener('pointermove', onMoveWrap, opts);
       target.addEventListener('pointerup', onUpWrap, opts);
       target.addEventListener('pointercancel', onUpWrap, opts);
       target.addEventListener('pointerleave', onUpWrap, opts);
-      target.addEventListener('touchstart', touchDown, opts);
-      target.addEventListener('touchmove', touchMove, opts);
-      target.addEventListener('touchend', touchUp, opts);
-      target.addEventListener('touchcancel', touchCancel, opts);
 
       let resizeTimeout = null;
       const onResize = () => {
@@ -2322,10 +2292,6 @@ export default function Mockup() {
         target.removeEventListener('pointerup', onUpWrap, opts);
         target.removeEventListener('pointercancel', onUpWrap, opts);
         target.removeEventListener('pointerleave', onUpWrap, opts);
-        target.removeEventListener('touchstart', touchDown, opts);
-        target.removeEventListener('touchmove', touchMove, opts);
-        target.removeEventListener('touchend', touchUp, opts);
-        target.removeEventListener('touchcancel', touchCancel, opts);
         window.removeEventListener('resize', onResize);
         if (resizeTimeout != null) {
           window.clearTimeout(resizeTimeout);

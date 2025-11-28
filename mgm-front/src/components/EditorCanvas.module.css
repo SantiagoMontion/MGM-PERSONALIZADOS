@@ -536,7 +536,8 @@
   background: #181818;
   position: relative;
   cursor: default;
-  
+  touch-action: none;
+
 }
 
 .canvasWrapperInactive {
