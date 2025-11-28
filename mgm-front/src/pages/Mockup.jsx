@@ -1910,13 +1910,6 @@ export default function Mockup() {
       const downMoveOpts = { passive: false };
       const upOpts = { passive: false };
 
-      const anyPointerOnSelectable = () => {
-        for (const entry of pointers.values()) {
-          if (entry?.hitSelectable) return true;
-        }
-        return false;
-      };
-
       const onDown = (event) => {
         if (!isMobileActive()) return;
         if (event.pointerType !== 'touch') return;
@@ -1953,13 +1946,6 @@ export default function Mockup() {
         pointers.set(event.pointerId, pointerState);
 
         if (pointers.size === 2) {
-          if (anyPointerOnSelectable()) {
-            gestureState.isPinching = false;
-            gestureState.pinchAnchor = null;
-            gestureState.pinchStartDist = 0;
-            gestureState.pinchStartScale = 1;
-            return;
-          }
           gestureState.isPinching = true;
           gestureState.isPanning = false;
           try {
@@ -2053,10 +2039,6 @@ export default function Mockup() {
         const stage = resolveStageFromApi(editor);
 
         if (pointers.size >= 2) {
-          if (anyPointerOnSelectable()) {
-            gestureState.isPinching = false;
-            return;
-          }
           if (!gestureState.isPinching) {
             gestureState.isPinching = true;
             gestureState.isPanning = false;
@@ -2509,245 +2491,23 @@ export default function Mockup() {
       mediaCleanup = null;
     }
 
-      return () => {
-        debugTouch('effect:cleanup');
-        observer?.disconnect();
-        if (visibilityListenerAttached && typeof document !== 'undefined' && typeof document.removeEventListener === 'function') {
-          document.removeEventListener('visibilitychange', handleVisibility);
-        }
-        window.removeEventListener('resize', handleResize);
-        window.removeEventListener('orientationchange', handleOrientation);
-        cancelPendingAttach();
-        mediaCleanup?.();
-        cleanupActiveListeners('effect-cleanup');
-        if (bgHitStageRef) {
-          cleanupBgHitRect(bgHitStageRef);
-          bgHitStageRef = null;
-        }
-        mobileContainerRef.current = null;
-        activeStage = null;
-      };
-    }
-
-    if (!isTouchDevice()) return undefined;
-
-    const editor = resolveEditorApi();
-    const stage = resolveStageFromApi(editor);
-    if (!stage) return undefined;
-
-    const container = stage.container?.();
-    if (!container) return undefined;
-
-    const previousTouchAction = (() => {
-      try {
-        return container.style.touchAction;
-      } catch (_) {
-        return '';
-      }
-    })();
-
-    try {
-      container.style.touchAction = 'none';
-    } catch (_) {}
-
-    let isPanning = false;
-    let isPinching = false;
-    let tapCandidate = false;
-
-    let tapStartTime = 0;
-    let tapStartX = 0;
-    let tapStartY = 0;
-
-    let startStageX = 0;
-    let startStageY = 0;
-
-    let initialPinchDistance = 0;
-    let initialScale = 1;
-    let pinchAnchor = { x: 0, y: 0 };
-
-    const { min: stageMinScale, max: stageMaxScale } = getStageScaleBounds(stage);
-    const minScale = Number.isFinite(stageMinScale) ? stageMinScale : 0.5;
-    const maxScale = Number.isFinite(stageMaxScale) ? stageMaxScale : 3;
-
-    const handleTouchStart = (e) => {
-      const touches = e.evt.touches;
-      if (!touches || touches.length === 0) return;
-
-      if (touches.length === 1) {
-        const touch = touches[0];
-
-        tapCandidate = true;
-        isPanning = false;
-        isPinching = false;
-
-        tapStartTime = Date.now();
-        tapStartX = touch.clientX;
-        tapStartY = touch.clientY;
-
-        const stagePos = stage.position();
-        startStageX = stagePos.x;
-        startStageY = stagePos.y;
-      }
-
-      if (touches.length === 2) {
-        isPinching = true;
-        tapCandidate = false;
-        isPanning = false;
-
-        const [t1, t2] = [touches[0], touches[1]];
-        initialPinchDistance = Math.hypot(
-          t2.clientX - t1.clientX,
-          t2.clientY - t1.clientY,
-        );
-
-        const scale = stage.scaleX();
-        initialScale = scale;
-
-        const centerX = (t1.clientX + t2.clientX) / 2;
-        const centerY = (t1.clientY + t2.clientY) / 2;
-
-        const rect = container.getBoundingClientRect();
-        const point = {
-          x: centerX - rect.left,
-          y: centerY - rect.top,
-        };
-
-        const stagePos = stage.position();
-        pinchAnchor = {
-          x: (point.x - stagePos.x) / scale,
-          y: (point.y - stagePos.y) / scale,
-        };
-      }
-    };
-
-    const handleTouchMove = (e) => {
-      const touches = e.evt.touches;
-      if (!touches || touches.length === 0) return;
-
-      e.evt.preventDefault();
-
-      if (touches.length === 1 && !isPinching) {
-        const touch = touches[0];
-
-        const dx = touch.clientX - tapStartX;
-        const dy = touch.clientY - tapStartY;
-
-        const distance = Math.hypot(dx, dy);
-        if (distance > 6) {
-          tapCandidate = false;
-          isPanning = true;
-        }
-
-        if (isPanning) {
-          stage.position({
-            x: startStageX + dx,
-            y: startStageY + dy,
-          });
-          stage.batchDraw();
-        }
-      }
-
-      if (touches.length === 2) {
-        const [t1, t2] = [touches[0], touches[1]];
-        const dist = Math.hypot(
-          t2.clientX - t1.clientX,
-          t2.clientY - t1.clientY,
-        );
-        if (dist <= 0 || initialPinchDistance <= 0) return;
-
-        isPinching = true;
-        tapCandidate = false;
-        isPanning = false;
-
-        let newScale = (dist / initialPinchDistance) * initialScale;
-        if (newScale < minScale) newScale = minScale;
-        if (newScale > maxScale) newScale = maxScale;
-
-        stage.scale({ x: newScale, y: newScale });
-
-        const rect = container.getBoundingClientRect();
-        const centerX = (t1.clientX + t2.clientX) / 2 - rect.left;
-        const centerY = (t1.clientY + t2.clientY) / 2 - rect.top;
-
-        const anchorScreenX = pinchAnchor.x * newScale + stage.position().x;
-        const anchorScreenY = pinchAnchor.y * newScale + stage.position().y;
-
-        const offsetX = centerX - anchorScreenX;
-        const offsetY = centerY - anchorScreenY;
-
-        stage.position({
-          x: stage.position().x + offsetX,
-          y: stage.position().y + offsetY,
-        });
-
-        stage.batchDraw();
-      }
-    };
-
-    const handleTouchEnd = (e) => {
-      const touches = e.evt.touches;
-
-      if (touches && touches.length > 0) {
-        if (touches.length === 1 && isPinching) {
-          isPinching = false;
-          tapCandidate = false;
-          isPanning = false;
-
-          const remaining = touches[0];
-          tapStartTime = Date.now();
-          tapStartX = remaining.clientX;
-          tapStartY = remaining.clientY;
-
-          const stagePos = stage.position();
-          startStageX = stagePos.x;
-          startStageY = stagePos.y;
-        }
-        return;
-      }
-
-      const tapDuration = Date.now() - tapStartTime;
-
-      if (
-        tapCandidate
-        && !isPanning
-        && !isPinching
-        && tapDuration < 300
-      ) {
-        const rect = container.getBoundingClientRect();
-        const point = {
-          x: tapStartX - rect.left,
-          y: tapStartY - rect.top,
-        };
-
-        const pos = stage.getPointerPosition() ?? point;
-        const shape = stage.getIntersection(pos);
-
-        if (shape) {
-          selectNodeFromShape(shape);
-        } else {
-          clearEditorSelection();
-        }
-        stage.batchDraw();
-      }
-
-      tapCandidate = false;
-      isPanning = false;
-      isPinching = false;
-    };
-
-    stage.on('touchstart', handleTouchStart);
-    stage.on('touchmove', handleTouchMove);
-    stage.on('touchend', handleTouchEnd);
-    stage.on('touchcancel', handleTouchEnd);
-
     return () => {
-      try {
-        container.style.touchAction = previousTouchAction || '';
-      } catch (_) {}
-      stage.off('touchstart', handleTouchStart);
-      stage.off('touchmove', handleTouchMove);
-      stage.off('touchend', handleTouchEnd);
-      stage.off('touchcancel', handleTouchEnd);
+      debugTouch('effect:cleanup');
+      observer?.disconnect();
+      if (visibilityListenerAttached && typeof document !== 'undefined' && typeof document.removeEventListener === 'function') {
+        document.removeEventListener('visibilitychange', handleVisibility);
+      }
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleOrientation);
+      cancelPendingAttach();
+      mediaCleanup?.();
+      cleanupActiveListeners('effect-cleanup');
+      if (bgHitStageRef) {
+        cleanupBgHitRect(bgHitStageRef);
+        bgHitStageRef = null;
+      }
+      mobileContainerRef.current = null;
+      activeStage = null;
     };
   }, []);
 
