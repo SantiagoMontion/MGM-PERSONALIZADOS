@@ -1867,6 +1867,20 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                     onDragEnd={!isTouch ? onImgDragEnd : undefined}
                     listening={!isTouch}
                   />
+                  {isTouch && showTransformer && (
+                    <Rect
+                      x={imgTx.x_cm + dispW / 2}
+                      y={imgTx.y_cm + dispH / 2}
+                      width={dispW}
+                      height={dispH}
+                      offsetX={dispW / 2}
+                      offsetY={dispH / 2}
+                      rotation={imgTx.rotation_deg}
+                      stroke="rgba(255,255,255,0.65)"
+                      strokeWidth={0.08}
+                      listening={false}
+                    />
+                  )}
                   {!isTouch && (
                     <Transformer
                       ref={trRef}
