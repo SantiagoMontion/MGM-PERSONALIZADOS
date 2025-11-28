@@ -1866,10 +1866,12 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                     draggable={!isTouch}
                     dragBoundFunc={!isTouch ? dragBoundFunc : undefined}
                     onDragStart={!isTouch ? onImgDragStart : undefined}
-                    onMouseDown={!isTouch ? onImgMouseDown : undefined}
+                    onMouseDown={onImgMouseDown}
+                    onClick={onImgMouseDown}
+                    onTap={onImgMouseDown}
                     onDragMove={!isTouch ? onImgDragMove : undefined}
                     onDragEnd={!isTouch ? onImgDragEnd : undefined}
-                    listening={!isTouch}
+                    listening
                   />
                   {!isTouch && (
                     <Transformer
@@ -1976,6 +1978,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                     width={workCm.w}
                     height={workCm.h}
                     fill="transparent"
+                    onClick={handleBackgroundClick}
+                    onTap={handleBackgroundClick}
                   />
                   {/* si estás en 'contain', pintar el color debajo del arte */}
                   {mode === "contain" && (
@@ -2000,8 +2004,10 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                     scaleY={imgTx.flipY ? -1 : 1}
                     rotation={imgTx.rotation_deg}
                     draggable={false}
-                    listening={!isTouch}
-                    onMouseDown={!isTouch ? onImgMouseDown : undefined}
+                    listening
+                    onMouseDown={onImgMouseDown}
+                    onClick={onImgMouseDown}
+                    onTap={onImgMouseDown}
                   />
                   {isTouch && showTransformer && (
                     <Group
