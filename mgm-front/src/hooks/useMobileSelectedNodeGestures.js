@@ -17,13 +17,13 @@ export function useMobileSelectedNodeGestures(stageRef, getSelectedNode) {
     /** @type {'none' | 'dragNode' | 'pinchNode'} */
     let mode = 'none';
 
-    // DRAG (1 dedo)
+    // DRAG (mover)
     let dragStartX = 0;
     let dragStartY = 0;
     let nodeStartX = 0;
     let nodeStartY = 0;
 
-    // PINCH (2 dedos)
+    // PINCH (zoom + rotate)
     let initialDistance = 0;
     let initialAngle = 0;
     let initialScaleX = 1;
@@ -35,9 +35,18 @@ export function useMobileSelectedNodeGestures(stageRef, getSelectedNode) {
 
     const getTouches = (evt) => evt.touches;
 
+    const isTouchOverNode = (stageInstance, node, clientX, clientY) => {
+      const rect = stageInstance.container().getBoundingClientRect();
+      const x = clientX - rect.left;
+      const y = clientY - rect.top;
+      const shape = stageInstance.getIntersection({ x, y });
+      if (!shape) return false;
+      return shape === node || (node.isAncestorOf && node.isAncestorOf(shape));
+    };
+
     const handleTouchStart = (e) => {
-      const stage = stageRef.current;
-      if (!stage) return;
+      const stageInstance = stageRef.current;
+      if (!stageInstance) return;
 
       const node = getSelectedNode?.();
       if (!node) {
@@ -46,18 +55,54 @@ export function useMobileSelectedNodeGestures(stageRef, getSelectedNode) {
       }
 
       const touches = getTouches(e.evt);
-      if (!touches || touches.length === 0) return;
+      const touchCount = touches?.length ?? 0;
+      if (!touches || touchCount === 0) return;
 
-      // --- 2 dedos → PINCH (zoom + rotación, sin mover) ---
-      if (touches.length === 2) {
+      let anyFingerOnNode = false;
+      for (let i = 0; i < touchCount; i++) {
+        const t = touches[i];
+        if (isTouchOverNode(stageInstance, node, t.clientX, t.clientY)) {
+          anyFingerOnNode = true;
+          break;
+        }
+      }
+
+      if (anyFingerOnNode) {
+        mode = 'dragNode';
+
+        let sumX = 0;
+        let sumY = 0;
+        for (let i = 0; i < touchCount; i++) {
+          sumX += touches[i].clientX;
+          sumY += touches[i].clientY;
+        }
+        const avgX = sumX / touchCount;
+        const avgY = sumY / touchCount;
+
+        const rect = stageInstance.container().getBoundingClientRect();
+        dragStartX = avgX - rect.left;
+        dragStartY = avgY - rect.top;
+
+        nodeStartX = node.x();
+        nodeStartY = node.y();
+
+        e.evt.preventDefault();
+        return;
+      }
+
+      if (touchCount === 2) {
         mode = 'pinchNode';
 
         const [t1, t2] = [touches[0], touches[1]];
+
         initialDistance = Math.hypot(
           t2.clientX - t1.clientX,
           t2.clientY - t1.clientY,
         );
-        if (initialDistance === 0) return;
+        if (initialDistance === 0) {
+          mode = 'none';
+          return;
+        }
 
         initialAngle = Math.atan2(
           t2.clientY - t1.clientY,
@@ -72,37 +117,12 @@ export function useMobileSelectedNodeGestures(stageRef, getSelectedNode) {
         return;
       }
 
-      // --- 1 dedo → posible DRAG si toca la imagen ---
-      if (touches.length === 1) {
-        const touch = touches[0];
-        const rect = stage.container().getBoundingClientRect();
-
-        const pointerX = touch.clientX - rect.left;
-        const pointerY = touch.clientY - rect.top;
-
-        const shape = stage.getIntersection({ x: pointerX, y: pointerY });
-
-        if (
-          shape &&
-          (shape === node || (typeof node.isAncestorOf === 'function' && node.isAncestorOf(shape)))
-        ) {
-          mode = 'dragNode';
-
-          dragStartX = pointerX;
-          dragStartY = pointerY;
-          nodeStartX = node.x();
-          nodeStartY = node.y();
-
-          e.evt.preventDefault();
-        } else {
-          mode = 'none';
-        }
-      }
+      mode = 'none';
     };
 
     const handleTouchMove = (e) => {
-      const stage = stageRef.current;
-      if (!stage) return;
+      const stageInstance = stageRef.current;
+      if (!stageInstance) return;
 
       const node = getSelectedNode?.();
       if (!node) {
@@ -111,15 +131,22 @@ export function useMobileSelectedNodeGestures(stageRef, getSelectedNode) {
       }
 
       const touches = getTouches(e.evt);
-      if (!touches || touches.length === 0) return;
+      const touchCount = touches?.length ?? 0;
+      if (!touches || touchCount === 0) return;
 
-      // --- DRAG: 1 dedo, solo mover, sin escalar ni rotar ---
-      if (mode === 'dragNode' && touches.length === 1) {
-        const touch = touches[0];
-        const rect = stage.container().getBoundingClientRect();
+      if (mode === 'dragNode') {
+        let sumX = 0;
+        let sumY = 0;
+        for (let i = 0; i < touchCount; i++) {
+          sumX += touches[i].clientX;
+          sumY += touches[i].clientY;
+        }
+        const avgX = sumX / touchCount;
+        const avgY = sumY / touchCount;
 
-        const currentX = touch.clientX - rect.left;
-        const currentY = touch.clientY - rect.top;
+        const rect = stageInstance.container().getBoundingClientRect();
+        const currentX = avgX - rect.left;
+        const currentY = avgY - rect.top;
 
         const dx = currentX - dragStartX;
         const dy = currentY - dragStartY;
@@ -134,8 +161,11 @@ export function useMobileSelectedNodeGestures(stageRef, getSelectedNode) {
         return;
       }
 
-      // --- PINCH: 2 dedos, SOLO escala + rotación, NO mover ---
-      if (mode === 'pinchNode' && touches.length === 2) {
+      if (mode === 'pinchNode') {
+        if (touchCount !== 2) {
+          return;
+        }
+
         const [t1, t2] = [touches[0], touches[1]];
 
         const currentDistance = Math.hypot(
@@ -173,46 +203,12 @@ export function useMobileSelectedNodeGestures(stageRef, getSelectedNode) {
     };
 
     const handleTouchEnd = (e) => {
-      const stage = stageRef.current;
-      if (!stage) return;
-
       const touches = getTouches(e.evt);
+      const touchCount = touches?.length ?? 0;
 
-      if (!touches || touches.length === 0) {
+      if (!touches || touchCount === 0) {
         mode = 'none';
         return;
-      }
-
-      if (mode === 'pinchNode' && touches.length === 1) {
-        const node = getSelectedNode?.();
-        if (!node) {
-          mode = 'none';
-          return;
-        }
-
-        const touch = touches[0];
-        const rect = stage.container().getBoundingClientRect();
-        const pointerX = touch.clientX - rect.left;
-        const pointerY = touch.clientY - rect.top;
-
-        const shape = stage.getIntersection({ x: pointerX, y: pointerY });
-
-        if (
-          shape &&
-          (shape === node || (typeof node.isAncestorOf === 'function' && node.isAncestorOf(shape)))
-        ) {
-          mode = 'dragNode';
-          dragStartX = pointerX;
-          dragStartY = pointerY;
-          nodeStartX = node.x();
-          nodeStartY = node.y();
-        } else {
-          mode = 'none';
-        }
-      } else if (touches.length === 1 && mode === 'dragNode') {
-        return;
-      } else {
-        mode = 'none';
       }
     };
 
