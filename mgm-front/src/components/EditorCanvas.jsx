@@ -305,6 +305,18 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const imgRef = useRef(null);
   const trRef = useRef(null);
   const [showTransformer, setShowTransformer] = useState(true);
+  const transformerAnchors = isTouch
+    ? []
+    : [
+        "top-left",
+        "top-center",
+        "top-right",
+        "middle-left",
+        "middle-right",
+        "bottom-left",
+        "bottom-center",
+        "bottom-right",
+      ];
 
   const getSelectedNode = useCallback(() => {
     const nodes = trRef.current?.nodes?.();
@@ -1843,114 +1855,108 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                     scaleX={imgTx.flipX ? -1 : 1}
                     scaleY={imgTx.flipY ? -1 : 1}
                     rotation={imgTx.rotation_deg}
-                    draggable
-                    dragBoundFunc={dragBoundFunc}
-                    onDragStart={onImgDragStart}
-                    onMouseDown={onImgMouseDown}
-                    onDragMove={onImgDragMove}
-                    onDragEnd={onImgDragEnd}
+                    draggable={!isTouch}
+                    dragBoundFunc={!isTouch ? dragBoundFunc : undefined}
+                    onDragStart={!isTouch ? onImgDragStart : undefined}
+                    onMouseDown={!isTouch ? onImgMouseDown : undefined}
+                    onDragMove={!isTouch ? onImgDragMove : undefined}
+                    onDragEnd={!isTouch ? onImgDragEnd : undefined}
+                    listening={!isTouch}
                   />
+                  {!isTouch && (
                     <Transformer
                       ref={trRef}
                       visible={showTransformer}
-                      rotateEnabled
+                      rotateEnabled={!isTouch}
                       rotateAnchorOffset={40}
                       rotationSnaps={[0, 90, 180, 270]}
                       keepRatio={keepRatio}
-                      enabledAnchors={[
-                        "top-left",
-                        "top-center",
-                        "top-right",
-                        "middle-left",
-                        "middle-right",
-                        "bottom-left",
-                        "bottom-center",
-                        "bottom-right",
-                      ]}
-                    boundBoxFunc={(oldBox, newBox) => {
-                      const baseW = imgBaseCm?.w || 1;
-                      const baseH = imgBaseCm?.h || 1;
-                      const MIN_W = 0.02 * baseW;
-                      const MIN_H = 0.02 * baseH;
+                      enabledAnchors={transformerAnchors}
+                      boundBoxFunc={(oldBox, newBox) => {
+                          const baseW = imgBaseCm?.w || 1;
+                          const baseH = imgBaseCm?.h || 1;
+                          const MIN_W = 0.02 * baseW;
+                          const MIN_H = 0.02 * baseH;
 
-                      if (!keepRatioRef.current) {
-                        // ⟵ MODO LIBRE: sólo mínimo, SIN límites superiores
-                        const w = Math.max(MIN_W, newBox.width);
-                        const h = Math.max(MIN_H, newBox.height);
-                        return { ...newBox, width: w, height: h };
-                      }
+                          if (!keepRatioRef.current) {
+                            // ⟵ MODO LIBRE: sólo mínimo, SIN límites superiores
+                            const w = Math.max(MIN_W, newBox.width);
+                            const h = Math.max(MIN_H, newBox.height);
+                            return { ...newBox, width: w, height: h };
+                          }
 
-                      // Mantener proporción original incluso si venimos de "estirar"
-                      const MIN_SCALE = 0.02;
-                      const MAX_SCALE = IMG_ZOOM_MAX;
-                      const cos = Math.abs(Math.cos(theta));
-                      const sin = Math.abs(Math.sin(theta));
-                      const boundBaseW = baseW * cos + baseH * sin;
-                      const boundBaseH = baseW * sin + baseH * cos;
+                          // Mantener proporción original incluso si venimos de "estirar"
+                          const MIN_SCALE = 0.02;
+                          const MAX_SCALE = IMG_ZOOM_MAX;
+                          const cos = Math.abs(Math.cos(theta));
+                          const sin = Math.abs(Math.sin(theta));
+                          const boundBaseW = baseW * cos + baseH * sin;
+                          const boundBaseH = baseW * sin + baseH * cos;
 
-                      if (!(boundBaseW > 0) || !(boundBaseH > 0)) {
-                        const fallbackW = Math.max(
-                          MIN_W,
-                          Math.min(newBox.width, baseW * MAX_SCALE),
-                        );
-                        const fallbackH = Math.max(
-                          MIN_H,
-                          Math.min(newBox.height, baseH * MAX_SCALE),
-                        );
-                        return { ...newBox, width: fallbackW, height: fallbackH };
-                      }
+                          if (!(boundBaseW > 0) || !(boundBaseH > 0)) {
+                            const fallbackW = Math.max(
+                              MIN_W,
+                              Math.min(newBox.width, baseW * MAX_SCALE),
+                            );
+                            const fallbackH = Math.max(
+                              MIN_H,
+                              Math.min(newBox.height, baseH * MAX_SCALE),
+                            );
+                            return { ...newBox, width: fallbackW, height: fallbackH };
+                          }
 
-                      const widthDelta = Math.abs(newBox.width - oldBox.width);
-                      const heightDelta = Math.abs(newBox.height - oldBox.height);
-                      const scaleFromWidth =
-                        boundBaseW > 0 && Number.isFinite(newBox.width / boundBaseW)
-                          ? newBox.width / boundBaseW
-                          : null;
-                      const scaleFromHeight =
-                        boundBaseH > 0 &&
-                        Number.isFinite(newBox.height / boundBaseH)
-                          ? newBox.height / boundBaseH
-                          : null;
+                          const widthDelta = Math.abs(newBox.width - oldBox.width);
+                          const heightDelta = Math.abs(newBox.height - oldBox.height);
+                          const scaleFromWidth =
+                            boundBaseW > 0 && Number.isFinite(newBox.width / boundBaseW)
+                              ? newBox.width / boundBaseW
+                              : null;
+                          const scaleFromHeight =
+                            boundBaseH > 0 &&
+                            Number.isFinite(newBox.height / boundBaseH)
+                              ? newBox.height / boundBaseH
+                              : null;
 
-                      const prevScale = cornerScaleRef.current?.prev ?? null;
-                      let targetScale = prevScale ?? 1;
+                          const prevScale = cornerScaleRef.current?.prev ?? null;
+                          let targetScale = prevScale ?? 1;
 
-                      if (scaleFromWidth != null && scaleFromHeight != null) {
-                        if (prevScale != null && Number.isFinite(prevScale)) {
-                          const diffW = Math.abs(scaleFromWidth - prevScale);
-                          const diffH = Math.abs(scaleFromHeight - prevScale);
-                          targetScale = diffW <= diffH ? scaleFromWidth : scaleFromHeight;
-                        } else {
-                          targetScale =
-                            widthDelta >= heightDelta ? scaleFromWidth : scaleFromHeight;
-                        }
-                      } else if (scaleFromWidth != null) {
-                        targetScale = scaleFromWidth;
-                      } else if (scaleFromHeight != null) {
-                        targetScale = scaleFromHeight;
-                      }
+                          if (scaleFromWidth != null && scaleFromHeight != null) {
+                            if (prevScale != null && Number.isFinite(prevScale)) {
+                              const diffW = Math.abs(scaleFromWidth - prevScale);
+                              const diffH = Math.abs(scaleFromHeight - prevScale);
+                              targetScale =
+                                diffW <= diffH ? scaleFromWidth : scaleFromHeight;
+                            } else {
+                              targetScale =
+                                widthDelta >= heightDelta ? scaleFromWidth : scaleFromHeight;
+                            }
+                          } else if (scaleFromWidth != null) {
+                            targetScale = scaleFromWidth;
+                          } else if (scaleFromHeight != null) {
+                            targetScale = scaleFromHeight;
+                          }
 
-                      if (!Number.isFinite(targetScale) || !(targetScale > 0)) {
-                        targetScale =
-                          prevScale && Number.isFinite(prevScale) && prevScale > 0
-                            ? prevScale
-                            : 1;
-                      }
+                          if (!Number.isFinite(targetScale) || !(targetScale > 0)) {
+                            targetScale =
+                              prevScale && Number.isFinite(prevScale) && prevScale > 0
+                                ? prevScale
+                                : 1;
+                          }
 
-                      const clampedScale = Math.max(
-                        MIN_SCALE,
-                        Math.min(targetScale, MAX_SCALE),
-                      );
+                          const clampedScale = Math.max(
+                            MIN_SCALE,
+                            Math.min(targetScale, MAX_SCALE),
+                          );
 
-                      const width = boundBaseW * clampedScale;
-                      const height = boundBaseH * clampedScale;
+                          const width = boundBaseW * clampedScale;
+                          const height = boundBaseH * clampedScale;
 
-                      cornerScaleRef.current.prev = clampedScale;
+                          cornerScaleRef.current.prev = clampedScale;
 
-                      return { ...newBox, width, height };
-                    }}
-                    onTransformStart={onTransformStart}
-                    onTransformEnd={onTransformEnd}
+                          return { ...newBox, width, height };
+                        }}
+                      onTransformStart={onTransformStart}
+                      onTransformEnd={onTransformEnd}
                   />
                 </>
               ) : (
