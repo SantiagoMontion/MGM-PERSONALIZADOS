@@ -969,6 +969,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
   // fin de resize por esquinas
   const onTransformStart = useCallback(() => {
+    if (isTouch) return;
+
     isTransformingRef.current = true;
     stickRef.current = { x: null, y: null, activeX: false, activeY: false };
     const anchorName = trRef.current?.getActiveAnchor();
@@ -1007,9 +1009,11 @@ const EditorCanvas = forwardRef(function EditorCanvas(
           : fallbackScale;
     }
     setKeepRatioImmediate(shouldKeep);
-  }, [imgBaseCm, setKeepRatioImmediate]);
+  }, [imgBaseCm, isTouch, setKeepRatioImmediate]);
 
   const onTransformEnd = () => {
+    if (isTouch) return;
+
     isTransformingRef.current = false;
     stickRef.current = { x: null, y: null, activeX: false, activeY: false };
     cornerScaleRef.current = { prev: null };
@@ -1951,7 +1955,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                     scaleX={imgTx.flipX ? -1 : 1}
                     scaleY={imgTx.flipY ? -1 : 1}
                     rotation={imgTx.rotation_deg}
-                    draggable={true}
+                    draggable={!isTouch}
                     dragBoundFunc={!isTouch ? dragBoundFunc : undefined}
                     onDragStart={!isTouch ? onImgDragStart : undefined}
                     onMouseDown={onImgMouseDown}
@@ -2091,14 +2095,14 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                     scaleX={imgTx.flipX ? -1 : 1}
                     scaleY={imgTx.flipY ? -1 : 1}
                     rotation={imgTx.rotation_deg}
-                    draggable={true}
-                    dragBoundFunc={dragBoundFunc}
-                    onDragStart={onImgDragStart}
+                    draggable={!isTouch}
+                    dragBoundFunc={!isTouch ? dragBoundFunc : undefined}
+                    onDragStart={!isTouch ? onImgDragStart : undefined}
                     onMouseDown={onImgMouseDown}
                     onClick={onImgMouseDown}
                     onTap={onImgMouseDown}
-                    onDragMove={onImgDragMove}
-                    onDragEnd={onImgDragEnd}
+                    onDragMove={!isTouch ? onImgDragMove : undefined}
+                    onDragEnd={!isTouch ? onImgDragEnd : undefined}
                     listening={true}
                   />
                 </Group>
