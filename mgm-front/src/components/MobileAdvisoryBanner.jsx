@@ -4,13 +4,9 @@ import styles from './MobileAdvisoryBanner.module.css';
 const WIDTH_QUERY = '(max-width: 991px)';
 const POINTER_QUERY = '(pointer: coarse)';
 
-const rawFlag = import.meta.env.VITE_SHOW_MOBILE_ADVISORY;
-const advisoryEnabled = (() => {
-  if (rawFlag === undefined || rawFlag === null || rawFlag === '') {
-    return false; // mobile advisory disabled by default
-  }
-  return !['false', '0', 'no', 'off'].includes(String(rawFlag).toLowerCase());
-})();
+// Temporarily force-disable the mobile advisory so the app remains usable on phones
+// regardless of environment flags.
+const advisoryEnabled = false;
 
 const bannerEmoji = String.fromCodePoint(0x1f6a7);
 const bannerTitle = `Vers\u00edon m\u00f3vil en camino ${bannerEmoji}`;
