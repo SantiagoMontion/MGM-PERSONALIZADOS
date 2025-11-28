@@ -540,6 +540,28 @@
 
 }
 
+.mobileCanvasControls {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 40;
+}
+
+.mobileCanvasControls button {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: none;
+  font-size: 14px;
+  cursor: pointer;
+  background: #f3f4f6;
+  color: #111827;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+  font-weight: 700;
+}
+
 .canvasWrapperInactive {
   background: #181818;
   border-color: rgba(70, 70, 98, 0.35);
