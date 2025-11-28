@@ -470,13 +470,45 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     adjustViewScaleAtPoint((prev) => prev - 0.1);
   }, [adjustViewScaleAtPoint]);
 
-  const handleZoomReset = useCallback(() => {
-    adjustViewScaleAtPoint(1);
-  }, [adjustViewScaleAtPoint]);
+  const handleCenterCanvas = useCallback(() => {
+    const stage = stageRef.current;
+    const container = stage?.container?.();
 
-  const handleClearSelectionButton = useCallback(() => {
-    clearSelection();
-  }, [clearSelection]);
+    if (!stage || !container) return;
+
+    const rect = container.getBoundingClientRect();
+    const viewportCenterX = rect.width / 2;
+    const viewportCenterY = rect.height / 2;
+
+    const scale = stage.scaleX() || baseScale * viewScale;
+    const canvasCenterX = workCm.w / 2;
+    const canvasCenterY = workCm.h / 2;
+
+    const newStageX = viewportCenterX - canvasCenterX * scale;
+    const newStageY = viewportCenterY - canvasCenterY * scale;
+
+    stage.position({ x: newStageX, y: newStageY });
+    stage.batchDraw();
+    setViewPos({ x: newStageX, y: newStageY });
+  }, [baseScale, viewScale, workCm.h, workCm.w]);
+
+  const selectMainImage = useCallback(() => {
+    setShowTransformer(true);
+    if (trRef.current && imgRef.current) {
+      trRef.current.nodes([imgRef.current]);
+      trRef.current.getLayer()?.batchDraw();
+    }
+  }, []);
+
+  const handleToggleSelectionButton = useCallback(() => {
+    const selectedNode = getSelectedNode();
+
+    if (selectedNode) {
+      clearSelection();
+    } else {
+      selectMainImage();
+    }
+  }, [clearSelection, getSelectedNode, selectMainImage]);
 
   // imagen
   const [imgEl, imgStatus] = useImage(imageUrl || undefined);
@@ -2107,15 +2139,15 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               </button>
               <button
                 type="button"
-                onClick={handleZoomReset}
-                aria-label="Restablecer zoom"
+                onClick={handleCenterCanvas}
+                aria-label="Centrar lienzo"
               >
-                100%
+                ⤢
               </button>
               <button
                 type="button"
-                onClick={handleClearSelectionButton}
-                aria-label="Deseleccionar"
+                onClick={handleToggleSelectionButton}
+                aria-label="Alternar selección"
               >
                 ✕
               </button>
