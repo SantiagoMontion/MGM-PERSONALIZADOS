@@ -1843,6 +1843,7 @@ export default function Mockup() {
         pinchStartDist: 0,
         pinchStartScale: 1,
         pinchAnchor: null,
+        stageWasDraggable: null,
         tapStart: null,
         hadPan: false,
         hadPinch: false,
@@ -1962,6 +1963,13 @@ export default function Mockup() {
           gestureState.isPinching = true;
           gestureState.isPanning = false;
           try {
+            try {
+              if (typeof stage?.draggable === 'function') {
+                gestureState.stageWasDraggable = Boolean(stage.draggable());
+              }
+            } catch (_) {
+              gestureState.stageWasDraggable = null;
+            }
             stage?.draggable?.(false);
             stage?.stopDrag?.();
           } catch (_) {}
@@ -2008,6 +2016,16 @@ export default function Mockup() {
               gestureState.pinchAnchor = null;
             }
           }
+        } else if (pointers.size === 1) {
+          gestureState.isPinching = false;
+          gestureState.isPanning = true;
+          try {
+            if (gestureState.stageWasDraggable === null && typeof stage?.draggable === 'function') {
+              gestureState.stageWasDraggable = Boolean(stage.draggable());
+            }
+            stage?.draggable?.(false);
+            stage?.stopDrag?.();
+          } catch (_) {}
         }
       };
 
@@ -2134,9 +2152,38 @@ export default function Mockup() {
         }
 
         if (pointers.size === 1 && !gestureState.isPinching) {
-          // No-op: single-finger moves should not pan or zoom the stage.
-          // This prevents accidental drags or scale jumps when the user places
-          // only one finger on the canvas.
+          const activePointer = pointers.values().next().value;
+          if (!stage || !activePointer) {
+            return;
+          }
+          const dx = activePointer.currentX - prevX;
+          const dy = activePointer.currentY - prevY;
+          if (Math.abs(dx) > 0 || Math.abs(dy) > 0) {
+            gestureState.isPanning = true;
+            gestureState.hadPan = true;
+            try {
+              const currentX = (() => {
+                try {
+                  if (typeof stage.x === 'function') {
+                    const value = stage.x();
+                    if (Number.isFinite(value)) return value;
+                  }
+                } catch (_) {}
+                return 0;
+              })();
+              const currentY = (() => {
+                try {
+                  if (typeof stage.y === 'function') {
+                    const value = stage.y();
+                    if (Number.isFinite(value)) return value;
+                  }
+                } catch (_) {}
+                return 0;
+              })();
+              stage.position({ x: currentX + dx, y: currentY + dy });
+              stage.batchDraw?.();
+            } catch (_) {}
+          }
         }
       };
 
@@ -2181,7 +2228,18 @@ export default function Mockup() {
             } catch (_) {}
             return 1;
           })();
+          try {
+            if (
+              stage &&
+              typeof stage.draggable === 'function' &&
+              gestureState.stageWasDraggable !== null
+            ) {
+              stage.draggable(gestureState.stageWasDraggable);
+            }
+          } catch (_) {}
+          gestureState.stageWasDraggable = null;
           gestureState.hadPinch = false;
+          gestureState.isPanning = false;
         }
 
         let tapMeta = null;
@@ -2190,7 +2248,15 @@ export default function Mockup() {
         if (pointers.size === 0) {
           try {
             stage?.stopDrag?.();
-            stage?.draggable?.(false);
+            if (
+              stage &&
+              typeof stage.draggable === 'function' &&
+              gestureState.stageWasDraggable !== null
+            ) {
+              stage.draggable(gestureState.stageWasDraggable);
+            } else {
+              stage?.draggable?.(false);
+            }
           } catch (_) {}
           gestureState.isPanning = false;
           gestureState.isPinching = false;
@@ -2308,6 +2374,7 @@ export default function Mockup() {
         gestureState.pinchAnchor = null;
         gestureState.pinchStartDist = 0;
         gestureState.pinchStartScale = 1;
+        gestureState.stageWasDraggable = null;
         if (mobileContainerRef.current === target) {
           mobileContainerRef.current = null;
         }
