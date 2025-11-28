@@ -17,6 +17,7 @@ import {
   Shape,
   Image as KonvaImage,
   Transformer,
+  Line,
 } from "react-konva";
 import Konva from "konva";
 import useImage from "use-image";
@@ -305,12 +306,28 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const imgRef = useRef(null);
   const trRef = useRef(null);
   const [showTransformer, setShowTransformer] = useState(true);
+  const transformerAnchors = isTouch
+    ? []
+    : [
+        "top-left",
+        "top-center",
+        "top-right",
+        "middle-left",
+        "middle-right",
+        "bottom-left",
+        "bottom-center",
+        "bottom-right",
+      ];
 
   const getSelectedNode = useCallback(() => {
+    if (showTransformer && imgRef.current) {
+      return imgRef.current;
+    }
+
     const nodes = trRef.current?.nodes?.();
     if (nodes && nodes.length > 0) return nodes[0];
     return null;
-  }, []);
+  }, [showTransformer]);
 
   const mobileGesturesEnabled = isTouchDevice();
 
@@ -731,6 +748,9 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   // medidas visuales (para offset centro)
   const dispW = imgBaseCm ? imgBaseCm.w * Math.abs(imgTx.scaleX) : 0;
   const dispH = imgBaseCm ? imgBaseCm.h * Math.abs(imgTx.scaleY) : 0;
+  const selectionStrokeColor = "rgba(255, 255, 255, 0.9)";
+  const selectionStrokeWidth = 0.14;
+  const selectionCornerSize = Math.max(Math.min(dispW, dispH) * 0.08, 0.35);
   const hasGlassOverlay =
     material === "Glasspad" &&
     !!imgEl &&
@@ -1829,7 +1849,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
             {/* IMAGEN: seleccionada = sin recorte; deseleccionada = recortada con radio */}
             {imgEl &&
               imgBaseCm &&
-              (showTransformer ? (
+              (showTransformer && !isTouch ? (
                 <>
                   <KonvaImage
                     ref={imgRef}
@@ -1843,126 +1863,123 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                     scaleX={imgTx.flipX ? -1 : 1}
                     scaleY={imgTx.flipY ? -1 : 1}
                     rotation={imgTx.rotation_deg}
-                    draggable
-                    dragBoundFunc={dragBoundFunc}
-                    onDragStart={onImgDragStart}
+                    draggable={!isTouch}
+                    dragBoundFunc={!isTouch ? dragBoundFunc : undefined}
+                    onDragStart={!isTouch ? onImgDragStart : undefined}
                     onMouseDown={onImgMouseDown}
-                    onDragMove={onImgDragMove}
-                    onDragEnd={onImgDragEnd}
+                    onClick={onImgMouseDown}
+                    onTap={onImgMouseDown}
+                    onDragMove={!isTouch ? onImgDragMove : undefined}
+                    onDragEnd={!isTouch ? onImgDragEnd : undefined}
+                    listening
                   />
+                  {!isTouch && (
                     <Transformer
                       ref={trRef}
                       visible={showTransformer}
-                      rotateEnabled
+                      rotateEnabled={!isTouch}
                       rotateAnchorOffset={40}
                       rotationSnaps={[0, 90, 180, 270]}
                       keepRatio={keepRatio}
-                      enabledAnchors={[
-                        "top-left",
-                        "top-center",
-                        "top-right",
-                        "middle-left",
-                        "middle-right",
-                        "bottom-left",
-                        "bottom-center",
-                        "bottom-right",
-                      ]}
-                    boundBoxFunc={(oldBox, newBox) => {
-                      const baseW = imgBaseCm?.w || 1;
-                      const baseH = imgBaseCm?.h || 1;
-                      const MIN_W = 0.02 * baseW;
-                      const MIN_H = 0.02 * baseH;
+                      enabledAnchors={transformerAnchors}
+                      boundBoxFunc={(oldBox, newBox) => {
+                        const baseW = imgBaseCm?.w || 1;
+                        const baseH = imgBaseCm?.h || 1;
+                        const MIN_W = 0.02 * baseW;
+                        const MIN_H = 0.02 * baseH;
 
-                      if (!keepRatioRef.current) {
-                        // ⟵ MODO LIBRE: sólo mínimo, SIN límites superiores
-                        const w = Math.max(MIN_W, newBox.width);
-                        const h = Math.max(MIN_H, newBox.height);
-                        return { ...newBox, width: w, height: h };
-                      }
-
-                      // Mantener proporción original incluso si venimos de "estirar"
-                      const MIN_SCALE = 0.02;
-                      const MAX_SCALE = IMG_ZOOM_MAX;
-                      const cos = Math.abs(Math.cos(theta));
-                      const sin = Math.abs(Math.sin(theta));
-                      const boundBaseW = baseW * cos + baseH * sin;
-                      const boundBaseH = baseW * sin + baseH * cos;
-
-                      if (!(boundBaseW > 0) || !(boundBaseH > 0)) {
-                        const fallbackW = Math.max(
-                          MIN_W,
-                          Math.min(newBox.width, baseW * MAX_SCALE),
-                        );
-                        const fallbackH = Math.max(
-                          MIN_H,
-                          Math.min(newBox.height, baseH * MAX_SCALE),
-                        );
-                        return { ...newBox, width: fallbackW, height: fallbackH };
-                      }
-
-                      const widthDelta = Math.abs(newBox.width - oldBox.width);
-                      const heightDelta = Math.abs(newBox.height - oldBox.height);
-                      const scaleFromWidth =
-                        boundBaseW > 0 && Number.isFinite(newBox.width / boundBaseW)
-                          ? newBox.width / boundBaseW
-                          : null;
-                      const scaleFromHeight =
-                        boundBaseH > 0 &&
-                        Number.isFinite(newBox.height / boundBaseH)
-                          ? newBox.height / boundBaseH
-                          : null;
-
-                      const prevScale = cornerScaleRef.current?.prev ?? null;
-                      let targetScale = prevScale ?? 1;
-
-                      if (scaleFromWidth != null && scaleFromHeight != null) {
-                        if (prevScale != null && Number.isFinite(prevScale)) {
-                          const diffW = Math.abs(scaleFromWidth - prevScale);
-                          const diffH = Math.abs(scaleFromHeight - prevScale);
-                          targetScale = diffW <= diffH ? scaleFromWidth : scaleFromHeight;
-                        } else {
-                          targetScale =
-                            widthDelta >= heightDelta ? scaleFromWidth : scaleFromHeight;
+                        if (!keepRatioRef.current) {
+                          // ⟵ MODO LIBRE: sólo mínimo, SIN límites superiores
+                          const w = Math.max(MIN_W, newBox.width);
+                          const h = Math.max(MIN_H, newBox.height);
+                          return { ...newBox, width: w, height: h };
                         }
-                      } else if (scaleFromWidth != null) {
-                        targetScale = scaleFromWidth;
-                      } else if (scaleFromHeight != null) {
-                        targetScale = scaleFromHeight;
-                      }
 
-                      if (!Number.isFinite(targetScale) || !(targetScale > 0)) {
-                        targetScale =
-                          prevScale && Number.isFinite(prevScale) && prevScale > 0
-                            ? prevScale
-                            : 1;
-                      }
+                        // Mantener proporción original incluso si venimos de "estirar"
+                        const MIN_SCALE = 0.02;
+                        const MAX_SCALE = IMG_ZOOM_MAX;
+                        const cos = Math.abs(Math.cos(theta));
+                        const sin = Math.abs(Math.sin(theta));
+                        const boundBaseW = baseW * cos + baseH * sin;
+                        const boundBaseH = baseW * sin + baseH * cos;
 
-                      const clampedScale = Math.max(
-                        MIN_SCALE,
-                        Math.min(targetScale, MAX_SCALE),
-                      );
+                        if (!(boundBaseW > 0) || !(boundBaseH > 0)) {
+                          const fallbackW = Math.max(
+                            MIN_W,
+                            Math.min(newBox.width, baseW * MAX_SCALE),
+                          );
+                          const fallbackH = Math.max(
+                            MIN_H,
+                            Math.min(newBox.height, baseH * MAX_SCALE),
+                          );
+                          return { ...newBox, width: fallbackW, height: fallbackH };
+                        }
 
-                      const width = boundBaseW * clampedScale;
-                      const height = boundBaseH * clampedScale;
+                        const widthDelta = Math.abs(newBox.width - oldBox.width);
+                        const heightDelta = Math.abs(newBox.height - oldBox.height);
+                        const scaleFromWidth =
+                          boundBaseW > 0 && Number.isFinite(newBox.width / boundBaseW)
+                            ? newBox.width / boundBaseW
+                            : null;
+                        const scaleFromHeight =
+                          boundBaseH > 0 && Number.isFinite(newBox.height / boundBaseH)
+                            ? newBox.height / boundBaseH
+                            : null;
 
-                      cornerScaleRef.current.prev = clampedScale;
+                        const prevScale = cornerScaleRef.current?.prev ?? null;
+                        let targetScale = prevScale ?? 1;
 
-                      return { ...newBox, width, height };
-                    }}
-                    onTransformStart={onTransformStart}
-                    onTransformEnd={onTransformEnd}
-                  />
+                        if (scaleFromWidth != null && scaleFromHeight != null) {
+                          if (prevScale != null && Number.isFinite(prevScale)) {
+                            const diffW = Math.abs(scaleFromWidth - prevScale);
+                            const diffH = Math.abs(scaleFromHeight - prevScale);
+                            targetScale = diffW <= diffH ? scaleFromWidth : scaleFromHeight;
+                          } else {
+                            targetScale =
+                              widthDelta >= heightDelta ? scaleFromWidth : scaleFromHeight;
+                          }
+                        } else if (scaleFromWidth != null) {
+                          targetScale = scaleFromWidth;
+                        } else if (scaleFromHeight != null) {
+                          targetScale = scaleFromHeight;
+                        }
+
+                        if (!Number.isFinite(targetScale) || !(targetScale > 0)) {
+                          targetScale =
+                            prevScale && Number.isFinite(prevScale) && prevScale > 0
+                              ? prevScale
+                              : 1;
+                        }
+
+                        const clampedScale = Math.max(
+                          MIN_SCALE,
+                          Math.min(targetScale, MAX_SCALE),
+                        );
+
+                        const width = boundBaseW * clampedScale;
+                        const height = boundBaseH * clampedScale;
+
+                        cornerScaleRef.current.prev = clampedScale;
+
+                        return { ...newBox, width, height };
+                      }}
+                      onTransformStart={onTransformStart}
+                      onTransformEnd={onTransformEnd}
+                    />
+                  )}
                 </>
               ) : (
-                <Group
-                  clipFunc={(ctx) => drawRoundedPath(ctx, workCm.w, workCm.h, workCornerRadiusCm)}
-                >
+                  <Group
+                    clipFunc={(ctx) => drawRoundedPath(ctx, workCm.w, workCm.h, workCornerRadiusCm)}
+                  >
                   <Rect
                     x={0}
                     y={0}
                     width={workCm.w}
                     height={workCm.h}
                     fill="transparent"
+                    onClick={handleBackgroundClick}
+                    onTap={handleBackgroundClick}
                   />
                   {/* si estás en 'contain', pintar el color debajo del arte */}
                   {mode === "contain" && (
@@ -1987,9 +2004,84 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                     scaleY={imgTx.flipY ? -1 : 1}
                     rotation={imgTx.rotation_deg}
                     draggable={false}
-                    listening={true}
+                    listening
                     onMouseDown={onImgMouseDown}
+                    onClick={onImgMouseDown}
+                    onTap={onImgMouseDown}
                   />
+                  {isTouch && showTransformer && (
+                    <Group
+                      x={imgTx.x_cm + dispW / 2}
+                      y={imgTx.y_cm + dispH / 2}
+                      width={dispW}
+                      height={dispH}
+                      offsetX={dispW / 2}
+                      offsetY={dispH / 2}
+                      rotation={imgTx.rotation_deg}
+                      listening={false}
+                    >
+                      <Rect
+                        x={0}
+                        y={0}
+                        width={dispW}
+                        height={dispH}
+                        stroke={selectionStrokeColor}
+                        strokeWidth={selectionStrokeWidth}
+                      />
+                      <Line
+                        points={[
+                          -dispW / 2,
+                          -dispH / 2 + selectionCornerSize,
+                          -dispW / 2,
+                          -dispH / 2,
+                          -dispW / 2 + selectionCornerSize,
+                          -dispH / 2,
+                        ]}
+                        stroke={selectionStrokeColor}
+                        strokeWidth={selectionStrokeWidth}
+                        lineCap="round"
+                      />
+                      <Line
+                        points={[
+                          dispW / 2 - selectionCornerSize,
+                          -dispH / 2,
+                          dispW / 2,
+                          -dispH / 2,
+                          dispW / 2,
+                          -dispH / 2 + selectionCornerSize,
+                        ]}
+                        stroke={selectionStrokeColor}
+                        strokeWidth={selectionStrokeWidth}
+                        lineCap="round"
+                      />
+                      <Line
+                        points={[
+                          -dispW / 2,
+                          dispH / 2 - selectionCornerSize,
+                          -dispW / 2,
+                          dispH / 2,
+                          -dispW / 2 + selectionCornerSize,
+                          dispH / 2,
+                        ]}
+                        stroke={selectionStrokeColor}
+                        strokeWidth={selectionStrokeWidth}
+                        lineCap="round"
+                      />
+                      <Line
+                        points={[
+                          dispW / 2,
+                          dispH / 2 - selectionCornerSize,
+                          dispW / 2,
+                          dispH / 2,
+                          dispW / 2 - selectionCornerSize,
+                          dispH / 2,
+                        ]}
+                        stroke={selectionStrokeColor}
+                        strokeWidth={selectionStrokeWidth}
+                        lineCap="round"
+                      />
+                    </Group>
+                  )}
                 </Group>
               ))}
 
