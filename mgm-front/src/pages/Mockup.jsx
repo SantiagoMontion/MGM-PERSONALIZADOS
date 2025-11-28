@@ -2134,38 +2134,9 @@ export default function Mockup() {
         }
 
         if (pointers.size === 1 && !gestureState.isPinching) {
-          const pointer = pointers.get(event.pointerId);
-          if (!pointer.hitSelectable && !gestureState.isPanning && pointer.maxDistance > 6) {
-            gestureState.isPanning = true;
-            try {
-              stage?.draggable?.(true);
-            } catch (_) {}
-          }
-          if (gestureState.isPanning && stage) {
-            const dx = pointer.currentX - prevX;
-            const dy = pointer.currentY - prevY;
-            if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
-              gestureState.hadPan = true;
-            }
-            try {
-              const nextX = (() => {
-                try {
-                  const value = stage.x?.();
-                  if (Number.isFinite(value)) return value + dx;
-                } catch (_) {}
-                return dx;
-              })();
-              const nextY = (() => {
-                try {
-                  const value = stage.y?.();
-                  if (Number.isFinite(value)) return value + dy;
-                } catch (_) {}
-                return dy;
-              })();
-              stage.position({ x: nextX, y: nextY });
-              stage.batchDraw?.();
-            } catch (_) {}
-          }
+          // No-op: single-finger moves should not pan or zoom the stage.
+          // This prevents accidental drags or scale jumps when the user places
+          // only one finger on the canvas.
         }
       };
 
