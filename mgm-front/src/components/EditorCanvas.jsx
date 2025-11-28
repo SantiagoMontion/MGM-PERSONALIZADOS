@@ -319,10 +319,14 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       ];
 
   const getSelectedNode = useCallback(() => {
+    if (showTransformer && imgRef.current) {
+      return imgRef.current;
+    }
+
     const nodes = trRef.current?.nodes?.();
     if (nodes && nodes.length > 0) return nodes[0];
     return null;
-  }, []);
+  }, [showTransformer]);
 
   const mobileGesturesEnabled = isTouchDevice();
 
