@@ -2016,6 +2016,16 @@ export default function Mockup() {
               gestureState.pinchAnchor = null;
             }
           }
+        } else if (pointers.size === 1) {
+          gestureState.isPinching = false;
+          gestureState.isPanning = true;
+          try {
+            if (gestureState.stageWasDraggable === null && typeof stage?.draggable === 'function') {
+              gestureState.stageWasDraggable = Boolean(stage.draggable());
+            }
+            stage?.draggable?.(false);
+            stage?.stopDrag?.();
+          } catch (_) {}
         }
       };
 
@@ -2142,9 +2152,38 @@ export default function Mockup() {
         }
 
         if (pointers.size === 1 && !gestureState.isPinching) {
-          // No-op: single-finger moves should not pan or zoom the stage.
-          // This prevents accidental drags or scale jumps when the user places
-          // only one finger on the canvas.
+          const activePointer = pointers.values().next().value;
+          if (!stage || !activePointer) {
+            return;
+          }
+          const dx = activePointer.currentX - prevX;
+          const dy = activePointer.currentY - prevY;
+          if (Math.abs(dx) > 0 || Math.abs(dy) > 0) {
+            gestureState.isPanning = true;
+            gestureState.hadPan = true;
+            try {
+              const currentX = (() => {
+                try {
+                  if (typeof stage.x === 'function') {
+                    const value = stage.x();
+                    if (Number.isFinite(value)) return value;
+                  }
+                } catch (_) {}
+                return 0;
+              })();
+              const currentY = (() => {
+                try {
+                  if (typeof stage.y === 'function') {
+                    const value = stage.y();
+                    if (Number.isFinite(value)) return value;
+                  }
+                } catch (_) {}
+                return 0;
+              })();
+              stage.position({ x: currentX + dx, y: currentY + dy });
+              stage.batchDraw?.();
+            } catch (_) {}
+          }
         }
       };
 
@@ -2200,6 +2239,7 @@ export default function Mockup() {
           } catch (_) {}
           gestureState.stageWasDraggable = null;
           gestureState.hadPinch = false;
+          gestureState.isPanning = false;
         }
 
         let tapMeta = null;
