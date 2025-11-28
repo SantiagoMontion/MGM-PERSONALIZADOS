@@ -18,10 +18,8 @@ export function useMobileSelectedNodeGestures(stageRef, getSelectedNode) {
     let mode = 'none';
 
     // DRAG (mover)
-    let dragStartX = 0;
-    let dragStartY = 0;
-    let nodeStartX = 0;
-    let nodeStartY = 0;
+    let dragOffsetX = 0;
+    let dragOffsetY = 0;
 
     // PINCH (zoom + rotate)
     let initialDistance = 0;
@@ -70,21 +68,12 @@ export function useMobileSelectedNodeGestures(stageRef, getSelectedNode) {
       if (anyFingerOnNode) {
         mode = 'dragNode';
 
-        let sumX = 0;
-        let sumY = 0;
-        for (let i = 0; i < touchCount; i++) {
-          sumX += touches[i].clientX;
-          sumY += touches[i].clientY;
-        }
-        const avgX = sumX / touchCount;
-        const avgY = sumY / touchCount;
+        stageInstance.setPointersPositions(e.evt);
+        const pointer = stageInstance.getPointerPosition();
+        if (!pointer) return;
 
-        const rect = stageInstance.container().getBoundingClientRect();
-        dragStartX = avgX - rect.left;
-        dragStartY = avgY - rect.top;
-
-        nodeStartX = node.x();
-        nodeStartY = node.y();
+        dragOffsetX = pointer.x - node.x();
+        dragOffsetY = pointer.y - node.y();
 
         e.evt.preventDefault();
         return;
@@ -135,25 +124,13 @@ export function useMobileSelectedNodeGestures(stageRef, getSelectedNode) {
       if (!touches || touchCount === 0) return;
 
       if (mode === 'dragNode') {
-        let sumX = 0;
-        let sumY = 0;
-        for (let i = 0; i < touchCount; i++) {
-          sumX += touches[i].clientX;
-          sumY += touches[i].clientY;
-        }
-        const avgX = sumX / touchCount;
-        const avgY = sumY / touchCount;
-
-        const rect = stageInstance.container().getBoundingClientRect();
-        const currentX = avgX - rect.left;
-        const currentY = avgY - rect.top;
-
-        const dx = currentX - dragStartX;
-        const dy = currentY - dragStartY;
+        stageInstance.setPointersPositions(e.evt);
+        const pointer = stageInstance.getPointerPosition();
+        if (!pointer) return;
 
         node.position({
-          x: nodeStartX + dx,
-          y: nodeStartY + dy,
+          x: pointer.x - dragOffsetX,
+          y: pointer.y - dragOffsetY,
         });
 
         node.getLayer()?.batchDraw();
