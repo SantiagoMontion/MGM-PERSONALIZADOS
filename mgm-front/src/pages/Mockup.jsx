@@ -1910,13 +1910,6 @@ export default function Mockup() {
       const downMoveOpts = { passive: false };
       const upOpts = { passive: false };
 
-      const anyPointerOnSelectable = () => {
-        for (const entry of pointers.values()) {
-          if (entry?.hitSelectable) return true;
-        }
-        return false;
-      };
-
       const onDown = (event) => {
         if (!isMobileActive()) return;
         if (event.pointerType !== 'touch') return;
@@ -1953,13 +1946,6 @@ export default function Mockup() {
         pointers.set(event.pointerId, pointerState);
 
         if (pointers.size === 2) {
-          if (anyPointerOnSelectable()) {
-            gestureState.isPinching = false;
-            gestureState.pinchAnchor = null;
-            gestureState.pinchStartDist = 0;
-            gestureState.pinchStartScale = 1;
-            return;
-          }
           gestureState.isPinching = true;
           gestureState.isPanning = false;
           try {
@@ -2053,10 +2039,6 @@ export default function Mockup() {
         const stage = resolveStageFromApi(editor);
 
         if (pointers.size >= 2) {
-          if (anyPointerOnSelectable()) {
-            gestureState.isPinching = false;
-            return;
-          }
           if (!gestureState.isPinching) {
             gestureState.isPinching = true;
             gestureState.isPanning = false;
