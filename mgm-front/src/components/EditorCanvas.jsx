@@ -32,6 +32,7 @@ import {
   DPI_LOW_THRESHOLD,
 } from "../lib/dpi";
 import { resolveIconAsset } from "@/lib/iconRegistry.js";
+import { isTouchDevice } from "@/lib/device.ts";
 
 const CM_PER_INCH = 2.54;
 const mmToCm = (mm) => mm / 10;
@@ -239,6 +240,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const padGroupRef = useRef(null);
   const glassOverlayRef = useRef(null);
   const [wrapSize, setWrapSize] = useState({ w: 960, h: 540 });
+  const isTouch = useMemo(() => isTouchDevice(), []);
   const hasAdjustedViewRef = useRef(false);
   useEffect(() => {
     const ro = new ResizeObserver(() => {
@@ -314,6 +316,18 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     return false;
   };
 
+  const clearSelection = useCallback(() => {
+    setShowTransformer(false);
+    if (trRef.current) {
+      trRef.current.nodes([]);
+      trRef.current.getLayer()?.batchDraw();
+    }
+  }, []);
+
+  const handleBackgroundClick = useCallback(() => {
+    clearSelection();
+  }, [clearSelection]);
+
   const onStageMouseDown = (e) => {
     const stage = e.target.getStage();
     const wp = pointerWorld(stage);
@@ -355,11 +369,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       isPanningRef.current = true;
       lastPointerRef.current = { x: e.evt.clientX, y: e.evt.clientY };
       if (isOutsideWorkArea(wp)) {
-        setShowTransformer(false);
-        if (trRef.current) {
-          trRef.current.nodes([]);
-          trRef.current.getLayer()?.batchDraw();
-        }
+        clearSelection();
       }
     } else {
       isPanningRef.current = false;
@@ -409,6 +419,49 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       y: pt.y - worldY * (baseScale * clamped),
     });
   };
+
+  const clampViewScale = useCallback(
+    (next) => Math.max(VIEW_ZOOM_MIN, Math.min(next, VIEW_ZOOM_MAX)),
+    [],
+  );
+
+  const adjustViewScaleAtPoint = useCallback(
+    (nextScaleOrUpdater, anchor = { x: wrapSize.w / 2, y: wrapSize.h / 2 }) => {
+      setViewScale((prevScale) => {
+        const target =
+          typeof nextScaleOrUpdater === "function"
+            ? nextScaleOrUpdater(prevScale)
+            : nextScaleOrUpdater;
+        const clamped = clampViewScale(target);
+        setViewPos((prevPos) => {
+          const worldX = (anchor.x - prevPos.x) / (baseScale * prevScale);
+          const worldY = (anchor.y - prevPos.y) / (baseScale * prevScale);
+          return {
+            x: anchor.x - worldX * (baseScale * clamped),
+            y: anchor.y - worldY * (baseScale * clamped),
+          };
+        });
+        return clamped;
+      });
+    },
+    [baseScale, clampViewScale, wrapSize.w, wrapSize.h],
+  );
+
+  const handleZoomIn = useCallback(() => {
+    adjustViewScaleAtPoint((prev) => prev + 0.1);
+  }, [adjustViewScaleAtPoint]);
+
+  const handleZoomOut = useCallback(() => {
+    adjustViewScaleAtPoint((prev) => prev - 0.1);
+  }, [adjustViewScaleAtPoint]);
+
+  const handleZoomReset = useCallback(() => {
+    adjustViewScaleAtPoint(1);
+  }, [adjustViewScaleAtPoint]);
+
+  const handleClearSelectionButton = useCallback(() => {
+    clearSelection();
+  }, [clearSelection]);
 
   // imagen
   const [imgEl, imgStatus] = useImage(imageUrl || undefined);
@@ -1670,24 +1723,36 @@ const EditorCanvas = forwardRef(function EditorCanvas(
           onWheel={onStageWheel}
           onMouseDown={onStageMouseDown}
           onMouseMove={onStageMouseMove}
-          onMouseUp={endPan}
-          onMouseLeave={endPan}
-          style={{ display: shouldRenderCanvas ? 'block' : 'none' }}
-        >
-          <Layer>
-            {/* fondo global del stage */}
-            <Rect
-              x={-2000}
-              y={-2000}
-              width={4000}
-              height={4000}
-              fill={STAGE_BG}
-            />
+            onMouseUp={endPan}
+            onMouseLeave={endPan}
+            style={{ display: shouldRenderCanvas ? 'block' : 'none' }}
+          >
+            <Layer>
+              {/* fondo global del stage */}
+              <Rect
+                x={-2000}
+                y={-2000}
+                width={4000}
+                height={4000}
+                fill={STAGE_BG}
+              />
 
-            {/* Mesa de trabajo (gris) con borde redondeado SIEMPRE */}
-            <Group
-              clipFunc={(ctx) => drawRoundedPath(ctx, workCm.w, workCm.h, workCornerRadiusCm)}
-            >
+              <Rect
+                name="background-hit-area"
+                x={0}
+                y={0}
+                width={workCm.w}
+                height={workCm.h}
+                fill="transparent"
+                listening
+                onClick={handleBackgroundClick}
+                onTap={handleBackgroundClick}
+              />
+
+              {/* Mesa de trabajo (gris) con borde redondeado SIEMPRE */}
+              <Group
+                clipFunc={(ctx) => drawRoundedPath(ctx, workCm.w, workCm.h, workCornerRadiusCm)}
+              >
               <Rect
                 x={0}
                 y={0}
@@ -1947,79 +2012,103 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               }}
               strokeWidth={0.04}
             />
-            <Shape
-              sceneFunc={(ctx, shape) => {
-                ctx.save();
-                ctx.translate(
-                  bleedCm + SECONDARY_SAFE_MARGIN_CM,
-                  bleedCm + SECONDARY_SAFE_MARGIN_CM,
-                );
-                drawRoundedPath(
-                  ctx,
-                  Math.max(0, wCm - 2 * SECONDARY_SAFE_MARGIN_CM),
-                  Math.max(0, hCm - 2 * SECONDARY_SAFE_MARGIN_CM),
-                  secondarySafeRadiusCm,
-                );
-                ctx.strokeStyle = "#6b7280";
-                ctx.setLineDash([0.3, 0.3]);
-                ctx.lineWidth = shape.strokeWidth();
-                ctx.stroke();
-                ctx.restore();
-              }}
-              strokeWidth={0.03}
-            />
-          </Layer>
-        </Stage>
-        <Stage
-          ref={exportStageRef}
-          width={padRectPx.w}
-          height={padRectPx.h}
-          style={{ display: "none" }}
-        >
-          <Layer>
-            <Group
-              ref={padGroupRef}
-              clipFunc={(ctx) =>
-                drawRoundedPath(
-                  ctx,
-                  padRectPx.w,
-                  padRectPx.h,
-                  isCircular ? padRectPx.w / 2 : padRectPx.radius_px,
-                )
-              }
-            >
-              <Rect
-                x={0}
-                y={0}
-                width={padRectPx.w}
-                height={padRectPx.h}
-                fill={mode === "contain" ? bgColor : "#ffffff"}
-                listening={false}
+              <Shape
+                sceneFunc={(ctx, shape) => {
+                  ctx.save();
+                  ctx.translate(
+                    bleedCm + SECONDARY_SAFE_MARGIN_CM,
+                    bleedCm + SECONDARY_SAFE_MARGIN_CM,
+                  );
+                  drawRoundedPath(
+                    ctx,
+                    Math.max(0, wCm - 2 * SECONDARY_SAFE_MARGIN_CM),
+                    Math.max(0, hCm - 2 * SECONDARY_SAFE_MARGIN_CM),
+                    secondarySafeRadiusCm,
+                  );
+                  ctx.strokeStyle = "#6b7280";
+                  ctx.setLineDash([0.3, 0.3]);
+                  ctx.lineWidth = shape.strokeWidth();
+                  ctx.stroke();
+                  ctx.restore();
+                }}
+                strokeWidth={0.03}
               />
-              {imgEl && imgBaseCm && (
-                <KonvaImage
-                  image={imgEl}
-                  x={(imgTx.x_cm - bleedCm + dispW / 2) * exportScale}
-                  y={(imgTx.y_cm - bleedCm + dispH / 2) * exportScale}
-                  width={dispW * exportScale}
-                  height={dispH * exportScale}
-                  offsetX={(dispW * exportScale) / 2}
-                  offsetY={(dispH * exportScale) / 2}
-                  scaleX={imgTx.flipX ? -1 : 1}
-                  scaleY={imgTx.flipY ? -1 : 1}
-                  rotation={imgTx.rotation_deg}
+            </Layer>
+          </Stage>
+          <Stage
+            ref={exportStageRef}
+            width={padRectPx.w}
+            height={padRectPx.h}
+            style={{ display: "none" }}
+          >
+            <Layer>
+              <Group
+                ref={padGroupRef}
+                clipFunc={(ctx) =>
+                  drawRoundedPath(
+                    ctx,
+                    padRectPx.w,
+                    padRectPx.h,
+                    isCircular ? padRectPx.w / 2 : padRectPx.radius_px,
+                  )
+                }
+              >
+                <Rect
+                  x={0}
+                  y={0}
+                  width={padRectPx.w}
+                  height={padRectPx.h}
+                  fill={mode === "contain" ? bgColor : "#ffffff"}
                   listening={false}
                 />
-              )}
-            </Group>
-          </Layer>
-        </Stage>
-        {imageUrl && imgStatus !== "loaded" && (
-          <div className={`spinner ${styles.spinnerOverlay}`} />
-        )}
-      </div>
+                {imgEl && imgBaseCm && (
+                  <KonvaImage
+                    image={imgEl}
+                    x={(imgTx.x_cm - bleedCm + dispW / 2) * exportScale}
+                    y={(imgTx.y_cm - bleedCm + dispH / 2) * exportScale}
+                    width={dispW * exportScale}
+                    height={dispH * exportScale}
+                    offsetX={(dispW * exportScale) / 2}
+                    offsetY={(dispH * exportScale) / 2}
+                    scaleX={imgTx.flipX ? -1 : 1}
+                    scaleY={imgTx.flipY ? -1 : 1}
+                    rotation={imgTx.rotation_deg}
+                    listening={false}
+                  />
+                )}
+              </Group>
+            </Layer>
+          </Stage>
+          {imageUrl && imgStatus !== "loaded" && (
+            <div className={`spinner ${styles.spinnerOverlay}`} />
+          )}
+          {isTouch && (
+            <div className={styles.mobileCanvasControls}>
+              <button type="button" onClick={handleZoomOut} aria-label="Alejar">
+                −
+              </button>
+              <button type="button" onClick={handleZoomIn} aria-label="Acercar">
+                +
+              </button>
+              <button
+                type="button"
+                onClick={handleZoomReset}
+                aria-label="Restablecer zoom"
+              >
+                100%
+              </button>
+              <button
+                type="button"
+                onClick={handleClearSelectionButton}
+                aria-label="Deseleccionar"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+        </div>
 
-      {showHistoryControls && (
+        {showHistoryControls && (
         <div className={`${styles.overlayTopRight} ${styles.historyControls}`}>
           <button
             type="button"
