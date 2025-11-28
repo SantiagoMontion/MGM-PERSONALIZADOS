@@ -969,6 +969,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
   // fin de resize por esquinas
   const onTransformStart = useCallback(() => {
+    if (isTouch) return;
+
     isTransformingRef.current = true;
     stickRef.current = { x: null, y: null, activeX: false, activeY: false };
     const anchorName = trRef.current?.getActiveAnchor();
@@ -1007,9 +1009,11 @@ const EditorCanvas = forwardRef(function EditorCanvas(
           : fallbackScale;
     }
     setKeepRatioImmediate(shouldKeep);
-  }, [imgBaseCm, setKeepRatioImmediate]);
+  }, [imgBaseCm, isTouch, setKeepRatioImmediate]);
 
   const onTransformEnd = () => {
+    if (isTouch) return;
+
     isTransformingRef.current = false;
     stickRef.current = { x: null, y: null, activeX: false, activeY: false };
     cornerScaleRef.current = { prev: null };
