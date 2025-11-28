@@ -21,6 +21,14 @@ export function useMobileSelectedNodeGestures(stageRef, getSelectedNode) {
     let initialScaleY = 1;
     let initialRotation = 0;
 
+    const resetPinchState = () => {
+      initialDistance = 0;
+      initialAngle = 0;
+      initialScaleX = 1;
+      initialScaleY = 1;
+      initialRotation = 0;
+    };
+
     const MIN_SCALE = 0.3;
     const MAX_SCALE = 4;
 
@@ -28,7 +36,10 @@ export function useMobileSelectedNodeGestures(stageRef, getSelectedNode) {
 
     const handleTouchStart = (e) => {
       const touches = getTouches(e.evt);
-      if (!touches || touches.length !== 2) return;
+      if (!touches || touches.length !== 2) {
+        resetPinchState();
+        return;
+      }
 
       const node = getSelectedNode?.();
       if (!node) return;
@@ -61,7 +72,9 @@ export function useMobileSelectedNodeGestures(stageRef, getSelectedNode) {
 
     const handleTouchMove = (e) => {
       const touches = getTouches(e.evt);
-      if (!touches || touches.length !== 2) return;
+      if (!touches || touches.length !== 2) {
+        return;
+      }
 
       const node = getSelectedNode?.();
       if (!node) return;
@@ -105,11 +118,7 @@ export function useMobileSelectedNodeGestures(stageRef, getSelectedNode) {
       const touchCount = touches?.length ?? 0;
 
       if (touchCount < 2) {
-        initialDistance = 0;
-        initialAngle = 0;
-        initialScaleX = 1;
-        initialScaleY = 1;
-        initialRotation = 0;
+        resetPinchState();
 
         const node = getSelectedNode?.();
         if (node && typeof node.draggable === 'function') {
