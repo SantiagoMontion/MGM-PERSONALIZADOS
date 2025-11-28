@@ -565,6 +565,44 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     };
   }, [imgEl, dpi]);
 
+  const readNodeTransform = useCallback(
+    (nodeArg = imgRef.current) => {
+      if (!nodeArg || !imgBaseCm) return null;
+
+      const node = nodeArg;
+      const baseW = imgBaseCm.w || 1;
+      const baseH = imgBaseCm.h || 1;
+      const nodeScaleX = node.scaleX();
+      const nodeScaleY = node.scaleY();
+      const width = node.width() * Math.abs(nodeScaleX);
+      const height = node.height() * Math.abs(nodeScaleY);
+      const scaleX = (node.width() / baseW) * nodeScaleX;
+      const scaleY = (node.height() / baseH) * nodeScaleY;
+
+      return {
+        tx: {
+          x_cm: node.x() - width / 2,
+          y_cm: node.y() - height / 2,
+          scaleX,
+          scaleY,
+          rotation_deg: node.rotation(),
+          flipX: scaleX < 0,
+          flipY: scaleY < 0,
+        },
+        width,
+        height,
+        cx: node.x(),
+        cy: node.y(),
+      };
+    },
+    [imgBaseCm?.w, imgBaseCm?.h],
+  );
+
+  const getLiveNodeTransform = useCallback(
+    () => readNodeTransform() ?? null,
+    [readNodeTransform],
+  );
+
   const [imgTx, setImgTx] = useState({
     x_cm: 0,
     y_cm: 0,
