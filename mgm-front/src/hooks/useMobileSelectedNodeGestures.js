@@ -34,10 +34,18 @@ export function useMobileSelectedNodeGestures(stageRef, getSelectedNode) {
 
     const getTouches = (evt) => evt.touches;
 
+    const enableNodeDrag = () => {
+      const node = getSelectedNode?.();
+      if (node && typeof node.draggable === 'function') {
+        node.draggable(true);
+      }
+    };
+
     const handleTouchStart = (e) => {
       const touches = getTouches(e.evt);
       if (!touches || touches.length !== 2) {
         resetPinchState();
+        enableNodeDrag();
         return;
       }
 
@@ -73,6 +81,8 @@ export function useMobileSelectedNodeGestures(stageRef, getSelectedNode) {
     const handleTouchMove = (e) => {
       const touches = getTouches(e.evt);
       if (!touches || touches.length !== 2) {
+        resetPinchState();
+        enableNodeDrag();
         return;
       }
 
@@ -119,11 +129,7 @@ export function useMobileSelectedNodeGestures(stageRef, getSelectedNode) {
 
       if (touchCount < 2) {
         resetPinchState();
-
-        const node = getSelectedNode?.();
-        if (node && typeof node.draggable === 'function') {
-          node.draggable(true);
-        }
+        enableNodeDrag();
       }
     };
 
