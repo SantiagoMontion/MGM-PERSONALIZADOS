@@ -17,6 +17,7 @@ import {
   Shape,
   Image as KonvaImage,
   Transformer,
+  Line,
 } from "react-konva";
 import Konva from "konva";
 import useImage from "use-image";
@@ -747,6 +748,9 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   // medidas visuales (para offset centro)
   const dispW = imgBaseCm ? imgBaseCm.w * Math.abs(imgTx.scaleX) : 0;
   const dispH = imgBaseCm ? imgBaseCm.h * Math.abs(imgTx.scaleY) : 0;
+  const selectionStrokeColor = "rgba(255, 255, 255, 0.9)";
+  const selectionStrokeWidth = 0.14;
+  const selectionCornerSize = Math.max(Math.min(dispW, dispH) * 0.08, 0.35);
   const hasGlassOverlay =
     material === "Glasspad" &&
     !!imgEl &&
@@ -2000,7 +2004,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                     onMouseDown={!isTouch ? onImgMouseDown : undefined}
                   />
                   {isTouch && showTransformer && (
-                    <Rect
+                    <Group
                       x={imgTx.x_cm + dispW / 2}
                       y={imgTx.y_cm + dispH / 2}
                       width={dispW}
@@ -2008,10 +2012,69 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                       offsetX={dispW / 2}
                       offsetY={dispH / 2}
                       rotation={imgTx.rotation_deg}
-                      stroke="rgba(255,255,255,0.65)"
-                      strokeWidth={0.08}
                       listening={false}
-                    />
+                    >
+                      <Rect
+                        x={0}
+                        y={0}
+                        width={dispW}
+                        height={dispH}
+                        stroke={selectionStrokeColor}
+                        strokeWidth={selectionStrokeWidth}
+                      />
+                      <Line
+                        points={[
+                          -dispW / 2,
+                          -dispH / 2 + selectionCornerSize,
+                          -dispW / 2,
+                          -dispH / 2,
+                          -dispW / 2 + selectionCornerSize,
+                          -dispH / 2,
+                        ]}
+                        stroke={selectionStrokeColor}
+                        strokeWidth={selectionStrokeWidth}
+                        lineCap="round"
+                      />
+                      <Line
+                        points={[
+                          dispW / 2 - selectionCornerSize,
+                          -dispH / 2,
+                          dispW / 2,
+                          -dispH / 2,
+                          dispW / 2,
+                          -dispH / 2 + selectionCornerSize,
+                        ]}
+                        stroke={selectionStrokeColor}
+                        strokeWidth={selectionStrokeWidth}
+                        lineCap="round"
+                      />
+                      <Line
+                        points={[
+                          -dispW / 2,
+                          dispH / 2 - selectionCornerSize,
+                          -dispW / 2,
+                          dispH / 2,
+                          -dispW / 2 + selectionCornerSize,
+                          dispH / 2,
+                        ]}
+                        stroke={selectionStrokeColor}
+                        strokeWidth={selectionStrokeWidth}
+                        lineCap="round"
+                      />
+                      <Line
+                        points={[
+                          dispW / 2,
+                          dispH / 2 - selectionCornerSize,
+                          dispW / 2,
+                          dispH / 2,
+                          dispW / 2 - selectionCornerSize,
+                          dispH / 2,
+                        ]}
+                        stroke={selectionStrokeColor}
+                        strokeWidth={selectionStrokeWidth}
+                        lineCap="round"
+                      />
+                    </Group>
                   )}
                 </Group>
               ))}
