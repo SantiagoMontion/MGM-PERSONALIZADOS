@@ -1843,6 +1843,7 @@ export default function Mockup() {
         pinchStartDist: 0,
         pinchStartScale: 1,
         pinchAnchor: null,
+        stageWasDraggable: null,
         tapStart: null,
         hadPan: false,
         hadPinch: false,
@@ -1962,6 +1963,13 @@ export default function Mockup() {
           gestureState.isPinching = true;
           gestureState.isPanning = false;
           try {
+            try {
+              if (typeof stage?.draggable === 'function') {
+                gestureState.stageWasDraggable = Boolean(stage.draggable());
+              }
+            } catch (_) {
+              gestureState.stageWasDraggable = null;
+            }
             stage?.draggable?.(false);
             stage?.stopDrag?.();
           } catch (_) {}
@@ -2181,6 +2189,16 @@ export default function Mockup() {
             } catch (_) {}
             return 1;
           })();
+          try {
+            if (
+              stage &&
+              typeof stage.draggable === 'function' &&
+              gestureState.stageWasDraggable !== null
+            ) {
+              stage.draggable(gestureState.stageWasDraggable);
+            }
+          } catch (_) {}
+          gestureState.stageWasDraggable = null;
           gestureState.hadPinch = false;
         }
 
@@ -2190,7 +2208,15 @@ export default function Mockup() {
         if (pointers.size === 0) {
           try {
             stage?.stopDrag?.();
-            stage?.draggable?.(false);
+            if (
+              stage &&
+              typeof stage.draggable === 'function' &&
+              gestureState.stageWasDraggable !== null
+            ) {
+              stage.draggable(gestureState.stageWasDraggable);
+            } else {
+              stage?.draggable?.(false);
+            }
           } catch (_) {}
           gestureState.isPanning = false;
           gestureState.isPinching = false;
@@ -2308,6 +2334,7 @@ export default function Mockup() {
         gestureState.pinchAnchor = null;
         gestureState.pinchStartDist = 0;
         gestureState.pinchStartScale = 1;
+        gestureState.stageWasDraggable = null;
         if (mobileContainerRef.current === target) {
           mobileContainerRef.current = null;
         }
