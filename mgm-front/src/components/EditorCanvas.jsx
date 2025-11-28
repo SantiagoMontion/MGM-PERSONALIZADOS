@@ -17,6 +17,7 @@ import {
   Shape,
   Image as KonvaImage,
   Transformer,
+  Line,
 } from "react-konva";
 import Konva from "konva";
 import useImage from "use-image";
@@ -335,6 +336,44 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     getSelectedNode,
     enabled: mobileGesturesEnabled,
   });
+
+  const readNodeTransform = useCallback(
+    (nodeArg = imgRef.current) => {
+      if (!nodeArg || !imgBaseCm) return null;
+
+      const node = nodeArg;
+    const baseW = imgBaseCm.w || 1;
+    const baseH = imgBaseCm.h || 1;
+    const nodeScaleX = node.scaleX();
+    const nodeScaleY = node.scaleY();
+    const width = node.width() * Math.abs(nodeScaleX);
+    const height = node.height() * Math.abs(nodeScaleY);
+    const scaleX = (node.width() / baseW) * nodeScaleX;
+    const scaleY = (node.height() / baseH) * nodeScaleY;
+
+    return {
+      tx: {
+        x_cm: node.x() - width / 2,
+        y_cm: node.y() - height / 2,
+        scaleX,
+        scaleY,
+        rotation_deg: node.rotation(),
+        flipX: scaleX < 0,
+        flipY: scaleY < 0,
+      },
+      width,
+      height,
+      cx: node.x(),
+      cy: node.y(),
+    };
+    },
+    [imgBaseCm?.w, imgBaseCm?.h],
+  );
+
+  const getLiveNodeTransform = useCallback(
+    () => readNodeTransform() ?? null,
+    [readNodeTransform],
+  );
 
   const isTargetOnImageOrTransformer = (target) => {
     if (!target) return false;
@@ -775,6 +814,9 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   // medidas visuales (para offset centro)
   const dispW = imgBaseCm ? imgBaseCm.w * Math.abs(imgTx.scaleX) : 0;
   const dispH = imgBaseCm ? imgBaseCm.h * Math.abs(imgTx.scaleY) : 0;
+  const selectionStrokeColor = "rgba(255, 255, 255, 0.9)";
+  const selectionStrokeWidth = 0.14;
+  const selectionCornerSize = Math.max(Math.min(dispW, dispH) * 0.08, 0.35);
   const hasGlassOverlay =
     material === "Glasspad" &&
     !!imgEl &&
@@ -1953,9 +1995,9 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                     scaleX={imgTx.flipX ? -1 : 1}
                     scaleY={imgTx.flipY ? -1 : 1}
                     rotation={imgTx.rotation_deg}
-                    draggable
-                    dragBoundFunc={dragBoundFunc}
-                    onDragStart={onImgDragStart}
+                    draggable={!isTouch}
+                    dragBoundFunc={!isTouch ? dragBoundFunc : undefined}
+                    onDragStart={!isTouch ? onImgDragStart : undefined}
                     onMouseDown={onImgMouseDown}
                     onClick={onImgMouseDown}
                     onTap={onImgMouseDown}
