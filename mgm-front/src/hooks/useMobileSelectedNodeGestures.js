@@ -21,14 +21,33 @@ export function useMobileSelectedNodeGestures(stageRef, getSelectedNode) {
     let initialScaleY = 1;
     let initialRotation = 0;
 
+    const resetPinchState = () => {
+      initialDistance = 0;
+      initialAngle = 0;
+      initialScaleX = 1;
+      initialScaleY = 1;
+      initialRotation = 0;
+    };
+
     const MIN_SCALE = 0.3;
     const MAX_SCALE = 4;
 
     const getTouches = (evt) => evt.touches;
 
+    const enableNodeDrag = () => {
+      const node = getSelectedNode?.();
+      if (node && typeof node.draggable === 'function') {
+        node.draggable(true);
+      }
+    };
+
     const handleTouchStart = (e) => {
       const touches = getTouches(e.evt);
-      if (!touches || touches.length !== 2) return;
+      if (!touches || touches.length !== 2) {
+        resetPinchState();
+        enableNodeDrag();
+        return;
+      }
 
       const node = getSelectedNode?.();
       if (!node) return;
@@ -61,7 +80,11 @@ export function useMobileSelectedNodeGestures(stageRef, getSelectedNode) {
 
     const handleTouchMove = (e) => {
       const touches = getTouches(e.evt);
-      if (!touches || touches.length !== 2) return;
+      if (!touches || touches.length !== 2) {
+        resetPinchState();
+        enableNodeDrag();
+        return;
+      }
 
       const node = getSelectedNode?.();
       if (!node) return;
@@ -105,16 +128,8 @@ export function useMobileSelectedNodeGestures(stageRef, getSelectedNode) {
       const touchCount = touches?.length ?? 0;
 
       if (touchCount < 2) {
-        initialDistance = 0;
-        initialAngle = 0;
-        initialScaleX = 1;
-        initialScaleY = 1;
-        initialRotation = 0;
-
-        const node = getSelectedNode?.();
-        if (node && typeof node.draggable === 'function') {
-          node.draggable(true);
-        }
+        resetPinchState();
+        enableNodeDrag();
       }
     };
 
