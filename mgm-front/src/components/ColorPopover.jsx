@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { HexColorPicker, HexColorInput } from "react-colorful";
 import { resolveIconAsset } from "@/lib/iconRegistry.js";
+import { isTouchDevice } from "@/lib/device.ts";
 import styles from "./EditorCanvas.module.css";
 
 const EYEDROPPER_ICON_SRC = resolveIconAsset("tintero.svg", {
@@ -44,6 +45,7 @@ export default function ColorPopover({
   const latestColorRef = useRef(ensurePrefixedHex(value) || DEFAULT_COLOR);
   const pointerActiveRef = useRef(false);
   const wasOpenRef = useRef(open);
+  const isTouch = useMemo(() => isTouchDevice(), []);
   useEffect(() => {
     const normalized = ensurePrefixedHex(value) || DEFAULT_COLOR;
     setHex(normalized);
@@ -125,7 +127,7 @@ export default function ColorPopover({
   }, [open]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || isTouch) return;
     const el = document.getElementById(inputId);
     if (!el) return;
     requestAnimationFrame(() => {
@@ -134,7 +136,7 @@ export default function ColorPopover({
         el.select();
       }
     });
-  }, [open, inputId]);
+  }, [open, inputId, isTouch]);
 
   const previewNextColor = useCallback(
     (nextHex) => {
@@ -296,6 +298,8 @@ export default function ColorPopover({
               autoComplete="off"
               autoCorrect="off"
               autoCapitalize="off"
+              inputMode={isTouch ? "none" : undefined}
+              readOnly={isTouch}
             />
           </div>
         </div>
