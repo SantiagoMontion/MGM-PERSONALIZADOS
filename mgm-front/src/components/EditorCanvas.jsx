@@ -17,6 +17,7 @@ import {
   Shape,
   Image as KonvaImage,
   Transformer,
+  Line,
 } from "react-konva";
 import Konva from "konva";
 import useImage from "use-image";
@@ -747,6 +748,9 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   // medidas visuales (para offset centro)
   const dispW = imgBaseCm ? imgBaseCm.w * Math.abs(imgTx.scaleX) : 0;
   const dispH = imgBaseCm ? imgBaseCm.h * Math.abs(imgTx.scaleY) : 0;
+  const selectionStrokeColor = "rgba(255, 255, 255, 0.9)";
+  const selectionStrokeWidth = 0.14;
+  const selectionCornerSize = Math.max(Math.min(dispW, dispH) * 0.08, 0.35);
   const hasGlassOverlay =
     material === "Glasspad" &&
     !!imgEl &&
