@@ -790,18 +790,70 @@
 @media (max-width: 768px) {
   .colorPopoverWrap {
     position: fixed;
-    inset-block-end: 96px;
-    inset-inline-start: 50%;
-    transform: translateX(-50%);
+    inset-block-end: 38px;
+    inset-inline-start: 10px;
+    transform: none;
     margin: 0;
   }
 
   .colorPickerWrapper {
-    --picker-scale: 0.85;
+    --picker-scale: 0.52;
+    width: auto;
+    min-width: 0;
+    height: auto;
+    min-height: 0;
+    pointer-events: none;
   }
 
   .colorPopover {
-    width: 200px;
+    width: 150px;
+    padding: 12px;
+    pointer-events: auto;
+  }
+
+  .colorPicker :global(.react-colorful__saturation) {
+    border-radius: 12px 12px 0 0;
+  }
+
+  .colorPicker :global(.react-colorful__saturation-pointer) {
+    width: 18px;
+    height: 18px;
+  }
+
+  .colorPicker :global(.react-colorful__hue) {
+    height: 14px;
+    border-radius: 10px;
+  }
+
+  .colorPicker :global(.react-colorful__hue-pointer) {
+    width: 16px;
+    height: 16px;
+  }
+
+  .hexRow,
+  .hexInputWrapper {
+    min-height: 58px;
+  }
+
+  .hexRow {
+    border-radius: 0 0 12px 12px;
+  }
+
+  .eyedropperButton {
+    width: 36px;
+    height: 36px;
+    left: 12px;
+  }
+
+  .eyedropperIcon {
+    width: 14px;
+    height: 14px;
+  }
+
+  .hexInput {
+    padding: 10px 14px 10px 60px;
+    font-size: 15px;
+    line-height: 22px;
   }
 }
 

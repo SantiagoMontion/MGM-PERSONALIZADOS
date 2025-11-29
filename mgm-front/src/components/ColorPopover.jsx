@@ -54,6 +54,7 @@ export default function ColorPopover({
 
   useEffect(() => {
     if (!open) return;
+    const outsideEvent = isTouch ? "pointerdown" : "mousedown";
     const onDown = (e) => {
       if (!wrapperRef.current) return;
       if (
@@ -66,13 +67,13 @@ export default function ColorPopover({
     const onKey = (e) => {
       if (e.key === "Escape") onClose?.();
     };
-    document.addEventListener("mousedown", onDown);
+    document.addEventListener(outsideEvent, onDown);
     document.addEventListener("keydown", onKey);
     return () => {
-      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener(outsideEvent, onDown);
       document.removeEventListener("keydown", onKey);
     };
-  }, [open, onClose, anchorRef]);
+  }, [open, onClose, anchorRef, isTouch]);
 
   useEffect(() => {
     if (open) setIconError(false);
