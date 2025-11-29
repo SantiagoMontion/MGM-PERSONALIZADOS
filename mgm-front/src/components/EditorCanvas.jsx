@@ -245,6 +245,46 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const isTouch = useMemo(() => isTouchDevice(), []);
   const hasAdjustedViewRef = useRef(false);
   useEffect(() => {
+    if (!isTouch) return;
+    const stage = stageRef.current;
+    const container = stage?.container();
+    if (!container) return;
+
+    const getCanvases = () => Array.from(container.querySelectorAll("canvas"));
+    const restore = () => {
+      container.style.pointerEvents = "";
+      container.style.touchAction = "";
+      getCanvases().forEach((c) => {
+        c.style.pointerEvents = "";
+        c.style.touchAction = "";
+      });
+    };
+
+    const forceScrollPassThrough = () => {
+      container.style.pointerEvents = "none";
+      container.style.touchAction = "pan-y pinch-zoom";
+      getCanvases().forEach((c) => {
+        c.style.pointerEvents = "none";
+        c.style.touchAction = "pan-y pinch-zoom";
+      });
+    };
+
+    forceScrollPassThrough();
+
+    const observer = new MutationObserver(forceScrollPassThrough);
+    observer.observe(container, {
+      attributes: true,
+      attributeFilter: ["style"],
+      childList: true,
+      subtree: true,
+    });
+
+    return () => {
+      observer.disconnect();
+      restore();
+    };
+  }, [isTouch]);
+  useEffect(() => {
     const ro = new ResizeObserver(() => {
       const r = wrapRef.current?.getBoundingClientRect();
       if (!r) return;
@@ -2241,6 +2281,9 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               </Group>
             </Layer>
           </Stage>
+          {isTouch && (
+            <div className={styles.touchScrollOverlay} aria-hidden="true" />
+          )}
           {imageUrl && imgStatus !== "loaded" && (
             <div className={`spinner ${styles.spinnerOverlay}`} />
           )}
