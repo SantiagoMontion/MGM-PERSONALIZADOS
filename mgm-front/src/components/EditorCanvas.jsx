@@ -2246,6 +2246,9 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               </Group>
             </Layer>
           </Stage>
+          {isTouch && (
+            <div className={styles.touchScrollOverlay} aria-hidden="true" />
+          )}
           {imageUrl && imgStatus !== "loaded" && (
             <div className={`spinner ${styles.spinnerOverlay}`} />
           )}
