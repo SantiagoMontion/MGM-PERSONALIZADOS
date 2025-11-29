@@ -550,17 +550,20 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     const viewportCenterX = rect.width / 2;
     const viewportCenterY = rect.height / 2;
 
-    const scale = stage.scaleX() || baseScale * viewScale;
+    const scale = stage.scaleX() || baseScale * viewScaleRef.current;
     const canvasCenterX = workCm.w / 2;
     const canvasCenterY = workCm.h / 2;
 
-    const newStageX = viewportCenterX - canvasCenterX * scale;
-    const newStageY = viewportCenterY - canvasCenterY * scale;
+    const nextPos = {
+      x: viewportCenterX - canvasCenterX * scale,
+      y: viewportCenterY - canvasCenterY * scale,
+    };
 
-    stage.position({ x: newStageX, y: newStageY });
+    stage.position(nextPos);
     stage.batchDraw();
-    setViewPos({ x: newStageX, y: newStageY });
-  }, [baseScale, viewScale, workCm.h, workCm.w]);
+    viewPosRef.current = nextPos;
+    setViewPos(nextPos);
+  }, [baseScale, workCm.h, workCm.w]);
 
   useEffect(() => {
     if (!stageRef.current) return;
