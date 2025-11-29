@@ -75,12 +75,12 @@ button:hover:not(:disabled) {
 
 @media (pointer: coarse) {
   .konvajs-content {
-    touch-action: none;
+    touch-action: pan-y pinch-zoom;
     pointer-events: auto !important;
   }
 
   .canvas-wrap {
-    touch-action: none;
+    touch-action: pan-y pinch-zoom;
     position: relative;
   }
 
