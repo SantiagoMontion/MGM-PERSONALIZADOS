@@ -1465,6 +1465,7 @@ export default function Home() {
           left: '13px',
           maxHeight: '487px',
           maxWidth: '95vw',
+          paddingBottom: '40px',
         };
 
         if (
