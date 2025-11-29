@@ -912,6 +912,7 @@
 @media (max-width: 640px) {
   .page {
     padding: 22px 18px 40px;
+    overflow-x: hidden;
   }
   .configTrigger{width: 48px;}
 
@@ -924,12 +925,13 @@
   }
 
   .configPanel {
-    position: static;
-    top: auto;
-    left: auto;
+    position: absolute;
+    top: 164px;
+    left: 13px;
     width: 100%;
     min-width: 0;
-    max-width: none;
+    max-width: 95vw;
+    max-height: 487px;
   }
 
   .canvasPriceWrapper {

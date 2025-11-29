@@ -449,8 +449,10 @@
 @media (max-width: 768px) {
   .overlayBottomCenter {
     align-items: stretch;
-    bottom: -40px !important;
-  left: 50%;
+    left: 50%;
+
+    /* Entre -115px (pantallas bajas) y -80px (pantallas altas) */
+    bottom: clamp(-115px, calc(6vh - 166px), -80px);
   }
 
   .toolbarScroller {
@@ -551,15 +553,17 @@
 }
 
 .mobileCanvasControls button {
-  padding: 6px 10px;
-  border-radius: 6px;
-  border: none;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  margin: 0;
+  border-radius: 10px;
+  border: 1px solid #34343b;
+  background: #282828a8;
+  color: #f7f7fb;
   font-size: 14px;
-  cursor: pointer;
-  background: #f3f4f6;
-  color: #111827;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
   font-weight: 700;
+  cursor: pointer;
 }
 
 .canvasWrapperInactive {

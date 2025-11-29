@@ -1649,6 +1649,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     undo,
     redo,
     getHistoryCounts: () => ({ ...historyCounts }),
+    centerCanvas: handleCenterCanvas,
   }));
 
   // popover color
@@ -2251,13 +2252,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               </button>
               <button type="button" onClick={handleZoomIn} aria-label="Acercar">
                 +
-              </button>
-              <button
-                type="button"
-                onClick={handleCenterCanvas}
-                aria-label="Centrar lienzo"
-              >
-                ⤢
               </button>
             </div>
           )}

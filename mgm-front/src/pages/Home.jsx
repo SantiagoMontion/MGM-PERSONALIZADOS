@@ -40,6 +40,7 @@ import { scanNudityClient } from '@/lib/moderation/nsfw.client.js';
 import { useFlow } from '@/state/flow.js';
 import { getMaxImageMb, bytesToMB, formatHeavyImageToastMessage } from '@/lib/imageLimits.js';
 import { MAX_IMAGE_MB as MAX_IMAGE_MB_BASE } from '../lib/imageSizeLimit.js';
+import { isTouchDevice } from '@/lib/device.ts';
 
 const MAX_IMAGE_MB = MAX_IMAGE_MB_BASE; // ajustar fácilmente; hoy 40MB
 const MAX_IMAGE_BYTES = MAX_IMAGE_MB * 1024 * 1024;
@@ -495,6 +496,7 @@ export default function Home() {
   const [canvasFit, setCanvasFit] = useState({ height: null, maxWidth: null, sectionOneMinHeight: null });
   const flow = useFlow();
   const heavyToastShownRef = useRef(false);
+  const isTouch = useMemo(() => isTouchDevice(), []);
 
   const showHeavyImageToast = useCallback((actualMb, maxMb) => {
     console.warn('[guard:file_too_heavy]', { maxMB: maxMb, actualMB: actualMb });
@@ -642,6 +644,10 @@ export default function Home() {
         }
       }
       return false;
+    });
+
+    window.requestAnimationFrame(() => {
+      canvasRef.current?.centerCanvas?.();
     });
   }, [material, normalizeCircularSizeForMaterial, size]);
 
@@ -1457,6 +1463,30 @@ export default function Home() {
 
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
+    if (viewportWidth <= 640) {
+      setConfigPanelStyle((prev) => {
+        const next = {
+          position: 'absolute',
+          top: '164px',
+          left: '13px',
+          maxHeight: '487px',
+          maxWidth: '95vw',
+        };
+
+        if (
+          prev.position === next.position
+          && prev.top === next.top
+          && prev.left === next.left
+          && prev.maxHeight === next.maxHeight
+          && prev.maxWidth === next.maxWidth
+        ) {
+          return prev;
+        }
+
+        return next;
+      });
+      return;
+    }
     const triggerRect = triggerEl.getBoundingClientRect();
     const panelRect = panelEl.getBoundingClientRect();
 
@@ -1711,6 +1741,8 @@ export default function Home() {
     if (!configOpen) return undefined;
     if (typeof window === 'undefined') return undefined;
 
+    if (window.innerWidth <= 640) return undefined;
+
     const handleLayoutChange = () => updateConfigPanelPosition();
     window.addEventListener('resize', handleLayoutChange);
     window.addEventListener('scroll', handleLayoutChange, true);
@@ -1735,6 +1767,8 @@ export default function Home() {
     if (!configOpen) return undefined;
     if (typeof document === 'undefined') return undefined;
 
+    if (isTouch) return undefined;
+
     const handleKeyDown = (event) => {
       if (event.key === 'Escape') {
         event.preventDefault();
@@ -1744,19 +1778,21 @@ export default function Home() {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [configOpen]);
+  }, [configOpen, isTouch]);
 
   useEffect(() => {
     if (!configOpen) return undefined;
     if (!hasImage) return undefined;
     if (typeof window === 'undefined') return undefined;
 
+    if (isTouch) return undefined;
+
     const frame = window.requestAnimationFrame(() => {
       designNameInputRef.current?.focus?.();
     });
 
     return () => window.cancelAnimationFrame(frame);
-  }, [configOpen, hasImage]);
+  }, [configOpen, hasImage, isTouch]);
 
   useEffect(() => {
     if (configOpen) {
