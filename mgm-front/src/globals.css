@@ -76,7 +76,7 @@ button:hover:not(:disabled) {
 @media (pointer: coarse) {
   .konvajs-content {
     touch-action: pan-y pinch-zoom !important;
-    pointer-events: auto !important;
+    pointer-events: none !important;
   }
 
   .canvas-wrap {

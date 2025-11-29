@@ -563,7 +563,7 @@
   display: none;
   position: absolute;
   inset: 0;
-  z-index: 200;
+  z-index: 400;
   background: transparent;
   touch-action: pan-y pinch-zoom;
   pointer-events: auto;
