@@ -572,11 +572,12 @@
 .mobileCanvasControls {
   position: absolute;
   right: 12px;
-  bottom: 12px;
+  bottom: clamp(32px, 6vh, 56px);
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 8px;
-  z-index: 40;
+  align-items: center;
+  z-index: 5;
 }
 
 .mobileCanvasControls button {
@@ -591,7 +592,7 @@
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+  box-shadow: none;
 }
 
 .canvasWrapperInactive {

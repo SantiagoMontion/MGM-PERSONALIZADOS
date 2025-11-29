@@ -543,6 +543,11 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     setViewPos({ x: newStageX, y: newStageY });
   }, [baseScale, viewScale, workCm.h, workCm.w]);
 
+  useEffect(() => {
+    if (!stageRef.current) return;
+    handleCenterCanvas();
+  }, [handleCenterCanvas, isCircular]);
+
   const selectMainImage = useCallback(() => {
     setShowTransformer(true);
     if (trRef.current && imgRef.current) {
