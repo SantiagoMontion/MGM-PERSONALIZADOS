@@ -1460,9 +1460,10 @@ export default function Home() {
     if (viewportWidth <= 640) {
       setConfigPanelStyle((prev) => {
         const next = {
-          position: 'fixed',
-          top: '164px',
-          left: '13px',
+          position: 'absolute',
+          top: `${(triggerEl?.offsetHeight || 0) + GAP}px`,
+          left: 0,
+          right: 0,
           maxHeight: '487px',
           maxWidth: '95vw',
           paddingBottom: '40px',
