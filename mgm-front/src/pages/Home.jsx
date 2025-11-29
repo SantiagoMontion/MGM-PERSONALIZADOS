@@ -1460,20 +1460,26 @@ export default function Home() {
     if (viewportWidth <= 640) {
       setConfigPanelStyle((prev) => {
         const next = {
-          position: 'fixed',
-          top: '164px',
-          left: '13px',
+          position: 'absolute',
+          top: `${(triggerEl?.offsetHeight || 0) + GAP}px`,
+          left: '50%',
+          right: 'auto',
+          width: '95vw',
           maxHeight: '487px',
           maxWidth: '95vw',
           paddingBottom: '40px',
+          transform: 'translateX(-50%)',
         };
 
         if (
           prev.position === next.position
           && prev.top === next.top
           && prev.left === next.left
+          && prev.right === next.right
+          && prev.width === next.width
           && prev.maxHeight === next.maxHeight
           && prev.maxWidth === next.maxWidth
+          && prev.transform === next.transform
         ) {
           return prev;
         }
