@@ -927,10 +927,10 @@
   .configPanel {
     position: fixed;
     top: 164px;
-    left: 13px;
-    width: 95vw;
-    min-width: 95vw;
-    max-width: 95vw;
+    left: -14px;
+    width: 90vw;
+    min-width: 90vw;
+    max-width: 90vw;
     max-height: 487px;
   }
 
