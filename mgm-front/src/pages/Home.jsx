@@ -38,6 +38,7 @@ import { ensureMockupUrlInFlow } from './Mockup.jsx';
 import { quickHateSymbolCheck } from '@/lib/moderation.ts';
 import { scanNudityClient } from '@/lib/moderation/nsfw.client.js';
 import { useFlow } from '@/state/flow.js';
+import { isTouchDevice } from '@/lib/device.ts';
 import { getMaxImageMb, bytesToMB, formatHeavyImageToastMessage } from '@/lib/imageLimits.js';
 import { MAX_IMAGE_MB as MAX_IMAGE_MB_BASE } from '../lib/imageSizeLimit.js';
 
@@ -470,6 +471,7 @@ export default function Home() {
   const [ackLowError, setAckLowError] = useState(false);
   const ackCheckboxRef = useRef(null);
   const ackLowErrorDescriptionId = useId();
+  const isMobileDevice = useMemo(() => isTouchDevice(), []);
   const [err, setErr] = useState('');
   const [moderationNotice, setModerationNotice] = useState('');
   const [busy, setBusy] = useState(false);
@@ -994,7 +996,19 @@ export default function Home() {
         }
       } catch (moderationErr) {
         error('moderate-image failed', moderationErr);
-        setErr('No se pudo validar la imagen. Intentá nuevamente.');
+        const baseModerationError = 'No se pudo validar la imagen. Intentá nuevamente.';
+        if (isMobileDevice) {
+          const detail = asStr(
+            moderationErr?.message
+            || moderationErr?.status
+            || moderationErr?.reason
+            || moderationErr,
+          );
+          const detailSuffix = detail ? ` [mobile-debug:${detail}]` : '';
+          setErr(`${baseModerationError}${detailSuffix}`);
+        } else {
+          setErr(baseModerationError);
+        }
         return;
       }
       if (!moderationResponse?.ok) {
