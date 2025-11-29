@@ -1771,18 +1771,6 @@ export default function Home() {
   }, [configOpen]);
 
   useEffect(() => {
-    if (!configOpen) return undefined;
-    if (!hasImage) return undefined;
-    if (typeof window === 'undefined') return undefined;
-
-    const frame = window.requestAnimationFrame(() => {
-      designNameInputRef.current?.focus?.();
-    });
-
-    return () => window.cancelAnimationFrame(frame);
-  }, [configOpen, hasImage]);
-
-  useEffect(() => {
     if (configOpen) {
       wasConfigOpenRef.current = true;
       return;
