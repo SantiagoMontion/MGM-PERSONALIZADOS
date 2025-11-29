@@ -1458,6 +1458,10 @@ export default function Home() {
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
     if (viewportWidth <= 640) {
+      const triggerRect = triggerEl.getBoundingClientRect();
+      const scrollX = window.scrollX || window.pageXOffset || 0;
+      const scrollY = window.scrollY || window.pageYOffset || 0;
+
       setConfigPanelStyle((prev) => {
         const next = {
           position: 'absolute',
