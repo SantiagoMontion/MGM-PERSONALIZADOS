@@ -790,18 +790,18 @@
 @media (max-width: 768px) {
   .colorPopoverWrap {
     position: fixed;
-    inset-block-end: 96px;
-    inset-inline-start: 50%;
-    transform: translateX(-50%);
+    inset-block-end: 16px;
+    inset-inline-start: 10px;
+    transform: none;
     margin: 0;
   }
 
   .colorPickerWrapper {
-    --picker-scale: 0.85;
+    --picker-scale: 0.55;
   }
 
   .colorPopover {
-    width: 200px;
+    width: 150px;
   }
 }
 
