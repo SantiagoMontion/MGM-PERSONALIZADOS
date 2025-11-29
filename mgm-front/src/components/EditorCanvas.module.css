@@ -572,7 +572,7 @@
 .mobileCanvasControls {
   position: absolute;
   right: 12px;
-  bottom: clamp(14px, 4.5vh, 40px);
+  bottom: clamp(6px, 2.2vh, 20px);
   display: flex;
   flex-direction: row;
   gap: 8px;
