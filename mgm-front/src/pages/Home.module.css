@@ -935,7 +935,7 @@
   }
 
   .canvasPriceWrapper {
-    top: 24px;
+    top: clamp(44px, 11vh, 72px);
     left: 50%;
     transform: translate(-50%, 0);
     justify-content: center;
