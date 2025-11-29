@@ -1,4 +1,4 @@
-import { error } from '@/lib/log';
+import { error, warn } from '@/lib/log';
 /* eslint-disable */
 import {
   useEffect,
@@ -1548,14 +1548,56 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     if (material === "Glasspad") {
       uploadCanvas = renderGlasspadPNG(baseCanvas);
     }
-    const blob = await new Promise((resolve) =>
-      uploadCanvas.toBlob((b) => resolve(b), "image/png", 1)
-    );
-    const outBitmap = await new Promise((resolve) => {
-      const i = new Image();
-      i.onload = () => resolve({ width: i.width, height: i.height });
-      i.src = URL.createObjectURL(blob);
+
+    const validateBlob = async (candidate) => {
+      if (!candidate) return false;
+      const objectUrl = URL.createObjectURL(candidate);
+      try {
+        await new Promise((resolve, reject) => {
+          const probe = new Image();
+          probe.onload = () => resolve(true);
+          probe.onerror = () => reject(new Error("decode_failed"));
+          probe.src = objectUrl;
+        });
+        return true;
+      } catch (err) {
+        warn('[exportPadAsBlob] decode check failed', err);
+        return false;
+      } finally {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+
+    const toPngBlob = async () => new Promise((resolve) => {
+      try {
+        uploadCanvas.toBlob((b) => resolve(b), "image/png", 1);
+      } catch (err) {
+        warn('[exportPadAsBlob] toBlob threw', err);
+        resolve(null);
+      }
     });
+
+    let blob = await toPngBlob();
+    let blobValid = await validateBlob(blob);
+
+    if (!blobValid) {
+      try {
+        const fallbackDataUrl = uploadCanvas.toDataURL("image/png", 1);
+        const fallbackBlob = await fetch(fallbackDataUrl).then((r) => r.blob());
+        const fallbackValid = await validateBlob(fallbackBlob);
+        if (fallbackValid) {
+          blob = fallbackBlob;
+          blobValid = true;
+        }
+      } catch (err) {
+        warn('[exportPadAsBlob] fallback dataURL failed', err);
+      }
+    }
+
+    if (!blobValid) {
+      throw new Error('No se pudo generar la imagen para validar.');
+    }
+
     return blob;
   };
 
