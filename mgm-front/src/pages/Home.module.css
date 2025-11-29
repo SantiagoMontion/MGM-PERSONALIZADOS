@@ -935,19 +935,23 @@
   }
 
   .canvasPriceWrapper {
-    top: 65%;
-    left: 58vw;
-    
+    top: clamp(44px, 11vh, 72px);
+    left: 50%;
+    transform: translate(-50%, 0);
+    justify-content: center;
+    text-align: center;
+
   }
 
   .canvasPriceTag{
-    align-items: start;
+    align-items: center;
+    justify-content: center;
     flex-direction: row;
     display: flex;
-    align-items: center;
     flex-wrap: nowrap;
     align-content: center;
     gap: 5px;
+    text-align: center;
   }
 
 .canvasPriceSummary{display: flex;flex-wrap: nowrap; width: 180px;}
