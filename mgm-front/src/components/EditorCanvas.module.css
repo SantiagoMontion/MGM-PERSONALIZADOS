@@ -551,9 +551,10 @@
   right: 12px;
   bottom: 12px;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 8px;
-  z-index: 40;
+  align-items: center;
+  z-index: 5;
 }
 
 .mobileCanvasControls button {
