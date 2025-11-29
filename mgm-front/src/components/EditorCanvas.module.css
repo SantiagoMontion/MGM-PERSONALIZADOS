@@ -545,6 +545,15 @@
     touch-action: pan-y pinch-zoom !important;
   }
 
+  /* En móvil deshabilitamos eventos directos sobre los canvas de Konva para
+     que el scroll vertical pase al documento aunque la interacción táctil
+     comience sobre el lienzo. */
+  .canvasWrapper :global(.konvajs-content),
+  .canvasWrapper canvas {
+    pointer-events: none !important;
+    touch-action: pan-y pinch-zoom !important;
+  }
+
   .touchScrollOverlay {
     display: block;
   }
@@ -554,7 +563,7 @@
   display: none;
   position: absolute;
   inset: 0;
-  z-index: 10;
+  z-index: 200;
   background: transparent;
   touch-action: pan-y pinch-zoom;
   pointer-events: auto;
