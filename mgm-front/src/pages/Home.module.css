@@ -937,7 +937,7 @@
   .canvasPriceWrapper {
     top: clamp(44px, 11vh, 72px);
     left: 50%;
-    transform: translate(-34%, 0);
+    transform: translate(-50%, 0);
     justify-content: center;
     text-align: center;
 
@@ -946,15 +946,14 @@
   .canvasPriceTag{
     align-items: center;
     justify-content: center;
-    flex-direction: row;
+    flex-direction: column;
     display: flex;
-    flex-wrap: nowrap;
-    align-content: center;
-    gap: 5px;
+    gap: 6px;
     text-align: center;
   }
 
-.canvasPriceSummary{display: flex;flex-wrap: nowrap; width: 180px;}
+
+.canvasPriceSummary{display: flex;flex-wrap: nowrap; width: auto;}
 
 .canvasPriceLine{display: flex;flex-wrap: nowrap; width: 100%; align-items: end;}
 
@@ -966,13 +965,14 @@
     display: flex;
     flex-wrap: nowrap;
     width: 100%;
-    gap: 0;
+    gap: 8px;
     margin-top: 0px;
-    align-items: center;
+    align-items: baseline;
+    justify-content: center;
   }
-  
 
-  .canvasPriceLabel{font-size: 11px; width: 150px;padding-left: 5px;}
+
+  .canvasPriceLabel{font-size: 13px; width: auto;padding-left: 0;}
 
   .canvasPriceAmount{font-size: 14px;}
 
