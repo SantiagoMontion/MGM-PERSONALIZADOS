@@ -1571,53 +1571,101 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       uploadCanvas = renderGlasspadPNG(baseCanvas);
     }
 
-    const validateBlob = async (candidate) => {
-      if (!candidate) return false;
+    const decodeBlob = async (candidate) => {
+      if (!candidate) return { ok: false };
       const objectUrl = URL.createObjectURL(candidate);
       try {
-        await new Promise((resolve, reject) => {
+        const { ok, width, height } = await new Promise((resolve, reject) => {
           const probe = new Image();
-          probe.onload = () => resolve(true);
+          probe.onload = () => {
+            resolve({
+              ok: true,
+              width: probe.naturalWidth || probe.width || 0,
+              height: probe.naturalHeight || probe.height || 0,
+            });
+          };
           probe.onerror = () => reject(new Error("decode_failed"));
           probe.src = objectUrl;
         });
-        return true;
+        return { ok, width, height };
       } catch (err) {
         warn('[exportPadAsBlob] decode check failed', err);
-        return false;
+        return { ok: false };
       } finally {
         URL.revokeObjectURL(objectUrl);
       }
     };
 
-    const toPngBlob = async () => new Promise((resolve) => {
-      try {
-        uploadCanvas.toBlob((b) => resolve(b), "image/png", 1);
-      } catch (err) {
-        warn('[exportPadAsBlob] toBlob threw', err);
-        resolve(null);
-      }
-    });
-
-    let blob = await toPngBlob();
-    let blobValid = await validateBlob(blob);
-
-    if (!blobValid) {
-      try {
-        const fallbackDataUrl = uploadCanvas.toDataURL("image/png", 1);
-        const fallbackBlob = await fetch(fallbackDataUrl).then((r) => r.blob());
-        const fallbackValid = await validateBlob(fallbackBlob);
-        if (fallbackValid) {
-          blob = fallbackBlob;
-          blobValid = true;
+    const encodeCanvasAsPng = async (canvas) => {
+      const toPngBlob = async () => new Promise((resolve) => {
+        try {
+          canvas.toBlob((b) => resolve(b), "image/png", 1);
+        } catch (err) {
+          warn('[exportPadAsBlob] toBlob threw', err);
+          resolve(null);
         }
-      } catch (err) {
-        warn('[exportPadAsBlob] fallback dataURL failed', err);
+      });
+
+      let blob = await toPngBlob();
+      let info = await decodeBlob(blob);
+
+      if (!info.ok) {
+        try {
+          const fallbackDataUrl = canvas.toDataURL("image/png", 1);
+          const fallbackBlob = await fetch(fallbackDataUrl).then((r) => r.blob());
+          const fallbackInfo = await decodeBlob(fallbackBlob);
+          if (fallbackInfo.ok) {
+            blob = fallbackBlob;
+            info = fallbackInfo;
+          }
+        } catch (err) {
+          warn('[exportPadAsBlob] fallback dataURL failed', err);
+        }
       }
+
+      return { blob, info };
+    };
+
+    let { blob, info } = await encodeCanvasAsPng(uploadCanvas);
+
+    if (!info?.ok) {
+      throw new Error('No se pudo generar la imagen para validar.');
     }
 
-    if (!blobValid) {
-      throw new Error('No se pudo generar la imagen para validar.');
+    if (isTouch && blob) {
+      try {
+        const reloadFromBlob = async () => new Promise((resolve, reject) => {
+          const objectUrl = URL.createObjectURL(blob);
+          const img = new Image();
+          img.onload = () => {
+            const width = img.naturalWidth || img.width || 0;
+            const height = img.naturalHeight || img.height || 0;
+            URL.revokeObjectURL(objectUrl);
+            resolve({ img, width, height });
+          };
+          img.onerror = (err) => {
+            URL.revokeObjectURL(objectUrl);
+            reject(err || new Error('decode_failed'));
+          };
+          img.src = objectUrl;
+        });
+
+        const { img, width, height } = await reloadFromBlob();
+        if (width && height) {
+          const cleanCanvas = document.createElement('canvas');
+          cleanCanvas.width = width;
+          cleanCanvas.height = height;
+          const cleanCtx = cleanCanvas.getContext('2d');
+          cleanCtx.drawImage(img, 0, 0, width, height);
+          const reencoded = await encodeCanvasAsPng(cleanCanvas);
+          if (reencoded.info?.ok && reencoded.blob) {
+            blob = reencoded.blob;
+            info = reencoded.info;
+          }
+        }
+      } catch (err) {
+        warn('[exportPadAsBlob] mobile re-encode failed', err);
+      }
     }
 
     return blob;
