@@ -840,7 +840,7 @@ const SHOULD_LOG_COMMERCE = (() => {
 const BENEFITS = [
   {
     icon: '',
-    title: 'ðŸŽ Regalos sorpresa en cada pedido',
+    title: '🎁 Regalos sorpresa en cada pedido',
     description: 'Cada compra merece un mimo extra <3',
   },
   {
@@ -850,7 +850,7 @@ const BENEFITS = [
   },
   {
     icon: '',
-    title: 'ðŸŽ¨ Un mousepad que se adapta perfecto a tu setup',
+    title: '🎨 Un mousepad que se adapta perfecto a tu setup',
     description: 'Material, diseño y medida elegidos por vos.',
   },
 ];
