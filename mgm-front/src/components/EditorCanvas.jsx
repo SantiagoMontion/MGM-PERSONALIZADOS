@@ -828,29 +828,11 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   useEffect(() => {
     const node = glassOverlayRef.current;
     if (!node) return;
-    if (!hasGlassOverlay) {
-      node.clearCache();
-      node.filters([]);
-      node.getLayer()?.batchDraw();
-      return;
-    }
-    const pixelRatio = Math.max(1, 2 * baseScale * viewScale);
-    node.cache({ pixelRatio });
-    node.filters([Konva.Filters.Blur]);
-    node.blurRadius(1);
+    node.clearCache();
+    node.filters([]);
+    node.blurRadius(0);
     node.getLayer()?.batchDraw();
-  }, [
-    hasGlassOverlay,
-    baseScale,
-    viewScale,
-    imgTx.x_cm,
-    imgTx.y_cm,
-    imgTx.rotation_deg,
-    imgTx.scaleX,
-    imgTx.scaleY,
-    imgTx.flipX,
-    imgTx.flipY,
-  ]);
+  }, [hasGlassOverlay]);
 
   const theta = (imgTx.rotation_deg * Math.PI) / 180;
   const rotAABBHalf = (w, h, ang) => ({
