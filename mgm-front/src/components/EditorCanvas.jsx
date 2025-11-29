@@ -306,6 +306,16 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     const H = workCm.h * baseScale;
     return { x: (wrapSize.w - W) / 2, y: (wrapSize.h - H) / 2 };
   });
+  const viewScaleRef = useRef(viewScale);
+  const viewPosRef = useRef(viewPos);
+
+  useEffect(() => {
+    viewScaleRef.current = viewScale;
+  }, [viewScale]);
+
+  useEffect(() => {
+    viewPosRef.current = viewPos;
+  }, [viewPos]);
 
   // pan
   const isPanningRef = useRef(false);
@@ -383,9 +393,9 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   };
 
   const clearSelection = useCallback(() => {
-    setShowTransformer(true);
-    if (trRef.current && imgRef.current) {
-      trRef.current.nodes([imgRef.current]);
+    setShowTransformer(false);
+    if (trRef.current) {
+      trRef.current.nodes([]);
       trRef.current.getLayer()?.batchDraw();
     }
   }, []);
@@ -467,23 +477,32 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     if (shiftKey) {
       const step = (deltaY / 2) | 0;
       hasAdjustedViewRef.current = true;
-      setViewPos((p) => ({ ...p, x: p.x - step }));
+      setViewPos((p) => {
+        const next = { ...p, x: p.x - step };
+        viewPosRef.current = next;
+        return next;
+      });
       return;
     }
     const stage = e.target.getStage();
     const pt = stage.getPointerPosition();
+    if (!pt) return;
     const scaleBy = 1.08;
-    const old = viewScale;
-    const next = deltaY > 0 ? old / scaleBy : old * scaleBy;
-    const clamped = Math.max(VIEW_ZOOM_MIN, Math.min(next, VIEW_ZOOM_MAX));
-    const worldX = (pt.x - viewPos.x) / (baseScale * old);
-    const worldY = (pt.y - viewPos.y) / (baseScale * old);
+    const oldScale = viewScaleRef.current;
+    const nextScale = deltaY > 0 ? oldScale / scaleBy : oldScale * scaleBy;
+    const clamped = Math.max(VIEW_ZOOM_MIN, Math.min(nextScale, VIEW_ZOOM_MAX));
+    const prevPos = viewPosRef.current;
+    const worldXPrev = (pt.x - prevPos.x) / (baseScale * oldScale);
+    const worldYPrev = (pt.y - prevPos.y) / (baseScale * oldScale);
+    const nextPos = {
+      x: pt.x - worldXPrev * (baseScale * clamped),
+      y: pt.y - worldYPrev * (baseScale * clamped),
+    };
     hasAdjustedViewRef.current = true;
+    viewScaleRef.current = clamped;
+    viewPosRef.current = nextPos;
     setViewScale(clamped);
-    setViewPos({
-      x: pt.x - worldX * (baseScale * clamped),
-      y: pt.y - worldY * (baseScale * clamped),
-    });
+    setViewPos(nextPos);
   };
 
   const clampViewScale = useCallback(
@@ -531,17 +550,20 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     const viewportCenterX = rect.width / 2;
     const viewportCenterY = rect.height / 2;
 
-    const scale = stage.scaleX() || baseScale * viewScale;
+    const scale = stage.scaleX() || baseScale * viewScaleRef.current;
     const canvasCenterX = workCm.w / 2;
     const canvasCenterY = workCm.h / 2;
 
-    const newStageX = viewportCenterX - canvasCenterX * scale;
-    const newStageY = viewportCenterY - canvasCenterY * scale;
+    const nextPos = {
+      x: viewportCenterX - canvasCenterX * scale,
+      y: viewportCenterY - canvasCenterY * scale,
+    };
 
-    stage.position({ x: newStageX, y: newStageY });
+    stage.position(nextPos);
     stage.batchDraw();
-    setViewPos({ x: newStageX, y: newStageY });
-  }, [baseScale, viewScale, workCm.h, workCm.w]);
+    viewPosRef.current = nextPos;
+    setViewPos(nextPos);
+  }, [baseScale, workCm.h, workCm.w]);
 
   useEffect(() => {
     if (!stageRef.current) return;
