@@ -935,9 +935,11 @@
   }
 
   .canvasPriceWrapper {
-    top: 65%;
-    left: 58vw;
-    
+    top: 24px;
+    left: 50%;
+    transform: translate(-50%, 0);
+    justify-content: center;
+
   }
 
   .canvasPriceTag{
