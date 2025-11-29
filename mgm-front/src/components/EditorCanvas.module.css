@@ -782,9 +782,27 @@
 /* Sacamos el popover del flujo para que NO empuje el ancho del toolbar */
 .colorPopoverWrap {
   position: absolute;
-  inset-block-end: calc(100% + 4px);   /* bottom */
+  inset-block-end: calc(100% + 2px);   /* bottom */
   inset-inline-start: 0;               /* left */
   z-index: 1000;
+}
+
+@media (max-width: 768px) {
+  .colorPopoverWrap {
+    position: fixed;
+    inset-block-end: 96px;
+    inset-inline-start: 50%;
+    transform: translateX(-50%);
+    margin: 0;
+  }
+
+  .colorPickerWrapper {
+    --picker-scale: 0.85;
+  }
+
+  .colorPopover {
+    width: 200px;
+  }
 }
 
 /* El badge de calidad no rompe línea (si querés que no se corte) */
