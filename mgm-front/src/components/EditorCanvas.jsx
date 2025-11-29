@@ -486,23 +486,23 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     }
     const stage = e.target.getStage();
     const pt = stage.getPointerPosition();
+    if (!pt) return;
     const scaleBy = 1.08;
-    const old = viewScaleRef.current;
-    const next = deltaY > 0 ? old / scaleBy : old * scaleBy;
-    const clamped = Math.max(VIEW_ZOOM_MIN, Math.min(next, VIEW_ZOOM_MAX));
+    const oldScale = viewScaleRef.current;
+    const nextScale = deltaY > 0 ? oldScale / scaleBy : oldScale * scaleBy;
+    const clamped = Math.max(VIEW_ZOOM_MIN, Math.min(nextScale, VIEW_ZOOM_MAX));
+    const prevPos = viewPosRef.current;
+    const worldXPrev = (pt.x - prevPos.x) / (baseScale * oldScale);
+    const worldYPrev = (pt.y - prevPos.y) / (baseScale * oldScale);
+    const nextPos = {
+      x: pt.x - worldXPrev * (baseScale * clamped),
+      y: pt.y - worldYPrev * (baseScale * clamped),
+    };
     hasAdjustedViewRef.current = true;
-    setViewScale(clamped);
     viewScaleRef.current = clamped;
-    setViewPos((prevPos) => {
-      const worldXPrev = (pt.x - prevPos.x) / (baseScale * old);
-      const worldYPrev = (pt.y - prevPos.y) / (baseScale * old);
-      const nextPos = {
-        x: pt.x - worldXPrev * (baseScale * clamped),
-        y: pt.y - worldYPrev * (baseScale * clamped),
-      };
-      viewPosRef.current = nextPos;
-      return nextPos;
-    });
+    viewPosRef.current = nextPos;
+    setViewScale(clamped);
+    setViewPos(nextPos);
   };
 
   const clampViewScale = useCallback(
