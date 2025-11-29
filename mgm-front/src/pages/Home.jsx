@@ -1465,8 +1465,9 @@ export default function Home() {
       setConfigPanelStyle((prev) => {
         const next = {
           position: 'absolute',
-          top: `${triggerRect.bottom + GAP + scrollY}px`,
-          left: `${triggerRect.left + scrollX}px`,
+          top: `${(triggerEl?.offsetHeight || 0) + GAP}px`,
+          left: 0,
+          right: 0,
           maxHeight: '487px',
           maxWidth: '95vw',
           paddingBottom: '40px',
