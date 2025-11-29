@@ -1466,20 +1466,25 @@ export default function Home() {
         const next = {
           position: 'absolute',
           top: `${(triggerEl?.offsetHeight || 0) + GAP}px`,
-          left: 0,
-          right: 0,
+          left: '50%',
+          right: 'auto',
+          width: '95vw',
           maxHeight: '487px',
           maxWidth: '95vw',
           width: '95vw',
           paddingBottom: '40px',
+          transform: 'translateX(-50%)',
         };
 
         if (
           prev.position === next.position
           && prev.top === next.top
           && prev.left === next.left
+          && prev.right === next.right
+          && prev.width === next.width
           && prev.maxHeight === next.maxHeight
           && prev.maxWidth === next.maxWidth
+          && prev.transform === next.transform
         ) {
           return prev;
         }
