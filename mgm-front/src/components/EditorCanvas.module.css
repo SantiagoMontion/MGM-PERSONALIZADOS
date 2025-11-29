@@ -790,7 +790,7 @@
 @media (max-width: 768px) {
   .colorPopoverWrap {
     position: fixed;
-    inset-block-end: 6px;
+    inset-block-end: 18px;
     inset-inline-start: 10px;
     transform: none;
     margin: 0;
