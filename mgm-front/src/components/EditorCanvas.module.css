@@ -540,6 +540,26 @@
 
 }
 
+@media (pointer: coarse) {
+  .canvasWrapper {
+    touch-action: pan-y pinch-zoom !important;
+  }
+
+  .touchScrollOverlay {
+    display: block;
+  }
+}
+
+.touchScrollOverlay {
+  display: none;
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  background: transparent;
+  touch-action: pan-y pinch-zoom;
+  pointer-events: auto;
+}
+
 .mobileCanvasControls {
   position: absolute;
   right: 12px;
