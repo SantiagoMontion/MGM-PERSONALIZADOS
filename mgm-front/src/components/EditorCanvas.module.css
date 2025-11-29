@@ -449,10 +449,8 @@
 @media (max-width: 768px) {
   .overlayBottomCenter {
     align-items: stretch;
+    bottom: -80px !important;
     left: 50%;
-
-    /* Entre -115px (pantallas bajas) y -80px (pantallas altas) */
-    bottom: clamp(-115px, calc(6vh - 166px), -80px);
   }
 
   .toolbarScroller {
@@ -564,6 +562,7 @@
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
 }
 
 .canvasWrapperInactive {
