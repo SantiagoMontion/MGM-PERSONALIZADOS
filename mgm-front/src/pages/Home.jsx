@@ -1466,10 +1466,12 @@ export default function Home() {
         const next = {
           position: 'absolute',
           top: `${(triggerEl?.offsetHeight || 0) + GAP}px`,
-          left: 0,
+          left: '-14px',
           right: 0,
           maxHeight: '487px',
-          maxWidth: '95vw',
+          maxWidth: '90vw',
+          width: '90vw',
+          minWidth: '90vw',
           paddingBottom: '40px',
         };
 
