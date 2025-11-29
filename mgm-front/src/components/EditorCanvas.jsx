@@ -2252,13 +2252,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               <button type="button" onClick={handleZoomIn} aria-label="Acercar">
                 +
               </button>
-              <button
-                type="button"
-                onClick={handleCenterCanvas}
-                aria-label="Centrar lienzo"
-              >
-                ⤢
-              </button>
             </div>
           )}
         </div>

@@ -1457,6 +1457,30 @@ export default function Home() {
 
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
+    if (viewportWidth <= 640) {
+      setConfigPanelStyle((prev) => {
+        const next = {
+          position: 'fixed',
+          top: '164px',
+          left: '13px',
+          maxHeight: '487px',
+          maxWidth: '95vw',
+        };
+
+        if (
+          prev.position === next.position
+          && prev.top === next.top
+          && prev.left === next.left
+          && prev.maxHeight === next.maxHeight
+          && prev.maxWidth === next.maxWidth
+        ) {
+          return prev;
+        }
+
+        return next;
+      });
+      return;
+    }
     const triggerRect = triggerEl.getBoundingClientRect();
     const panelRect = panelEl.getBoundingClientRect();
 
