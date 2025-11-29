@@ -790,7 +790,7 @@
 @media (max-width: 768px) {
   .colorPopoverWrap {
     position: fixed;
-    inset-block-end: 18px;
+    inset-block-end: 38px;
     inset-inline-start: 10px;
     transform: none;
     margin: 0;
@@ -798,13 +798,17 @@
 
   .colorPickerWrapper {
     --picker-scale: 0.52;
-    height: 290px;
-    min-height: 290px;
+    width: auto;
+    min-width: 0;
+    height: auto;
+    min-height: 0;
+    pointer-events: none;
   }
 
   .colorPopover {
     width: 150px;
     padding: 12px;
+    pointer-events: auto;
   }
 
   .colorPicker :global(.react-colorful__saturation) {
