@@ -997,14 +997,27 @@ export default function Home() {
       } catch (moderationErr) {
         error('moderate-image failed', moderationErr);
         const baseModerationError = 'No se pudo validar la imagen. Intentá nuevamente.';
-        if (isMobileDevice) {
-          const detail = asStr(
-            moderationErr?.message
-            || moderationErr?.status
-            || moderationErr?.reason
-            || moderationErr,
-          );
-          const detailSuffix = detail ? ` [mobile-debug:${detail}]` : '';
+        const detailCandidates = [
+          moderationErr?.json?.error,
+          moderationErr?.json?.message,
+          moderationErr?.json?.reason,
+          moderationErr?.message,
+          moderationErr?.bodyText,
+          moderationErr?.status,
+          moderationErr?.reason,
+          moderationErr,
+        ];
+        let detail = '';
+        for (const candidate of detailCandidates) {
+          const candidateStr = asStr(candidate).trim();
+          if (candidateStr) {
+            detail = candidateStr;
+            break;
+          }
+        }
+
+        if (isMobileDevice && detail) {
+          const detailSuffix = ` [mobile-debug:${detail}]`;
           setErr(`${baseModerationError}${detailSuffix}`);
         } else {
           setErr(baseModerationError);
