@@ -928,8 +928,8 @@
     position: fixed;
     top: 164px;
     left: 13px;
-    width: 100%;
-    min-width: 0;
+    width: 95vw;
+    min-width: 95vw;
     max-width: 95vw;
     max-height: 487px;
   }

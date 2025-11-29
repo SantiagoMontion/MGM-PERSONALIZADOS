@@ -1470,6 +1470,7 @@ export default function Home() {
           right: 0,
           maxHeight: '487px',
           maxWidth: '95vw',
+          width: '95vw',
           paddingBottom: '40px',
         };
 
