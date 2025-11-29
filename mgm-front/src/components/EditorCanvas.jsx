@@ -1649,6 +1649,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     undo,
     redo,
     getHistoryCounts: () => ({ ...historyCounts }),
+    centerCanvas: handleCenterCanvas,
   }));
 
   // popover color
