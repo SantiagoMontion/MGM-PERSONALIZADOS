@@ -542,7 +542,7 @@
 
 @media (pointer: coarse) {
   .canvasWrapper {
-    touch-action: pan-y pinch-zoom;
+    touch-action: pan-y pinch-zoom !important;
   }
 }
 
