@@ -10,14 +10,26 @@ export function pdfKeyToPreviewKey(pdfKey) {
 }
 
 export function normalizePreviewUrl(urlOrKey, supaUrl) {
-  if (!urlOrKey) return null;
+  if (!urlOrKey || !supaUrl) return null;
+
+  const bucket = (import.meta.env?.VITE_PREVIEW_STORAGE_BUCKET || 'preview')
+    .replace(/^\/+|\/+$/g, '');
+  const base = supaUrl.replace(/\/+$/, '');
+
   let key = urlOrKey
     .replace(/^https?:\/\/[^/]+\/storage\/v1\/object\/public\//, '')
-    .replace(/^outputs\/mockups-/i, 'preview/mockups-');
-  if (!/^preview\/mockups-\d{4}-\d{2}\//i.test(key)) return null;
-  if (!supaUrl) return null;
-  const base = supaUrl.replace(/\/+$/, '');
-  return `${base}/storage/v1/object/public/${key}`;
+    .replace(/^outputs\/mockups-/i, `${bucket}/mockups-`)
+    .replace(/^preview\//i, '')
+    .replace(/^mockups\//i, '')
+    .replace(new RegExp(`^${bucket}/`, 'i'), '');
+
+  const previewPath = key.startsWith('preview/mockups-')
+    ? key.replace(/^preview\//i, '')
+    : key;
+
+  if (!/^mockups-\d{4}-\d{2}\//i.test(previewPath)) return null;
+
+  return `${base}/storage/v1/object/public/${bucket}/${previewPath}`;
 }
 
 export async function headOk(url) {
