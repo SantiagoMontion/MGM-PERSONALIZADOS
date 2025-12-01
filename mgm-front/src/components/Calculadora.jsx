@@ -87,7 +87,8 @@ const Calculadora = ({ width, height, material, setPrice, className, render }) =
 
     const clientFinalPrice = Math.round(basePriceRounded * 1.25);
     const transferBase = Math.round(clientFinalPrice * 0.8);
-    const transferWithExtra = transferBase + STANDARD_SURCHARGE;
+    const surcharge = STANDARD_SURCHARGE + (mode === "Clasic" ? STANDARD_SURCHARGE : 0);
+    const transferWithExtra = transferBase + surcharge;
     const normalFromTransfer = Math.round(transferWithExtra / 0.8);
 
     return { valid: true, transfer: transferWithExtra, normal: normalFromTransfer };
