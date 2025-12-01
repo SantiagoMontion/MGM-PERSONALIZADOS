@@ -16,9 +16,9 @@ function formatARS(n) {
 // Mapea materiales del UI a los keys internos de la calculadora
 function mapMode(material) {
   if (!material) return "";
-  const m = String(material).toLowerCase();
+  const m = String(material).trim().toLowerCase();
   if (m === "pro") return "Pro";
-  if (m === "classic") return "Clasic";
+  if (m === "classic" || m === "clasic") return "Clasic";
   if (m === "glasspad") return "Glasspad";
   if (m.includes("alfombr")) return "Alfombra";
   return material; // fallback
