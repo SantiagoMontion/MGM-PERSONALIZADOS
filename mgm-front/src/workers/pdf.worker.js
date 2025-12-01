@@ -116,6 +116,7 @@ self.onmessage = async (event) => {
 
     const qualities = [0.92, 0.85];
     for (const quality of qualities) {
+    try {
       const jpegBytes = await blobToJpegBytes(buffer, mime, quality);
       const jpegDoc = await PDFDocument.create();
       const jpegImage = await jpegDoc.embedJpg(jpegBytes);
@@ -134,12 +135,16 @@ self.onmessage = async (event) => {
         self.postMessage({ ok: true, type: 'build_pdf', buffer: out }, [out]);
         return;
       }
+    } catch (jpegErr) {
+      console.warn?.('[pdf.worker] jpeg_fallback_failed', jpegErr);
+      break;
     }
+  }
 
-    const out = pdfBytes.byteOffset === 0 && pdfBytes.byteLength === pdfBytes.buffer.byteLength
-      ? pdfBytes.buffer
-      : pdfBytes.buffer.slice(pdfBytes.byteOffset, pdfBytes.byteOffset + pdfBytes.byteLength);
-    self.postMessage({ ok: true, type: 'build_pdf', buffer: out }, [out]);
+  const out = pdfBytes.byteOffset === 0 && pdfBytes.byteLength === pdfBytes.buffer.byteLength
+    ? pdfBytes.buffer
+    : pdfBytes.buffer.slice(pdfBytes.byteOffset, pdfBytes.byteOffset + pdfBytes.byteLength);
+  self.postMessage({ ok: true, type: 'build_pdf', buffer: out }, [out]);
   } catch (err) {
     self.postMessage({ ok: false, type: 'build_pdf', error: String(err && err.message ? err.message : err) });
   }
