@@ -110,8 +110,13 @@ export async function buildPdfFromMaster(masterBlob, options = {}) {
   async function blobToJpegBytes(blob, quality) {
     const createBitmap = async () => {
       if (typeof createImageBitmap === 'function') {
-        return createImageBitmap(blob);
+        try {
+          return await createImageBitmap(blob);
+        } catch (createBitmapErr) {
+          console.warn?.('[buildPdf] createImageBitmap_failed', createBitmapErr);
+        }
       }
+
       const objectUrl = URL.createObjectURL(blob);
       try {
         return await new Promise((resolve, reject) => {
