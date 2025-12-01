@@ -6,7 +6,8 @@ const rolloData = {
   Alfombra: { width: 140, pricePerMeter: 30000, multiplier: 2.5, baselineArea: 0.36 },
 };
 
-const GLASSPAD_TRANSFER_PRICE = 120000; // con transferencia (fijo)
+const STANDARD_SURCHARGE = 2000;
+const GLASSPAD_TRANSFER_PRICE = 130000; // con transferencia (fijo)
 
 function formatARS(n) {
   return n.toLocaleString("es-AR", { maximumFractionDigits: 0, minimumFractionDigits: 0 });
@@ -85,9 +86,8 @@ const Calculadora = ({ width, height, material, setPrice, className, render }) =
     const basePriceRounded = roundTo500(baseFinalPrice + areaSurcharge);
 
     const clientFinalPrice = Math.round(basePriceRounded * 1.25);
-    const isClassic = mode === "Clasic";
     const transferBase = Math.round(clientFinalPrice * 0.8);
-    const transferWithExtra = isClassic ? transferBase + 2000 : transferBase;
+    const transferWithExtra = transferBase + STANDARD_SURCHARGE;
     const normalFromTransfer = Math.round(transferWithExtra / 0.8);
 
     return { valid: true, transfer: transferWithExtra, normal: normalFromTransfer };
