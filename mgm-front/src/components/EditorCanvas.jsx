@@ -215,7 +215,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const wCm = Number(sizeCm?.w ?? 90);
   const hCm = Number(sizeCm?.h ?? 40);
   const bleedCm = mmToCm(bleedMm);
-  const BASE_CORNER_RADIUS_CM = 1.5;
+  const BASE_CORNER_RADIUS_CM = 0;
   const workCm = useMemo(
     () => ({ w: wCm + 2 * bleedCm, h: hCm + 2 * bleedCm }),
     [wCm, hCm, bleedCm],
@@ -226,11 +226,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     [BASE_CORNER_RADIUS_CM, isCircular, wCm, hCm],
   );
   const workCornerRadiusCm = useMemo(
-    () =>
-      isCircular
-        ? Math.min(workCm.w, workCm.h) / 2
-        : BASE_CORNER_RADIUS_CM + bleedCm,
-    [BASE_CORNER_RADIUS_CM, bleedCm, isCircular, workCm.h, workCm.w],
+    () => (isCircular ? Math.min(workCm.w, workCm.h) / 2 : 0),
+    [isCircular, workCm.h, workCm.w],
   );
   const primarySafeRadiusCm = Math.max(0, cornerRadiusCm - PRIMARY_SAFE_MARGIN_CM);
   const secondarySafeRadiusCm = Math.max(0, cornerRadiusCm - SECONDARY_SAFE_MARGIN_CM);
