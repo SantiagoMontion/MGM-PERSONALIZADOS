@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import styles from './AdminAnalytics.module.css';
 
 const REFRESH_INTERVAL_MS = 60_000;
@@ -47,6 +47,17 @@ const sanitizedAnalyticsBase = rawAnalyticsBase.trim().replace(/\/+$/, '');
 const analyticsApiBase = /\/analytics$/i.test(sanitizedAnalyticsBase)
   ? sanitizedAnalyticsBase
   : `${sanitizedAnalyticsBase}/analytics`;
+const analyticsEndpointSets = Array.from(
+  new Set(
+    [analyticsApiBase, '/api/analytics']
+      .filter(Boolean)
+      .map((base) => base.replace(/\/+$/, '')),
+  ),
+).map((base) => ({
+  flows: `${base}/flows`,
+  funnel: `${base}/funnel`,
+  lastEvents: `${base}/last-events`,
+}));
 const adminToken = typeof import.meta.env.VITE_ADMIN_ANALYTICS_TOKEN === 'string'
   ? import.meta.env.VITE_ADMIN_ANALYTICS_TOKEN.trim()
   : '';
@@ -64,10 +75,6 @@ export default function AdminAnalyticsPage() {
   const [lastEventsError, setLastEventsError] = useState('');
   const [isLastEventsLoading, setIsLastEventsLoading] = useState(false);
 
-  const analyticsEndpoint = useMemo(() => `${analyticsApiBase}/flows`, [analyticsApiBase]);
-  const funnelEndpoint = useMemo(() => `${analyticsApiBase}/funnel`, [analyticsApiBase]);
-  const lastEventsEndpoint = useMemo(() => `${analyticsApiBase}/last-events`, [analyticsApiBase]);
-
   const buildWindowRange = useCallback(() => {
     const now = new Date();
     const toIso = now.toISOString();
@@ -82,39 +89,46 @@ export default function AdminAnalyticsPage() {
 
     setIsLoading(true);
     setError('');
+    let lastErrorMessage = 'analytics_failed';
 
     try {
       const fromIso = windowRange?.fromIso ?? '';
       const toIso = windowRange?.toIso ?? '';
-      const url = `${analyticsEndpoint}?from=${encodeURIComponent(fromIso)}&to=${encodeURIComponent(toIso)}`;
+      for (const endpoints of analyticsEndpointSets) {
+        try {
+          const url = `${endpoints.flows}?from=${encodeURIComponent(fromIso)}&to=${encodeURIComponent(toIso)}`;
+          const response = await fetch(url, {
+            headers: {
+              Accept: 'application/json',
+              'X-Admin-Token': adminToken,
+            },
+          });
 
-      const response = await fetch(url, {
-        headers: {
-          Accept: 'application/json',
-          'X-Admin-Token': adminToken,
-        },
-      });
+          const text = await response.text();
+          const json = text ? JSON.parse(text) : null;
 
-      const text = await response.text();
-      const json = text ? JSON.parse(text) : null;
+          if (response.status === 401) {
+            setError('Token inválido');
+            setMetrics(null);
+            return;
+          }
 
-      if (response.status === 401) {
-        setError('Token inválido');
-        setMetrics(null);
-        return;
+          if (response.ok && json?.ok) {
+            setMetrics(json);
+            setLastUpdated(new Date());
+            return;
+          }
+
+          lastErrorMessage = typeof json?.error === 'string' && json.error
+            ? json.error
+            : `analytics_failed_${response.status || 'status'}`;
+        } catch (err) {
+          lastErrorMessage = err instanceof Error ? err.message : 'analytics_failed';
+        }
       }
 
-      if (!response.ok || !json?.ok) {
-        const message = typeof json?.error === 'string' && json.error
-          ? json.error
-          : 'analytics_failed';
-        setError(message);
-        setMetrics(null);
-        return;
-      }
-
-      setMetrics(json);
-      setLastUpdated(new Date());
+      setError(lastErrorMessage);
+      setMetrics(null);
     } catch (err) {
       console.error('[admin-analytics] fetch_failed', err);
       setError('analytics_failed');
@@ -122,7 +136,7 @@ export default function AdminAnalyticsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [adminToken, analyticsEndpoint]);
+  }, []);
 
   const fetchFunnel = useCallback(async (windowRange) => {
     if (!adminToken) {
@@ -131,46 +145,58 @@ export default function AdminAnalyticsPage() {
 
     setIsFunnelLoading(true);
     setFunnelError('');
+    let lastErrorMessage = 'No se pudo cargar el funnel. Intentá nuevamente.';
 
     try {
       const fromIso = windowRange?.fromIso ?? '';
       const toIso = windowRange?.toIso ?? '';
-      const url = `${funnelEndpoint}?from=${encodeURIComponent(fromIso)}&to=${encodeURIComponent(toIso)}`;
+      for (const endpoints of analyticsEndpointSets) {
+        try {
+          const url = `${endpoints.funnel}?from=${encodeURIComponent(fromIso)}&to=${encodeURIComponent(toIso)}`;
+          const response = await fetch(url, {
+            headers: {
+              Accept: 'application/json',
+              'X-Admin-Token': adminToken,
+            },
+          });
 
-      const response = await fetch(url, {
-        headers: {
-          Accept: 'application/json',
-          'X-Admin-Token': adminToken,
-        },
-      });
+          const text = await response.text();
+          const json = text ? JSON.parse(text) : null;
 
-      const text = await response.text();
-      const json = text ? JSON.parse(text) : null;
+          if (response.status === 401) {
+            setFunnelError('Token inválido');
+            setFunnel(null);
+            return;
+          }
 
-      if (response.status === 401) {
-        setFunnelError('Token inválido');
-        setFunnel(null);
-        return;
+          if (response.ok && json) {
+            setFunnel(json);
+            if (json.ok === false) {
+              setFunnelError('Sin datos / ventana vacía');
+            } else {
+              setFunnelError('');
+            }
+            return;
+          }
+
+          lastErrorMessage = typeof json?.error === 'string' && json.error
+            ? json.error
+            : `funnel_failed_${response.status || 'status'}`;
+        } catch (err) {
+          lastErrorMessage = err instanceof Error ? err.message : 'funnel_failed';
+        }
       }
 
-      if (!response.ok || !json) {
-        throw new Error('invalid_response');
-      }
-
-      setFunnel(json);
-      if (json.ok === false) {
-        setFunnelError('Sin datos / ventana vacía');
-      } else {
-        setFunnelError('');
-      }
+      setFunnel(null);
+      setFunnelError(lastErrorMessage);
     } catch (err) {
       console.error('[admin-analytics] fetch_funnel_failed', err);
       setFunnel(null);
-      setFunnelError('No se pudo cargar el funnel. Intentá nuevamente.');
+      setFunnelError(lastErrorMessage);
     } finally {
       setIsFunnelLoading(false);
     }
-  }, [adminToken, funnelEndpoint]);
+  }, []);
 
   const fetchLastEvents = useCallback(async () => {
     if (!adminToken) {
@@ -179,38 +205,51 @@ export default function AdminAnalyticsPage() {
 
     setIsLastEventsLoading(true);
     setLastEventsError('');
+    let lastErrorMessage = 'No se pudieron cargar los eventos recientes.';
 
     try {
-      const response = await fetch(`${lastEventsEndpoint}?limit=50`, {
-        headers: {
-          Accept: 'application/json',
-          'X-Admin-Token': adminToken,
-        },
-      });
+      for (const endpoints of analyticsEndpointSets) {
+        try {
+          const response = await fetch(`${endpoints.lastEvents}?limit=50`, {
+            headers: {
+              Accept: 'application/json',
+              'X-Admin-Token': adminToken,
+            },
+          });
 
-      const text = await response.text();
-      const json = text ? JSON.parse(text) : null;
+          const text = await response.text();
+          const json = text ? JSON.parse(text) : null;
 
-      if (response.status === 401) {
-        setLastEventsError('Token inválido');
-        setLastEvents([]);
-        return;
+          if (response.status === 401) {
+            setLastEventsError('Token inválido');
+            setLastEvents([]);
+            return;
+          }
+
+          if (response.ok && json?.ok) {
+            setLastEvents(Array.isArray(json.events) ? json.events : []);
+            setLastEventsError('');
+            return;
+          }
+
+          lastErrorMessage = typeof json?.error === 'string' && json.error
+            ? json.error
+            : `events_failed_${response.status || 'status'}`;
+        } catch (err) {
+          lastErrorMessage = err instanceof Error ? err.message : 'events_failed';
+        }
       }
 
-      if (!response.ok || !json?.ok) {
-        throw new Error('invalid_response');
-      }
-
-      setLastEvents(Array.isArray(json.events) ? json.events : []);
-      setLastEventsError('');
+      setLastEvents([]);
+      setLastEventsError(lastErrorMessage);
     } catch (err) {
       console.error('[admin-analytics] fetch_last_events_failed', err);
       setLastEvents([]);
-      setLastEventsError('No se pudieron cargar los eventos recientes.');
+      setLastEventsError(lastErrorMessage);
     } finally {
       setIsLastEventsLoading(false);
     }
-  }, [adminToken, lastEventsEndpoint]);
+  }, []);
 
   const loadAll = useCallback(async () => {
     if (!adminToken) {
@@ -223,7 +262,7 @@ export default function AdminAnalyticsPage() {
       fetchFunnel(windowRange),
       fetchLastEvents(),
     ]);
-  }, [adminToken, buildWindowRange, fetchAnalytics, fetchFunnel, fetchLastEvents]);
+  }, [buildWindowRange, fetchAnalytics, fetchFunnel, fetchLastEvents]);
 
   useEffect(() => {
     if (!adminToken) {
@@ -252,13 +291,13 @@ export default function AdminAnalyticsPage() {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [adminToken, loadAll]);
+  }, [loadAll]);
 
   const handleRefresh = useCallback(() => {
     if (adminToken) {
       loadAll();
     }
-  }, [adminToken, loadAll]);
+  }, [loadAll]);
 
   const handleRangeChange = (event) => {
     const value = Number(event.target.value);
@@ -280,7 +319,7 @@ export default function AdminAnalyticsPage() {
     }
     const windowRange = buildWindowRange();
     fetchAnalytics(windowRange);
-  }, [adminToken, buildWindowRange, fetchAnalytics]);
+  }, [buildWindowRange, fetchAnalytics]);
 
   const handleRetryFunnel = useCallback(() => {
     if (!adminToken) {
@@ -290,14 +329,14 @@ export default function AdminAnalyticsPage() {
     setFunnelError('');
     setFunnel(null);
     fetchFunnel(windowRange);
-  }, [adminToken, buildWindowRange, fetchFunnel]);
+  }, [buildWindowRange, fetchFunnel]);
 
   const handleRetryLastEvents = useCallback(() => {
     if (!adminToken) {
       return;
     }
     fetchLastEvents();
-  }, [adminToken, fetchLastEvents]);
+  }, [fetchLastEvents]);
 
   if (!adminToken) {
     return (
