@@ -696,6 +696,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const [activeAlign, setActiveAlign] = useState({ horizontal: null, vertical: null });
   const isTransformingRef = useRef(false);
   const cornerScaleRef = useRef({ prev: null });
+  const cornerFirstFrameRef = useRef(false);
 
   const setKeepRatioImmediate = useCallback(
     (value) => {
@@ -1045,6 +1046,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       !anchorName ||
       anchorName === "rotater" ||
       CORNER_ANCHORS.has(anchorName);
+    cornerFirstFrameRef.current = CORNER_ANCHORS.has(anchorName);
     cornerScaleRef.current = { prev: null };
     updateTransformBase();
     if (shouldKeep && imgRef.current && imgBaseCm) {
@@ -1081,6 +1083,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     if (isTouch) return;
 
     isTransformingRef.current = false;
+    cornerFirstFrameRef.current = false;
     stickRef.current = { x: null, y: null, activeX: false, activeY: false };
     cornerScaleRef.current = { prev: null };
     if (!imgRef.current || !imgBaseCm) {
@@ -2137,10 +2140,23 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                       keepRatio={keepRatio}
                       enabledAnchors={transformerAnchors}
                       boundBoxFunc={(oldBox, newBox) => {
+                        const widthDelta = Math.abs(newBox.width - oldBox.width);
+                        const heightDelta = Math.abs(newBox.height - oldBox.height);
+
                         const baseW = imgBaseCm?.w || 1;
                         const baseH = imgBaseCm?.h || 1;
                         const MIN_W = 0.02 * baseW;
                         const MIN_H = 0.02 * baseH;
+
+                        if (
+                          cornerFirstFrameRef.current &&
+                          widthDelta <= 1e-6 &&
+                          heightDelta <= 1e-6
+                        ) {
+                          return oldBox;
+                        }
+
+                        cornerFirstFrameRef.current = false;
 
                         if (!keepRatioRef.current) {
                           // ⟵ MODO LIBRE: sólo mínimo, SIN límites superiores
@@ -2176,8 +2192,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                           return { ...newBox, width: fallbackW, height: fallbackH };
                         }
 
-                        const widthDelta = Math.abs(newBox.width - oldBox.width);
-                        const heightDelta = Math.abs(newBox.height - oldBox.height);
                         const scaleFromWidth =
                           boundBaseW > 0 && Number.isFinite(newBox.width / boundBaseW)
                             ? newBox.width / boundBaseW
