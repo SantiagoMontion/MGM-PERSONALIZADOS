@@ -1072,61 +1072,53 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     stickyFitRef.current = null;
     skipStickyFitOnceRef.current = false;
     const n = imgRef.current;
-    const nextScaleX = n.scaleX();
-    const nextScaleY = n.scaleY();
-    const nextSignX = nextScaleX < 0 ? -1 : 1;
-    const nextSignY = nextScaleY < 0 ? -1 : 1;
-    const nextW = n.width() * Math.abs(nextScaleX);
-    const nextH = n.height() * Math.abs(nextScaleY);
-    const rotation = n.rotation();
-    const nextCenterX = n.x();
-    const nextCenterY = n.y();
+    const live = readNodeTransform(n);
     const keepRatioAtRelease = keepRatioRef.current;
-    setImgTx((prev) => {
-      const prevW = imgBaseCm.w * prev.scaleX;
-      const prevH = imgBaseCm.h * prev.scaleY;
-      const cx = nextCenterX;
-      const cy = nextCenterY;
-      const ratioX =
-        prevW !== 0 && Number.isFinite(nextW / prevW) ? nextW / prevW : 1;
-      const ratioY =
-        prevH !== 0 && Number.isFinite(nextH / prevH) ? nextH / prevH : 1;
-      const shouldKeep = keepRatioAtRelease;
-      // libre => sin límites superiores
-      if (!shouldKeep) {
-        const newSX = Math.max(prev.scaleX * ratioX, 0.01);
-        const newSY = Math.max(prev.scaleY * ratioY, 0.01);
-        const w = imgBaseCm.w * newSX;
-        const h = imgBaseCm.h * newSY;
-        return {
-          x_cm: cx - w / 2,
-          y_cm: cy - h / 2,
-          scaleX: newSX,
-          scaleY: newSY,
-          rotation_deg: rotation,
-          flipX: nextSignX < 0,
-          flipY: nextSignY < 0,
-        };
-      }
-      // mantener proporción con clamp razonable
-      const uni = Math.max(
-        0.01,
-        Math.min(prev.scaleX * ratioX, IMG_ZOOM_MAX),
-      );
-      const w = imgBaseCm.w * uni;
-      const h = imgBaseCm.h * uni;
-      return {
-        x_cm: cx - w / 2,
-        y_cm: cy - h / 2,
-        scaleX: uni,
-        scaleY: uni,
-        rotation_deg: rotation,
+    const clampScale = (value) =>
+      Math.max(0.01, Math.min(Math.abs(value), IMG_ZOOM_MAX));
+
+    if (!live) {
+      setKeepRatioImmediate(true);
+      return;
+    }
+
+    const nextSignX = live.tx.scaleX < 0 ? -1 : 1;
+    const nextSignY = live.tx.scaleY < 0 ? -1 : 1;
+    const centerX = live.cx;
+    const centerY = live.cy;
+
+    if (!keepRatioAtRelease) {
+      const magX = clampScale(live.tx.scaleX);
+      const magY = clampScale(live.tx.scaleY);
+      const scaledW = imgBaseCm.w * magX;
+      const scaledH = imgBaseCm.h * magY;
+      setImgTx({
+        x_cm: centerX - scaledW / 2,
+        y_cm: centerY - scaledH / 2,
+        scaleX: magX * nextSignX,
+        scaleY: magY * nextSignY,
+        rotation_deg: live.tx.rotation_deg,
         flipX: nextSignX < 0,
         flipY: nextSignY < 0,
-      };
+      });
+      setKeepRatioImmediate(true);
+      return;
+    }
+
+    const uniform = clampScale(
+      Math.max(Math.abs(live.tx.scaleX), Math.abs(live.tx.scaleY)),
+    );
+    const w = imgBaseCm.w * uniform;
+    const h = imgBaseCm.h * uniform;
+    setImgTx({
+      x_cm: centerX - w / 2,
+      y_cm: centerY - h / 2,
+      scaleX: uniform * nextSignX,
+      scaleY: uniform * nextSignY,
+      rotation_deg: live.tx.rotation_deg,
+      flipX: nextSignX < 0,
+      flipY: nextSignY < 0,
     });
-    n.scaleX(nextSignX);
-    n.scaleY(nextSignY);
     setKeepRatioImmediate(true);
   };
 
