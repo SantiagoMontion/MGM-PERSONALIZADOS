@@ -875,109 +875,22 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
       if (!imgBaseCm || isTransformingRef.current || !baseTx) return pos;
 
-      let cx = pos.x;
-      let cy = pos.y;
-
-      const w = live?.width ?? imgBaseCm.w * Math.abs(baseTx.scaleX);
-      const h = live?.height ?? imgBaseCm.h * Math.abs(baseTx.scaleY);
-      const rotationRad = ((live?.tx.rotation_deg ?? imgTx.rotation_deg) * Math.PI) / 180;
+      const currentScaleX = Math.max(Math.abs(baseTx.scaleX), 0.0001);
+      const currentScaleY = Math.max(Math.abs(baseTx.scaleY), 0.0001);
+      const w = imgBaseCm.w * currentScaleX;
+      const h = imgBaseCm.h * currentScaleY;
+      const rotationRad = ((baseTx.rotation_deg ?? 0) * Math.PI) / 180;
       const { halfW, halfH } = rotAABBHalf(w, h, rotationRad);
 
-      const releaseCm = Math.max(
-        RELEASE_MIN_CM,
-        RELEASE_BASE_CM / Math.max(viewScale, 1),
-      );
-
-      const dL = Math.abs(cx - halfW - 0);
-      const dR = Math.abs(workCm.w - (cx + halfW));
-      const dT = Math.abs(cy - halfH - 0);
-      const dB = Math.abs(workCm.h - (cy + halfH));
-
-      const ease = (d) => {
-        if (d >= SNAP_LIVE_CM) return 0;
-        const t = 1 - d / SNAP_LIVE_CM;
-        return t * t * t;
+      return {
+        x: Math.min(Math.max(pos.x, halfW), Math.max(workCm.w - halfW, halfW)),
+        y: Math.min(Math.max(pos.y, halfH), Math.max(workCm.h - halfH, halfH)),
       };
-
-      // X
-      if (!stickRef.current.activeX) {
-        const eL = ease(dL);
-        const eR = ease(dR);
-        if (eL > 0 && eL >= eR) {
-          const target = halfW;
-          cx = cx * (1 - eL) + target * eL;
-          if (dL < 0.3) {
-            cx = target;
-            stickRef.current = {
-              ...stickRef.current,
-              activeX: true,
-              x: target,
-            };
-          }
-        } else if (eR > 0) {
-          const target = workCm.w - halfW;
-          cx = cx * (1 - eR) + target * eR;
-          if (dR < 0.3) {
-            cx = target;
-            stickRef.current = {
-              ...stickRef.current,
-              activeX: true,
-              x: target,
-            };
-          }
-        }
-      } else {
-        const diff = cx - stickRef.current.x;
-        if (Math.abs(diff) > releaseCm) {
-          stickRef.current = { ...stickRef.current, activeX: false, x: null };
-        } else {
-          cx = stickRef.current.x + diff * 0.35;
-        }
-      }
-
-      // Y
-      if (!stickRef.current.activeY) {
-        const eT = ease(dT);
-        const eB = ease(dB);
-        if (eT > 0 && eT >= eB) {
-          const target = halfH;
-          cy = cy * (1 - eT) + target * eT;
-          if (dT < 0.3) {
-            cy = target;
-            stickRef.current = {
-              ...stickRef.current,
-              activeY: true,
-              y: target,
-            };
-          }
-        } else if (eB > 0) {
-          const target = workCm.h - halfH;
-          cy = cy * (1 - eB) + target * eB;
-          if (dB < 0.3) {
-            cy = target;
-            stickRef.current = {
-              ...stickRef.current,
-              activeY: true,
-              y: target,
-            };
-          }
-        }
-      } else {
-        const diff = cy - stickRef.current.y;
-        if (Math.abs(diff) > releaseCm) {
-          stickRef.current = { ...stickRef.current, activeY: false, y: null };
-        } else {
-          cy = stickRef.current.y + diff * 0.35;
-        }
-      }
-
-      return { x: cx, y: cy };
     },
     [
       getLiveNodeTransform,
       imgBaseCm,
       imgTx,
-      viewScale,
       workCm.w,
       workCm.h,
     ],
@@ -995,7 +908,11 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     isPanningRef.current = false;
     const live = readNodeTransform(e.target);
     if (live?.tx) {
-      setImgTx((prev) => ({ ...prev, ...live.tx }));
+      setImgTx((prev) => ({
+        ...prev,
+        x_cm: live.tx.x_cm,
+        y_cm: live.tx.y_cm,
+      }));
     }
   };
   const onImgDragEnd = () => {
@@ -1064,52 +981,40 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     isTransformingRef.current = false;
     stickRef.current = { x: null, y: null, activeX: false, activeY: false };
     cornerScaleRef.current = { prev: null, preferredAxis: null };
-    if (!imgRef.current || !imgBaseCm) {
+    const live = readNodeTransform();
+    if (!imgRef.current || !imgBaseCm || !live?.tx) {
       setKeepRatioImmediate(true);
       return;
     }
     pushHistory(imgTx);
     stickyFitRef.current = null;
     skipStickyFitOnceRef.current = false;
-    const n = imgRef.current;
-    const liveScaleX = n.scaleX();
-    const liveScaleY = n.scaleY();
+    const liveScaleX = live.tx.scaleX;
+    const liveScaleY = live.tx.scaleY;
     const nextSignX = liveScaleX < 0 ? -1 : 1;
     const nextSignY = liveScaleY < 0 ? -1 : 1;
-    const centerX = n.x();
-    const centerY = n.y();
-    const rotation = n.rotation();
+    const centerX = live.cx;
+    const centerY = live.cy;
+    const rotation = live.tx.rotation_deg;
     const keepRatioAtRelease = keepRatioRef.current;
 
     const clampScale = (value) =>
       Math.max(0.01, Math.min(Math.abs(value), IMG_ZOOM_MAX));
 
-    if (!keepRatioAtRelease) {
-      const magX = clampScale(liveScaleX);
-      const magY = clampScale(liveScaleY);
-      const w = imgBaseCm.w * magX;
-      const h = imgBaseCm.h * magY;
-      setImgTx({
-        x_cm: centerX - w / 2,
-        y_cm: centerY - h / 2,
-        scaleX: magX * nextSignX,
-        scaleY: magY * nextSignY,
-        rotation_deg: rotation,
-        flipX: nextSignX < 0,
-        flipY: nextSignY < 0,
-      });
-      setKeepRatioImmediate(true);
-      return;
-    }
-
-    const uniform = clampScale(Math.max(Math.abs(liveScaleX), Math.abs(liveScaleY)));
-    const w = imgBaseCm.w * uniform;
-    const h = imgBaseCm.h * uniform;
+    const magX = clampScale(liveScaleX);
+    const magY = clampScale(liveScaleY);
+    const uniform = keepRatioAtRelease
+      ? Math.max(magX, magY)
+      : null;
+    const finalMagX = keepRatioAtRelease ? uniform : magX;
+    const finalMagY = keepRatioAtRelease ? uniform : magY;
+    const w = imgBaseCm.w * finalMagX;
+    const h = imgBaseCm.h * finalMagY;
     setImgTx({
       x_cm: centerX - w / 2,
       y_cm: centerY - h / 2,
-      scaleX: uniform * nextSignX,
-      scaleY: uniform * nextSignY,
+      scaleX: finalMagX * nextSignX,
+      scaleY: finalMagY * nextSignY,
       rotation_deg: rotation,
       flipX: nextSignX < 0,
       flipY: nextSignY < 0,
