@@ -861,6 +861,27 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
   // imán fuerte (centro + AABB rotado)
   const stickRef = useRef({ x: null, y: null, activeX: false, activeY: false });
+  const transformBaseRef = useRef(null);
+  const updateTransformBase = useCallback(() => {
+    if (!imgRef.current || !imgBaseCm) return;
+
+    const node = imgRef.current;
+    const rotationRad = (node.rotation() * Math.PI) / 180;
+    const cos = Math.abs(Math.cos(rotationRad));
+    const sin = Math.abs(Math.sin(rotationRad));
+    const boundBaseW = imgBaseCm.w * cos + imgBaseCm.h * sin;
+    const boundBaseH = imgBaseCm.w * sin + imgBaseCm.h * cos;
+    const clientRect = node.getClientRect({ skipStroke: true });
+
+    // Después de cualquier rotación, recalculamos la caja base real para las esquinas
+    transformBaseRef.current = {
+      rotation: node.rotation(),
+      boundBaseW,
+      boundBaseH,
+      liveBoundW: clientRect?.width ?? null,
+      liveBoundH: clientRect?.height ?? null,
+    };
+  }, [imgBaseCm]);
   const onImgDragStart = () => {
     stickRef.current = { x: null, y: null, activeX: false, activeY: false };
     const live = getLiveNodeTransform();
@@ -1025,29 +1046,28 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       anchorName === "rotater" ||
       CORNER_ANCHORS.has(anchorName);
     cornerScaleRef.current = { prev: null };
+    updateTransformBase();
     if (shouldKeep && imgRef.current && imgBaseCm) {
+      const baseBoundW = transformBaseRef.current?.boundBaseW;
+      const baseBoundH = transformBaseRef.current?.boundBaseH;
+      const currentBoundW = transformBaseRef.current?.liveBoundW;
+      const currentBoundH = transformBaseRef.current?.liveBoundH;
+      let prevScale = null;
+      if (baseBoundW > 0 && baseBoundH > 0 && currentBoundW > 0 && currentBoundH > 0) {
+        const widthScale = currentBoundW / baseBoundW;
+        const heightScale = currentBoundH / baseBoundH;
+        if (widthScale > 0 && heightScale > 0) {
+          prevScale = Math.sqrt(widthScale * heightScale);
+        } else if (widthScale > 0) {
+          prevScale = widthScale;
+        } else if (heightScale > 0) {
+          prevScale = heightScale;
+        }
+      }
+
       const node = imgRef.current;
-      const rotationRad = (node.rotation() * Math.PI) / 180;
-      const cos = Math.abs(Math.cos(rotationRad));
-      const sin = Math.abs(Math.sin(rotationRad));
       const absScaleX = Math.abs(node.scaleX());
       const absScaleY = Math.abs(node.scaleY());
-      const scaledW = imgBaseCm.w * absScaleX;
-      const scaledH = imgBaseCm.h * absScaleY;
-      const baseBoundW = imgBaseCm.w * cos + imgBaseCm.h * sin;
-      const baseBoundH = imgBaseCm.w * sin + imgBaseCm.h * cos;
-      const currentBoundW = scaledW * cos + scaledH * sin;
-      const currentBoundH = scaledW * sin + scaledH * cos;
-      const widthScale = baseBoundW > 0 ? currentBoundW / baseBoundW : null;
-      const heightScale = baseBoundH > 0 ? currentBoundH / baseBoundH : null;
-      let prevScale = null;
-      if (widthScale > 0 && heightScale > 0) {
-        prevScale = Math.sqrt(widthScale * heightScale);
-      } else if (widthScale > 0) {
-        prevScale = widthScale;
-      } else if (heightScale > 0) {
-        prevScale = heightScale;
-      }
       const fallbackScale = Math.max(absScaleX, absScaleY, 0.01);
       cornerScaleRef.current.prev =
         prevScale && Number.isFinite(prevScale) && prevScale > 0
@@ -1055,7 +1075,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
           : fallbackScale;
     }
     setKeepRatioImmediate(shouldKeep);
-  }, [imgBaseCm, isTouch, setKeepRatioImmediate]);
+  }, [imgBaseCm, isTouch, setKeepRatioImmediate, updateTransformBase]);
 
   const onTransformEnd = () => {
     if (isTouch) return;
@@ -1127,6 +1147,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     n.scaleX(nextSignX);
     n.scaleY(nextSignY);
     setKeepRatioImmediate(true);
+    updateTransformBase();
   };
 
   // centro actual
@@ -1382,6 +1403,11 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       center: { x: workCm.w / 2, y: workCm.h / 2 },
     });
   }, [material, wCm, hCm, workCm.w, workCm.h, imgBaseCm]);
+
+  useEffect(() => {
+    if (isTouch) return;
+    updateTransformBase();
+  }, [imgTx.rotation_deg, updateTransformBase, isTouch]);
 
   const autoCenterStateRef = useRef({
     wrapW: wrapSize.w,
@@ -2126,10 +2152,17 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                         // Mantener proporción original incluso si venimos de "estirar"
                         const MIN_SCALE = 0.02;
                         const MAX_SCALE = IMG_ZOOM_MAX;
-                        const cos = Math.abs(Math.cos(theta));
-                        const sin = Math.abs(Math.sin(theta));
-                        const boundBaseW = baseW * cos + baseH * sin;
-                        const boundBaseH = baseW * sin + baseH * cos;
+                        const rotationDeg =
+                          transformBaseRef.current?.rotation ?? imgTx.rotation_deg;
+                        const thetaLocal = (rotationDeg * Math.PI) / 180;
+                        const cos = Math.abs(Math.cos(thetaLocal));
+                        const sin = Math.abs(Math.sin(thetaLocal));
+                        const boundBaseW =
+                          transformBaseRef.current?.boundBaseW ??
+                          baseW * cos + baseH * sin;
+                        const boundBaseH =
+                          transformBaseRef.current?.boundBaseH ??
+                          baseW * sin + baseH * cos;
 
                         if (!(boundBaseW > 0) || !(boundBaseH > 0)) {
                           const fallbackW = Math.max(
