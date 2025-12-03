@@ -1072,32 +1072,29 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     stickyFitRef.current = null;
     skipStickyFitOnceRef.current = false;
     const n = imgRef.current;
-    const live = readNodeTransform(n);
+    const liveScaleX = n.scaleX();
+    const liveScaleY = n.scaleY();
+    const nextSignX = liveScaleX < 0 ? -1 : 1;
+    const nextSignY = liveScaleY < 0 ? -1 : 1;
+    const centerX = n.x();
+    const centerY = n.y();
+    const rotation = n.rotation();
     const keepRatioAtRelease = keepRatioRef.current;
+
     const clampScale = (value) =>
       Math.max(0.01, Math.min(Math.abs(value), IMG_ZOOM_MAX));
 
-    if (!live) {
-      setKeepRatioImmediate(true);
-      return;
-    }
-
-    const nextSignX = live.tx.scaleX < 0 ? -1 : 1;
-    const nextSignY = live.tx.scaleY < 0 ? -1 : 1;
-    const centerX = live.cx;
-    const centerY = live.cy;
-
     if (!keepRatioAtRelease) {
-      const magX = clampScale(live.tx.scaleX);
-      const magY = clampScale(live.tx.scaleY);
-      const scaledW = imgBaseCm.w * magX;
-      const scaledH = imgBaseCm.h * magY;
+      const magX = clampScale(liveScaleX);
+      const magY = clampScale(liveScaleY);
+      const w = imgBaseCm.w * magX;
+      const h = imgBaseCm.h * magY;
       setImgTx({
-        x_cm: centerX - scaledW / 2,
-        y_cm: centerY - scaledH / 2,
+        x_cm: centerX - w / 2,
+        y_cm: centerY - h / 2,
         scaleX: magX * nextSignX,
         scaleY: magY * nextSignY,
-        rotation_deg: live.tx.rotation_deg,
+        rotation_deg: rotation,
         flipX: nextSignX < 0,
         flipY: nextSignY < 0,
       });
@@ -1105,9 +1102,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       return;
     }
 
-    const uniform = clampScale(
-      Math.max(Math.abs(live.tx.scaleX), Math.abs(live.tx.scaleY)),
-    );
+    const uniform = clampScale(Math.max(Math.abs(liveScaleX), Math.abs(liveScaleY)));
     const w = imgBaseCm.w * uniform;
     const h = imgBaseCm.h * uniform;
     setImgTx({
@@ -1115,7 +1110,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       y_cm: centerY - h / 2,
       scaleX: uniform * nextSignX,
       scaleY: uniform * nextSignY,
-      rotation_deg: live.tx.rotation_deg,
+      rotation_deg: rotation,
       flipX: nextSignX < 0,
       flipY: nextSignY < 0,
     });
