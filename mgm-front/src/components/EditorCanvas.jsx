@@ -875,109 +875,22 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
       if (!imgBaseCm || isTransformingRef.current || !baseTx) return pos;
 
-      let cx = pos.x;
-      let cy = pos.y;
-
-      const w = live?.width ?? imgBaseCm.w * Math.abs(baseTx.scaleX);
-      const h = live?.height ?? imgBaseCm.h * Math.abs(baseTx.scaleY);
-      const rotationRad = ((live?.tx.rotation_deg ?? imgTx.rotation_deg) * Math.PI) / 180;
+      const currentScaleX = Math.max(Math.abs(baseTx.scaleX), 0.0001);
+      const currentScaleY = Math.max(Math.abs(baseTx.scaleY), 0.0001);
+      const w = imgBaseCm.w * currentScaleX;
+      const h = imgBaseCm.h * currentScaleY;
+      const rotationRad = ((baseTx.rotation_deg ?? 0) * Math.PI) / 180;
       const { halfW, halfH } = rotAABBHalf(w, h, rotationRad);
 
-      const releaseCm = Math.max(
-        RELEASE_MIN_CM,
-        RELEASE_BASE_CM / Math.max(viewScale, 1),
-      );
-
-      const dL = Math.abs(cx - halfW - 0);
-      const dR = Math.abs(workCm.w - (cx + halfW));
-      const dT = Math.abs(cy - halfH - 0);
-      const dB = Math.abs(workCm.h - (cy + halfH));
-
-      const ease = (d) => {
-        if (d >= SNAP_LIVE_CM) return 0;
-        const t = 1 - d / SNAP_LIVE_CM;
-        return t * t * t;
+      return {
+        x: Math.min(Math.max(pos.x, halfW), Math.max(workCm.w - halfW, halfW)),
+        y: Math.min(Math.max(pos.y, halfH), Math.max(workCm.h - halfH, halfH)),
       };
-
-      // X
-      if (!stickRef.current.activeX) {
-        const eL = ease(dL);
-        const eR = ease(dR);
-        if (eL > 0 && eL >= eR) {
-          const target = halfW;
-          cx = cx * (1 - eL) + target * eL;
-          if (dL < 0.3) {
-            cx = target;
-            stickRef.current = {
-              ...stickRef.current,
-              activeX: true,
-              x: target,
-            };
-          }
-        } else if (eR > 0) {
-          const target = workCm.w - halfW;
-          cx = cx * (1 - eR) + target * eR;
-          if (dR < 0.3) {
-            cx = target;
-            stickRef.current = {
-              ...stickRef.current,
-              activeX: true,
-              x: target,
-            };
-          }
-        }
-      } else {
-        const diff = cx - stickRef.current.x;
-        if (Math.abs(diff) > releaseCm) {
-          stickRef.current = { ...stickRef.current, activeX: false, x: null };
-        } else {
-          cx = stickRef.current.x + diff * 0.35;
-        }
-      }
-
-      // Y
-      if (!stickRef.current.activeY) {
-        const eT = ease(dT);
-        const eB = ease(dB);
-        if (eT > 0 && eT >= eB) {
-          const target = halfH;
-          cy = cy * (1 - eT) + target * eT;
-          if (dT < 0.3) {
-            cy = target;
-            stickRef.current = {
-              ...stickRef.current,
-              activeY: true,
-              y: target,
-            };
-          }
-        } else if (eB > 0) {
-          const target = workCm.h - halfH;
-          cy = cy * (1 - eB) + target * eB;
-          if (dB < 0.3) {
-            cy = target;
-            stickRef.current = {
-              ...stickRef.current,
-              activeY: true,
-              y: target,
-            };
-          }
-        }
-      } else {
-        const diff = cy - stickRef.current.y;
-        if (Math.abs(diff) > releaseCm) {
-          stickRef.current = { ...stickRef.current, activeY: false, y: null };
-        } else {
-          cy = stickRef.current.y + diff * 0.35;
-        }
-      }
-
-      return { x: cx, y: cy };
     },
     [
       getLiveNodeTransform,
       imgBaseCm,
       imgTx,
-      viewScale,
       workCm.w,
       workCm.h,
     ],
