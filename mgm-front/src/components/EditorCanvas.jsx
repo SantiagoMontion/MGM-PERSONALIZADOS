@@ -1024,10 +1024,11 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       !anchorName ||
       anchorName === "rotater" ||
       CORNER_ANCHORS.has(anchorName);
-    cornerScaleRef.current = { prev: null };
+    cornerScaleRef.current = { prev: null, preferredAxis: null };
     if (shouldKeep && imgRef.current && imgBaseCm) {
       const node = imgRef.current;
-      const rotationRad = (node.rotation() * Math.PI) / 180;
+      const rotationDeg = node.rotation();
+      const rotationRad = (rotationDeg * Math.PI) / 180;
       const cos = Math.abs(Math.cos(rotationRad));
       const sin = Math.abs(Math.sin(rotationRad));
       const absScaleX = Math.abs(node.scaleX());
@@ -1062,7 +1063,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
     isTransformingRef.current = false;
     stickRef.current = { x: null, y: null, activeX: false, activeY: false };
-    cornerScaleRef.current = { prev: null };
+    cornerScaleRef.current = { prev: null, preferredAxis: null };
     if (!imgRef.current || !imgBaseCm) {
       setKeepRatioImmediate(true);
       return;
@@ -2126,8 +2127,14 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                         // Mantener proporción original incluso si venimos de "estirar"
                         const MIN_SCALE = 0.02;
                         const MAX_SCALE = IMG_ZOOM_MAX;
-                        const cos = Math.abs(Math.cos(theta));
-                        const sin = Math.abs(Math.sin(theta));
+                        const liveRotationDeg =
+                          imgRef.current?.rotation?.() ??
+                          newBox?.rotation ??
+                          imgTx.rotation_deg ??
+                          0;
+                        const rotationRad = (liveRotationDeg * Math.PI) / 180;
+                        const cos = Math.abs(Math.cos(rotationRad));
+                        const sin = Math.abs(Math.sin(rotationRad));
                         const boundBaseW = baseW * cos + baseH * sin;
                         const boundBaseH = baseW * sin + baseH * cos;
 
@@ -2154,21 +2161,33 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                             ? newBox.height / boundBaseH
                             : null;
 
-                        const prevScale = cornerScaleRef.current?.prev ?? null;
+                        const prevState = cornerScaleRef.current ?? {};
+                        const prevScale = prevState.prev ?? null;
+                        const prevAxis = prevState.preferredAxis ?? null;
                         let targetScale = prevScale ?? 1;
+                        let preferredAxis = prevAxis;
 
                         if (scaleFromWidth != null && scaleFromHeight != null) {
-                          if (prevScale != null && Number.isFinite(prevScale)) {
+                          if (preferredAxis === "width") {
+                            targetScale = scaleFromWidth;
+                          } else if (preferredAxis === "height") {
+                            targetScale = scaleFromHeight;
+                          } else if (prevScale != null && Number.isFinite(prevScale)) {
                             const diffW = Math.abs(scaleFromWidth - prevScale);
                             const diffH = Math.abs(scaleFromHeight - prevScale);
-                            targetScale = diffW <= diffH ? scaleFromWidth : scaleFromHeight;
+                            const useHeight = diffH < diffW;
+                            preferredAxis = useHeight ? "height" : "width";
+                            targetScale = useHeight ? scaleFromHeight : scaleFromWidth;
                           } else {
-                            targetScale =
-                              widthDelta >= heightDelta ? scaleFromWidth : scaleFromHeight;
+                            const useWidth = widthDelta > heightDelta;
+                            preferredAxis = useWidth ? "width" : "height";
+                            targetScale = useWidth ? scaleFromWidth : scaleFromHeight;
                           }
                         } else if (scaleFromWidth != null) {
+                          preferredAxis = "width";
                           targetScale = scaleFromWidth;
                         } else if (scaleFromHeight != null) {
+                          preferredAxis = "height";
                           targetScale = scaleFromHeight;
                         }
 
@@ -2187,7 +2206,10 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                         const width = boundBaseW * clampedScale;
                         const height = boundBaseH * clampedScale;
 
-                        cornerScaleRef.current.prev = clampedScale;
+                        cornerScaleRef.current = {
+                          prev: clampedScale,
+                          preferredAxis,
+                        };
 
                         return { ...newBox, width, height };
                       }}
