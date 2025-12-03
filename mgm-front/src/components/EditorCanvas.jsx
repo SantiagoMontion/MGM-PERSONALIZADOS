@@ -995,7 +995,11 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     isPanningRef.current = false;
     const live = readNodeTransform(e.target);
     if (live?.tx) {
-      setImgTx((prev) => ({ ...prev, ...live.tx }));
+      setImgTx((prev) => ({
+        ...prev,
+        x_cm: live.tx.x_cm,
+        y_cm: live.tx.y_cm,
+      }));
     }
   };
   const onImgDragEnd = () => {
@@ -1064,52 +1068,40 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     isTransformingRef.current = false;
     stickRef.current = { x: null, y: null, activeX: false, activeY: false };
     cornerScaleRef.current = { prev: null, preferredAxis: null };
-    if (!imgRef.current || !imgBaseCm) {
+    const live = readNodeTransform();
+    if (!imgRef.current || !imgBaseCm || !live?.tx) {
       setKeepRatioImmediate(true);
       return;
     }
     pushHistory(imgTx);
     stickyFitRef.current = null;
     skipStickyFitOnceRef.current = false;
-    const n = imgRef.current;
-    const liveScaleX = n.scaleX();
-    const liveScaleY = n.scaleY();
+    const liveScaleX = live.tx.scaleX;
+    const liveScaleY = live.tx.scaleY;
     const nextSignX = liveScaleX < 0 ? -1 : 1;
     const nextSignY = liveScaleY < 0 ? -1 : 1;
-    const centerX = n.x();
-    const centerY = n.y();
-    const rotation = n.rotation();
+    const centerX = live.cx;
+    const centerY = live.cy;
+    const rotation = live.tx.rotation_deg;
     const keepRatioAtRelease = keepRatioRef.current;
 
     const clampScale = (value) =>
       Math.max(0.01, Math.min(Math.abs(value), IMG_ZOOM_MAX));
 
-    if (!keepRatioAtRelease) {
-      const magX = clampScale(liveScaleX);
-      const magY = clampScale(liveScaleY);
-      const w = imgBaseCm.w * magX;
-      const h = imgBaseCm.h * magY;
-      setImgTx({
-        x_cm: centerX - w / 2,
-        y_cm: centerY - h / 2,
-        scaleX: magX * nextSignX,
-        scaleY: magY * nextSignY,
-        rotation_deg: rotation,
-        flipX: nextSignX < 0,
-        flipY: nextSignY < 0,
-      });
-      setKeepRatioImmediate(true);
-      return;
-    }
-
-    const uniform = clampScale(Math.max(Math.abs(liveScaleX), Math.abs(liveScaleY)));
-    const w = imgBaseCm.w * uniform;
-    const h = imgBaseCm.h * uniform;
+    const magX = clampScale(liveScaleX);
+    const magY = clampScale(liveScaleY);
+    const uniform = keepRatioAtRelease
+      ? Math.max(magX, magY)
+      : null;
+    const finalMagX = keepRatioAtRelease ? uniform : magX;
+    const finalMagY = keepRatioAtRelease ? uniform : magY;
+    const w = imgBaseCm.w * finalMagX;
+    const h = imgBaseCm.h * finalMagY;
     setImgTx({
       x_cm: centerX - w / 2,
       y_cm: centerY - h / 2,
-      scaleX: uniform * nextSignX,
-      scaleY: uniform * nextSignY,
+      scaleX: finalMagX * nextSignX,
+      scaleY: finalMagY * nextSignY,
       rotation_deg: rotation,
       flipX: nextSignX < 0,
       flipY: nextSignY < 0,
