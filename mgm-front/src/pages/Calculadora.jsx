@@ -18,6 +18,8 @@ const CalculadoraPage = () => {
       { label: 'Glasspad', value: 'Glasspad' },
       { label: 'Pro', value: 'Pro' },
       { label: 'Classic', value: 'Classic' },
+      // Incluye la opción solicitada para Alfombras en /calculadora.
+      { label: 'Alfombras', value: 'Alfombra' },
     ],
     [],
   );
@@ -35,6 +37,10 @@ const CalculadoraPage = () => {
       Glasspad: {
         width: { min: 20, max: 49 },
         height: { min: 20, max: 42 },
+      },
+      Alfombra: {
+        width: { min: 20, max: 140 },
+        height: { min: 20, max: 100 },
       },
     }),
     [],
