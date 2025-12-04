@@ -1047,23 +1047,25 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       const absScaleY = Math.abs(node.scaleY());
 
       const baseRect = transformStateRef.current?.clientRect;
+      const rectW = baseRect?.width ?? imgBaseCm.w;
+      const rectH = baseRect?.height ?? imgBaseCm.h;
       const baseBoundW = isRightAngle
-        ? baseRect?.width ?? imgBaseCm.w
+        ? rectH
         : imgBaseCm.w * Math.abs(Math.cos(rotationRad)) +
           imgBaseCm.h * Math.abs(Math.sin(rotationRad));
       const baseBoundH = isRightAngle
-        ? baseRect?.height ?? imgBaseCm.h
+        ? rectW
         : imgBaseCm.w * Math.abs(Math.sin(rotationRad)) +
           imgBaseCm.h * Math.abs(Math.cos(rotationRad));
 
       const scaledW = imgBaseCm.w * absScaleX;
       const scaledH = imgBaseCm.h * absScaleY;
       const currentBoundW = isRightAngle
-        ? baseRect?.width ?? scaledW
+        ? rectH
         : scaledW * Math.abs(Math.cos(rotationRad)) +
           scaledH * Math.abs(Math.sin(rotationRad));
       const currentBoundH = isRightAngle
-        ? baseRect?.height ?? scaledH
+        ? rectW
         : scaledW * Math.abs(Math.sin(rotationRad)) +
           scaledH * Math.abs(Math.cos(rotationRad));
 
@@ -2143,12 +2145,10 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                         const rotationDeg = transformStateRef.current?.rotationDeg ??
                           ((imgTx.rotation_deg % 360) + 360) % 360;
                         const isRightAngle = rotationDeg === 90 || rotationDeg === 270;
-                        const baseW = (isRightAngle
-                          ? transformStateRef.current?.clientRect?.width
-                          : imgBaseCm?.w) || 1;
-                        const baseH = (isRightAngle
-                          ? transformStateRef.current?.clientRect?.height
-                          : imgBaseCm?.h) || 1;
+                        const rectW = transformStateRef.current?.clientRect?.width;
+                        const rectH = transformStateRef.current?.clientRect?.height;
+                        const baseW = (isRightAngle ? rectH : imgBaseCm?.w || rectW) || 1;
+                        const baseH = (isRightAngle ? rectW : imgBaseCm?.h || rectH) || 1;
                         const MIN_W = 0.02 * baseW;
                         const MIN_H = 0.02 * baseH;
 
