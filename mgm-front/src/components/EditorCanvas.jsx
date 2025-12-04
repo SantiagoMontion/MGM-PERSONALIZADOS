@@ -696,6 +696,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const [activeAlign, setActiveAlign] = useState({ horizontal: null, vertical: null });
   const isTransformingRef = useRef(false);
   const cornerScaleRef = useRef({ prev: null });
+  const transformStateRef = useRef(null);
 
   const setKeepRatioImmediate = useCallback(
     (value) => {
@@ -1025,19 +1026,47 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       anchorName === "rotater" ||
       CORNER_ANCHORS.has(anchorName);
     cornerScaleRef.current = { prev: null };
+
+    if (imgRef.current) {
+      const node = imgRef.current;
+      const rotationDeg = ((node.rotation() % 360) + 360) % 360;
+      transformStateRef.current = {
+        rotationDeg,
+        startScaleX: node.scaleX(),
+        startScaleY: node.scaleY(),
+        clientRect: node.getClientRect({ skipShadow: true, skipStroke: true }),
+      };
+    }
+
     if (shouldKeep && imgRef.current && imgBaseCm) {
       const node = imgRef.current;
-      const rotationRad = (node.rotation() * Math.PI) / 180;
-      const cos = Math.abs(Math.cos(rotationRad));
-      const sin = Math.abs(Math.sin(rotationRad));
+      const rotationDeg = transformStateRef.current?.rotationDeg ?? node.rotation();
+      const rotationRad = (rotationDeg * Math.PI) / 180;
+      const isRightAngle = rotationDeg === 90 || rotationDeg === 270;
       const absScaleX = Math.abs(node.scaleX());
       const absScaleY = Math.abs(node.scaleY());
+
+      const baseRect = transformStateRef.current?.clientRect;
+      const baseBoundW = isRightAngle
+        ? baseRect?.width ?? imgBaseCm.w
+        : imgBaseCm.w * Math.abs(Math.cos(rotationRad)) +
+          imgBaseCm.h * Math.abs(Math.sin(rotationRad));
+      const baseBoundH = isRightAngle
+        ? baseRect?.height ?? imgBaseCm.h
+        : imgBaseCm.w * Math.abs(Math.sin(rotationRad)) +
+          imgBaseCm.h * Math.abs(Math.cos(rotationRad));
+
       const scaledW = imgBaseCm.w * absScaleX;
       const scaledH = imgBaseCm.h * absScaleY;
-      const baseBoundW = imgBaseCm.w * cos + imgBaseCm.h * sin;
-      const baseBoundH = imgBaseCm.w * sin + imgBaseCm.h * cos;
-      const currentBoundW = scaledW * cos + scaledH * sin;
-      const currentBoundH = scaledW * sin + scaledH * cos;
+      const currentBoundW = isRightAngle
+        ? baseRect?.width ?? scaledW
+        : scaledW * Math.abs(Math.cos(rotationRad)) +
+          scaledH * Math.abs(Math.sin(rotationRad));
+      const currentBoundH = isRightAngle
+        ? baseRect?.height ?? scaledH
+        : scaledW * Math.abs(Math.sin(rotationRad)) +
+          scaledH * Math.abs(Math.cos(rotationRad));
+
       const widthScale = baseBoundW > 0 ? currentBoundW / baseBoundW : null;
       const heightScale = baseBoundH > 0 ? currentBoundH / baseBoundH : null;
       let prevScale = null;
@@ -2111,8 +2140,15 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                       keepRatio={keepRatio}
                       enabledAnchors={transformerAnchors}
                       boundBoxFunc={(oldBox, newBox) => {
-                        const baseW = imgBaseCm?.w || 1;
-                        const baseH = imgBaseCm?.h || 1;
+                        const rotationDeg = transformStateRef.current?.rotationDeg ??
+                          ((imgTx.rotation_deg % 360) + 360) % 360;
+                        const isRightAngle = rotationDeg === 90 || rotationDeg === 270;
+                        const baseW = (isRightAngle
+                          ? transformStateRef.current?.clientRect?.width
+                          : imgBaseCm?.w) || 1;
+                        const baseH = (isRightAngle
+                          ? transformStateRef.current?.clientRect?.height
+                          : imgBaseCm?.h) || 1;
                         const MIN_W = 0.02 * baseW;
                         const MIN_H = 0.02 * baseH;
 
@@ -2126,10 +2162,16 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                         // Mantener proporción original incluso si venimos de "estirar"
                         const MIN_SCALE = 0.02;
                         const MAX_SCALE = IMG_ZOOM_MAX;
-                        const cos = Math.abs(Math.cos(theta));
-                        const sin = Math.abs(Math.sin(theta));
-                        const boundBaseW = baseW * cos + baseH * sin;
-                        const boundBaseH = baseW * sin + baseH * cos;
+                        const thetaDeg = isRightAngle ? rotationDeg : imgTx.rotation_deg;
+                        const thetaRad = (thetaDeg * Math.PI) / 180;
+                        const cos = isRightAngle ? 1 : Math.abs(Math.cos(thetaRad));
+                        const sin = isRightAngle ? 0 : Math.abs(Math.sin(thetaRad));
+                        const boundBaseW = isRightAngle
+                          ? baseW
+                          : baseW * cos + baseH * sin;
+                        const boundBaseH = isRightAngle
+                          ? baseH
+                          : baseW * sin + baseH * cos;
 
                         if (!(boundBaseW > 0) || !(boundBaseH > 0)) {
                           const fallbackW = Math.max(
