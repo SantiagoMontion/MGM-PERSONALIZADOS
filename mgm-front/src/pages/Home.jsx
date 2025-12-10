@@ -55,6 +55,7 @@ const normalizeMaterialLabelSafe = (value) => {
   const normalized = safeStr(value).toLowerCase();
   if (normalized.includes('glass')) return 'Glasspad';
   if (normalized.includes('pro')) return 'PRO';
+  if (normalized.includes('alfombra')) return 'Alfombra';
   return 'Classic';
 };
 import { apiFetch, postJSON, getResolvedApiUrl } from '@/lib/api.js';

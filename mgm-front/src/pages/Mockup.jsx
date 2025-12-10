@@ -24,6 +24,7 @@ const normalizeMaterialLabel = (raw) => {
   const s = safeStr(raw).toLowerCase();
   if (s.includes('glass')) return 'Glasspad';
   if (s.includes('pro')) return 'PRO';
+  if (s.includes('alfombra')) return 'Alfombra';
   if (s.includes('classic')) return 'Classic';
   return '';
 };
