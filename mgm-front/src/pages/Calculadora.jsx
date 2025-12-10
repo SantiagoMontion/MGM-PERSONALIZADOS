@@ -18,6 +18,7 @@ const CalculadoraPage = () => {
       { label: 'Glasspad', value: 'Glasspad' },
       { label: 'Pro', value: 'Pro' },
       { label: 'Classic', value: 'Classic' },
+      { label: 'Alfombra', value: 'Alfombra' },
     ],
     [],
   );
@@ -25,6 +26,10 @@ const CalculadoraPage = () => {
   const dimensionConstraints = useMemo(
     () => ({
       Classic: {
+        width: { min: 20, max: 140 },
+        height: { min: 20, max: 100 },
+      },
+      Alfombra: {
         width: { min: 20, max: 140 },
         height: { min: 20, max: 100 },
       },
