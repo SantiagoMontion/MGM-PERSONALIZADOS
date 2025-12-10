@@ -25,6 +25,7 @@ function normalizeMaterial(value) {
   const normalized = String(value || '').toLowerCase();
   if (normalized.includes('glass')) return 'Glasspad';
   if (normalized.includes('pro')) return 'PRO';
+  if (normalized.includes('alfombr')) return 'Alfombra';
   if (normalized.includes('classic')) return 'Classic';
   return 'Classic';
 }
@@ -496,10 +497,19 @@ export default async function handler(req, res) {
   const designNameNorm = normalizeDesignNameKeepSpaces(designNameRaw);
   const designName = designNameNorm.length ? designNameNorm : 'Personalizado';
   const hasDims = Number.isFinite(widthCmSafe) && Number.isFinite(heightCmSafe) && widthCmSafe > 0 && heightCmSafe > 0;
+  const productLabel = productType.includes('glass')
+    ? 'Glasspad'
+    : mat === 'Alfombra'
+      ? 'Alfombra'
+      : 'Mousepad';
+  const nameParts = [
+    productLabel,
+    designName,
+    hasDims ? `${widthCmSafe}x${heightCmSafe}` : '',
+    productLabel === 'Mousepad' ? mat : '',
+  ].filter(Boolean);
   const computedTitle = designName
-    ? (productType.includes('glass')
-      ? `Glasspad ${designName} 49x42 | PERSONALIZADO`
-      : `Mousepad ${designName} ${hasDims ? `${widthCmSafe}x${heightCmSafe} ` : ''}${mat} | PERSONALIZADO`)
+    ? `${nameParts.join(' ')} | PERSONALIZADO`
     : parsedBody.title;
   const finalTitle = typeof parsedBody.title === 'string' && parsedBody.title.includes('| PERSONALIZADO')
     ? parsedBody.title
