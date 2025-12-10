@@ -21,6 +21,7 @@ const normalizeMaterial = (value) => {
   const normalized = safeStr(value).toLowerCase();
   if (normalized.includes('glass')) return 'Glasspad';
   if (normalized.includes('pro')) return 'PRO';
+  if (normalized.includes('alfombr')) return 'Alfombra';
   return normalized ? 'Classic' : '';
 };
 
