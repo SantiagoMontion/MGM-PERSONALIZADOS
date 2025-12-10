@@ -18,10 +18,11 @@ const safeStr = (value: unknown, fallback = ''): string => {
   const str = asStr(value, fallback).trim();
   return str || fallback;
 };
-const normalizeMaterial = (value: unknown): 'Glasspad' | 'PRO' | 'Classic' | '' => {
+const normalizeMaterial = (value: unknown): 'Glasspad' | 'PRO' | 'Alfombra' | 'Classic' | '' => {
   const normalized = safeStr(value).toLowerCase();
   if (normalized.includes('glass')) return 'Glasspad';
   if (normalized.includes('pro')) return 'PRO';
+  if (normalized.includes('alfombr')) return 'Alfombra';
   return normalized ? 'Classic' : '';
 };
 
