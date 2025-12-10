@@ -491,7 +491,7 @@ function buildDefaultTitle(
   const parts = [productLabel];
   if (designName) parts.push(designName);
   if (measurement) parts.push(measurement);
-  if (material) parts.push(material);
+  if (material && material !== productLabel) parts.push(material);
   return `${parts.join(' ')} | PERSONALIZADO`;
 }
 
@@ -610,6 +610,9 @@ export async function createJobAndProduct(
   let designName = designNameRaw.trim();
   const materialFromFlow = (flow.material || '').trim();
   let materialLabel = productType === 'glasspad' ? 'Glasspad' : (matLabelOf(materialFromFlow) || 'Classic');
+  if (materialLabel === 'Alfombra') {
+    productLabel = 'Alfombra';
+  }
   let widthCm = safeNumber((flow.editorState as any)?.size_cm?.w);
   let heightCm = safeNumber((flow.editorState as any)?.size_cm?.h);
   let approxDpi = safeNumber(flow.approxDpi);
