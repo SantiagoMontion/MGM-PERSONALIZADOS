@@ -21,7 +21,9 @@ import { isTouchDevice } from '@/lib/device.ts';
 const safeStr = (v) => (typeof v === 'string' ? v : '').trim();
 
 const normalizeMaterialLabel = (raw) => {
-  const s = safeStr(raw).toLowerCase();
+  const label = safeStr(raw);
+  if (label === 'Alfombra') return 'Alfombra';
+  const s = label.toLowerCase();
   if (s.includes('glass')) return 'Glasspad';
   if (s.includes('pro')) return 'PRO';
   if (s.includes('alfombra')) return 'Alfombra';
@@ -41,6 +43,7 @@ const extractFlowBasics = (flow) => {
     || normalizeMaterialLabel(flow?.editorState?.material)
     || normalizeMaterialLabel(flow?.editorState?.options?.material)
     || normalizeMaterialLabel(flow?.editorState?.productType)
+    || (safeStr(flow?.material) === 'Alfombra' ? 'Alfombra' : '')
     || (productType === 'glasspad' ? 'Glasspad' : 'Classic');
 
   const resolveNumber = (...values) => {
@@ -92,6 +95,16 @@ const buildTitle = ({ productType, mat, widthCm, heightCm, designName }) => {
   if (mat === 'Glasspad') {
     return `Glasspad ${designName} 49x42 | PERSONALIZADO`;
   }
+  if (mat === 'Alfombra') {
+    const w = Number(widthCm);
+    const h = Number(heightCm);
+    const parts = ['Alfombra', designName];
+    if (Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0) {
+      parts.push(`${w}x${h}`);
+    }
+    parts.push('|', 'PERSONALIZADO');
+    return parts.join(' ');
+  }
   const prefix = productType.toLowerCase().includes('mouse') ? 'Mousepad' : 'Mousepad';
   const w = Number(widthCm);
   const h = Number(heightCm);
@@ -121,6 +134,7 @@ function parseQueryOverrides() {
   if (matRaw.includes('glass')) mat = 'Glasspad';
   else if (matRaw.includes('pro')) mat = 'PRO';
   else if (matRaw.includes('classic')) mat = 'Classic';
+  else if (matRaw.includes('alfombra')) mat = 'Alfombra';
   return {
     name: name || null,
     widthCm: Number.isFinite(w) && w > 0 ? w : null,

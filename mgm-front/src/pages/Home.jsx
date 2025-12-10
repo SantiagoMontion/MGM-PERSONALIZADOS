@@ -52,7 +52,9 @@ const safeStr = (value, fallback = '') => {
 };
 const safeReplace = (value, pattern, repl) => asStr(value).replace(pattern, repl);
 const normalizeMaterialLabelSafe = (value) => {
-  const normalized = safeStr(value).toLowerCase();
+  const label = safeStr(value);
+  if (label === 'Alfombra') return 'Alfombra';
+  const normalized = label.toLowerCase();
   if (normalized.includes('glass')) return 'Glasspad';
   if (normalized.includes('pro')) return 'PRO';
   if (normalized.includes('alfombra')) return 'Alfombra';
