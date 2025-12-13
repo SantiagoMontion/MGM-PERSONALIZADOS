@@ -851,6 +851,12 @@ export default function Home() {
         setErr('No se pudo obtener la imagen original.');
         return;
       }
+      const pdfSourceBlob = masterFile || designBlob;
+      const pdfSourceMime = masterFile?.type || designBlob?.type || 'image/png';
+      if (!pdfSourceBlob) {
+        setErr('No se pudo obtener la imagen original.');
+        return;
+      }
       const designShaPromise = (async () => {
         const workerHash = await sha256Offthread(pdfSourceBlob);
         if (workerHash) return workerHash;
