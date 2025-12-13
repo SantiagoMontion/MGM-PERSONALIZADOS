@@ -58,7 +58,7 @@ export async function renderMockup1080(imageOrOptions, maybeOptions) {
     import.meta.env?.VITE_REF_MIN_CM,
   ) || 20;
   const GLASS_FIXED_LONG_PX = Number(import.meta.env?.VITE_MOCKUP_GLASSPAD_FIXED_LONG_PX) || 700;
-  const RADIUS_PX = Number(import.meta.env?.VITE_MOCKUP_PAD_RADIUS_PX) || 8;
+  const RADIUS_PX = 18;
 
   function roundRectPath(ctx, x, y, w, h, r) {
     const rr = Math.max(0, Math.min(r, Math.min(w, h) / 2));
@@ -249,9 +249,17 @@ export async function renderMockup1080(imageOrOptions, maybeOptions) {
 
   ctx.save();
   roundRectPath(ctx, x, y, targetW, targetH, RADIUS_PX);
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fill();
   ctx.clip();
   ctx.drawImage(drawable, x, y, targetW, targetH);
   ctx.restore();
+
+  ctx.beginPath();
+  roundRectPath(ctx, x, y, targetW, targetH, RADIUS_PX);
+  ctx.strokeStyle = '#d1d5db';
+  ctx.lineWidth = 1;
+  ctx.stroke();
 
   if (drawable && typeof drawable.close === 'function') {
     try {

@@ -1146,7 +1146,6 @@ export default function Home() {
         return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
       })();
       const pdfPath = `pdf-${yyyymmValue}/${pdfFileName}.pdf`;
-      const mockupPath = `mockups-${yyyymmValue}/${pdfFileName}.png`;
 
       const mockupStart = tnow();
       const mockupPromise = (async () => {
@@ -1193,7 +1192,9 @@ export default function Home() {
         }
         diagTime('mockup_ready', mockupStart);
         const mockupUrl = URL.createObjectURL(newMockupBlob);
-        let mockupPublicUrl = flowState?.mockupPublicUrl || null;
+        const designShaForMockup = await designShaPromise;
+        const mockupPath = `mockups-${yyyymmValue}/mockup-${designShaForMockup || 'unknown'}.png`;
+        let mockupPublicUrl = null;
         if (!mockupPublicUrl) {
           try {
             const sign = await postJSON(
@@ -1301,7 +1302,7 @@ export default function Home() {
       mockupUrlRef.current = generatedMockupUrl;
       const cacheBustedMockupUrl =
         typeof generatedMockupUrl === 'string' && generatedMockupUrl.startsWith('blob:')
-          ? `${generatedMockupUrl}?t=${Date.now()}`
+          ? `${generatedMockupUrl}?v=${designSha}`
           : generatedMockupUrl;
       setMockupBlob(generatedMockupBlob);
       setMockupUrl(cacheBustedMockupUrl);
