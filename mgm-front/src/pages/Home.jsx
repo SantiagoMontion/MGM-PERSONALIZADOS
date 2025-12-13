@@ -60,6 +60,29 @@ const normalizeMaterialLabelSafe = (value) => {
   if (normalized.includes('alfombra')) return 'Alfombra';
   return 'Classic';
 };
+
+const withTimeout = (promise, ms, onTimeout) => new Promise((resolve, reject) => {
+  let finished = false;
+  const timer = setTimeout(() => {
+    if (finished) return;
+    finished = true;
+    try {
+      onTimeout?.();
+    } catch {}
+    resolve({ timeout: true });
+  }, ms);
+  promise.then((value) => {
+    if (finished) return;
+    finished = true;
+    clearTimeout(timer);
+    resolve(value);
+  }).catch((err) => {
+    if (finished) return;
+    finished = true;
+    clearTimeout(timer);
+    reject(err);
+  });
+});
 import { apiFetch, postJSON, getResolvedApiUrl } from '@/lib/api.js';
 import { resolveIconAsset } from '@/lib/iconRegistry.js';
 import { sha256Hex } from '@/lib/hash.js';
@@ -829,8 +852,12 @@ export default function Home() {
 
       // client-side gate: NSFW scan in browser (no server TFJS)
       try {
-        const res = await scanNudityClient(masterDataUrl);
-        if (res?.blocked) {
+        const res = await withTimeout(
+          scanNudityClient(masterDataUrl),
+          12000,
+          () => warn('[continue] nudity scan timeout; allowing flow'),
+        );
+        if (!res?.timeout && res?.blocked) {
           let message = 'Contenido adulto detectado.';
           if (res.reason === 'client_real_nudity') {
             message = 'Contenido adulto explícito con personas reales detectado.';
@@ -841,7 +868,7 @@ export default function Home() {
           return;
         }
       } catch (scanErr) {
-        error('[continue] nudity scan failed', scanErr?.message || scanErr);
+        warn('[continue] nudity scan failed; allowing flow', scanErr?.message || scanErr);
       }
 
       const masterImagePromise = (async () => {

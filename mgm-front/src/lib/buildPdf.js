@@ -31,7 +31,6 @@ export async function buildPdfFromMaster(masterBlob, options = {}) {
     widthMm,
     heightMm,
     mime,
-    maxBytes = Infinity,
     dpi = 300,
   } = options || {};
 
@@ -41,18 +40,30 @@ export async function buildPdfFromMaster(masterBlob, options = {}) {
   const pdfDoc = await PDFDocument.create();
 
   performance.mark?.('pdf_embed_start');
-  const lowerMime = (mime || masterBlob.type || '').toLowerCase();
-  let embedded;
-  if (lowerMime.includes('jpeg') || lowerMime.includes('jpg')) {
-    embedded = await pdfDoc.embedJpg(bytes);
-  } else if (lowerMime.includes('png')) {
-    embedded = await pdfDoc.embedPng(bytes);
-  } else {
-    try {
-      embedded = await pdfDoc.embedPng(bytes);
-    } catch {
-      embedded = await pdfDoc.embedJpg(bytes);
+  const typedBytes = bytes instanceof ArrayBuffer ? new Uint8Array(bytes) : new Uint8Array(bytes.buffer);
+  const sniffedMime = (() => {
+    const lowerMime = (mime || masterBlob.type || '').toLowerCase();
+    if (lowerMime.includes('jpeg') || lowerMime.includes('jpg')) return 'image/jpeg';
+    if (lowerMime.includes('png')) return 'image/png';
+    if (typedBytes[0] === 0xff && typedBytes[1] === 0xd8) return 'image/jpeg';
+    if (
+      typedBytes[0] === 0x89 &&
+      typedBytes[1] === 0x50 &&
+      typedBytes[2] === 0x4e &&
+      typedBytes[3] === 0x47
+    ) {
+      return 'image/png';
     }
+    return null;
+  })();
+
+  let embedded;
+  if (sniffedMime === 'image/jpeg') {
+    embedded = await pdfDoc.embedJpg(typedBytes);
+  } else if (sniffedMime === 'image/png') {
+    embedded = await pdfDoc.embedPng(typedBytes);
+  } else {
+    throw new Error('unsupported_image_format');
   }
   performance.mark?.('pdf_embed_end');
 
@@ -103,94 +114,5 @@ export async function buildPdfFromMaster(masterBlob, options = {}) {
       save: fmt(measure('pdf_save', 'pdf_save_start', 'pdf_save_end')),
     });
   } catch {}
-  if (!(Number.isFinite(maxBytes) && maxBytes > 0) || pdfBytes.length <= maxBytes) {
-    return pdfBytes;
-  }
-
-  async function blobToJpegBytes(blob, quality) {
-    const createBitmap = async () => {
-      if (typeof createImageBitmap === 'function') {
-        try {
-          return await createImageBitmap(blob);
-        } catch (createBitmapErr) {
-          console.warn?.('[buildPdf] createImageBitmap_failed', createBitmapErr);
-        }
-      }
-
-      const objectUrl = URL.createObjectURL(blob);
-      try {
-        return await new Promise((resolve, reject) => {
-          const img = new Image();
-          img.onload = () => resolve(img);
-          img.onerror = (err) => reject(err || new Error('image_load_failed'));
-          img.src = objectUrl;
-        });
-      } finally {
-        URL.revokeObjectURL(objectUrl);
-      }
-    };
-
-    const bitmap = await createBitmap();
-    const width = bitmap?.naturalWidth || bitmap?.width || 0;
-    const height = bitmap?.naturalHeight || bitmap?.height || 0;
-    if (!width || !height) {
-      throw new Error('invalid_image_dimensions');
-    }
-
-    const canvas = typeof OffscreenCanvas === 'function'
-      ? new OffscreenCanvas(width, height)
-      : (typeof document !== 'undefined' ? document.createElement('canvas') : null);
-    if (!canvas) {
-      throw new Error('canvas_unavailable');
-    }
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) {
-      throw new Error('canvas_context_unavailable');
-    }
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(bitmap, 0, 0, width, height);
-    if (typeof bitmap.close === 'function') {
-      bitmap.close();
-    }
-
-    if (typeof canvas.convertToBlob === 'function') {
-      const jpegBlob = await canvas.convertToBlob({ type: 'image/jpeg', quality });
-      return new Uint8Array(await jpegBlob.arrayBuffer());
-    }
-
-    const jpegBlob = await new Promise((resolve, reject) => {
-      canvas.toBlob((result) => {
-        if (result) {
-          resolve(result);
-        } else {
-          reject(new Error('jpeg_conversion_failed'));
-        }
-      }, 'image/jpeg', quality);
-    });
-    return new Uint8Array(await jpegBlob.arrayBuffer());
-  }
-
-  const qualities = [0.92, 0.85];
-  for (const quality of qualities) {
-    const jpegBytes = await blobToJpegBytes(masterBlob, quality);
-    const jpegDoc = await PDFDocument.create();
-    const jpegImage = await jpegDoc.embedJpg(jpegBytes);
-    const jpegPage = jpegDoc.addPage([pageWidthPt, pageHeightPt]);
-    // fallback JPEG también debe ocupar todo el lienzo
-    jpegPage.drawImage(jpegImage, {
-      x: offsetX,
-      y: offsetY,
-      width: imageWidthPt,
-      height: imageHeightPt,
-    });
-    pdfBytes = await jpegDoc.save({ useObjectStreams: true });
-    if (pdfBytes.length <= maxBytes) {
-      return pdfBytes;
-    }
-  }
-
   return pdfBytes;
 }

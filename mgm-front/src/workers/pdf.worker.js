@@ -3,56 +3,6 @@ import { PDFDocument } from 'pdf-lib';
 const MM_TO_PT = 72 / 25.4;
 const mmToPt = (mm) => (Number.isFinite(mm) ? mm * MM_TO_PT : 0);
 
-async function embedImage(pdfDoc, bytes) {
-  try {
-    return await pdfDoc.embedPng(bytes);
-  } catch {
-    return await pdfDoc.embedJpg(bytes);
-  }
-}
-
-async function blobFromBuffer(buffer, mime) {
-  try {
-    return new Blob([buffer], { type: mime || 'image/png' });
-  } catch {
-    return new Blob([buffer]);
-  }
-}
-
-async function blobToJpegBytes(buffer, mime, quality) {
-  const blob = await blobFromBuffer(buffer, mime);
-  if (typeof createImageBitmap !== 'function') {
-    throw new Error('createImageBitmap_unavailable');
-  }
-  const bitmap = await createImageBitmap(blob);
-  try {
-    const width = bitmap?.naturalWidth || bitmap?.width || 0;
-    const height = bitmap?.naturalHeight || bitmap?.height || 0;
-    if (!width || !height) {
-      throw new Error('invalid_image_dimensions');
-    }
-    const canvas = typeof OffscreenCanvas === 'function'
-      ? new OffscreenCanvas(width, height)
-      : null;
-    if (!canvas) {
-      throw new Error('offscreen_canvas_unavailable');
-    }
-    const ctx = canvas.getContext('2d');
-    if (!ctx) {
-      throw new Error('canvas_context_unavailable');
-    }
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(bitmap, 0, 0, width, height);
-    const jpegBlob = await canvas.convertToBlob({ type: 'image/jpeg', quality });
-    return new Uint8Array(await jpegBlob.arrayBuffer());
-  } finally {
-    if (typeof bitmap.close === 'function') {
-      bitmap.close();
-    }
-  }
-}
-
 self.onmessage = async (event) => {
   const { cmd, buffer, options } = event.data || {};
   if (cmd !== 'build_pdf' || !buffer) {
@@ -67,14 +17,41 @@ self.onmessage = async (event) => {
       heightPx,
       widthMm,
       heightMm,
-      maxBytes = Infinity,
       dpi = 300,
       mime,
     } = options || {};
 
     const pdfDoc = await PDFDocument.create();
-    const baseBytes = new Uint8Array(buffer);
-    const embedded = await embedImage(pdfDoc, baseBytes);
+    const baseBytes = buffer instanceof ArrayBuffer ? buffer : buffer?.buffer;
+    let typedBytes = baseBytes ? new Uint8Array(baseBytes) : null;
+    if (!typedBytes?.byteLength) {
+      throw new Error('empty_buffer');
+    }
+
+    const sniffedMime = (() => {
+      const lowerMime = (mime || '').toLowerCase();
+      if (lowerMime.includes('jpeg') || lowerMime.includes('jpg')) return 'image/jpeg';
+      if (lowerMime.includes('png')) return 'image/png';
+      if (typedBytes[0] === 0xff && typedBytes[1] === 0xd8) return 'image/jpeg';
+      if (
+        typedBytes[0] === 0x89 &&
+        typedBytes[1] === 0x50 &&
+        typedBytes[2] === 0x4e &&
+        typedBytes[3] === 0x47
+      ) {
+        return 'image/png';
+      }
+      return null;
+    })();
+
+    let embedded;
+    if (sniffedMime === 'image/png') {
+      embedded = await pdfDoc.embedPng(typedBytes);
+    } else if (sniffedMime === 'image/jpeg') {
+      embedded = await pdfDoc.embedJpg(typedBytes);
+    } else {
+      throw new Error('unsupported_image_format');
+    }
 
     const intrinsicWidth = embedded.width;
     const intrinsicHeight = embedded.height;
@@ -105,47 +82,18 @@ self.onmessage = async (event) => {
       height: imageHeightPt,
     });
 
-    let pdfBytes = await pdfDoc.save({ useObjectStreams: true });
-    if (!(Number.isFinite(maxBytes) && maxBytes > 0) || pdfBytes.length <= maxBytes) {
-      const out = pdfBytes.byteOffset === 0 && pdfBytes.byteLength === pdfBytes.buffer.byteLength
-        ? pdfBytes.buffer
-        : pdfBytes.buffer.slice(pdfBytes.byteOffset, pdfBytes.byteOffset + pdfBytes.byteLength);
-      self.postMessage({ ok: true, type: 'build_pdf', buffer: out }, [out]);
-      return;
-    }
-
-    const qualities = [0.92, 0.85];
-    for (const quality of qualities) {
-    try {
-      const jpegBytes = await blobToJpegBytes(buffer, mime, quality);
-      const jpegDoc = await PDFDocument.create();
-      const jpegImage = await jpegDoc.embedJpg(jpegBytes);
-      const jpegPage = jpegDoc.addPage([pageWidthPt, pageHeightPt]);
-      jpegPage.drawImage(jpegImage, {
-        x: 0,
-        y: 0,
-        width: imageWidthPt,
-        height: imageHeightPt,
-      });
-      pdfBytes = await jpegDoc.save({ useObjectStreams: true });
-      if (pdfBytes.length <= maxBytes) {
-        const out = pdfBytes.byteOffset === 0 && pdfBytes.byteLength === pdfBytes.buffer.byteLength
-          ? pdfBytes.buffer
-          : pdfBytes.buffer.slice(pdfBytes.byteOffset, pdfBytes.byteOffset + pdfBytes.byteLength);
-        self.postMessage({ ok: true, type: 'build_pdf', buffer: out }, [out]);
-        return;
-      }
-    } catch (jpegErr) {
-      console.warn?.('[pdf.worker] jpeg_fallback_failed', jpegErr);
-      break;
-    }
-  }
-
-  const out = pdfBytes.byteOffset === 0 && pdfBytes.byteLength === pdfBytes.buffer.byteLength
-    ? pdfBytes.buffer
-    : pdfBytes.buffer.slice(pdfBytes.byteOffset, pdfBytes.byteOffset + pdfBytes.byteLength);
-  self.postMessage({ ok: true, type: 'build_pdf', buffer: out }, [out]);
+    const pdfBytes = await pdfDoc.save({ useObjectStreams: true });
+    const out = pdfBytes.byteOffset === 0 && pdfBytes.byteLength === pdfBytes.buffer.byteLength
+      ? pdfBytes.buffer
+      : pdfBytes.buffer.slice(pdfBytes.byteOffset, pdfBytes.byteOffset + pdfBytes.byteLength);
+    self.postMessage({ ok: true, type: 'build_pdf', buffer: out }, [out]);
   } catch (err) {
     self.postMessage({ ok: false, type: 'build_pdf', error: String(err && err.message ? err.message : err) });
+  } finally {
+    try {
+      // Drop strong references to previous buffers to avoid re-use in subsequent jobs
+      typedBytes = null;
+      if (globalThis.gc) gc();
+    } catch {}
   }
 };
