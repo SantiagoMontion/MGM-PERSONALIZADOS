@@ -858,6 +858,15 @@ export default function Home() {
         }
       }
       await nextPaint(2);
+      const mockupSourceBlob = await canvasRef.current.exportPadPreviewBlob?.({
+        maxWidth: 1080,
+        pixelRatio: 1,
+      });
+      if (!mockupSourceBlob || !mockupSourceBlob.size) {
+        setErr('No se pudo generar la imagen');
+        return;
+      }
+
       let designBlob = null;
       let pdfSourceBlob = null;
 
@@ -878,6 +887,8 @@ export default function Home() {
         setErr('No se pudo obtener la imagen original.');
         return;
       }
+      const mockupDataUrl = await blobToDataUrl(mockupSourceBlob);
+
       const designShaPromise = (async () => {
         const workerHash = await sha256Offthread(pdfSourceBlob);
         if (workerHash) return workerHash;
@@ -917,6 +928,13 @@ export default function Home() {
       const masterImagePromise = (async () => {
         const img = new Image();
         img.src = masterDataUrl;
+        await img.decode();
+        return img;
+      })();
+
+      const mockupImagePromise = (async () => {
+        const img = new Image();
+        img.src = mockupDataUrl;
         await img.decode();
         return img;
       })();
@@ -1151,7 +1169,7 @@ export default function Home() {
       const mockupPromise = (async () => {
         let newMockupBlob = null;
         try {
-          newMockupBlob = await generateMockupOffthread(pdfSourceBlob, {
+          newMockupBlob = await generateMockupOffthread(mockupSourceBlob, {
             composition: {
               widthPx: flowState?.masterWidthPx || masterWidthExact,
               heightPx: flowState?.masterHeightPx || masterHeightExact,
@@ -1168,7 +1186,8 @@ export default function Home() {
         }
         if (!newMockupBlob) {
           try {
-            newMockupBlob = await renderMockup1080(img, {
+            const mockupImage = await mockupImagePromise;
+            newMockupBlob = await renderMockup1080(mockupImage, {
               material,
               materialLabel: material,
               approxDpi: dpiForMockup,
