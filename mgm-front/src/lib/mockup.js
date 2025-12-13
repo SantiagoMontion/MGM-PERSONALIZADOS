@@ -214,7 +214,7 @@ export async function renderMockup1080(imageOrOptions, maybeOptions) {
     if (Number.isFinite(cm) && cm > 0) return cm * 10;
     return 1400; // default reference long side in mm
   })();
-  const refPixels = Number(import.meta.env?.VITE_MOCKUP_REF_PIXELS) || 1000;
+  const refPixels = Number(import.meta.env?.VITE_MOCKUP_REF_PIXELS) || 1180;
   const pixelsPerMm = refPixels / Math.max(1, refMaxMm);
 
   let targetW = Math.max(1, wMm * pixelsPerMm);
