@@ -130,20 +130,22 @@ export async function renderMockup1080(imageOrOptions, maybeOptions) {
     fallbackHeight
   );
 
-  let widthMm = Number(
-    options?.composition?.widthMm ??
-    options?.composition?.width_mm ??
-    options?.widthMm ??
-    options?.width_mm ??
+  const mmFromOptions = (opts) => Number(
+    opts?.composition?.widthMm ??
+    opts?.composition?.width_mm ??
+    opts?.widthMm ??
+    opts?.width_mm ??
     0
   );
-  let heightMm = Number(
-    options?.composition?.heightMm ??
-    options?.composition?.height_mm ??
-    options?.heightMm ??
-    options?.height_mm ??
+  const mmFromOptionsH = (opts) => Number(
+    opts?.composition?.heightMm ??
+    opts?.composition?.height_mm ??
+    opts?.heightMm ??
+    opts?.height_mm ??
     0
   );
+  let widthMm = mmFromOptions(options);
+  let heightMm = mmFromOptionsH(options);
 
   const legacyWidthCm = Number(
     options?.composition?.widthCm ??
@@ -190,8 +192,15 @@ export async function renderMockup1080(imageOrOptions, maybeOptions) {
     heightMm = pxToMm(compHeightPx || fallbackHeight);
   }
 
-  const widthCm = Number.isFinite(widthMm) ? widthMm / 10 : 0;
-  const heightCm = Number.isFinite(heightMm) ? heightMm / 10 : 0;
+  let wMm = Number(widthMm) || 0;
+  let hMm = Number(heightMm) || 0;
+  if (wMm <= 0 || hMm <= 0) {
+    wMm = 900;
+    hMm = 400;
+  }
+
+  const widthCm = Number.isFinite(wMm) ? wMm / 10 : 0;
+  const heightCm = Number.isFinite(hMm) ? hMm / 10 : 0;
   ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
@@ -206,10 +215,24 @@ export async function renderMockup1080(imageOrOptions, maybeOptions) {
   const refPixels = Number(import.meta.env?.VITE_MOCKUP_REF_PIXELS) || 1000;
   const pixelsPerMm = refPixels / Math.max(1, refMaxMm);
 
-  const targetW = Math.max(1, widthMm * pixelsPerMm);
-  const targetH = Math.max(1, heightMm * pixelsPerMm);
+  let targetW = Math.max(1, wMm * pixelsPerMm);
+  let targetH = Math.max(1, hMm * pixelsPerMm);
+  if (targetW > CANVAS_SIZE || targetH > CANVAS_SIZE) {
+    const scaleDown = Math.min(CANVAS_SIZE / targetW, CANVAS_SIZE / targetH, 1);
+    targetW *= scaleDown;
+    targetH *= scaleDown;
+  }
   const x = (CANVAS_SIZE - targetW) / 2;
   const y = (CANVAS_SIZE - targetH) / 2;
+
+  const abortWithEmpty = async () => {
+    const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
+    return blob || new Blob([], { type: 'image/png' });
+  };
+
+  if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(targetW) || !Number.isFinite(targetH)) {
+    return await abortWithEmpty();
+  }
 
   ctx.save();
   roundRectPath(ctx, x, y, targetW, targetH, RADIUS_PX);
