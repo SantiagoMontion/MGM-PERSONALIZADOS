@@ -858,26 +858,19 @@ export default function Home() {
         }
       }
       await nextPaint(2);
-      let designBlob = null;
-      let pdfSourceBlob = null;
-
-      if (masterFile) {
-        pdfSourceBlob = masterFile;
-      } else {
-        designBlob = await canvasRef.current.exportPadAsBlob?.();
-        if (!designBlob || !designBlob.size) {
-          setErr('No se pudo generar la imagen');
-          return;
-        }
-        pdfSourceBlob = designBlob;
-      }
-
-      const pdfSourceMime = pdfSourceBlob?.type || 'image/png';
-
-      if (!pdfSourceBlob) {
-        setErr('No se pudo obtener la imagen original.');
+      const designBlob = await canvasRef.current.exportPadAsBlob?.({
+        maxDimension: 4000,
+      });
+      if (!designBlob || !designBlob.size) {
+        setErr('No se pudo generar la imagen');
         return;
       }
+
+      const pdfSourceBlob = designBlob;
+      const pdfSourceMime = pdfSourceBlob?.type || 'image/png';
+
+      const mockupDataUrl = await blobToDataUrl(designBlob);
+
       const designShaPromise = (async () => {
         const workerHash = await sha256Offthread(pdfSourceBlob);
         if (workerHash) return workerHash;
@@ -917,6 +910,13 @@ export default function Home() {
       const masterImagePromise = (async () => {
         const img = new Image();
         img.src = masterDataUrl;
+        await img.decode();
+        return img;
+      })();
+
+      const mockupImagePromise = (async () => {
+        const img = new Image();
+        img.src = mockupDataUrl;
         await img.decode();
         return img;
       })();
@@ -1151,7 +1151,7 @@ export default function Home() {
       const mockupPromise = (async () => {
         let newMockupBlob = null;
         try {
-          newMockupBlob = await generateMockupOffthread(pdfSourceBlob, {
+          newMockupBlob = await generateMockupOffthread(mockupSourceBlob, {
             composition: {
               widthPx: flowState?.masterWidthPx || masterWidthExact,
               heightPx: flowState?.masterHeightPx || masterHeightExact,
@@ -1168,7 +1168,8 @@ export default function Home() {
         }
         if (!newMockupBlob) {
           try {
-            newMockupBlob = await renderMockup1080(img, {
+            const mockupImage = await mockupImagePromise;
+            newMockupBlob = await renderMockup1080(mockupImage, {
               material,
               materialLabel: material,
               approxDpi: dpiForMockup,
