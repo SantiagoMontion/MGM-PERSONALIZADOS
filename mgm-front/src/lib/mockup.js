@@ -219,6 +219,11 @@ export async function renderMockup1080(imageOrOptions, maybeOptions) {
 
   let targetW = Math.max(1, wMm * pixelsPerMm);
   let targetH = Math.max(1, hMm * pixelsPerMm);
+  const longSideMm = Math.max(wMm, hMm);
+  if (longSideMm < 600) {
+    targetW *= 1.4;
+    targetH *= 1.4;
+  }
   if (targetW > CANVAS_SIZE || targetH > CANVAS_SIZE) {
     const scaleDown = Math.min(CANVAS_SIZE / targetW, CANVAS_SIZE / targetH, 1);
     targetW *= scaleDown;
