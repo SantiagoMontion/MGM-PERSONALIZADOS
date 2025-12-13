@@ -244,17 +244,14 @@ export async function renderMockup1080(imageOrOptions, maybeOptions) {
   ctx.save();
   roundRectPath(ctx, 0, 0, CANVAS_SIZE, CANVAS_SIZE, RADIUS_PX);
   ctx.clip();
-  ctx.drawImage(
-    drawable,
-    0,
-    0,
-    sourceWidth,
-    sourceHeight,
-    0,
-    0,
-    CANVAS_SIZE,
-    CANVAS_SIZE,
-  );
+  const safeSourceWidth = Math.max(1, sourceWidth);
+  const safeSourceHeight = Math.max(1, sourceHeight);
+  const coverScale = Math.max(CANVAS_SIZE / safeSourceWidth, CANVAS_SIZE / safeSourceHeight);
+  const w = safeSourceWidth * coverScale;
+  const h = safeSourceHeight * coverScale;
+  const x = (CANVAS_SIZE - w) / 2;
+  const y = (CANVAS_SIZE - h) / 2;
+  ctx.drawImage(drawable, 0, 0, safeSourceWidth, safeSourceHeight, x, y, w, h);
   ctx.restore();
 
   if (drawable && typeof drawable.close === 'function') {
