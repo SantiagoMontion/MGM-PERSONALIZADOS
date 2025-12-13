@@ -9,9 +9,9 @@ import {
 } from '../lib/material.js';
 import {
   dpiFor,
-  dpiLevel,
   DPI_WARN_THRESHOLD,
   DPI_LOW_THRESHOLD,
+  qualityLevel,
 } from '../lib/dpi';
 import styles from './OptionsStep.module.css';
 import { buildSubmitJobBody, prevalidateSubmitBody } from '../lib/jobPayload';
@@ -91,8 +91,14 @@ export default function OptionsStep({ uploaded, onSubmitted }) {
   // DPI estimado
   const dpiVal = useMemo(() => dpiFor(size.w, size.h, imgPx.w, imgPx.h), [size, imgPx]);
   const level = useMemo(
-    () => dpiLevel(dpiVal, DPI_WARN_THRESHOLD, DPI_LOW_THRESHOLD),
-    [dpiVal],
+    () => qualityLevel({
+      dpi: dpiVal,
+      naturalWidth: imgPx.w,
+      sizeCm: size,
+      warn: DPI_WARN_THRESHOLD,
+      low: DPI_LOW_THRESHOLD,
+    }),
+    [dpiVal, imgPx.w, size],
   );
 
   useEffect(() => {
@@ -231,7 +237,7 @@ export default function OptionsStep({ uploaded, onSubmitted }) {
 
       <div className={styles.dpiSection}>
         <b>DPI estimado:</b> {Math.round(dpiVal)} — {
-          level === 'ok' ? 'Excelente' : level === 'warn' ? 'Buena' : 'Baja'
+          level === 'ok' ? 'Excelente' : level === 'warn' ? 'Buena' : 'Baja (Revisar)'
         }
         {level === 'bad' && (
           <div className={styles.ackRow}>

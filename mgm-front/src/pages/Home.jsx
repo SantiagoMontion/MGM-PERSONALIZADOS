@@ -27,9 +27,9 @@ import {
 } from '../lib/material.js';
 
 import {
-  dpiLevel,
   DPI_WARN_THRESHOLD,
   DPI_LOW_THRESHOLD,
+  qualityLevel,
 } from '../lib/dpi';
 import styles from './Home.module.css';
 import { renderMockup1080 } from '../lib/mockup.js';
@@ -548,10 +548,16 @@ export default function Home() {
       )
     );
   }, [layout]);
-  const level = useMemo(
-    () => (effDpi ? dpiLevel(effDpi, DPI_WARN_THRESHOLD, DPI_LOW_THRESHOLD) : null),
-    [effDpi],
-  );
+  const level = useMemo(() => {
+    if (!effDpi) return null;
+    return qualityLevel({
+      dpi: effDpi,
+      naturalWidth: layout?.image?.natural_px?.w,
+      sizeCm: layout?.size_cm,
+      warn: DPI_WARN_THRESHOLD,
+      low: DPI_LOW_THRESHOLD,
+    });
+  }, [effDpi, layout]);
   const trimmedDesignName = useMemo(() => (designName || '').trim(), [designName]);
 
   function handleSizeChange(next) {

@@ -28,9 +28,9 @@ import { buildSubmitJobBody, prevalidateSubmitBody } from "../lib/jobPayload";
 import { submitJob } from "../lib/submitJob";
 import { renderGlasspadPNG } from "../lib/renderGlasspadPNG";
 import {
-  dpiLevel,
   DPI_WARN_THRESHOLD,
   DPI_LOW_THRESHOLD,
+  qualityLevel,
 } from "../lib/dpi";
 import { resolveIconAsset } from "@/lib/iconRegistry.js";
 import { isTouchDevice } from "@/lib/device.ts";
@@ -1486,14 +1486,16 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     if (dpiEffective == null) {
       return { label: "—", color: "#9ca3af", level: null };
     }
-    const level = dpiLevel(
-      dpiEffective,
-      DPI_WARN_THRESHOLD,
-      DPI_LOW_THRESHOLD,
-    );
+    const level = qualityLevel({
+      dpi: dpiEffective,
+      naturalWidth: imgEl?.naturalWidth,
+      sizeCm: { w: wCm, h: hCm },
+      warn: DPI_WARN_THRESHOLD,
+      low: DPI_LOW_THRESHOLD,
+    });
     if (level === "bad") {
       return {
-        label: `Baja (${dpiEffective | 0} DPI)`,
+        label: `Baja (Revisar, ${dpiEffective | 0} DPI)`,
         color: "#ef4444",
         level,
       };
