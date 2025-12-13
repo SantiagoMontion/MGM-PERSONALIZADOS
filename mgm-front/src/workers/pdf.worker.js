@@ -22,19 +22,35 @@ self.onmessage = async (event) => {
     } = options || {};
 
     const pdfDoc = await PDFDocument.create();
-    const baseBytes = new Uint8Array(buffer);
-    const lowerMime = (mime || '').toLowerCase();
-    let embedded;
-    if (lowerMime.includes('jpeg') || lowerMime.includes('jpg')) {
-      embedded = await pdfDoc.embedJpg(baseBytes);
-    } else if (lowerMime.includes('png')) {
-      embedded = await pdfDoc.embedPng(baseBytes);
-    } else {
-      try {
-        embedded = await pdfDoc.embedPng(baseBytes);
-      } catch {
-        embedded = await pdfDoc.embedJpg(baseBytes);
+    const baseBytes = buffer instanceof ArrayBuffer ? buffer : buffer?.buffer;
+    let typedBytes = baseBytes ? new Uint8Array(baseBytes) : null;
+    if (!typedBytes?.byteLength) {
+      throw new Error('empty_buffer');
+    }
+
+    const sniffedMime = (() => {
+      const lowerMime = (mime || '').toLowerCase();
+      if (lowerMime.includes('jpeg') || lowerMime.includes('jpg')) return 'image/jpeg';
+      if (lowerMime.includes('png')) return 'image/png';
+      if (typedBytes[0] === 0xff && typedBytes[1] === 0xd8) return 'image/jpeg';
+      if (
+        typedBytes[0] === 0x89 &&
+        typedBytes[1] === 0x50 &&
+        typedBytes[2] === 0x4e &&
+        typedBytes[3] === 0x47
+      ) {
+        return 'image/png';
       }
+      return null;
+    })();
+
+    let embedded;
+    if (sniffedMime === 'image/png') {
+      embedded = await pdfDoc.embedPng(typedBytes);
+    } else if (sniffedMime === 'image/jpeg') {
+      embedded = await pdfDoc.embedJpg(typedBytes);
+    } else {
+      throw new Error('unsupported_image_format');
     }
 
     const intrinsicWidth = embedded.width;
@@ -73,5 +89,11 @@ self.onmessage = async (event) => {
     self.postMessage({ ok: true, type: 'build_pdf', buffer: out }, [out]);
   } catch (err) {
     self.postMessage({ ok: false, type: 'build_pdf', error: String(err && err.message ? err.message : err) });
+  } finally {
+    try {
+      // Drop strong references to previous buffers to avoid re-use in subsequent jobs
+      typedBytes = null;
+      if (globalThis.gc) gc();
+    } catch {}
   }
 };
