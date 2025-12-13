@@ -497,6 +497,9 @@ export default function Home() {
   const [ackLowError, setAckLowError] = useState(false);
   const ackCheckboxRef = useRef(null);
   const ackLowErrorDescriptionId = useId();
+  const [mockupUrl, setMockupUrl] = useState(null);
+  const [mockupBlob, setMockupBlob] = useState(null);
+  const mockupUrlRef = useRef(null);
   const isMobileDevice = useMemo(() => isTouchDevice(), []);
   const [err, setErr] = useState('');
   const [moderationNotice, setModerationNotice] = useState('');
@@ -548,6 +551,15 @@ export default function Home() {
     };
   }, [busy]);
 
+  useEffect(() => () => {
+    if (mockupUrlRef.current && mockupUrlRef.current.startsWith('blob:')) {
+      try {
+        URL.revokeObjectURL(mockupUrlRef.current);
+      } catch {}
+    }
+    mockupUrlRef.current = null;
+  }, []);
+
   const handleClearImage = useCallback(() => {
     heavyToastShownRef.current = false;
     setUploaded(null);
@@ -559,6 +571,14 @@ export default function Home() {
     setErr('');
     setModerationNotice('');
     setPriceAmount(0);
+    if (mockupUrlRef.current && mockupUrlRef.current.startsWith('blob:')) {
+      try {
+        URL.revokeObjectURL(mockupUrlRef.current);
+      } catch {}
+    }
+    mockupUrlRef.current = null;
+    setMockupUrl(null);
+    setMockupBlob(null);
     flow?.set?.({ mockupUrl: null, mockupPublicUrl: null, masterBytes: null });
   }, [flow]);
 
@@ -776,6 +796,14 @@ export default function Home() {
         design_slug: designSlugCandidate,
       });
     } catch {}
+    if (mockupUrlRef.current && mockupUrlRef.current.startsWith('blob:')) {
+      try {
+        URL.revokeObjectURL(mockupUrlRef.current);
+      } catch {}
+    }
+    mockupUrlRef.current = null;
+    setMockupUrl(null);
+    setMockupBlob(null);
     setErr('');
     if (!layout?.image || !canvasRef.current) {
       setErr('Falta imagen o layout');
@@ -1122,9 +1150,9 @@ export default function Home() {
 
       const mockupStart = tnow();
       const mockupPromise = (async () => {
-        let blob = null;
+        let newMockupBlob = null;
         try {
-          blob = await generateMockupOffthread(pdfSourceBlob, {
+          newMockupBlob = await generateMockupOffthread(pdfSourceBlob, {
             composition: {
               widthPx: flowState?.masterWidthPx || masterWidthExact,
               heightPx: flowState?.masterHeightPx || masterHeightExact,
@@ -1137,11 +1165,11 @@ export default function Home() {
             radiusPx: Number(import.meta.env?.VITE_MOCKUP_PAD_RADIUS_PX) || 8,
           });
         } catch (_) {
-          blob = null;
+          newMockupBlob = null;
         }
-        if (!blob) {
+        if (!newMockupBlob) {
           try {
-            blob = await renderMockup1080(img, {
+            newMockupBlob = await renderMockup1080(img, {
               material,
               materialLabel: material,
               approxDpi: dpiForMockup,
@@ -1160,11 +1188,11 @@ export default function Home() {
             warn('[mockup] renderMockup1080 failed', mockupErr);
           }
         }
-        if (!blob) {
-          blob = new Blob([], { type: 'image/png' });
+        if (!newMockupBlob) {
+          newMockupBlob = new Blob([], { type: 'image/png' });
         }
         diagTime('mockup_ready', mockupStart);
-        const mockupUrl = URL.createObjectURL(blob);
+        const mockupUrl = URL.createObjectURL(newMockupBlob);
         let mockupPublicUrl = flowState?.mockupPublicUrl || null;
         if (!mockupPublicUrl) {
           try {
@@ -1177,7 +1205,7 @@ export default function Home() {
               const uploadRes = await fetch(sign.uploadUrl, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'image/png' },
-                body: blob,
+                body: newMockupBlob,
               });
               if (uploadRes.ok) {
                 mockupPublicUrl = sign.publicUrl || mockupPublicUrl;
@@ -1187,7 +1215,7 @@ export default function Home() {
             warn('[diag] mockup upload failed', mockupUploadErr);
           }
         }
-        return { mockupBlob: blob, mockupUrl, mockupPublicUrl };
+        return { mockupBlob: newMockupBlob, mockupUrl, mockupPublicUrl };
       })();
 
       const pdfStart = tnow();
@@ -1259,11 +1287,24 @@ export default function Home() {
         return;
       }
 
-      const { mockupBlob, mockupUrl, mockupPublicUrl } = mockupResult || {};
-      if (!mockupBlob || !mockupUrl) {
+      const { mockupBlob: generatedMockupBlob, mockupUrl: generatedMockupUrl, mockupPublicUrl } = mockupResult || {};
+      if (!generatedMockupBlob || !generatedMockupUrl) {
         setErr('No se pudo generar el mockup.');
         return;
       }
+
+      if (mockupUrlRef.current && mockupUrlRef.current.startsWith('blob:')) {
+        try {
+          URL.revokeObjectURL(mockupUrlRef.current);
+        } catch {}
+      }
+      mockupUrlRef.current = generatedMockupUrl;
+      const cacheBustedMockupUrl =
+        typeof generatedMockupUrl === 'string' && generatedMockupUrl.startsWith('blob:')
+          ? `${generatedMockupUrl}?t=${Date.now()}`
+          : generatedMockupUrl;
+      setMockupBlob(generatedMockupBlob);
+      setMockupUrl(cacheBustedMockupUrl);
 
       await nextPaint(1);
       diag('[diag] master dims', { width: masterWidthExact, height: masterHeightExact });
@@ -1398,8 +1439,8 @@ export default function Home() {
         heightCm: finalHeightCm,
         productType: finalMaterial === 'Glasspad' ? 'glasspad' : 'mousepad',
         editorState: layout,
-        mockupBlob,
-        mockupUrl,
+        mockupBlob: generatedMockupBlob,
+        mockupUrl: cacheBustedMockupUrl,
         mockupPublicUrl: mockupPublicUrl || null,
         mockupHash: null,
         mockupUploadOk: false,
