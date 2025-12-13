@@ -192,49 +192,6 @@ export async function renderMockup1080(imageOrOptions, maybeOptions) {
 
   const widthCm = Number.isFinite(widthMm) ? widthMm / 10 : 0;
   const heightCm = Number.isFinite(heightMm) ? heightMm / 10 : 0;
-  const longestCm = Math.max(widthCm, heightCm, 0);
-
-  const matLabel = materialLabelFromOpts(options) || 'Classic';
-
-  const aspect = compWidthPx > 0 && compHeightPx > 0
-    ? compWidthPx / compHeightPx
-    : fallbackWidth > 0 && fallbackHeight > 0
-      ? fallbackWidth / fallbackHeight
-      : 1;
-  // Glasspad: usar largo fijo para que no “llene” el 1080x1080
-  let longPx = matLabel === 'Glasspad'
-    ? GLASS_FIXED_LONG_PX
-    : mapLongPxByMaterial(longestCm, matLabel);
-  if (!Number.isFinite(longPx) || longPx <= 0) {
-    longPx = mapLongPxByMaterial(CLASSIC_REF_MIN_LONG_CM, matLabel);
-  }
-  const maxAllowed = matLabel === 'Glasspad' ? GLASS_MAX_LONG_PX : CLASSIC_MAX_LONG_PX;
-  longPx = Math.max(1, Math.min(longPx, maxAllowed));
-
-  let targetW;
-  let targetH;
-  if (aspect >= 1) {
-    targetW = longPx;
-    targetH = Math.max(1, Math.round(longPx / Math.max(aspect, 1e-6)));
-  } else {
-    targetH = longPx;
-    targetW = Math.max(1, Math.round(longPx * aspect));
-  }
-  if (targetW > CANVAS_SIZE) {
-    const scale = CANVAS_SIZE / targetW;
-    targetW = CANVAS_SIZE;
-    targetH = Math.max(1, Math.round(targetH * scale));
-  }
-  if (targetH > CANVAS_SIZE) {
-    const scale = CANVAS_SIZE / targetH;
-    targetH = CANVAS_SIZE;
-    targetW = Math.max(1, Math.round(targetW * scale));
-  }
-
-  if (!Number.isFinite(targetW) || !Number.isFinite(targetH)) {
-    targetW = CANVAS_SIZE;
-    targetH = CANVAS_SIZE;
-  }
   ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
