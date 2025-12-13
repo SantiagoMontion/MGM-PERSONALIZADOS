@@ -230,9 +230,6 @@ export async function renderMockup1080(imageOrOptions, maybeOptions) {
     targetH = CANVAS_SIZE;
     targetW = Math.max(1, Math.round(targetW * scale));
   }
-  const offsetX = Math.round((CANVAS_SIZE - targetW) / 2);
-  const offsetY = Math.round((CANVAS_SIZE - targetH) / 2);
-
   ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
@@ -240,7 +237,7 @@ export async function renderMockup1080(imageOrOptions, maybeOptions) {
   const sourceWidth = compWidthPx > 0 ? compWidthPx : fallbackWidth || targetW;
   const sourceHeight = compHeightPx > 0 ? compHeightPx : fallbackHeight || targetH;
   ctx.save();
-  roundRectPath(ctx, offsetX, offsetY, targetW, targetH, RADIUS_PX);
+  roundRectPath(ctx, 0, 0, CANVAS_SIZE, CANVAS_SIZE, RADIUS_PX);
   ctx.clip();
   ctx.drawImage(
     drawable,
@@ -248,10 +245,10 @@ export async function renderMockup1080(imageOrOptions, maybeOptions) {
     0,
     sourceWidth,
     sourceHeight,
-    offsetX,
-    offsetY,
-    targetW,
-    targetH,
+    0,
+    0,
+    CANVAS_SIZE,
+    CANVAS_SIZE,
   );
   ctx.restore();
 

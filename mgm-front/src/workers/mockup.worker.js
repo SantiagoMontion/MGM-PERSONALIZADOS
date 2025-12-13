@@ -73,19 +73,16 @@ self.onmessage = async (event) => {
     const mat = opts?.material || opts?.materialLabel;
     const radiusPx = Number(opts?.radiusPx || 8);
 
-    const { w: targetW, h: targetH } = pickLongPx(compW, compH, compWcm, compHcm, mat);
     const offscreen = new OffscreenCanvas(CANVAS_SIZE, CANVAS_SIZE);
     const ctx = offscreen.getContext('2d', { desynchronized: true, alpha: true });
     if (!ctx) throw new Error('2d context unavailable');
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
 
-    const offsetX = Math.round((CANVAS_SIZE - targetW) / 2);
-    const offsetY = Math.round((CANVAS_SIZE - targetH) / 2);
     ctx.save();
-    roundRectPath(ctx, offsetX, offsetY, targetW, targetH, radiusPx);
+    roundRectPath(ctx, 0, 0, CANVAS_SIZE, CANVAS_SIZE, radiusPx);
     ctx.clip();
-    ctx.drawImage(image, offsetX, offsetY, targetW, targetH);
+    ctx.drawImage(image, 0, 0, CANVAS_SIZE, CANVAS_SIZE);
     ctx.restore();
 
     const outBlob = await offscreen.convertToBlob({ type: 'image/png' });
