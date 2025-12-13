@@ -830,17 +830,33 @@ export default function Home() {
         }
       }
       await nextPaint(2);
-      const designBlob = await canvasRef.current.exportPadAsBlob?.();
-      if (!designBlob || !designBlob.size) {
-        setErr('No se pudo generar la imagen');
+      let designBlob = null;
+      let pdfSourceBlob = null;
+      let pdfSourceMime = 'image/png';
+
+      if (masterFile) {
+        pdfSourceBlob = masterFile;
+        pdfSourceMime = masterFile.type || 'image/png';
+      } else {
+        designBlob = await canvasRef.current.exportPadAsBlob?.();
+        if (!designBlob || !designBlob.size) {
+          setErr('No se pudo generar la imagen');
+          return;
+        }
+        pdfSourceBlob = designBlob;
+        pdfSourceMime = designBlob.type || 'image/png';
+      }
+
+      if (!pdfSourceBlob) {
+        setErr('No se pudo obtener la imagen original.');
         return;
       }
       const designShaPromise = (async () => {
-        const workerHash = await sha256Offthread(designBlob);
+        const workerHash = await sha256Offthread(pdfSourceBlob);
         if (workerHash) return workerHash;
-        return sha256Hex(designBlob);
+        return sha256Hex(pdfSourceBlob);
       })();
-      const masterDataUrl = await blobToDataUrl(designBlob);
+      const masterDataUrl = await blobToDataUrl(pdfSourceBlob);
       await nextPaint(1);
 
       // client-side gate: filename keywords
@@ -1074,7 +1090,7 @@ export default function Home() {
       const masterWidthMm = activeWcm * 10;
       const masterHeightMm = activeHcm * 10;
       const dpiForMockup = layout?.dpi || effDpi || 300;
-      const designMime = designBlob.type || 'image/png';
+      const designMime = pdfSourceMime || 'image/png';
       const shouldUploadMaster = KEEP_MASTER && !SKIP_MASTER_UPLOAD;
       const sanitizeForFileName = (value, fallback = 'Design') => {
         const base = safeStr(value, fallback);
@@ -1109,7 +1125,7 @@ export default function Home() {
       const mockupPromise = (async () => {
         let blob = null;
         try {
-          blob = await generateMockupOffthread(designBlob, {
+          blob = await generateMockupOffthread(pdfSourceBlob, {
             composition: {
               widthPx: flowState?.masterWidthPx || masterWidthExact,
               heightPx: flowState?.masterHeightPx || masterHeightExact,
@@ -1171,7 +1187,7 @@ export default function Home() {
       const pdfStart = tnow();
       const pdfPromise = (async () => {
         const maxPdfBytes = Number(import.meta.env?.VITE_MAX_PDF_BYTES) || 40 * 1024 * 1024;
-        let bytes = await buildPdfOffthread(designBlob, {
+        let bytes = await buildPdfOffthread(pdfSourceBlob, {
           bleedMm: 20,
           widthPx: masterWidthExact,
           heightPx: masterHeightExact,
@@ -1181,7 +1197,7 @@ export default function Home() {
           mime: designMime,
         });
         if (!bytes) {
-          const localBytes = await buildPdfFromMaster(designBlob, {
+          const localBytes = await buildPdfFromMaster(pdfSourceBlob, {
             bleedMm: 20,
             widthPx: masterWidthExact,
             heightPx: masterHeightExact,
@@ -1266,7 +1282,7 @@ export default function Home() {
           masterUploadRes = await fetch(masterSign.uploadUrl, {
             method: 'PUT',
             headers: { 'Content-Type': designMime },
-            body: designBlob,
+            body: pdfSourceBlob,
           });
         } catch (masterUploadErr) {
           error('[master-upload] failed', masterUploadErr);
@@ -1334,7 +1350,7 @@ export default function Home() {
         bucket: uploadBucket || prev?.bucket,
         upload_diag_id: null,
         upload: prev?.upload || null,
-        upload_size_bytes: designBlob.size,
+        upload_size_bytes: pdfSourceBlob?.size ?? designBlob?.size ?? 0,
         upload_content_type: designMime,
       }));
 
@@ -1392,7 +1408,7 @@ export default function Home() {
         uploadObjectKey,
         uploadBucket: uploadBucket,
         uploadDiagId: null,
-        uploadSizeBytes: designBlob.size,
+        uploadSizeBytes: pdfSourceBlob?.size ?? designBlob?.size ?? 0,
         uploadContentType: designMime,
         uploadSha256: designSha,
         designName: nameClean,
