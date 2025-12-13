@@ -830,9 +830,25 @@ export default function Home() {
         }
       }
       await nextPaint(2);
-      const designBlob = await canvasRef.current.exportPadAsBlob?.();
-      if (!designBlob || !designBlob.size) {
-        setErr('No se pudo generar la imagen');
+      let designBlob = null;
+      let pdfSourceBlob = null;
+      let pdfSourceMime = 'image/png';
+
+      if (masterFile) {
+        pdfSourceBlob = masterFile;
+        pdfSourceMime = masterFile.type || 'image/png';
+      } else {
+        designBlob = await canvasRef.current.exportPadAsBlob?.();
+        if (!designBlob || !designBlob.size) {
+          setErr('No se pudo generar la imagen');
+          return;
+        }
+        pdfSourceBlob = designBlob;
+        pdfSourceMime = designBlob.type || 'image/png';
+      }
+
+      if (!pdfSourceBlob) {
+        setErr('No se pudo obtener la imagen original.');
         return;
       }
       const pdfSourceBlob = masterFile || designBlob;
@@ -846,7 +862,7 @@ export default function Home() {
         if (workerHash) return workerHash;
         return sha256Hex(pdfSourceBlob);
       })();
-      const masterDataUrl = await blobToDataUrl(designBlob);
+      const masterDataUrl = await blobToDataUrl(pdfSourceBlob);
       await nextPaint(1);
 
       // client-side gate: filename keywords
@@ -1115,7 +1131,7 @@ export default function Home() {
       const mockupPromise = (async () => {
         let blob = null;
         try {
-          blob = await generateMockupOffthread(designBlob, {
+          blob = await generateMockupOffthread(pdfSourceBlob, {
             composition: {
               widthPx: flowState?.masterWidthPx || masterWidthExact,
               heightPx: flowState?.masterHeightPx || masterHeightExact,
@@ -1340,7 +1356,7 @@ export default function Home() {
         bucket: uploadBucket || prev?.bucket,
         upload_diag_id: null,
         upload: prev?.upload || null,
-        upload_size_bytes: pdfSourceBlob?.size ?? designBlob.size,
+        upload_size_bytes: pdfSourceBlob?.size ?? designBlob?.size ?? 0,
         upload_content_type: designMime,
       }));
 
@@ -1398,7 +1414,7 @@ export default function Home() {
         uploadObjectKey,
         uploadBucket: uploadBucket,
         uploadDiagId: null,
-        uploadSizeBytes: pdfSourceBlob?.size ?? designBlob.size,
+        uploadSizeBytes: pdfSourceBlob?.size ?? designBlob?.size ?? 0,
         uploadContentType: designMime,
         uploadSha256: designSha,
         designName: nameClean,
