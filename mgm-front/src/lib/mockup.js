@@ -192,64 +192,29 @@ export async function renderMockup1080(imageOrOptions, maybeOptions) {
 
   const widthCm = Number.isFinite(widthMm) ? widthMm / 10 : 0;
   const heightCm = Number.isFinite(heightMm) ? heightMm / 10 : 0;
-  const longestCm = Math.max(widthCm, heightCm, 0);
-
-  const matLabel = materialLabelFromOpts(options) || 'Classic';
-
-  const aspect = compWidthPx > 0 && compHeightPx > 0
-    ? compWidthPx / compHeightPx
-    : fallbackWidth > 0 && fallbackHeight > 0
-      ? fallbackWidth / fallbackHeight
-      : 1;
-  // Glasspad: usar largo fijo para que no “llene” el 1080x1080
-  let longPx = matLabel === 'Glasspad'
-    ? GLASS_FIXED_LONG_PX
-    : mapLongPxByMaterial(longestCm, matLabel);
-  if (!Number.isFinite(longPx) || longPx <= 0) {
-    longPx = mapLongPxByMaterial(CLASSIC_REF_MIN_LONG_CM, matLabel);
-  }
-  const maxAllowed = matLabel === 'Glasspad' ? GLASS_MAX_LONG_PX : CLASSIC_MAX_LONG_PX;
-  longPx = Math.max(1, Math.min(longPx, maxAllowed));
-
-  let targetW;
-  let targetH;
-  if (aspect >= 1) {
-    targetW = longPx;
-    targetH = Math.max(1, Math.round(longPx / Math.max(aspect, 1e-6)));
-  } else {
-    targetH = longPx;
-    targetW = Math.max(1, Math.round(longPx * aspect));
-  }
-  if (targetW > CANVAS_SIZE) {
-    const scale = CANVAS_SIZE / targetW;
-    targetW = CANVAS_SIZE;
-    targetH = Math.max(1, Math.round(targetH * scale));
-  }
-  if (targetH > CANVAS_SIZE) {
-    const scale = CANVAS_SIZE / targetH;
-    targetH = CANVAS_SIZE;
-    targetW = Math.max(1, Math.round(targetW * scale));
-  }
-
-  if (!Number.isFinite(targetW) || !Number.isFinite(targetH)) {
-    targetW = CANVAS_SIZE;
-    targetH = CANVAS_SIZE;
-  }
   ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
 
+  const refMaxMm = (() => {
+    const mm = Number(import.meta.env?.VITE_MOCKUP_REF_MAX_MM);
+    if (Number.isFinite(mm) && mm > 0) return mm;
+    const cm = Number(import.meta.env?.VITE_MOCKUP_REF_MAX_CM);
+    if (Number.isFinite(cm) && cm > 0) return cm * 10;
+    return 1400; // default reference long side in mm
+  })();
+  const refPixels = Number(import.meta.env?.VITE_MOCKUP_REF_PIXELS) || 1000;
+  const pixelsPerMm = refPixels / Math.max(1, refMaxMm);
+
+  const targetW = Math.max(1, widthMm * pixelsPerMm);
+  const targetH = Math.max(1, heightMm * pixelsPerMm);
+  const x = (CANVAS_SIZE - targetW) / 2;
+  const y = (CANVAS_SIZE - targetH) / 2;
+
   ctx.save();
-  roundRectPath(ctx, 0, 0, CANVAS_SIZE, CANVAS_SIZE, RADIUS_PX);
+  roundRectPath(ctx, x, y, targetW, targetH, RADIUS_PX);
   ctx.clip();
-  const imgW = Math.max(1, Number(drawable?.width || drawable?.naturalWidth || 0));
-  const imgH = Math.max(1, Number(drawable?.height || drawable?.naturalHeight || 0));
-  const coverScale = Math.max(CANVAS_SIZE / imgW, CANVAS_SIZE / imgH);
-  const w = imgW * coverScale;
-  const h = imgH * coverScale;
-  const x = (CANVAS_SIZE - w) / 2;
-  const y = (CANVAS_SIZE - h) / 2;
-  ctx.drawImage(drawable, x, y, w, h);
+  ctx.drawImage(drawable, x, y, targetW, targetH);
   ctx.restore();
 
   if (drawable && typeof drawable.close === 'function') {
