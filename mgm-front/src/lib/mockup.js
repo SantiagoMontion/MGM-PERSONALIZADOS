@@ -239,19 +239,17 @@ export async function renderMockup1080(imageOrOptions, maybeOptions) {
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
 
-  const sourceWidth = compWidthPx > 0 ? compWidthPx : fallbackWidth || targetW;
-  const sourceHeight = compHeightPx > 0 ? compHeightPx : fallbackHeight || targetH;
   ctx.save();
   roundRectPath(ctx, 0, 0, CANVAS_SIZE, CANVAS_SIZE, RADIUS_PX);
   ctx.clip();
-  const safeSourceWidth = Math.max(1, sourceWidth);
-  const safeSourceHeight = Math.max(1, sourceHeight);
-  const coverScale = Math.max(CANVAS_SIZE / safeSourceWidth, CANVAS_SIZE / safeSourceHeight);
-  const w = safeSourceWidth * coverScale;
-  const h = safeSourceHeight * coverScale;
+  const imgW = Math.max(1, Number(drawable?.width || drawable?.naturalWidth || 0));
+  const imgH = Math.max(1, Number(drawable?.height || drawable?.naturalHeight || 0));
+  const coverScale = Math.max(CANVAS_SIZE / imgW, CANVAS_SIZE / imgH);
+  const w = imgW * coverScale;
+  const h = imgH * coverScale;
   const x = (CANVAS_SIZE - w) / 2;
   const y = (CANVAS_SIZE - h) / 2;
-  ctx.drawImage(drawable, 0, 0, safeSourceWidth, safeSourceHeight, x, y, w, h);
+  ctx.drawImage(drawable, x, y, w, h);
   ctx.restore();
 
   if (drawable && typeof drawable.close === 'function') {
