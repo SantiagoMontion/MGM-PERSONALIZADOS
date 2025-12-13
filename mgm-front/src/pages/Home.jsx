@@ -858,36 +858,18 @@ export default function Home() {
         }
       }
       await nextPaint(2);
-      const mockupSourceBlob = await canvasRef.current.exportPadPreviewBlob?.({
-        maxWidth: 1080,
-        pixelRatio: 1,
+      const designBlob = await canvasRef.current.exportPadAsBlob?.({
+        maxDimension: 4000,
       });
-      if (!mockupSourceBlob || !mockupSourceBlob.size) {
+      if (!designBlob || !designBlob.size) {
         setErr('No se pudo generar la imagen');
         return;
       }
 
-      let designBlob = null;
-      let pdfSourceBlob = null;
-
-      if (masterFile) {
-        pdfSourceBlob = masterFile;
-      } else {
-        designBlob = await canvasRef.current.exportPadAsBlob?.();
-        if (!designBlob || !designBlob.size) {
-          setErr('No se pudo generar la imagen');
-          return;
-        }
-        pdfSourceBlob = designBlob;
-      }
-
+      const pdfSourceBlob = designBlob;
       const pdfSourceMime = pdfSourceBlob?.type || 'image/png';
 
-      if (!pdfSourceBlob) {
-        setErr('No se pudo obtener la imagen original.');
-        return;
-      }
-      const mockupDataUrl = await blobToDataUrl(mockupSourceBlob);
+      const mockupDataUrl = await blobToDataUrl(designBlob);
 
       const designShaPromise = (async () => {
         const workerHash = await sha256Offthread(pdfSourceBlob);

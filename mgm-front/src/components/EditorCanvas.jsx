@@ -1587,15 +1587,27 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const canUndo = historyCounts.undo > 0;
   const canRedo = historyCounts.redo > 0;
 
-  const exportPadAsBlob = async () => {
+  const exportPadAsBlob = async (options = {}) => {
     if (!exportStageRef.current) return null;
     const inner_w_px = Math.round((wCm * dpi) / CM_PER_INCH);
     const inner_h_px = Math.round((hCm * dpi) / CM_PER_INCH);
     const pad_px = getPadRectPx();
     const pixelRatioX = inner_w_px / pad_px.w;
     const pixelRatioY = inner_h_px / pad_px.h;
-    const pixelRatio = Math.min(pixelRatioX, pixelRatioY);
-    const baseCanvas = exportStageRef.current.toCanvas({ pixelRatio });
+    const basePixelRatio = Math.min(pixelRatioX, pixelRatioY);
+    const maxDimension = Number(options?.maxDimension);
+    const requestedPixelRatio = Number(options?.pixelRatio);
+    let pixelRatio = basePixelRatio;
+    if (Number.isFinite(requestedPixelRatio) && requestedPixelRatio > 0) {
+      pixelRatio = Math.min(pixelRatio, requestedPixelRatio);
+    }
+    if (Number.isFinite(maxDimension) && maxDimension > 0) {
+      const maxStageDimension = Math.max(pad_px.w, pad_px.h);
+      const cappedRatio = maxDimension / Math.max(1, maxStageDimension);
+      pixelRatio = Math.min(pixelRatio, cappedRatio);
+    }
+    const safePixelRatio = Math.max(0.05, pixelRatio || 0);
+    const baseCanvas = exportStageRef.current.toCanvas({ pixelRatio: safePixelRatio });
     let uploadCanvas = baseCanvas;
     if (material === "Glasspad") {
       uploadCanvas = renderGlasspadPNG(baseCanvas);
