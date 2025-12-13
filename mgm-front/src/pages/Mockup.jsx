@@ -4322,6 +4322,7 @@ export default function Mockup() {
             <div className="canvas-wrap" ref={canvasWrapRef}>
               {hasMockupImage ? (
                 <img
+                  key={mockupImageSrc || 'placeholder'}
                   src={mockupImageSrc}
                   className={styles.mockupImage}
                   alt="Vista previa de tu mousepad personalizado"
