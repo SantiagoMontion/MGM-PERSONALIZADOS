@@ -144,8 +144,10 @@ export async function renderMockup1080(imageOrOptions, maybeOptions) {
     opts?.height_mm ??
     0
   );
-  let widthMm = mmFromOptions(options);
-  let heightMm = mmFromOptionsH(options);
+  const inputWidthMm = mmFromOptions(options);
+  const inputHeightMm = mmFromOptionsH(options);
+  let widthMm = inputWidthMm;
+  let heightMm = inputHeightMm;
 
   const legacyWidthCm = Number(
     options?.composition?.widthCm ??
@@ -224,6 +226,17 @@ export async function renderMockup1080(imageOrOptions, maybeOptions) {
   }
   const x = (CANVAS_SIZE - targetW) / 2;
   const y = (CANVAS_SIZE - targetH) / 2;
+
+  console.log('[renderMockup1080] dimensions', {
+    optionsWidthMm: inputWidthMm,
+    optionsHeightMm: inputHeightMm,
+    resolvedWmm: wMm,
+    resolvedHmm: hMm,
+    targetW,
+    targetH,
+    x,
+    y,
+  });
 
   const abortWithEmpty = async () => {
     const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
