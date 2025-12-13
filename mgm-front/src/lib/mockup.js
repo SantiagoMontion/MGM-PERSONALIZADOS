@@ -239,22 +239,25 @@ export async function renderMockup1080(imageOrOptions, maybeOptions) {
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
 
-  const sourceWidth = compWidthPx > 0 ? compWidthPx : fallbackWidth || targetW;
-  const sourceHeight = compHeightPx > 0 ? compHeightPx : fallbackHeight || targetH;
+  const refMaxMm = (() => {
+    const mm = Number(import.meta.env?.VITE_MOCKUP_REF_MAX_MM);
+    if (Number.isFinite(mm) && mm > 0) return mm;
+    const cm = Number(import.meta.env?.VITE_MOCKUP_REF_MAX_CM);
+    if (Number.isFinite(cm) && cm > 0) return cm * 10;
+    return 1400; // default reference long side in mm
+  })();
+  const refPixels = Number(import.meta.env?.VITE_MOCKUP_REF_PIXELS) || 1000;
+  const pixelsPerMm = refPixels / Math.max(1, refMaxMm);
+
+  const targetW = Math.max(1, widthMm * pixelsPerMm);
+  const targetH = Math.max(1, heightMm * pixelsPerMm);
+  const x = (CANVAS_SIZE - targetW) / 2;
+  const y = (CANVAS_SIZE - targetH) / 2;
+
   ctx.save();
-  roundRectPath(ctx, 0, 0, CANVAS_SIZE, CANVAS_SIZE, RADIUS_PX);
+  roundRectPath(ctx, x, y, targetW, targetH, RADIUS_PX);
   ctx.clip();
-  ctx.drawImage(
-    drawable,
-    0,
-    0,
-    sourceWidth,
-    sourceHeight,
-    0,
-    0,
-    CANVAS_SIZE,
-    CANVAS_SIZE,
-  );
+  ctx.drawImage(drawable, x, y, targetW, targetH);
   ctx.restore();
 
   if (drawable && typeof drawable.close === 'function') {
