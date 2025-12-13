@@ -1140,21 +1140,28 @@ export default function Home() {
           blob = null;
         }
         if (!blob) {
-          blob = await renderMockup1080(img, {
-            material,
-            materialLabel: material,
-            approxDpi: dpiForMockup,
-            composition: {
-              widthPx: masterWidthExact,
-              heightPx: masterHeightExact,
-              widthCm: activeWcm,
-              heightCm: activeHcm,
-              widthMm: masterWidthMm,
-              heightMm: masterHeightMm,
-              dpi: dpiForMockup,
+          try {
+            blob = await renderMockup1080(img, {
               material,
-            },
-          });
+              materialLabel: material,
+              approxDpi: dpiForMockup,
+              composition: {
+                widthPx: masterWidthExact,
+                heightPx: masterHeightExact,
+                widthCm: activeWcm,
+                heightCm: activeHcm,
+                widthMm: masterWidthMm,
+                heightMm: masterHeightMm,
+                dpi: dpiForMockup,
+                material,
+              },
+            });
+          } catch (mockupErr) {
+            warn('[mockup] renderMockup1080 failed', mockupErr);
+          }
+        }
+        if (!blob) {
+          blob = new Blob([], { type: 'image/png' });
         }
         diagTime('mockup_ready', mockupStart);
         const mockupUrl = URL.createObjectURL(blob);
