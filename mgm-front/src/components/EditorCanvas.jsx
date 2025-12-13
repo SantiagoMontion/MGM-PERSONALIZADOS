@@ -1746,6 +1746,57 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     }
   };
 
+  const exportPadPreviewBlob = async (options = {}) => {
+    const { maxWidth = 1080, pixelRatio = 1 } = options || {};
+    const dataUrl = exportPadDataURL(pixelRatio);
+    if (!dataUrl) return null;
+
+    const blobFromDataUrl = async () => {
+      try {
+        const res = await fetch(dataUrl);
+        return await res.blob();
+      } catch (err) {
+        warn('[exportPadPreviewBlob] blob from dataURL failed', err);
+        return null;
+      }
+    };
+
+    const sourceBlob = await blobFromDataUrl();
+    if (!sourceBlob) return null;
+
+    const downscaleIfNeeded = async (blob) => {
+      if (!maxWidth || maxWidth <= 0) return blob;
+      const objectUrl = URL.createObjectURL(blob);
+      try {
+        const img = new Image();
+        img.src = objectUrl;
+        await img.decode();
+        const { naturalWidth: w = 0, naturalHeight: h = 0 } = img;
+        if (!w || w <= maxWidth) return blob;
+        const scale = Math.min(1, maxWidth / w);
+        const targetW = Math.max(1, Math.round(w * scale));
+        const targetH = Math.max(1, Math.round(h * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = targetW;
+        canvas.height = targetH;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return blob;
+        ctx.drawImage(img, 0, 0, targetW, targetH);
+        const scaled = await new Promise((resolve) =>
+          canvas.toBlob((b) => resolve(b), 'image/png', 0.92),
+        );
+        return scaled || blob;
+      } catch (err) {
+        warn('[exportPadPreviewBlob] downscale failed', err);
+        return blob;
+      } finally {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+
+    return downscaleIfNeeded(sourceBlob);
+  };
+
   useImperativeHandle(ref, () => ({
     getRenderDescriptor: () => {
       if (!imgEl || !imgBaseCm) return null;
@@ -1812,6 +1863,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     getPadRect,
     getPadRectPx,
     exportPadAsBlob,
+    exportPadPreviewBlob,
     exportPreviewDataURL,
     exportPadDataURL,
     startPickColor,

@@ -257,8 +257,8 @@ export async function renderMockup1080(imageOrOptions, maybeOptions) {
 
   ctx.beginPath();
   roundRectPath(ctx, x, y, targetW, targetH, RADIUS_PX);
-  ctx.strokeStyle = '#d1d5db';
   ctx.lineWidth = 1;
+  ctx.strokeStyle = '#d1d5db';
   ctx.stroke();
 
   if (drawable && typeof drawable.close === 'function') {
