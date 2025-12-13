@@ -194,7 +194,7 @@ export async function renderMockup1080(imageOrOptions, maybeOptions) {
   const heightCm = Number.isFinite(heightMm) ? heightMm / 10 : 0;
   const longestCm = Math.max(widthCm, heightCm, 0);
 
-  const matLabel = materialLabelFromOpts(options);
+  const matLabel = materialLabelFromOpts(options) || 'Classic';
 
   const aspect = compWidthPx > 0 && compHeightPx > 0
     ? compWidthPx / compHeightPx
@@ -229,6 +229,11 @@ export async function renderMockup1080(imageOrOptions, maybeOptions) {
     const scale = CANVAS_SIZE / targetH;
     targetH = CANVAS_SIZE;
     targetW = Math.max(1, Math.round(targetW * scale));
+  }
+
+  if (!Number.isFinite(targetW) || !Number.isFinite(targetH)) {
+    targetW = CANVAS_SIZE;
+    targetH = CANVAS_SIZE;
   }
   ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
   ctx.imageSmoothingEnabled = true;
