@@ -832,11 +832,9 @@ export default function Home() {
       await nextPaint(2);
       let designBlob = null;
       let pdfSourceBlob = null;
-      let pdfSourceMime = 'image/png';
 
       if (masterFile) {
         pdfSourceBlob = masterFile;
-        pdfSourceMime = masterFile.type || 'image/png';
       } else {
         designBlob = await canvasRef.current.exportPadAsBlob?.();
         if (!designBlob || !designBlob.size) {
@@ -844,15 +842,10 @@ export default function Home() {
           return;
         }
         pdfSourceBlob = designBlob;
-        pdfSourceMime = designBlob.type || 'image/png';
       }
 
-      if (!pdfSourceBlob) {
-        setErr('No se pudo obtener la imagen original.');
-        return;
-      }
-      const pdfSourceBlob = masterFile || designBlob;
-      const pdfSourceMime = masterFile?.type || designBlob?.type || 'image/png';
+      const pdfSourceMime = pdfSourceBlob?.type || 'image/png';
+
       if (!pdfSourceBlob) {
         setErr('No se pudo obtener la imagen original.');
         return;
