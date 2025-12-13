@@ -4,7 +4,8 @@ const MM_TO_PT = 72 / 25.4;
 const mmToPt = (mm) => (Number.isFinite(mm) ? mm * MM_TO_PT : 0);
 
 self.onmessage = async (event) => {
-  const { cmd, buffer, options } = event.data || {};
+  const { cmd, options, buffer: incomingBuffer } = event.data || {};
+  let buffer = incomingBuffer;
   if (cmd !== 'build_pdf' || !buffer) {
     self.postMessage({ ok: false, type: 'build_pdf', error: 'bad_args' });
     return;
@@ -22,9 +23,14 @@ self.onmessage = async (event) => {
     } = options || {};
 
     const pdfDoc = await PDFDocument.create();
-    const baseBytes = buffer instanceof ArrayBuffer ? buffer : buffer?.buffer;
-    let typedBytes = baseBytes ? new Uint8Array(baseBytes) : null;
-    if (!typedBytes?.byteLength) {
+    const baseBuffer = buffer instanceof ArrayBuffer ? buffer : buffer?.buffer;
+    const bytesView = (() => {
+      if (buffer instanceof Uint8Array || buffer instanceof Uint8ClampedArray) {
+        return new Uint8Array(baseBuffer, buffer.byteOffset, buffer.byteLength);
+      }
+      return baseBuffer ? new Uint8Array(baseBuffer) : null;
+    })();
+    if (!bytesView?.byteLength) {
       throw new Error('empty_buffer');
     }
 
@@ -32,12 +38,12 @@ self.onmessage = async (event) => {
       const lowerMime = (mime || '').toLowerCase();
       if (lowerMime.includes('jpeg') || lowerMime.includes('jpg')) return 'image/jpeg';
       if (lowerMime.includes('png')) return 'image/png';
-      if (typedBytes[0] === 0xff && typedBytes[1] === 0xd8) return 'image/jpeg';
+      if (bytesView[0] === 0xff && bytesView[1] === 0xd8) return 'image/jpeg';
       if (
-        typedBytes[0] === 0x89 &&
-        typedBytes[1] === 0x50 &&
-        typedBytes[2] === 0x4e &&
-        typedBytes[3] === 0x47
+        bytesView[0] === 0x89 &&
+        bytesView[1] === 0x50 &&
+        bytesView[2] === 0x4e &&
+        bytesView[3] === 0x47
       ) {
         return 'image/png';
       }
@@ -46,9 +52,15 @@ self.onmessage = async (event) => {
 
     let embedded;
     if (sniffedMime === 'image/png') {
-      embedded = await pdfDoc.embedPng(typedBytes);
+      const pngBytes = bytesView.byteOffset === 0 && bytesView.byteLength === baseBuffer?.byteLength
+        ? baseBuffer
+        : bytesView;
+      embedded = await pdfDoc.embedPng(pngBytes);
     } else if (sniffedMime === 'image/jpeg') {
-      embedded = await pdfDoc.embedJpg(typedBytes);
+      const jpegBytes = bytesView.byteOffset === 0 && bytesView.byteLength === baseBuffer?.byteLength
+        ? baseBuffer
+        : bytesView;
+      embedded = await pdfDoc.embedJpg(jpegBytes);
     } else {
       throw new Error('unsupported_image_format');
     }
@@ -92,7 +104,8 @@ self.onmessage = async (event) => {
   } finally {
     try {
       // Drop strong references to previous buffers to avoid re-use in subsequent jobs
-      typedBytes = null;
+      // eslint-disable-next-line no-param-reassign
+      buffer = null;
       if (globalThis.gc) gc();
     } catch {}
   }

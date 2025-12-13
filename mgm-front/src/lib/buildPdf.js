@@ -40,7 +40,11 @@ export async function buildPdfFromMaster(masterBlob, options = {}) {
   const pdfDoc = await PDFDocument.create();
 
   performance.mark?.('pdf_embed_start');
-  const typedBytes = bytes instanceof ArrayBuffer ? new Uint8Array(bytes) : new Uint8Array(bytes.buffer);
+  const baseBuffer = bytes instanceof ArrayBuffer ? bytes : bytes?.buffer;
+  const typedBytes = baseBuffer ? new Uint8Array(baseBuffer) : null;
+  if (!typedBytes?.byteLength) {
+    throw new Error('empty_buffer');
+  }
   const sniffedMime = (() => {
     const lowerMime = (mime || masterBlob.type || '').toLowerCase();
     if (lowerMime.includes('jpeg') || lowerMime.includes('jpg')) return 'image/jpeg';
@@ -59,9 +63,15 @@ export async function buildPdfFromMaster(masterBlob, options = {}) {
 
   let embedded;
   if (sniffedMime === 'image/jpeg') {
-    embedded = await pdfDoc.embedJpg(typedBytes);
+    const jpegBytes = typedBytes.byteOffset === 0 && typedBytes.byteLength === baseBuffer?.byteLength
+      ? baseBuffer
+      : typedBytes;
+    embedded = await pdfDoc.embedJpg(jpegBytes);
   } else if (sniffedMime === 'image/png') {
-    embedded = await pdfDoc.embedPng(typedBytes);
+    const pngBytes = typedBytes.byteOffset === 0 && typedBytes.byteLength === baseBuffer?.byteLength
+      ? baseBuffer
+      : typedBytes;
+    embedded = await pdfDoc.embedPng(pngBytes);
   } else {
     throw new Error('unsupported_image_format');
   }
