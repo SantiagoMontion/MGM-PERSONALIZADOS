@@ -2754,7 +2754,13 @@ export default function Mockup() {
     && Boolean(mockupPublicUrlValue)
     && !mockupPublicUrlValue.startsWith('blob:')
     && mockupHashValue.length >= 6;
-  const purchaseLocked = !mockupReady;
+  const hasMockupImage = useMemo(() => {
+    if (typeof mockupImageSrc === 'string') {
+      return mockupImageSrc.trim().length > 0;
+    }
+    return Boolean(mockupImageSrc);
+  }, [mockupImageSrc]);
+  const purchaseLocked = !(mockupReady || hasMockupImage);
 
   const lastMockupErrorRef = useRef(null);
   useEffect(() => {
@@ -4296,11 +4302,6 @@ export default function Mockup() {
       window.scrollTo(0, 0);
     }
   };
-
-  const hasMockupImage =
-    typeof mockupImageSrc === 'string'
-      ? mockupImageSrc.trim().length > 0
-      : Boolean(mockupImageSrc);
 
   return (
     <div id="mockup-review" className={styles.review}>
