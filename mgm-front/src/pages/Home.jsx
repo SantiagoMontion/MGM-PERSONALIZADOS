@@ -1140,7 +1140,7 @@ export default function Home() {
       const widthLabel = formatDimensionCm(activeWcm ?? (masterWidthMm ? masterWidthMm / 10 : undefined));
       const heightLabel = formatDimensionCm(activeHcm ?? (masterHeightMm ? masterHeightMm / 10 : undefined));
       const materialPart = sanitizeForFileName(materialLabel, 'Classic');
-      const pdfFileName = safeReplace(`${namePart} ${widthLabel}x${heightLabel} ${materialPart}`, /\s+/g, ' ').trim();
+      const pdfFileName = safeReplace(`${namePart}-${widthLabel}x${heightLabel}-${materialPart}`, /\s+/g, '-').trim();
       const yyyymmValue = (() => {
         const now = new Date();
         return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
