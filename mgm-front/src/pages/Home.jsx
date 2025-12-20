@@ -1121,7 +1121,7 @@ export default function Home() {
       const shouldUploadMaster = KEEP_MASTER && !SKIP_MASTER_UPLOAD;
       const sanitizeForFileName = (value, fallback = 'Design') => {
         const base = safeStr(value, fallback);
-        const cleaned = safeReplace(base, /[\\/:*?"<>|]+/g, '').trim();
+        const cleaned = base.replace(/[^a-zA-Z0-9-_]/g, '').trim();
         return cleaned || fallback;
       };
       const formatDimensionCm = (cm) => {
@@ -1258,13 +1258,29 @@ export default function Home() {
       })();
 
       const signStart = tnow();
-      const pdfSignPromise = postJSON(
-        getResolvedApiUrl('/api/storage/sign'),
-        { bucket: 'outputs', contentType: 'application/pdf', path: pdfPath },
-        60000,
-      );
+      const pdfSignPromise = (async () => {
+        try {
+          return await postJSON(
+            getResolvedApiUrl('/api/storage/sign'),
+            { bucket: 'outputs', contentType: 'application/pdf', path: pdfPath },
+            60000,
+          );
+        } catch (sign) {
+          const errText = sign?.bodyText || sign?.message || '';
+          console.error('[Sign Error]', sign?.status, errText);
+          throw sign;
+        }
+      })();
       const masterSignPromise = shouldUploadMaster
-        ? postJSON(getResolvedApiUrl('/api/storage/sign'), { bucket: 'outputs', contentType: designMime }, 60000)
+        ? (async () => {
+            try {
+              return await postJSON(getResolvedApiUrl('/api/storage/sign'), { bucket: 'outputs', contentType: designMime }, 60000);
+            } catch (sign) {
+              const errText = sign?.bodyText || sign?.message || '';
+              console.error('[Sign Error]', sign?.status, errText);
+              throw sign;
+            }
+          })()
         : Promise.resolve(null);
 
       const [pdfBytes, pdfSign, masterSign, designSha, mockupResult] = await Promise.all([
