@@ -93,7 +93,7 @@ const extractFlowBasics = (flow) => {
 
 const buildTitle = ({ productType, mat, widthCm, heightCm, designName }) => {
   if (mat === 'Glasspad') {
-    return `Glasspad ${designName} 49x42 | PERSONALIZADO`;
+    return `Glasspad ${designName} 49x42 | MGM-EDITOR`;
   }
   if (mat === 'Alfombra') {
     const w = Number(widthCm);
@@ -102,7 +102,7 @@ const buildTitle = ({ productType, mat, widthCm, heightCm, designName }) => {
     if (Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0) {
       parts.push(`${w}x${h}`);
     }
-    parts.push('|', 'PERSONALIZADO');
+    parts.push('|', 'MGM-EDITOR');
     return parts.join(' ');
   }
   const prefix = productType.toLowerCase().includes('mouse') ? 'Mousepad' : 'Mousepad';
@@ -112,7 +112,7 @@ const buildTitle = ({ productType, mat, widthCm, heightCm, designName }) => {
   if (Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0) {
     parts.push(`${w}x${h}`);
   }
-  parts.push(mat, '|', 'PERSONALIZADO');
+  parts.push(mat, '|', 'MGM-EDITOR');
   return parts.join(' ');
 };
 
@@ -1144,13 +1144,13 @@ export default function Mockup() {
     const hasDims = widthCm != null && heightCm != null;
     if (isGlass) {
       return hasDims
-        ? `${baseCategory} ${designNameValue} ${widthCm}x${heightCm} | PERSONALIZADO`
-        : `${baseCategory} ${designNameValue} | PERSONALIZADO`;
+        ? `${baseCategory} ${designNameValue} ${widthCm}x${heightCm} | MGM-EDITOR`
+        : `${baseCategory} ${designNameValue} | MGM-EDITOR`;
     }
     const matPart = materialLabel ? ` ${materialLabel}` : '';
     return hasDims
-      ? `${baseCategory} ${designNameValue} ${widthCm}x${heightCm}${matPart} | PERSONALIZADO`
-      : `${baseCategory} ${designNameValue}${matPart} | PERSONALIZADO`;
+      ? `${baseCategory} ${designNameValue} ${widthCm}x${heightCm}${matPart} | MGM-EDITOR`
+      : `${baseCategory} ${designNameValue}${matPart} | MGM-EDITOR`;
   }, [flow]);
 
   useEffect(() => {

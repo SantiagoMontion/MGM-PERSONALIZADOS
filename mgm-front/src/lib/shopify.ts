@@ -479,7 +479,7 @@ function buildGlasspadTitle(designName?: string, measurement?: string): string {
   if (normalizedName) sections.push(normalizedName);
   const normalizedMeasurement = (measurement || '').trim();
   if (normalizedMeasurement) sections.push(normalizedMeasurement);
-  return `${sections.join(' ')} | PERSONALIZADO`;
+  return `${sections.join(' ')} | MGM-EDITOR`;
 }
 
 function buildDefaultTitle(
@@ -492,7 +492,7 @@ function buildDefaultTitle(
   if (designName) parts.push(designName);
   if (measurement) parts.push(measurement);
   if (material && material !== productLabel) parts.push(material);
-  return `${parts.join(' ')} | PERSONALIZADO`;
+  return `${parts.join(' ')} | MGM-EDITOR`;
 }
 
 function buildMetaDescription(

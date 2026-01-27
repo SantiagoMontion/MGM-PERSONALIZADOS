@@ -108,7 +108,7 @@ function buildGlasspadTitle(measurement?: string): string {
   const parts = ['Glasspad'];
   const normalizedMeasurement = (measurement || '').trim();
   if (normalizedMeasurement) parts.push(normalizedMeasurement);
-  return `${parts.join(' ')} | PERSONALIZADO`;
+  return `${parts.join(' ')} | MGM-EDITOR`;
 }
 
 type LegacyStorageArgs = {
