@@ -16,6 +16,24 @@ import { diag, warn } from '@/lib/log';
 
 const PAGE_LIMIT = 25;
 
+function looksLikePdfUrl(value) {
+  if (typeof value !== 'string') return false;
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return false;
+  if (normalized.endsWith('.pdf')) return true;
+  return normalized.includes('.pdf?') || normalized.includes('.pdf#');
+}
+
+function isUsableImageSrc(value) {
+  if (typeof value !== 'string') return false;
+  const trimmed = value.trim();
+  if (!trimmed || looksLikePdfUrl(trimmed)) return false;
+  return /^https?:\/\//i.test(trimmed)
+    || trimmed.startsWith('/')
+    || /^data:image\//i.test(trimmed)
+    || /^blob:/i.test(trimmed);
+}
+
 function formatBytes(size) {
   const value = Number(size);
   if (!Number.isFinite(value) || value <= 0) return '-';
@@ -61,6 +79,50 @@ function buildDownloadUrl(publicUrl, filename) {
     url.searchParams.set('download', filename || '');
   }
   return url.toString();
+}
+
+function PreviewThumbnail({ src }) {
+  const [status, setStatus] = useState(src ? 'loading' : 'fallback');
+
+  useEffect(() => {
+    setStatus(src ? 'loading' : 'fallback');
+  }, [src]);
+
+  const showLoading = Boolean(src) && status === 'loading';
+  const showImage = Boolean(src) && status === 'loaded';
+  const showFallback = !src || status === 'error' || status === 'fallback';
+
+  return (
+    <>
+      {showImage ? (
+        <img
+          src={src}
+          alt=""
+          className={styles.previewImage}
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          onLoad={() => setStatus('loaded')}
+          onError={() => setStatus('error')}
+        />
+      ) : null}
+      {showLoading ? (
+        <>
+          <img
+            src={src}
+            alt=""
+            className={styles.previewImage}
+            loading="lazy"
+            referrerPolicy="no-referrer"
+            onLoad={() => setStatus('loaded')}
+            onError={() => setStatus('error')}
+            style={{ display: 'none' }}
+          />
+          <span className={styles.previewPlaceholder}>Cargando…</span>
+        </>
+      ) : null}
+      {showFallback ? <span className={styles.previewPdfFallback}>PDF</span> : null}
+    </>
+  );
 }
 
 export default function Busqueda() {
@@ -113,7 +175,7 @@ export default function Busqueda() {
 
   const getPreviewUrlFromRecord = useCallback((rec) => {
     if (!rec) return null;
-    const previewUrlCandidates = [rec.previewUrl, rec.preview_url];
+    const previewUrlCandidates = [rec.previewUrl, rec.preview_url, rec.mockupPublicUrl, rec.mockup_public_url];
     for (const candidate of previewUrlCandidates) {
       if (typeof candidate !== 'string') continue;
       const trimmed = candidate.trim();
@@ -128,19 +190,11 @@ export default function Busqueda() {
         return `${SUPA_URL}/${trimmed}`;
       }
       const normalized = normalizePreviewUrl(trimmed, SUPA_URL);
-      if (normalized) return normalized;
-    }
-    if (typeof rec.mockupPublicUrl === 'string') {
-      const normalized = normalizePreviewUrl(rec.mockupPublicUrl.trim(), SUPA_URL);
-      if (normalized) return normalized;
-    }
-    if (typeof rec.mockup_public_url === 'string') {
-      const normalized = normalizePreviewUrl(rec.mockup_public_url.trim(), SUPA_URL);
-      if (normalized) return normalized;
+      if (normalized && !looksLikePdfUrl(normalized)) return normalized;
     }
     if (typeof rec.mockupUrl === 'string') {
       const normalized = normalizePreviewUrl(rec.mockupUrl.trim(), SUPA_URL);
-      if (normalized) return normalized;
+      if (normalized && !looksLikePdfUrl(normalized)) return normalized;
     }
     const previewKeyCandidates = [rec.previewKey, rec.preview_key, rec.mockupKey, rec.mockup_key, rec.previewObjectKey];
     for (const candidate of previewKeyCandidates) {
@@ -152,7 +206,7 @@ export default function Busqueda() {
         : `preview/${trimmed.replace(/^\/+/, '')}`;
       const normalized = normalizePreviewUrl(trimmed, SUPA_URL)
         || normalizePreviewUrl(prefixed, SUPA_URL);
-      if (normalized) return normalized;
+      if (normalized && !looksLikePdfUrl(normalized)) return normalized;
     }
     const pdfCandidates = [rec.pdfKey, rec.pdf, rec.path, rec.pdfPublicUrl, rec.pdf_public_url];
     for (const candidate of pdfCandidates) {
@@ -172,7 +226,7 @@ export default function Busqueda() {
       const previewKey = pdfKeyToPreviewKey(key);
       if (previewKey) {
         const normalized = normalizePreviewUrl(previewKey, SUPA_URL);
-        if (normalized) return normalized;
+        if (normalized && !looksLikePdfUrl(normalized)) return normalized;
       }
     }
     const fallback = publicUrlForMockup(rec)
@@ -181,7 +235,7 @@ export default function Busqueda() {
       || rec.thumbUrl
       || rec.thumb_url
       || null;
-    return fallback;
+    return typeof fallback === 'string' && !looksLikePdfUrl(fallback) ? fallback : null;
   }, [SUPA_URL]);
 
   const normalizedResults = useMemo(
@@ -337,7 +391,11 @@ export default function Busqueda() {
   const noResultsMessage = searched && !loading && !hasResults && !error;
 
   // === Helpers para resolver URL pública del preview (Supabase) ===
-  const resolvePreviewUrl = (row) => row?.previewUrl || null;
+  const resolvePreviewUrl = (row) => {
+    const candidate = row?.previewUrl;
+    if (!isUsableImageSrc(candidate)) return null;
+    return candidate;
+  };
 
   return (
     <div className={styles.page}>
@@ -413,6 +471,12 @@ export default function Busqueda() {
                       }
                     }
                   }
+                  console.log('[Busqueda] preview debug', {
+                    id: row.id || row.path || row.fileName || null,
+                    preview_url: row.preview_url ?? null,
+                    mockup_public_url: row.mockup_public_url ?? null,
+                    resolvedPreviewUrl: row.previewUrl ?? null,
+                  });
                   if (import.meta.env?.DEV) {
                     diag('[prints] preview', {
                       name: row.fileName || row.name,
@@ -422,33 +486,7 @@ export default function Busqueda() {
                   return (
                     <tr key={key}>
                       <td className={`${styles.previewCell} preview-cell`}>
-                        {(() => {
-                          const src = resolvePreviewUrl(row);
-                          const fallbackStyle = {
-                            display: src ? 'none' : 'inline-flex',
-                          };
-                          return (
-                            <>
-                              {src ? (
-                                <img
-                                  src={src}
-                                  alt=""
-                                  className={styles.previewImage}
-                                  loading="lazy"
-                                  referrerPolicy="no-referrer"
-                                  onError={(e) => {
-                                    e.currentTarget.style.display = 'none';
-                                    const fb = e.currentTarget.nextElementSibling;
-                                    if (fb) fb.style.display = 'inline-flex';
-                                  }}
-                                />
-                              ) : null}
-                              <span className={`${styles.previewPlaceholder} preview-fallback`} style={fallbackStyle}>
-                                Cargando…
-                              </span>
-                            </>
-                          );
-                        })()}
+                        <PreviewThumbnail src={resolvePreviewUrl(row)} />
                       </td>
                       <td className={styles.fileCell}>{row.fileName || row.name || '-'}</td>
                       <td className={styles.measureCell}>{measurement}</td>
