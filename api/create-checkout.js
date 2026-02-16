@@ -10,6 +10,9 @@ const REQUIRED_ENV = [
   'SHOPIFY_API_VERSION',
 ];
 const SHOPIFY_TIMEOUT_MS = 20000;
+const OFFICIAL_ALLOWED_ORIGINS = [
+  'https://TU-DOMINIO-OFICIAL.COM', // Reemplaza este placeholder por tu dominio oficial
+];
 const CHECKOUT_CREATE_MUTATION = `
   mutation($input: CheckoutCreateInput!) {
     checkoutCreate(input: $input) {
@@ -578,6 +581,45 @@ function resolveShopDomain() {
   return '';
 }
 
+function normalizeOrigin(origin) {
+  if (typeof origin !== 'string') return '';
+  const trimmed = origin.trim();
+  if (!trimmed) return '';
+  try {
+    return new URL(trimmed).origin;
+  } catch {
+    return '';
+  }
+}
+
+function isAllowedOrigin(req) {
+  const originHeader = req?.headers?.origin;
+  const requestOrigin = Array.isArray(originHeader) ? originHeader[0] : originHeader;
+  const normalizedRequestOrigin = normalizeOrigin(requestOrigin);
+
+  if (!normalizedRequestOrigin) {
+    return false;
+  }
+
+  const normalizedAllowedOrigins = OFFICIAL_ALLOWED_ORIGINS
+    .map((origin) => normalizeOrigin(origin))
+    .filter(Boolean);
+
+  return normalizedAllowedOrigins.includes(normalizedRequestOrigin);
+}
+
+function sendForbidden(res, diagId) {
+  if (typeof res.setHeader === 'function') {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  }
+  if (typeof res.status === 'function') {
+    res.status(403);
+  } else {
+    res.statusCode = 403;
+  }
+  res.end(JSON.stringify({ ok: false, error: 'forbidden', diagId }));
+}
+
 function validateRealConfig(req, res, diagId) {
   const missing = collectMissingEnv(REQUIRED_ENV);
   if (missing.length) {
@@ -598,6 +640,11 @@ function validateRealConfig(req, res, diagId) {
 
 export default async function handler(req, res) {
   const diagId = createDiagId();
+  if (!isAllowedOrigin(req)) {
+    sendForbidden(res, diagId);
+    return;
+  }
+
   if (req.method === 'OPTIONS') {
     sendCorsOptions(req, res);
     return;
