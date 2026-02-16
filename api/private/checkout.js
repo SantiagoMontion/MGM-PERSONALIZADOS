@@ -4,6 +4,9 @@ import { createDiagId, logApiError } from '../_lib/diag.js';
 
 const SHOPIFY_ENABLED = process.env.SHOPIFY_ENABLED === '1';
 const SHOPIFY_TIMEOUT_STATUS = 504;
+const OFFICIAL_ALLOWED_ORIGINS = [
+  'https://TU-DOMINIO-OFICIAL.COM', // Reemplaza este placeholder por tu dominio oficial
+];
 
 function buildStubPrivatePayload() {
   const rid = buildStubRequestId();
@@ -32,8 +35,52 @@ async function proxyRealHandler(req, res) {
   });
 }
 
+function normalizeOrigin(origin) {
+  if (typeof origin !== 'string') return '';
+  const trimmed = origin.trim();
+  if (!trimmed) return '';
+  try {
+    return new URL(trimmed).origin;
+  } catch {
+    return '';
+  }
+}
+
+function isAllowedOrigin(req) {
+  const originHeader = req?.headers?.origin;
+  const requestOrigin = Array.isArray(originHeader) ? originHeader[0] : originHeader;
+  const normalizedRequestOrigin = normalizeOrigin(requestOrigin);
+
+  if (!normalizedRequestOrigin) {
+    return false;
+  }
+
+  const normalizedAllowedOrigins = OFFICIAL_ALLOWED_ORIGINS
+    .map((origin) => normalizeOrigin(origin))
+    .filter(Boolean);
+
+  return normalizedAllowedOrigins.includes(normalizedRequestOrigin);
+}
+
+function sendForbidden(res, diagId) {
+  if (typeof res.setHeader === 'function') {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  }
+  if (typeof res.status === 'function') {
+    res.status(403);
+  } else {
+    res.statusCode = 403;
+  }
+  res.end(JSON.stringify({ ok: false, error: 'forbidden', diagId }));
+}
+
 export default async function handler(req, res) {
   const diagId = createDiagId();
+  if (!isAllowedOrigin(req)) {
+    sendForbidden(res, diagId);
+    return;
+  }
+
   if (req.method === 'OPTIONS') {
     sendCorsOptions(req, res);
     return;
