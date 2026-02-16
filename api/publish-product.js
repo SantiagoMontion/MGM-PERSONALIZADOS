@@ -21,8 +21,8 @@ export const config = {
   },
 };
 
-function normalizeMaterial(value) {
-  const normalized = String(value || '').toLowerCase();
+function normalizeMaterialFromProductType(productType) {
+  const normalized = String(productType || '').toLowerCase();
   if (normalized.includes('glass')) return 'Glasspad';
   if (normalized.includes('pro')) return 'PRO';
   if (normalized.includes('alfombr')) return 'Alfombra';
@@ -453,17 +453,7 @@ export default async function handler(req, res) {
       ?? parsedBody?.productType
       ?? 'mousepad',
   ).trim().toLowerCase() || 'mousepad';
-  let mat = parsedBody?.materialResolved
-    ?? parsedBody?.options?.material
-    ?? parsedBody?.material
-    ?? '';
-  if (typeof mat === 'string' && mat.trim().toLowerCase() === 'mousepad') {
-    mat = 'Classic';
-  }
-  mat = normalizeMaterial(mat);
-  if (productType.includes('glass')) {
-    mat = 'Glasspad';
-  }
+  const mat = normalizeMaterialFromProductType(productType);
   let widthCmSafe = Number(parsedBody?.widthCm ?? NaN);
   let heightCmSafe = Number(parsedBody?.heightCm ?? NaN);
   if (Number.isFinite(widthCmSafe) && widthCmSafe > 0) {
@@ -509,9 +499,9 @@ export default async function handler(req, res) {
     productLabel === 'Mousepad' ? mat : '',
   ].filter(Boolean);
   const computedTitle = designName
-    ? `${nameParts.join(' ')} | PERSONALIZADO`
+    ? `${nameParts.join(' ')} | MGM-EDITOR`
     : parsedBody.title;
-  const finalTitle = typeof parsedBody.title === 'string' && parsedBody.title.includes('| PERSONALIZADO')
+  const finalTitle = typeof parsedBody.title === 'string' && parsedBody.title.includes('| MGM-EDITOR')
     ? parsedBody.title
     : computedTitle;
   parsedBody.materialResolved = mat;
