@@ -9,10 +9,6 @@ import {
   MIN_DIMENSION_CM_BY_MATERIAL,
 } from '../lib/material.js';
 import { useFloatingMenu } from '../hooks/useFloatingMenu.js';
-const WIDTH_ICON_URL = '/icons/largo.png';
-const HEIGHT_ICON_URL = '/icons/ancho.png';
-
-
 
 const INVALID_NUMBER_MESSAGE = 'Ingresá un número';
 const FALLBACK_DIMENSION_MIN_CM = 1;
@@ -428,7 +424,7 @@ export default function SizeControls({ material, size, onChange, locked = false,
         <div className={styles.measureRow}>
           <label className={measureFieldClass(locked || isGlasspad || disabled)}>
             <span className={styles.measureLabel}>Largo</span>
-            <img src={WIDTH_ICON_URL} alt="" className={styles.measureIcon} aria-hidden="true" />
+            <img src="/icons/ancho.png" alt="" className={styles.measureIcon} aria-hidden="true" />
             <input
               ref={wInputRef}
               className={styles.measureInput}
@@ -445,7 +441,7 @@ export default function SizeControls({ material, size, onChange, locked = false,
           </label>
           <label className={measureFieldClass(locked || isGlasspad || disabled)}>
             <span className={styles.measureLabel}>Ancho</span>
-            <img src={HEIGHT_ICON_URL} alt="" className={styles.measureIcon} aria-hidden="true" />
+            <img src="/icons/largo.png" alt="" className={styles.measureIcon} aria-hidden="true" />
             <input
               ref={hInputRef}
               className={styles.measureInput}
