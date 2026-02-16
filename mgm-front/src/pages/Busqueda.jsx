@@ -119,6 +119,14 @@ export default function Busqueda() {
       const trimmed = candidate.trim();
       if (!trimmed) continue;
       if (/^https?:\/\//i.test(trimmed)) return trimmed;
+      if (trimmed.startsWith('/api/')) return trimmed;
+      if (/^api\//i.test(trimmed)) return `/${trimmed.replace(/^\/+/, '')}`;
+      if (/^\/storage\/v1\/object\//i.test(trimmed) && SUPA_URL) {
+        return `${SUPA_URL}${trimmed}`;
+      }
+      if (/^storage\/v1\/object\//i.test(trimmed) && SUPA_URL) {
+        return `${SUPA_URL}/${trimmed}`;
+      }
       const normalized = normalizePreviewUrl(trimmed, SUPA_URL);
       if (normalized) return normalized;
     }
@@ -418,15 +426,6 @@ export default function Busqueda() {
                           const src = resolvePreviewUrl(row);
                           const fallbackStyle = {
                             display: src ? 'none' : 'inline-flex',
-                            width: 64,
-                            height: 64,
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            borderRadius: 12,
-                            border: '1px dashed #555',
-                            fontWeight: 700,
-                            fontSize: 12,
-                            color: '#bbb',
                           };
                           return (
                             <>
@@ -434,26 +433,18 @@ export default function Busqueda() {
                                 <img
                                   src={src}
                                   alt=""
+                                  className={styles.previewImage}
                                   loading="lazy"
                                   referrerPolicy="no-referrer"
                                   onError={(e) => {
-                                    // Si falla, ocultamos imagen y dejamos el fallback "PDF"
                                     e.currentTarget.style.display = 'none';
                                     const fb = e.currentTarget.nextElementSibling;
                                     if (fb) fb.style.display = 'inline-flex';
                                   }}
-                                  style={{
-                                    width: 64,
-                                    height: 64,
-                                    objectFit: 'cover',
-                                    borderRadius: 12,
-                                    display: 'block',
-                                    boxShadow: '0 2px 10px rgba(0,0,0,.25)',
-                                  }}
                                 />
                               ) : null}
-                              <span className="preview-fallback" style={fallbackStyle}>
-                                PDF
+                              <span className={`${styles.previewPlaceholder} preview-fallback`} style={fallbackStyle}>
+                                Cargando…
                               </span>
                             </>
                           );
