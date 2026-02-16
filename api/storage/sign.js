@@ -42,6 +42,21 @@ function sanitizeFileName(value, fallback = 'file') {
   return normalized || fallback;
 }
 
+function buildUniqueSuffix() {
+  const timestampPart = Date.now().toString(36);
+  const randomPart = Math.random().toString(36).slice(2, 8);
+  return `${timestampPart}${randomPart ? `-${randomPart}` : ''}`;
+}
+
+function appendUniqueSuffixToFileName(fileName) {
+  const sanitizedName = sanitizeFileName(fileName, 'file');
+  const extensionMatch = sanitizedName.match(/(\.[a-z0-9]+)$/i);
+  const extension = extensionMatch ? extensionMatch[1] : '';
+  const baseName = extension ? sanitizedName.slice(0, -extension.length) : sanitizedName;
+  const safeBaseName = sanitizeFileName(baseName, 'file');
+  return `${safeBaseName}-${buildUniqueSuffix()}${extension}`;
+}
+
 function sanitizeStoragePath(pathValue) {
   const raw = String(pathValue || '').trim().replace(/^\/+/, '');
   if (!raw) return '';
@@ -50,6 +65,16 @@ function sanitizeStoragePath(pathValue) {
     .map((segment) => sanitizeFileName(segment, 'file'))
     .filter(Boolean);
   return segments.join('/');
+}
+
+function ensureUniqueStoragePath(pathValue) {
+  const sanitizedPath = sanitizeStoragePath(pathValue);
+  if (!sanitizedPath) return appendUniqueSuffixToFileName('file');
+  const segments = sanitizedPath.split('/').filter(Boolean);
+  if (!segments.length) return appendUniqueSuffixToFileName('file');
+  const fileName = segments.pop() || 'file';
+  const uniqueFileName = appendUniqueSuffixToFileName(fileName);
+  return [...segments, uniqueFileName].join('/');
 }
 
 function sanitizeTitle(value) {
@@ -111,13 +136,13 @@ function buildGeneratedObjectKey(body, contentType) {
 function resolveObjectKey(body, contentType) {
   const explicit = typeof body?.objectKey === 'string' ? body.objectKey.trim() : '';
   if (explicit) {
-    return sanitizeStoragePath(explicit);
+    return ensureUniqueStoragePath(explicit);
   }
   const legacyPath = typeof body?.path === 'string' ? body.path.trim() : '';
   if (legacyPath) {
-    return sanitizeStoragePath(legacyPath);
+    return ensureUniqueStoragePath(legacyPath);
   }
-  return sanitizeStoragePath(buildGeneratedObjectKey(body, contentType));
+  return ensureUniqueStoragePath(buildGeneratedObjectKey(body, contentType));
 }
 
 function isAlreadyExistsError(error) {
@@ -220,19 +245,20 @@ export default async function handler(req, res) {
       }
     };
 
-    const computePublicUrl = (bucketName) => {
-      if (!supabaseUrl || !objectKey) return null;
-      return buildStorageUrl(supabaseUrl, bucketName, objectKey, true);
+    const computePublicUrl = (bucketName, objectPath) => {
+      if (!supabaseUrl || !objectPath) return null;
+      return buildStorageUrl(supabaseUrl, bucketName, objectPath, true);
     };
 
-    const signInBucket = async (bucketName) => {
+    const signInBucket = async (bucketName, keyToSign) => {
       const ensureError = await ensureBucketExists(bucketName);
       if (ensureError) {
         if (isAlreadyExistsError(ensureError)) {
           return {
             skip: true,
             bucket: bucketName,
-            publicUrl: computePublicUrl(bucketName),
+            objectKey: keyToSign,
+            publicUrl: computePublicUrl(bucketName, keyToSign),
           };
         }
         return { error: ensureError, bucket: bucketName };
@@ -240,31 +266,60 @@ export default async function handler(req, res) {
       const { data, error } = await supabase
         .storage
         .from(bucketName)
-        .createSignedUploadUrl(objectKey, expiresInRaw, { upsert: true, contentType });
+        .createSignedUploadUrl(keyToSign, expiresInRaw, { upsert: true, contentType });
       if (error || !data?.signedUrl) {
         if (isAlreadyExistsError(error)) {
-          const { data: publicData } = supabase.storage.from(bucketName).getPublicUrl(objectKey);
           return {
-            skip: true,
+            collision: true,
             bucket: bucketName,
-            publicUrl: publicData?.publicUrl || computePublicUrl(bucketName),
+            objectKey: keyToSign,
           };
         }
         return { error: error || new Error('missing_signed_url'), bucket: bucketName };
       }
-      const { data: publicData } = supabase.storage.from(bucketName).getPublicUrl(objectKey);
+      const { data: publicData } = supabase.storage.from(bucketName).getPublicUrl(keyToSign);
       return {
         bucket: bucketName,
+        objectKey: keyToSign,
         data,
-        publicUrl: publicData?.publicUrl || computePublicUrl(bucketName),
+        publicUrl: publicData?.publicUrl || computePublicUrl(bucketName, keyToSign),
+      };
+    };
+
+    const signWithRetries = async (bucketName, initialObjectKey, maxAttempts = 4) => {
+      let attempt = 0;
+      let activeObjectKey = initialObjectKey;
+      while (attempt < maxAttempts) {
+        try {
+          const result = await signInBucket(bucketName, activeObjectKey);
+          if (result?.collision) {
+            attempt += 1;
+            activeObjectKey = ensureUniqueStoragePath(activeObjectKey);
+            continue;
+          }
+          return { ...result, objectKey: result?.objectKey || activeObjectKey };
+        } catch (error) {
+          if (isAlreadyExistsError(error)) {
+            attempt += 1;
+            activeObjectKey = ensureUniqueStoragePath(activeObjectKey);
+            continue;
+          }
+          throw error;
+        }
+      }
+      return {
+        error: new Error('unable_to_allocate_unique_object_key'),
+        bucket: bucketName,
+        objectKey: activeObjectKey,
       };
     };
 
     let bucket = requestedBucket;
-    let signResult = await signInBucket(bucket);
+    let signResult = await signWithRetries(bucket, objectKey);
+    objectKey = signResult?.objectKey || objectKey;
 
     if (signResult.skip) {
-      const publicUrl = signResult.publicUrl || computePublicUrl(bucket);
+      const publicUrl = signResult.publicUrl || computePublicUrl(bucket, objectKey);
       sendJson(res, 200, {
         ok: true,
         skipUpload: true,
@@ -288,9 +343,10 @@ export default async function handler(req, res) {
         error: reason,
       });
       bucket = DEFAULT_BUCKET;
-      signResult = await signInBucket(bucket);
+      signResult = await signWithRetries(bucket, objectKey);
+      objectKey = signResult?.objectKey || objectKey;
       if (signResult.skip) {
-        const publicUrl = signResult.publicUrl || computePublicUrl(bucket);
+        const publicUrl = signResult.publicUrl || computePublicUrl(bucket, objectKey);
         sendJson(res, 200, {
           ok: true,
           skipUpload: true,
@@ -323,7 +379,7 @@ export default async function handler(req, res) {
     }
 
     const signedData = signResult.data;
-    const resolvedPublicUrl = signResult.publicUrl || computePublicUrl(bucket);
+    const resolvedPublicUrl = signResult.publicUrl || computePublicUrl(bucket, objectKey);
 
     sendJson(res, 200, {
       ok: true,
