@@ -81,6 +81,8 @@ function buildDownloadUrl(publicUrl, filename) {
   return url.toString();
 }
 
+const GENERIC_PREVIEW_THUMBNAIL = '/icons/community-hero.png';
+
 function PreviewThumbnail({ src }) {
   const [status, setStatus] = useState(src ? 'loading' : 'fallback');
 
@@ -88,39 +90,30 @@ function PreviewThumbnail({ src }) {
     setStatus(src ? 'loading' : 'fallback');
   }, [src]);
 
+  const activeSrc = status === 'error' || status === 'fallback'
+    ? GENERIC_PREVIEW_THUMBNAIL
+    : src;
   const showLoading = Boolean(src) && status === 'loading';
-  const showImage = Boolean(src) && status === 'loaded';
-  const showFallback = !src || status === 'error' || status === 'fallback';
 
   return (
     <>
-      {showImage ? (
-        <img
-          src={src}
-          alt=""
-          className={styles.previewImage}
-          loading="lazy"
-          referrerPolicy="no-referrer"
-          onLoad={() => setStatus('loaded')}
-          onError={() => setStatus('error')}
-        />
-      ) : null}
-      {showLoading ? (
-        <>
-          <img
-            src={src}
-            alt=""
-            className={styles.previewImage}
-            loading="lazy"
-            referrerPolicy="no-referrer"
-            onLoad={() => setStatus('loaded')}
-            onError={() => setStatus('error')}
-            style={{ display: 'none' }}
-          />
-          <span className={styles.previewPlaceholder}>Cargando…</span>
-        </>
-      ) : null}
-      {showFallback ? <span className={styles.previewPdfFallback}>PDF</span> : null}
+      {showLoading ? <span className={styles.previewPlaceholder}>Cargando…</span> : null}
+      <img
+        src={activeSrc}
+        alt="Miniatura MGMGAMERS"
+        className={styles.previewImage}
+        loading="lazy"
+        referrerPolicy="no-referrer"
+        onLoad={() => {
+          if (status === 'loading') setStatus('loaded');
+        }}
+        onError={() => {
+          if (activeSrc !== GENERIC_PREVIEW_THUMBNAIL) {
+            setStatus('error');
+          }
+        }}
+        style={showLoading ? { display: 'none' } : undefined}
+      />
     </>
   );
 }
