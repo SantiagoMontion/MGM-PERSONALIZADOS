@@ -424,7 +424,7 @@ export default function SizeControls({ material, size, onChange, locked = false,
         <div className={styles.measureRow}>
           <label className={measureFieldClass(locked || isGlasspad || disabled)}>
             <span className={styles.measureLabel}>Largo</span>
-            <img src="/icons/largo.png" alt="" className={styles.measureIcon} aria-hidden="true" />
+            <img src="/icons/ancho.png" alt="" className={styles.measureIcon} aria-hidden="true" />
             <input
               ref={wInputRef}
               className={styles.measureInput}
@@ -441,7 +441,7 @@ export default function SizeControls({ material, size, onChange, locked = false,
           </label>
           <label className={measureFieldClass(locked || isGlasspad || disabled)}>
             <span className={styles.measureLabel}>Ancho</span>
-            <img src="/icons/ancho.png" alt="" className={styles.measureIcon} aria-hidden="true" />
+            <img src="/icons/largo.png" alt="" className={styles.measureIcon} aria-hidden="true" />
             <input
               ref={hInputRef}
               className={styles.measureInput}
