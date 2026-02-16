@@ -28,6 +28,30 @@ function buildStorageUrl(base, bucket, key, isPublic) {
   return `${normalizedBase}/storage/v1/object/${visibility}${bucket}/${key}`;
 }
 
+function sanitizeFileName(value, fallback = 'file') {
+  const normalized = String(value || fallback || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9.-]/g, '')
+    .replace(/-+/g, '-')
+    .replace(/\.{2,}/g, '.')
+    .replace(/^-+|-+$/g, '')
+    .trim();
+  return normalized || fallback;
+}
+
+function sanitizeStoragePath(pathValue) {
+  const raw = String(pathValue || '').trim().replace(/^\/+/, '');
+  if (!raw) return '';
+  const segments = raw
+    .split('/')
+    .map((segment) => sanitizeFileName(segment, 'file'))
+    .filter(Boolean);
+  return segments.join('/');
+}
+
 function sanitizeTitle(value) {
   const base = (value ?? 'Design').toString();
   const normalized = base
@@ -87,13 +111,13 @@ function buildGeneratedObjectKey(body, contentType) {
 function resolveObjectKey(body, contentType) {
   const explicit = typeof body?.objectKey === 'string' ? body.objectKey.trim() : '';
   if (explicit) {
-    return explicit.replace(/^\/+/, '');
+    return sanitizeStoragePath(explicit);
   }
   const legacyPath = typeof body?.path === 'string' ? body.path.trim() : '';
   if (legacyPath) {
-    return legacyPath.replace(/^\/+/, '');
+    return sanitizeStoragePath(legacyPath);
   }
-  return buildGeneratedObjectKey(body, contentType);
+  return sanitizeStoragePath(buildGeneratedObjectKey(body, contentType));
 }
 
 function isAlreadyExistsError(error) {

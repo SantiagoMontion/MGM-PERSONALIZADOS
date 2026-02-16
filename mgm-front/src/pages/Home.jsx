@@ -51,6 +51,21 @@ const safeStr = (value, fallback = '') => {
   return str || fallback;
 };
 const safeReplace = (value, pattern, repl) => asStr(value).replace(pattern, repl);
+
+const sanitizeFileName = (value, fallback = 'design') => {
+  const normalized = safeStr(value, fallback)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9.-]/g, '')
+    .replace(/-+/g, '-')
+    .replace(/\.{2,}/g, '.')
+    .replace(/^-+|-+$/g, '')
+    .trim();
+  if (normalized) return normalized;
+  return fallback;
+};
 const normalizeMaterialLabelSafe = (value) => {
   const label = safeStr(value);
   if (label === 'Alfombra') return 'Alfombra';
@@ -1119,11 +1134,6 @@ export default function Home() {
       const dpiForMockup = layout?.dpi || effDpi || 300;
       const designMime = pdfSourceMime || 'image/png';
       const shouldUploadMaster = KEEP_MASTER && !SKIP_MASTER_UPLOAD;
-      const sanitizeForFileName = (value, fallback = 'Design') => {
-        const base = safeStr(value, fallback);
-        const cleaned = base.replace(/[^a-zA-Z0-9-_]/g, '').trim();
-        return cleaned || fallback;
-      };
       const formatDimensionCm = (cm) => {
         const num = Number(cm);
         if (!Number.isFinite(num) || num <= 0) return '0';
@@ -1136,11 +1146,11 @@ export default function Home() {
       else if (/glass/i.test(materialLabel)) materialLabel = 'Glasspad';
       else if (/alfombr/i.test(materialLabel)) materialLabel = 'Alfombra';
       else if (!materialLabel || /classic/i.test(materialLabel)) materialLabel = 'Classic';
-      const namePart = sanitizeForFileName(trimmedDesignName);
+      const namePart = sanitizeFileName(trimmedDesignName, 'design');
       const widthLabel = formatDimensionCm(activeWcm ?? (masterWidthMm ? masterWidthMm / 10 : undefined));
       const heightLabel = formatDimensionCm(activeHcm ?? (masterHeightMm ? masterHeightMm / 10 : undefined));
-      const materialPart = sanitizeForFileName(materialLabel, 'Classic');
-      const pdfFileName = safeReplace(`${namePart}-${widthLabel}x${heightLabel}-${materialPart}`, /\s+/g, '-').trim();
+      const materialPart = sanitizeFileName(materialLabel, 'classic');
+      const pdfFileName = sanitizeFileName(`${namePart}-${widthLabel}x${heightLabel}-${materialPart}`, 'design-pdf');
       const yyyymmValue = (() => {
         const now = new Date();
         return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
