@@ -1338,33 +1338,35 @@ export default function Home() {
       diag('[diag] master dims', { width: masterWidthExact, height: masterHeightExact });
 
       const pdfBody = pdfBytes instanceof Blob ? pdfBytes : new Blob([pdfBytes], { type: 'application/pdf' });
-      let pdfUploadRes;
-      let masterUploadRes = { ok: true };
       const uploadsStart = tnow();
-      try {
-        pdfUploadRes = await fetch(pdfSign.uploadUrl, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/pdf' },
-          body: pdfBody,
-        });
-      } catch (pdfUploadErr) {
-        error('[pdf-upload] failed', pdfUploadErr);
-        setErr('No se pudo subir el PDF.');
-        return;
-      }
-      if (shouldUploadMaster && masterSign?.uploadUrl) {
-        try {
-          masterUploadRes = await fetch(masterSign.uploadUrl, {
+      const pdfUploadTask = fetch(pdfSign.uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/pdf' },
+        body: pdfBody,
+      });
+      const masterUploadTask = shouldUploadMaster && masterSign?.uploadUrl
+        ? fetch(masterSign.uploadUrl, {
             method: 'PUT',
             headers: { 'Content-Type': designMime },
             body: pdfSourceBlob,
-          });
-        } catch (masterUploadErr) {
-          error('[master-upload] failed', masterUploadErr);
-          setErr('No se pudo subir la imagen.');
-          return;
-        }
+          })
+        : Promise.resolve({ ok: true });
+
+      const [pdfUploadResult, masterUploadResult] = await Promise.allSettled([pdfUploadTask, masterUploadTask]);
+
+      if (pdfUploadResult.status === 'rejected') {
+        error('[pdf-upload] failed', pdfUploadResult.reason);
+        setErr('No se pudo subir el PDF.');
+        return;
       }
+      if (masterUploadResult.status === 'rejected') {
+        error('[master-upload] failed', masterUploadResult.reason);
+        setErr('No se pudo subir la imagen.');
+        return;
+      }
+
+      const pdfUploadRes = pdfUploadResult.value;
+      const masterUploadRes = masterUploadResult.value;
       diagTime('uploads_done', uploadsStart);
 
       if (!pdfUploadRes?.ok) {

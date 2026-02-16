@@ -215,54 +215,12 @@ export default async function handler(req, res) {
       contentType,
     });
 
-    const ensureBucketExists = async (bucketName) => {
-      try {
-        const { data: bucketInfo, error: getError } = await supabase.storage.getBucket(bucketName);
-        if (bucketInfo) {
-          return null;
-        }
-        if (getError && getError.message && /not found/i.test(getError.message)) {
-          // proceed to create
-        } else if (getError && !bucketInfo) {
-          // Unexpected error while fetching bucket metadata
-          logger.warn?.('[sign] get_bucket_error', { bucket: bucketName, error: getError.message });
-        }
-        const { error: createError } = await supabase.storage.createBucket(bucketName, {
-          public: bucketName !== 'uploads',
-        });
-        if (createError && createError.message && /already exists/i.test(createError.message)) {
-          return null;
-        }
-        if (createError) {
-          return createError;
-        }
-        return null;
-      } catch (error) {
-        if (error?.message && /already exists/i.test(error.message)) {
-          return null;
-        }
-        return error;
-      }
-    };
-
     const computePublicUrl = (bucketName, objectPath) => {
       if (!supabaseUrl || !objectPath) return null;
       return buildStorageUrl(supabaseUrl, bucketName, objectPath, true);
     };
 
     const signInBucket = async (bucketName, keyToSign) => {
-      const ensureError = await ensureBucketExists(bucketName);
-      if (ensureError) {
-        if (isAlreadyExistsError(ensureError)) {
-          return {
-            skip: true,
-            bucket: bucketName,
-            objectKey: keyToSign,
-            publicUrl: computePublicUrl(bucketName, keyToSign),
-          };
-        }
-        return { error: ensureError, bucket: bucketName };
-      }
       const { data, error } = await supabase
         .storage
         .from(bucketName)
@@ -314,9 +272,19 @@ export default async function handler(req, res) {
       };
     };
 
+    const signStageStartedAt = Date.now();
     let bucket = requestedBucket;
     let signResult = await signWithRetries(bucket, objectKey);
     objectKey = signResult?.objectKey || objectKey;
+    const signStageDurationMs = Date.now() - signStageStartedAt;
+
+    logger.info?.('[storage:sign:duration]', {
+      diagId,
+      requestedBucket,
+      bucket,
+      objectKey,
+      durationMs: signStageDurationMs,
+    });
 
     if (signResult.skip) {
       const publicUrl = signResult.publicUrl || computePublicUrl(bucket, objectKey);
