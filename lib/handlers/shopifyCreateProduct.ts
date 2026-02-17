@@ -371,8 +371,12 @@ export default async function handler(req: any, res: any) {
         title,
         body_html: `<p>Personalizado ${width}x${height} cm</p>`,
         images: [{ attachment: base64 }],
-        variants: [{ price: '0.00' }],
-        status: 'draft'
+        variants: [{
+          price: '0.00',
+          inventory_policy: 'continue',
+          inventory_management: null,
+        }],
+        status: 'active',
       }
     };
     const { product } = await shopifyAdmin('/products.json', {
