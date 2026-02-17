@@ -111,6 +111,24 @@ function buildGlasspadTitle(measurement?: string): string {
   return `${parts.join(' ')} | MGM-EDITOR`;
 }
 
+
+function normalizeProductTypeForTemplateSuffix(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function resolveTemplateSuffixByProductType(productTypeRaw: unknown): string {
+  const normalized = normalizeProductTypeForTemplateSuffix(productTypeRaw);
+  if (normalized.includes('glass')) return 'glasspads';
+  if (normalized.includes('alfombr')) return 'alfombras';
+  if (normalized.includes('pro') || normalized.includes('classic')) return 'mousepads';
+  return 'mousepads';
+}
+
 type LegacyStorageArgs = {
   productHandle?: string | null;
   productId?: string | null;
@@ -359,7 +377,9 @@ export default async function handler(req: any, res: any) {
     const measurementLabel = formatMeasurement(width, height);
     const title = mode === 'Glasspad'
       ? buildGlasspadTitle(measurementLabel)
-      : `Mousepad Personalizado - ${mode}${measurementLabel ? ` ${measurementLabel}` : ''}`;
+      : `Mousepad Personalizado - ${mode}${measurementLabel ? ` ${measurementLabel}` : ''} | MGM-EDITOR`;
+    const productTypeRaw = typeof req.body?.productType === 'string' ? req.body.productType : mode;
+    const templateSuffix = resolveTemplateSuffixByProductType(productTypeRaw);
     const designNameRaw = typeof req.body?.design_name === 'string'
       ? req.body.design_name
       : typeof req.body?.designName === 'string'
@@ -369,6 +389,7 @@ export default async function handler(req: any, res: any) {
     const payload = {
       product: {
         title,
+        template_suffix: templateSuffix,
         body_html: `<p>Personalizado ${width}x${height} cm</p>`,
         images: [{ attachment: base64 }],
         variants: [{
