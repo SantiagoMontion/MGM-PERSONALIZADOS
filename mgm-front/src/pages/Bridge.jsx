@@ -43,6 +43,7 @@ function useBridgeWatcher(rid) {
   const [readyUrl, setReadyUrl] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [showFallback, setShowFallback] = useState(false);
+  const [safetyBufferActive, setSafetyBufferActive] = useState(false);
 
   useEffect(() => {
     if (!rid) return undefined;
@@ -50,6 +51,8 @@ function useBridgeWatcher(rid) {
     const key = `bridge:${rid}`;
     let cancelled = false;
     let intervalId = null;
+    let navigationTimeoutId = null;
+    let redirectScheduled = false;
 
     const stopPolling = () => {
       if (intervalId != null) {
@@ -78,13 +81,19 @@ function useBridgeWatcher(rid) {
 
         if (status === 'ok' && url) {
           setReadyUrl(url);
+          setSafetyBufferActive(true);
           stopPolling();
           try {
             window.localStorage.removeItem(key);
           } catch {
             // noop
           }
-          window.location.replace(url);
+          if (redirectScheduled) return;
+          redirectScheduled = true;
+          navigationTimeoutId = window.setTimeout(() => {
+            if (cancelled) return;
+            window.location.replace(url);
+          }, 2500);
           return;
         }
 
@@ -115,6 +124,9 @@ function useBridgeWatcher(rid) {
       window.removeEventListener('storage', onStorage);
       window.clearTimeout(timeoutId);
       window.clearTimeout(fallbackId);
+      if (navigationTimeoutId != null) {
+        window.clearTimeout(navigationTimeoutId);
+      }
     };
   }, [rid]);
 
@@ -123,6 +135,7 @@ function useBridgeWatcher(rid) {
     readyUrl,
     errorMessage,
     showFallback,
+    safetyBufferActive,
   };
 }
 
@@ -133,6 +146,7 @@ export default function Bridge() {
     readyUrl,
     errorMessage,
     showFallback,
+    safetyBufferActive,
   } = useBridgeWatcher(rid);
 
   const showError = Boolean(errorMessage);
@@ -185,8 +199,14 @@ export default function Bridge() {
                 animation: 'spin 1s linear infinite',
               }}
             />
-            <h1 style={{ fontSize: 40, margin: 0 }}>Estás siendo redirigido…</h1>
-            <p style={{ opacity: 0.8, marginTop: 8 }}>Tu producto se está terminando de crear</p>
+            <h1 style={{ fontSize: 40, margin: 0 }}>
+              {safetyBufferActive ? 'Asegurando disponibilidad…' : 'Estás siendo redirigido…'}
+            </h1>
+            <p style={{ opacity: 0.8, marginTop: 8 }}>
+              {safetyBufferActive
+                ? 'Preparando tu editor antes de abrir Shopify.'
+                : 'Tu producto se está terminando de crear'}
+            </p>
           </>
         ) : (
           <>
