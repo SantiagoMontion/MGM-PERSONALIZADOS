@@ -237,7 +237,20 @@ const asStr = (value, fallback = '') => {
 const safeReplace = (value, pattern, replacement) => asStr(value).replace(pattern, replacement);
 
 function isHttpUrl(u) {
-  return typeof u === 'string' && /^https?:\/\//i.test(u.trim());
+  if (typeof u !== 'string') return false;
+  const trimmed = u.trim();
+  if (!trimmed) return false;
+  try {
+    if (/^\/\//.test(trimmed)) return true;
+    if (/^https?:\/\//i.test(trimmed)) return true;
+    const normalized = /^[-a-zA-Z0-9.]+\//.test(trimmed) || /^[a-z0-9.-]+\.[a-z]{2,}/i.test(trimmed)
+      ? `https://${trimmed.replace(/^\/+/, '')}`
+      : trimmed;
+    const parsed = new URL(normalized, window.location.origin);
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:';
+  } catch {
+    return false;
+  }
 }
 
 function generateBridgeRid() {
@@ -254,9 +267,27 @@ function bridgeStorageKey(rid) {
 function publishBridgeUrl(rid, url) {
   if (!rid || !url) return;
   try {
-    localStorage.setItem(bridgeStorageKey(rid), JSON.stringify({ url, ts: Date.now() }));
+    localStorage.setItem(bridgeStorageKey(rid), JSON.stringify({ status: 'ok', url, ts: Date.now() }));
   } catch (err) {
     diag('[bridge] storage_failed', err);
+  }
+}
+
+function publishBridgeError(rid, message) {
+  if (!rid) return;
+  try {
+    localStorage.setItem(
+      bridgeStorageKey(rid),
+      JSON.stringify({
+        status: 'error',
+        error: typeof message === 'string' && message.trim()
+          ? message.trim()
+          : 'Hubo un problema al generar tu carrito.',
+        ts: Date.now(),
+      }),
+    );
+  } catch (err) {
+    diag('[bridge] storage_error_failed', err);
   }
 }
 
@@ -3993,8 +4024,8 @@ export default function Mockup() {
       return outcome;
     } catch (err) {
       warn('[cart] error', err);
-      clearBridgeKey(bridgeRid);
       const fallbackMessage = 'Ocurrió un error al agregar al carrito.';
+      publishBridgeError(bridgeRid, fallbackMessage);
       toastErr(fallbackMessage);
       setToast({ message: fallbackMessage });
     } finally {
@@ -4014,7 +4045,7 @@ export default function Mockup() {
   function finalizePurchase(result, flowRef, bridgeRid, fallbackMessage = 'No se pudo abrir el producto. Intenta de nuevo.') {
     if (!result) {
       if (bridgeRid) {
-        clearBridgeKey(bridgeRid);
+        publishBridgeError(bridgeRid, fallbackMessage);
       }
       return { ok: false };
     }
@@ -4034,7 +4065,7 @@ export default function Mockup() {
       return { ok: true, url: targetUrl };
     }
     if (bridgeRid) {
-      clearBridgeKey(bridgeRid);
+      publishBridgeError(bridgeRid, fallbackMessage);
     }
     toastErr(fallbackMessage);
     setToast({ message: fallbackMessage });
@@ -4165,8 +4196,9 @@ export default function Mockup() {
       return finalizePurchase(result, flow, bridgeRid, 'No se pudo abrir el checkout. Intenta nuevamente.');
     } catch (err) {
       error('[checkout-public-flow]', err);
-      clearBridgeKey(bridgeRid);
-      setToast({ message: 'Ocurrió un error al procesar el checkout.' });
+      const fallbackMessage = 'Ocurrió un error al procesar el checkout.';
+      publishBridgeError(bridgeRid, fallbackMessage);
+      setToast({ message: fallbackMessage });
       return null;
     } finally {
       setPublicBusy(false);
@@ -4206,8 +4238,9 @@ export default function Mockup() {
       return finalizePurchase(result, flow, bridgeRid, 'No se pudo abrir el checkout privado. Proba de nuevo.');
     } catch (err) {
       error('[checkout-private-flow]', err);
-      clearBridgeKey(bridgeRid);
-      setToast({ message: 'Ocurrió un error al procesar el checkout privado.' });
+      const fallbackMessage = 'Ocurrió un error al procesar el checkout privado.';
+      publishBridgeError(bridgeRid, fallbackMessage);
+      setToast({ message: fallbackMessage });
       return null;
     } finally {
       setPrivateBusy(false);
@@ -4585,8 +4618,6 @@ export default function Mockup() {
     </div>
   );
 }
-
-
 
 
 
