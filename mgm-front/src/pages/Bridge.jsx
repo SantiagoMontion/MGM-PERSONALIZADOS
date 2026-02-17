@@ -105,7 +105,7 @@ function useBridgeWatcher(rid) {
     window.addEventListener('storage', onStorage);
     intervalId = window.setInterval(tryResolve, 500);
     const timeoutId = window.setTimeout(() => setTimedOut(true), 90_000);
-    const fallbackId = window.setTimeout(() => setShowFallback(true), 5_000);
+    const fallbackId = window.setTimeout(() => setShowFallback(true), 15_000);
 
     tryResolve();
 
