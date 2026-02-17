@@ -6,6 +6,38 @@ export type GlasspadOpts = {
   borderAlpha?: number;
 };
 
+
+function isFirefoxBrowser(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /firefox/i.test(navigator.userAgent || '');
+}
+
+function drawFirefoxSoftBlur(
+  ctx: CanvasRenderingContext2D,
+  source: HTMLCanvasElement,
+  blurPx: number,
+): void {
+  const radius = Math.max(1, Math.round(blurPx));
+  const offsets = [
+    [0, 0],
+    [radius, 0],
+    [-radius, 0],
+    [0, radius],
+    [0, -radius],
+    [Math.round(radius * 0.65), Math.round(radius * 0.65)],
+    [-Math.round(radius * 0.65), Math.round(radius * 0.65)],
+    [Math.round(radius * 0.65), -Math.round(radius * 0.65)],
+    [-Math.round(radius * 0.65), -Math.round(radius * 0.65)],
+  ] as const;
+
+  const previousAlpha = ctx.globalAlpha;
+  ctx.globalAlpha = Math.min(0.22, 1 / offsets.length + 0.08);
+  for (const [x, y] of offsets) {
+    ctx.drawImage(source, x, y);
+  }
+  ctx.globalAlpha = previousAlpha;
+}
+
 // baseCanvas: canvas con el arte SIN efectos
 export function renderGlasspadPNG(
   baseCanvas: HTMLCanvasElement,
@@ -29,9 +61,15 @@ export function renderGlasspadPNG(
   blurred.width = baseCanvas.width;
   blurred.height = baseCanvas.height;
   const blurredCtx = blurred.getContext('2d')!;
-  blurredCtx.filter = `blur(${blurPx}px)`;
-  blurredCtx.drawImage(baseCanvas, 0, 0);
-  blurredCtx.filter = 'none';
+  const useFirefoxFallback = isFirefoxBrowser() && blurPx > 0;
+
+  if (useFirefoxFallback) {
+    drawFirefoxSoftBlur(blurredCtx, baseCanvas, blurPx);
+  } else {
+    blurredCtx.filter = `blur(${blurPx}px)`;
+    blurredCtx.drawImage(baseCanvas, 0, 0);
+    blurredCtx.filter = 'none';
+  }
 
   const offset = typeof shadowOffsetPx === 'number'
     ? shadowOffsetPx

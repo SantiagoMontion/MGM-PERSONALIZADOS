@@ -64,9 +64,10 @@
 .configAccordion {
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 20px;
-  background: rgba(40, 40, 40, 0.7);
+  background: rgba(40, 40, 40, 0.85);
   color: #f9fafb;
   overflow: hidden;
+  -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
