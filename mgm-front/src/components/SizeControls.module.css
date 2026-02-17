@@ -131,11 +131,13 @@
   margin-top: -20px;
 }
 
-.quickChip:hover:not(:disabled) {
-  background: #181818;
-  color: #fff;
-  transform: translateY(-1px);
-  border-color: #888888b4;
+@media (hover: hover) {
+  .quickChip:hover:not(:disabled) {
+    background: #181818;
+    color: #fff;
+    transform: translateY(-1px);
+    border-color: #888888b4;
+  }
 }
 
 .quickChip:disabled {
@@ -209,10 +211,12 @@
   transition: transform 0.18s ease;
 }
 
-.selectTrigger:hover:not(:disabled) {
-  border-color: #181818ab;
-  transform: translateY(-1px);
-  box-shadow: 0 0 0 1px rgba(200, 200, 200, 0.06) inset;
+@media (hover: hover) {
+  .selectTrigger:hover:not(:disabled) {
+    border-color: #181818ab;
+    transform: translateY(-1px);
+    box-shadow: 0 0 0 1px rgba(200, 200, 200, 0.06) inset;
+  }
 }
 
 .selectTrigger[aria-expanded='true'] .selectChevron {
@@ -253,8 +257,10 @@
   user-select: none;
 }
 
-.selectOption:hover {
-  background: rgba(255, 255, 255, 0.05);
+@media (hover: hover) {
+  .selectOption:hover {
+    background: rgba(255, 255, 255, 0.05);
+  }
 }
 
 

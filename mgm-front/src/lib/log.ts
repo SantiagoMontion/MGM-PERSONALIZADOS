@@ -1,6 +1,16 @@
+const debugStorageFlag = (() => {
+  if (typeof window === 'undefined') return false;
+
+  try {
+    return localStorage.getItem('mgm:debug') === '1';
+  } catch {
+    return false;
+  }
+})();
+
 const DEBUG =
   (typeof window !== 'undefined' &&
-    (localStorage.getItem('mgm:debug') === '1' ||
+    (debugStorageFlag ||
       new URLSearchParams(window.location.search).get('mgm_debug') === '1')) ||
   (typeof import.meta !== 'undefined' && import.meta.env?.MODE && import.meta.env.MODE !== 'production');
 

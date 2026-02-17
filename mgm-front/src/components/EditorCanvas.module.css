@@ -190,8 +190,10 @@
   border-radius: 10px;
 }
 
-.eyedropperButton:hover {
-  background: rgba(255, 255, 255, 0.08);
+@media (hover: hover) {
+  .eyedropperButton:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
 }
 
 .eyedropperButton:active {
@@ -314,15 +316,16 @@
   cursor: pointer;
 }
 
-.iconOnlyButton:not(:disabled):hover {
-  transform: translateY(-1px);
-  border-color: #585861;
-  
-}
+@media (hover: hover) {
+  .iconOnlyButton:not(:disabled):hover {
+    transform: translateY(-1px);
+    border-color: #585861;
+  }
 
-.iconOnlyButtonActive:not(:disabled):hover {
-  background: rgba(132, 132, 132, 0.6);
-  border-color: rgba(132, 132, 132, 0.6);
+  .iconOnlyButtonActive:not(:disabled):hover {
+    background: rgba(132, 132, 132, 0.6);
+    border-color: rgba(132, 132, 132, 0.6);
+  }
 }
 
 .iconOnlyButton:not(:disabled):active {
@@ -700,10 +703,12 @@
   opacity: 0.4;
 }
 
-.historyButton:not(:disabled):hover {
-  transform: translateY(-2px);
-  border-color: rgba(126, 126, 220, 0.75);
-  background: rgba(26, 26, 40, 0.9);
+@media (hover: hover) {
+  .historyButton:not(:disabled):hover {
+    transform: translateY(-2px);
+    border-color: rgba(126, 126, 220, 0.75);
+    background: rgba(26, 26, 40, 0.9);
+  }
 }
 
 .historyButton:focus-visible {
@@ -715,9 +720,11 @@
   border-color: #80808036;
 }
 
-.historyButtonDanger:not(:disabled):hover {
-  background: rgba(177, 48, 48, 0.9);
-  border-color: rgba(177, 48, 48, 0.9);
+@media (hover: hover) {
+  .historyButtonDanger:not(:disabled):hover {
+    background: rgba(177, 48, 48, 0.9);
+    border-color: rgba(177, 48, 48, 0.9);
+  }
 }
 
 .spinnerOverlay {
