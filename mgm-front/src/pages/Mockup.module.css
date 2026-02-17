@@ -10,7 +10,7 @@
   --accent-400: #3b7345;
   --shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
   --radius: 12px;
-  min-height: 100vh;
+  min-height: 100dvh;
   background: var(--bg);
   display: grid;
   grid-template-rows: auto 1fr auto;

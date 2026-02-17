@@ -162,7 +162,7 @@ export default function Bridge() {
   return (
     <div
       style={{
-        height: '100vh',
+        height: '100dvh',
         display: 'grid',
         placeItems: 'center',
         background: '#181818',
