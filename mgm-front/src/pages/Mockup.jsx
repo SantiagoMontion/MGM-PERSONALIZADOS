@@ -1261,13 +1261,29 @@ export default function Mockup() {
   const [privateBusy, setPrivateBusy] = useState(false);
   const [buyBtnBusy, setBuyBtnBusy] = useState(false);
   const [cartBtnBusy, setCartBtnBusy] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
   const [toast, setToast] = useState(null);
   const [isBuyPromptOpen, setBuyPromptOpen] = useState(false);
   const buyNowButtonRef = useRef(null);
   const modalRef = useRef(null);
   const firstActionButtonRef = useRef(null);
+  const isPublishingRef = useRef(false);
   const wasModalOpenedRef = useRef(false);
   const successToastTimeoutRef = useRef(null);
+
+  const acquirePublishingLock = useCallback(() => {
+    if (isPublishingRef.current) {
+      return false;
+    }
+    isPublishingRef.current = true;
+    setIsPublishing(true);
+    return true;
+  }, []);
+
+  const releasePublishingLock = useCallback(() => {
+    isPublishingRef.current = false;
+    setIsPublishing(false);
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -2608,6 +2624,9 @@ export default function Mockup() {
 
   const withBuyBtnSpin = useCallback((fn) => {
     return async (...args) => {
+      if (isPublishingRef.current) {
+        return;
+      }
       setBuyBtnBusy(true);
       try {
         return await fn(...args);
@@ -2619,7 +2638,7 @@ export default function Mockup() {
 
   const withCartBtnSpin = useCallback((fn) => {
     return async (...args) => {
-      if (cartBtnBusy) {
+      if (cartBtnBusy || isPublishingRef.current) {
         return;
       }
       setCartBtnBusy(true);
@@ -4055,7 +4074,8 @@ export default function Mockup() {
   }
 
   async function onCartClick() {
-    if (busy || cartInteractionBusy || purchaseLocked) return;
+    if (busy || cartInteractionBusy || purchaseLocked || isPublishingRef.current) return;
+    if (!acquirePublishingLock()) return;
 
     debugTrackFire('cta_click_cart', rid);
     trackEvent('cta_click_cart', {
@@ -4086,6 +4106,7 @@ export default function Mockup() {
       setToast({ message: fallbackMessage });
     } finally {
       setCartStatus('idle');
+      releasePublishingLock();
     }
   }
 
@@ -4226,7 +4247,8 @@ export default function Mockup() {
   }
 
   async function onCheckoutPublicClick() {
-    if (busy || buyBtnBusy || publicBusy || purchaseLocked) return null;
+    if (busy || buyBtnBusy || publicBusy || purchaseLocked || isPublishingRef.current) return null;
+    if (!acquirePublishingLock()) return null;
 
     setBuyBtnBusy(true);
     setPublicBusy(true);
@@ -4260,11 +4282,13 @@ export default function Mockup() {
       setPublicBusy(false);
       setBusy(false);
       setBuyBtnBusy(false);
+      releasePublishingLock();
     }
   }
 
   async function onCheckoutPrivateClick() {
-    if (busy || buyBtnBusy || privateBusy || purchaseLocked) return null;
+    if (busy || buyBtnBusy || privateBusy || purchaseLocked || isPublishingRef.current) return null;
+    if (!acquirePublishingLock()) return null;
 
     setBuyBtnBusy(true);
     setPrivateBusy(true);
@@ -4302,6 +4326,7 @@ export default function Mockup() {
       setPrivateBusy(false);
       setBusy(false);
       setBuyBtnBusy(false);
+      releasePublishingLock();
     }
   }
 
@@ -4449,7 +4474,7 @@ export default function Mockup() {
               label={CART_STATUS_LABELS.idle}
               busyLabel={cartButtonLabel}
               isBusy={cartInteractionBusy}
-              disabled={busy || cartInteractionBusy || purchaseLocked}
+              disabled={busy || cartInteractionBusy || purchaseLocked || isPublishing}
               onClick={withCartBtnSpin(onCartClick)}
             />
             <p className={styles.ctaHint}>
@@ -4465,11 +4490,11 @@ export default function Mockup() {
               label="Comprar ahora"
               busyLabel="Procesando…"
               isBusy={buyBtnBusy}
-              disabled={busy || buyBtnBusy || purchaseLocked}
+              disabled={busy || buyBtnBusy || purchaseLocked || isPublishing}
               buttonRef={buyNowButtonRef}
               ariaLabel="Comprar ahora"
               onClick={() => {
-                if (busy || buyBtnBusy || purchaseLocked) return;
+                if (busy || buyBtnBusy || purchaseLocked || isPublishingRef.current) return;
                 setBuyPromptOpen(true);
               }}
             />
@@ -4621,9 +4646,9 @@ export default function Mockup() {
                 label="Comprar público"
                 busyLabel="Procesando…"
                 isBusy={publicBusy}
-                disabled={busy || buyBtnBusy || purchaseLocked}
+                disabled={busy || buyBtnBusy || purchaseLocked || isPublishing}
                 onClick={withBuyBtnSpin(async () => {
-                  if (busy || publicBusy || buyBtnBusy || purchaseLocked) return;
+                  if (busy || publicBusy || buyBtnBusy || purchaseLocked || isPublishingRef.current) return;
                   debugTrackFire('cta_click_public', rid);
                   trackEvent('cta_click_public', {
                     rid,
@@ -4641,9 +4666,9 @@ export default function Mockup() {
                 label="Comprar en privado"
                 busyLabel="Procesando…"
                 isBusy={privateBusy}
-                disabled={busy || buyBtnBusy || purchaseLocked}
+                disabled={busy || buyBtnBusy || purchaseLocked || isPublishing}
                 onClick={withBuyBtnSpin(async () => {
-                  if (busy || privateBusy || buyBtnBusy || purchaseLocked) return;
+                  if (busy || privateBusy || buyBtnBusy || purchaseLocked || isPublishingRef.current) return;
                   debugTrackFire('cta_click_private', rid);
                   trackEvent('cta_click_private', {
                     rid,
@@ -4674,5 +4699,3 @@ export default function Mockup() {
     </div>
   );
 }
-
-
