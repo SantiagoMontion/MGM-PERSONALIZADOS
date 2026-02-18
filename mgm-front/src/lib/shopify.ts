@@ -624,7 +624,21 @@ export async function createJobAndProduct(
   let mockupHashForPayload = typeof (flow as any)?.mockupHash === 'string'
     ? ((flow as any).mockupHash as string).trim()
     : '';
-  let productType: 'glasspad' | 'mousepad' = flow.productType === 'glasspad' ? 'glasspad' : 'mousepad';
+  const productTypeCandidates = [
+    flow.productType,
+    (flow as any)?.options?.productType,
+    (flow as any)?.editorState?.productType,
+    (flow as any)?.editorState?.options?.productType,
+  ];
+  const normalizedProductType = productTypeCandidates
+    .map((candidate) => (typeof candidate === 'string' ? candidate.trim().toLowerCase() : ''))
+    .find((candidate) => candidate === 'glasspad' || candidate === 'mousepad');
+  const materialHint = (flow.material || (flow as any)?.options?.material || '').toString().trim().toLowerCase();
+  let productType: 'glasspad' | 'mousepad' = normalizedProductType
+    ? (normalizedProductType as 'glasspad' | 'mousepad')
+    : materialHint.includes('glass')
+      ? 'glasspad'
+      : 'mousepad';
   let productLabel = PRODUCT_LABELS[productType];
   const designNameInput = (flow as any)?.designName;
   const designNameRaw = (designNameInput ?? '').toString(); // el input tal cual (servidor corta a 40)

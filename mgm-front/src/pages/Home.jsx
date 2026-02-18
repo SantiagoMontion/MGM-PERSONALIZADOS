@@ -502,6 +502,7 @@ export default function Home() {
   }, [material]);
 
   const [priceAmount, setPriceAmount] = useState(0);
+  const latestTransferPriceRef = useRef(0);
   const PRICE_CURRENCY = 'ARS';
 
   // layout del canvas
@@ -586,6 +587,7 @@ export default function Home() {
     setErr('');
     setModerationNotice('');
     setPriceAmount(0);
+    latestTransferPriceRef.current = 0;
     if (mockupUrlRef.current && mockupUrlRef.current.startsWith('blob:')) {
       try {
         URL.revokeObjectURL(mockupUrlRef.current);
@@ -596,6 +598,13 @@ export default function Home() {
     setMockupBlob(null);
     flow?.set?.({ mockupUrl: null, mockupPublicUrl: null, masterBytes: null });
   }, [flow]);
+
+  const handleCalculatedPrice = useCallback((nextPrice) => {
+    const parsed = Number(nextPrice);
+    const normalized = Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+    latestTransferPriceRef.current = normalized;
+    setPriceAmount(normalized);
+  }, []);
 
   const effDpi = useMemo(() => {
     if (!layout) return null;
@@ -1431,7 +1440,11 @@ export default function Home() {
         upload_content_type: designMime,
       }));
 
-      const transferPrice = Number(priceAmount) > 0 ? Number(priceAmount) : 0;
+      const transferPrice = Number(latestTransferPriceRef.current) > 0
+        ? Number(latestTransferPriceRef.current)
+        : Number(priceAmount) > 0
+          ? Number(priceAmount)
+          : 0;
       const normalPrice = transferPrice;
       const nameRaw = safeStr(trimmedDesignName || flowState?.designName || flow?.designName, 'Personalizado');
       const nameClean = safeReplace(nameRaw, /\s+/g, ' ').slice(0, 40) || 'Personalizado';
@@ -1463,11 +1476,12 @@ export default function Home() {
         finalHeightCm = 42;
       }
 
+      const nextProductType = finalMaterial === 'Glasspad' ? 'glasspad' : 'mousepad';
       flow.set({
         // Guardar SIEMPRE la medida elegida por el cliente (cm), para evitar caer a px/DPI
         widthCm: finalWidthCm,
         heightCm: finalHeightCm,
-        productType: finalMaterial === 'Glasspad' ? 'glasspad' : 'mousepad',
+        productType: nextProductType,
         editorState: layout,
         mockupBlob: generatedMockupBlob,
         mockupUrl: cacheBustedMockupUrl,
@@ -1490,7 +1504,7 @@ export default function Home() {
         uploadSha256: designSha,
         designName: nameClean,
         material: finalMaterial,
-        options: { ...(flowState?.options || {}), material: finalMaterial },
+        options: { ...(flowState?.options || {}), material: finalMaterial, productType: nextProductType },
         lowQualityAck: level === 'bad' ? Boolean(ackLow) : false,
         approxDpi: effDpi || null,
         priceTransfer: transferPrice,
@@ -2086,7 +2100,7 @@ export default function Home() {
                     width={activeSizeCm.w}
                     height={activeSizeCm.h}
                     material={material}
-                    setPrice={setPriceAmount}
+                    setPrice={handleCalculatedPrice}
                     render={({ transfer, valid, format }) => {
                       const amount = typeof transfer === 'number' ? Math.max(0, transfer) : 0;
                       const formattedAmount = `$${format(amount)}`;
