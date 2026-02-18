@@ -95,6 +95,33 @@ function firstPositivePrice(...candidates: unknown[]): number | undefined {
   return undefined;
 }
 
+function resolvePriceFromDomFallback(): number | undefined {
+  if (typeof document === 'undefined') return undefined;
+  const selectors = [
+    '[data-transfer-price]',
+    '[data-price-transfer]',
+    '[data-testid="transfer-price"]',
+    '[data-testid="price-transfer"]',
+    '#transfer-price',
+    '#price-transfer',
+    'input[name="priceTransfer"]',
+    'input[name="price"]',
+  ];
+  for (const selector of selectors) {
+    const node = document.querySelector(selector);
+    if (!node) continue;
+    const candidate = (node as HTMLInputElement).value
+      ?? node.getAttribute?.('data-transfer-price')
+      ?? node.getAttribute?.('data-price-transfer')
+      ?? node.textContent;
+    const parsed = parsePrice(candidate);
+    if (typeof parsed === 'number' && Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return undefined;
+}
+
 function formatDimension(value?: number | null): string | undefined {
   if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return undefined;
   const rounded = Math.round(value * 10) / 10;
@@ -694,6 +721,22 @@ export async function createJobAndProduct(
   if (!(typeof priceTransferRaw === 'number' && Number.isFinite(priceTransferRaw) && priceTransferRaw > 0)) {
     priceTransferRaw = priceNormal;
   }
+  if (!(typeof priceTransferRaw === 'number' && Number.isFinite(priceTransferRaw) && priceTransferRaw > 0)) {
+    priceTransferRaw = firstPositivePrice(
+      (flow as any)?.price,
+      (flow as any)?.calculatedPrice,
+      (flow as any)?.calculator?.price,
+      (flow as any)?.calculator?.transfer,
+      (flow as any)?.state?.priceTransfer,
+      (flow as any)?.state?.price,
+      (flow as any)?.editorState?.price,
+      (flow as any)?.editorState?.calculator?.transfer,
+      (flow as any)?.editorState?.calculator?.price,
+    );
+  }
+  if (!(typeof priceTransferRaw === 'number' && Number.isFinite(priceTransferRaw) && priceTransferRaw > 0)) {
+    priceTransferRaw = resolvePriceFromDomFallback();
+  }
   let measurementLabel = formatMeasurement(widthCm, heightCm);
   let productTitle = productType === 'glasspad'
     ? buildGlasspadTitle(designName, measurementLabel)
@@ -971,6 +1014,17 @@ export async function createJobAndProduct(
     } else if (payload.mockupPublicUrl && !payload.mockupUrl) {
       payload.mockupUrl = payload.mockupPublicUrl;
     }
+
+    const normalizedPayloadPrice = parsePrice(payload.priceTransfer);
+    payload.priceTransfer = Number.isFinite(normalizedPayloadPrice) ? Number(normalizedPayloadPrice) : 0;
+    if (!(payload.priceTransfer > 0)) {
+      const lastChancePrice = firstPositivePrice(priceTransferRaw, priceNormal, resolvePriceFromDomFallback());
+      if (typeof lastChancePrice === 'number' && Number.isFinite(lastChancePrice) && lastChancePrice > 0) {
+        payload.priceTransfer = lastChancePrice;
+      }
+    }
+
+    console.log('🚀 PAYLOAD SALIDA:', JSON.stringify(payload, null, 2));
 
     const payloadBytes = jsonByteLength(payload);
     try {
