@@ -122,6 +122,50 @@ function resolvePriceFromDomFallback(): number | undefined {
   return undefined;
 }
 
+function resolveUiPriceForPayload(flow: FlowState, payloadOverrides?: Record<string, unknown> | null): number | undefined {
+  const overridePrice = firstPositivePrice(
+    payloadOverrides?.priceTransfer,
+    payloadOverrides?.price,
+    payloadOverrides?.priceNormal,
+  );
+  if (typeof overridePrice === 'number' && Number.isFinite(overridePrice) && overridePrice > 0) {
+    return overridePrice;
+  }
+
+  const fromFlowState = firstPositivePrice(
+    (flow as any)?.priceAmount,
+    (flow as any)?.latestTransferPrice,
+    (flow as any)?.latestTransferPriceRef?.current,
+    (flow as any)?.calculator?.priceAmount,
+    (flow as any)?.calculator?.latestTransferPrice,
+    (flow as any)?.calculator?.transfer,
+    (flow as any)?.editorState?.priceAmount,
+    (flow as any)?.editorState?.latestTransferPrice,
+    (flow as any)?.editorState?.latestTransferPriceRef?.current,
+    (flow as any)?.editorState?.calculator?.priceAmount,
+    (flow as any)?.editorState?.calculator?.latestTransferPrice,
+    (flow as any)?.editorState?.calculator?.transfer,
+  );
+  if (typeof fromFlowState === 'number' && Number.isFinite(fromFlowState) && fromFlowState > 0) {
+    return fromFlowState;
+  }
+
+  const fromWindow = typeof window !== 'undefined'
+    ? firstPositivePrice(
+      (window as any)?.priceAmount,
+      (window as any)?.latestTransferPrice,
+      (window as any)?.latestTransferPriceRef?.current,
+      (window as any)?.mgmPriceAmount,
+      (window as any)?.mgmTransferPrice,
+    )
+    : undefined;
+  if (typeof fromWindow === 'number' && Number.isFinite(fromWindow) && fromWindow > 0) {
+    return fromWindow;
+  }
+
+  return resolvePriceFromDomFallback();
+}
+
 function formatDimension(value?: number | null): string | undefined {
   if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return undefined;
   const rounded = Math.round(value * 10) / 10;
@@ -878,8 +922,19 @@ export async function createJobAndProduct(
       ? `${mockupUrlForPayload}${mockupUrlForPayload.includes('?') ? '&' : '?'}v=${mockupHashForPayload}`
       : mockupUrlForPayload || undefined;
 
+    const uiPriceForPayload = resolveUiPriceForPayload(
+      flow,
+      payloadOverrides && typeof payloadOverrides === 'object'
+        ? (payloadOverrides as Record<string, unknown>)
+        : null,
+    );
+    const forcedPrice = firstPositivePrice(uiPriceForPayload, priceTransferRaw, priceNormal);
+    const resolvedMaterialForPayload = matLabelOf(materialLabel) || materialLabel || '';
+    const materialSuggestsGlass = resolvedMaterialForPayload.toLowerCase().includes('glass');
+    const payloadProductType: 'glasspad' | 'mousepad' = materialSuggestsGlass ? 'glasspad' : productType;
+
     const payload = {
-      productType,
+      productType: payloadProductType,
       ...(mockupUrlForPayload ? { mockupPublicUrl: mockupUrlForPayload } : {}),
       ...(mockupHashForPayload ? { mockupHash: mockupHashForPayload } : {}),
       ...(versionedMockupUrl ? { mockupUrl: versionedMockupUrl } : {}),
@@ -890,10 +945,10 @@ export async function createJobAndProduct(
       widthCm,
       heightCm,
       approxDpi,
-      priceTransfer: priceTransferRaw, // SIEMPRE transferencia (este es el que queremos en Shopify)
+      priceTransfer: forcedPrice, // forzado desde estado UI/calculadora cuando exista
       currency: priceCurrency,
       priceCurrency,
-      ...(priceNormal != null ? { price: priceNormal } : {}),
+      ...(forcedPrice != null ? { price: forcedPrice } : (priceNormal != null ? { price: priceNormal } : {})),
       lowQualityAck: Boolean(flow.lowQualityAck),
       imageAlt,
       filename,
@@ -913,7 +968,10 @@ export async function createJobAndProduct(
       masterWidthPx: masterWidthPx ?? undefined,
       masterHeightPx: masterHeightPx ?? undefined,
       customerEmail: customerEmail || undefined,
-      options: materialLabel ? { material: materialLabel } : undefined, // enviar material explícito
+      options: {
+        ...(materialLabel ? { material: materialLabel } : {}),
+        productType: payloadProductType,
+      },
     };
 
     const overrides =
@@ -1015,14 +1073,22 @@ export async function createJobAndProduct(
       payload.mockupUrl = payload.mockupPublicUrl;
     }
 
+    if ((payload.material || payload.materialResolved || payload.options?.material || '').toString().toLowerCase().includes('glass')) {
+      payload.productType = 'glasspad';
+      payload.options = { ...(payload.options || {}), productType: 'glasspad' };
+    }
+
     const normalizedPayloadPrice = parsePrice(payload.priceTransfer);
     payload.priceTransfer = Number.isFinite(normalizedPayloadPrice) ? Number(normalizedPayloadPrice) : 0;
     if (!(payload.priceTransfer > 0)) {
-      const lastChancePrice = firstPositivePrice(priceTransferRaw, priceNormal, resolvePriceFromDomFallback());
+      const lastChancePrice = firstPositivePrice(resolveUiPriceForPayload(flow, overrides), priceTransferRaw, priceNormal, resolvePriceFromDomFallback());
       if (typeof lastChancePrice === 'number' && Number.isFinite(lastChancePrice) && lastChancePrice > 0) {
         payload.priceTransfer = lastChancePrice;
       }
     }
+    payload.price = payload.priceTransfer > 0
+      ? payload.priceTransfer
+      : (Number.isFinite(Number(payload.price)) ? Number(payload.price) : payload.price);
 
     console.log('🚀 PAYLOAD SALIDA:', JSON.stringify(payload, null, 2));
 
