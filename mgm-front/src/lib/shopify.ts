@@ -252,42 +252,65 @@ async function signUpload({
   path,
   allowFallback = true,
 }: { bucket: string; contentType: string; path?: string; allowFallback?: boolean }) {
-  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-  const timeout = controller ? setTimeout(() => controller.abort(), 30000) : null;
-  try {
-    const res = await apiFetch(
-      'POST',
-      '/api/storage/sign',
-      { bucket, contentType, path, upsert: true },
-      controller ? { signal: controller.signal } : undefined,
-    );
-    const text = await res.text().catch(() => '');
-    let json: any = null;
+  const runSignRequest = async (timeoutMs: number) => {
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timeout = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
     try {
-      json = text ? JSON.parse(text) : null;
-    } catch (_) {
-      json = null;
+      const res = await apiFetch(
+        'POST',
+        '/api/storage/sign',
+        { bucket, contentType, path, upsert: true },
+        controller ? { signal: controller.signal } : undefined,
+      );
+      const text = await res.text().catch(() => '');
+      const trimmed = typeof text === 'string' ? text.trim() : '';
+      let json: any = null;
+      let parseError: Error | null = null;
+      try {
+        json = text ? JSON.parse(text) : null;
+      } catch {
+        parseError = new Error('sign_invalid_json_response');
+      }
+      if (parseError) {
+        const htmlLike = trimmed.startsWith('<');
+        console.warn('[shopify] sign endpoint returned non-JSON response', {
+          bucket,
+          status: res.status,
+          htmlLike,
+          snippet: trimmed.slice(0, 120),
+        });
+        const err: Error & { status?: number; reason?: string; retryable?: boolean } = new Error('sign_upload_invalid_json');
+        err.status = res.status;
+        err.reason = htmlLike ? 'html_response' : 'invalid_json';
+        err.retryable = true;
+        throw err;
+      }
+      if (res.ok && json && json.ok !== false) {
+        return json as { bucket?: string; path: string; token?: string; publicUrl?: string };
+      }
+      const reason =
+        (json && (json.error || json.message || json.reason))
+          ? String(json.error || json.message || json.reason)
+          : text || `HTTP ${res.status}`;
+      const err: Error & { status?: number; reason?: string } = new Error('sign_upload_failed');
+      err.status = res.status;
+      err.reason = reason;
+      throw err;
+    } finally {
+      if (timeout) clearTimeout(timeout);
     }
-    if (res.ok && json && json.ok !== false) {
-      return json as { bucket?: string; path: string; token?: string; publicUrl?: string };
+  };
+
+  try {
+    return await runSignRequest(30000);
+  } catch (error: any) {
+    if (error?.retryable) {
+      try {
+        return await runSignRequest(10000);
+      } catch (retryErr) {
+        error = retryErr;
+      }
     }
-    const reason =
-      (json && (json.error || json.message || json.reason))
-        ? String(json.error || json.message || json.reason)
-        : text || `HTTP ${res.status}`;
-    if (allowFallback && bucket === 'preview') {
-      console.warn('[shopify] sign preview failed, retrying on outputs', {
-        bucket,
-        status: res.status,
-        error: reason,
-      });
-      return signUpload({ bucket: 'outputs', contentType, path, allowFallback: false });
-    }
-    const err: Error & { status?: number; reason?: string } = new Error('sign_upload_failed');
-    err.status = res.status;
-    err.reason = reason;
-    throw err;
-  } catch (error) {
     if (allowFallback && bucket === 'preview') {
       console.warn('[shopify] sign preview failed, retrying on outputs', {
         bucket,
@@ -299,8 +322,6 @@ async function signUpload({
       return signUpload({ bucket: 'outputs', contentType, path, allowFallback: false });
     }
     throw error;
-  } finally {
-    if (timeout) clearTimeout(timeout);
   }
 }
 
