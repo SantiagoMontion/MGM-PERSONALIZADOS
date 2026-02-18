@@ -31,6 +31,10 @@ function normalizeMaterialFromProductType(productType) {
 }
 
 function parseMoney(value) {
+  if (value && typeof value === 'object') {
+    const amountCandidate = value.amount ?? value.value ?? value.price ?? null;
+    return parseMoney(amountCandidate);
+  }
   if (typeof value === 'number' && Number.isFinite(value)) {
     return value;
   }

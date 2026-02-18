@@ -31,9 +31,30 @@ const normalizeMaterialLabel = (raw) => {
   return '';
 };
 
+const parsePositivePriceValue = (value) => {
+  if (value && typeof value === 'object') {
+    const nested = value.amount ?? value.value ?? value.price;
+    return parsePositivePriceValue(nested);
+  }
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : NaN;
+  }
+  if (typeof value === 'string') {
+    const raw = value.trim();
+    if (!raw) return NaN;
+    const normalized = raw
+      .replace(/[^0-9,.-]/g, '')
+      .replace(/,/g, '')
+      .replace(/\.(?=.*\.)/g, '');
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : NaN;
+  }
+  return NaN;
+};
+
 const parsePositivePrice = (...values) => {
   for (const value of values) {
-    const parsed = Number(value);
+    const parsed = parsePositivePriceValue(value);
     if (Number.isFinite(parsed) && parsed > 0) {
       return parsed;
     }
