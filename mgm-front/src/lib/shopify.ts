@@ -95,6 +95,77 @@ function firstPositivePrice(...candidates: unknown[]): number | undefined {
   return undefined;
 }
 
+function resolvePriceFromDomFallback(): number | undefined {
+  if (typeof document === 'undefined') return undefined;
+  const selectors = [
+    '[data-transfer-price]',
+    '[data-price-transfer]',
+    '[data-testid="transfer-price"]',
+    '[data-testid="price-transfer"]',
+    '#transfer-price',
+    '#price-transfer',
+    'input[name="priceTransfer"]',
+    'input[name="price"]',
+  ];
+  for (const selector of selectors) {
+    const node = document.querySelector(selector);
+    if (!node) continue;
+    const candidate = (node as HTMLInputElement).value
+      ?? node.getAttribute?.('data-transfer-price')
+      ?? node.getAttribute?.('data-price-transfer')
+      ?? node.textContent;
+    const parsed = parsePrice(candidate);
+    if (typeof parsed === 'number' && Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return undefined;
+}
+
+function resolveUiPriceForPayload(flow: FlowState, payloadOverrides?: Record<string, unknown> | null): number | undefined {
+  const overridePrice = firstPositivePrice(
+    payloadOverrides?.priceTransfer,
+    payloadOverrides?.price,
+    payloadOverrides?.priceNormal,
+  );
+  if (typeof overridePrice === 'number' && Number.isFinite(overridePrice) && overridePrice > 0) {
+    return overridePrice;
+  }
+
+  const fromFlowState = firstPositivePrice(
+    (flow as any)?.priceAmount,
+    (flow as any)?.latestTransferPrice,
+    (flow as any)?.latestTransferPriceRef?.current,
+    (flow as any)?.calculator?.priceAmount,
+    (flow as any)?.calculator?.latestTransferPrice,
+    (flow as any)?.calculator?.transfer,
+    (flow as any)?.editorState?.priceAmount,
+    (flow as any)?.editorState?.latestTransferPrice,
+    (flow as any)?.editorState?.latestTransferPriceRef?.current,
+    (flow as any)?.editorState?.calculator?.priceAmount,
+    (flow as any)?.editorState?.calculator?.latestTransferPrice,
+    (flow as any)?.editorState?.calculator?.transfer,
+  );
+  if (typeof fromFlowState === 'number' && Number.isFinite(fromFlowState) && fromFlowState > 0) {
+    return fromFlowState;
+  }
+
+  const fromWindow = typeof window !== 'undefined'
+    ? firstPositivePrice(
+      (window as any)?.priceAmount,
+      (window as any)?.latestTransferPrice,
+      (window as any)?.latestTransferPriceRef?.current,
+      (window as any)?.mgmPriceAmount,
+      (window as any)?.mgmTransferPrice,
+    )
+    : undefined;
+  if (typeof fromWindow === 'number' && Number.isFinite(fromWindow) && fromWindow > 0) {
+    return fromWindow;
+  }
+
+  return resolvePriceFromDomFallback();
+}
+
 function formatDimension(value?: number | null): string | undefined {
   if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return undefined;
   const rounded = Math.round(value * 10) / 10;
@@ -182,6 +253,17 @@ function matLabelOf(material: unknown): string | null {
   if (text.includes('alfombr')) return 'Alfombra';
   if (text.includes('classic')) return 'Classic';
   return raw;
+}
+
+function resolveProductTypeFromMaterial(material: unknown, fallback: string = 'mousepad'): 'glasspad' | 'alfombra' | 'mousepad' {
+  const normalizedMaterial = matLabelOf(material)?.toLowerCase() || String(material || '').trim().toLowerCase();
+  if (normalizedMaterial.includes('glass')) return 'glasspad';
+  if (normalizedMaterial.includes('alfombr')) return 'alfombra';
+  if (normalizedMaterial.includes('pro') || normalizedMaterial.includes('classic')) return 'mousepad';
+  const normalizedFallback = String(fallback || '').trim().toLowerCase();
+  if (normalizedFallback === 'glasspad' || normalizedFallback.includes('glass')) return 'glasspad';
+  if (normalizedFallback === 'alfombra' || normalizedFallback.includes('alfombr')) return 'alfombra';
+  return 'mousepad';
 }
 
 async function signUpload({
@@ -632,14 +714,13 @@ export async function createJobAndProduct(
   ];
   const normalizedProductType = productTypeCandidates
     .map((candidate) => (typeof candidate === 'string' ? candidate.trim().toLowerCase() : ''))
-    .find((candidate) => candidate === 'glasspad' || candidate === 'mousepad');
+    .find((candidate) => candidate === 'glasspad' || candidate === 'mousepad' || candidate === 'alfombra');
   const materialHint = (flow.material || (flow as any)?.options?.material || '').toString().trim().toLowerCase();
-  let productType: 'glasspad' | 'mousepad' = normalizedProductType
-    ? (normalizedProductType as 'glasspad' | 'mousepad')
-    : materialHint.includes('glass')
-      ? 'glasspad'
-      : 'mousepad';
-  let productLabel = PRODUCT_LABELS[productType];
+  let productType: 'glasspad' | 'alfombra' | 'mousepad' = resolveProductTypeFromMaterial(
+    materialHint,
+    normalizedProductType || 'mousepad',
+  );
+  let productLabel = productType === 'glasspad' ? 'Glasspad' : 'Mousepad';
   const designNameInput = (flow as any)?.designName;
   const designNameRaw = (designNameInput ?? '').toString(); // el input tal cual (servidor corta a 40)
   let designName = designNameRaw.trim();
@@ -693,6 +774,22 @@ export async function createJobAndProduct(
   );
   if (!(typeof priceTransferRaw === 'number' && Number.isFinite(priceTransferRaw) && priceTransferRaw > 0)) {
     priceTransferRaw = priceNormal;
+  }
+  if (!(typeof priceTransferRaw === 'number' && Number.isFinite(priceTransferRaw) && priceTransferRaw > 0)) {
+    priceTransferRaw = firstPositivePrice(
+      (flow as any)?.price,
+      (flow as any)?.calculatedPrice,
+      (flow as any)?.calculator?.price,
+      (flow as any)?.calculator?.transfer,
+      (flow as any)?.state?.priceTransfer,
+      (flow as any)?.state?.price,
+      (flow as any)?.editorState?.price,
+      (flow as any)?.editorState?.calculator?.transfer,
+      (flow as any)?.editorState?.calculator?.price,
+    );
+  }
+  if (!(typeof priceTransferRaw === 'number' && Number.isFinite(priceTransferRaw) && priceTransferRaw > 0)) {
+    priceTransferRaw = resolvePriceFromDomFallback();
   }
   let measurementLabel = formatMeasurement(widthCm, heightCm);
   let productTitle = productType === 'glasspad'
@@ -835,8 +932,21 @@ export async function createJobAndProduct(
       ? `${mockupUrlForPayload}${mockupUrlForPayload.includes('?') ? '&' : '?'}v=${mockupHashForPayload}`
       : mockupUrlForPayload || undefined;
 
-    const payload = {
+    const uiPriceForPayload = resolveUiPriceForPayload(
+      flow,
+      payloadOverrides && typeof payloadOverrides === 'object'
+        ? (payloadOverrides as Record<string, unknown>)
+        : null,
+    );
+    const forcedPrice = firstPositivePrice(uiPriceForPayload, priceTransferRaw, priceNormal);
+    const resolvedMaterialForPayload = matLabelOf(materialLabel) || materialLabel || '';
+    const payloadProductType: 'glasspad' | 'alfombra' | 'mousepad' = resolveProductTypeFromMaterial(
+      resolvedMaterialForPayload,
       productType,
+    );
+
+    const payload = {
+      productType: payloadProductType,
       ...(mockupUrlForPayload ? { mockupPublicUrl: mockupUrlForPayload } : {}),
       ...(mockupHashForPayload ? { mockupHash: mockupHashForPayload } : {}),
       ...(versionedMockupUrl ? { mockupUrl: versionedMockupUrl } : {}),
@@ -847,10 +957,10 @@ export async function createJobAndProduct(
       widthCm,
       heightCm,
       approxDpi,
-      priceTransfer: priceTransferRaw, // SIEMPRE transferencia (este es el que queremos en Shopify)
+      priceTransfer: forcedPrice, // forzado desde estado UI/calculadora cuando exista
       currency: priceCurrency,
       priceCurrency,
-      ...(priceNormal != null ? { price: priceNormal } : {}),
+      ...(forcedPrice != null ? { price: forcedPrice } : (priceNormal != null ? { price: priceNormal } : {})),
       lowQualityAck: Boolean(flow.lowQualityAck),
       imageAlt,
       filename,
@@ -870,7 +980,10 @@ export async function createJobAndProduct(
       masterWidthPx: masterWidthPx ?? undefined,
       masterHeightPx: masterHeightPx ?? undefined,
       customerEmail: customerEmail || undefined,
-      options: materialLabel ? { material: materialLabel } : undefined, // enviar material explícito
+      options: {
+        ...(materialLabel ? { material: materialLabel } : {}),
+        productType: payloadProductType,
+      },
     };
 
     const overrides =
@@ -971,6 +1084,25 @@ export async function createJobAndProduct(
     } else if (payload.mockupPublicUrl && !payload.mockupUrl) {
       payload.mockupUrl = payload.mockupPublicUrl;
     }
+
+    const materialAfterOverrides = (payload.material || payload.materialResolved || payload.options?.material || '').toString().trim();
+    const productTypeAfterOverrides = resolveProductTypeFromMaterial(materialAfterOverrides, payload.productType);
+    payload.productType = productTypeAfterOverrides;
+    payload.options = { ...(payload.options || {}), productType: productTypeAfterOverrides };
+
+    const normalizedPayloadPrice = parsePrice(payload.priceTransfer);
+    payload.priceTransfer = Number.isFinite(normalizedPayloadPrice) ? Number(normalizedPayloadPrice) : 0;
+    if (!(payload.priceTransfer > 0)) {
+      const lastChancePrice = firstPositivePrice(resolveUiPriceForPayload(flow, overrides), priceTransferRaw, priceNormal, resolvePriceFromDomFallback());
+      if (typeof lastChancePrice === 'number' && Number.isFinite(lastChancePrice) && lastChancePrice > 0) {
+        payload.priceTransfer = lastChancePrice;
+      }
+    }
+    payload.price = payload.priceTransfer > 0
+      ? payload.priceTransfer
+      : (Number.isFinite(Number(payload.price)) ? Number(payload.price) : payload.price);
+
+    console.log('🚀 PAYLOAD SALIDA:', JSON.stringify(payload, null, 2));
 
     const payloadBytes = jsonByteLength(payload);
     try {
