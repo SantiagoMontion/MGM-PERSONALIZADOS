@@ -255,6 +255,17 @@ function matLabelOf(material: unknown): string | null {
   return raw;
 }
 
+function resolveProductTypeFromMaterial(material: unknown, fallback: string = 'mousepad'): 'glasspad' | 'alfombra' | 'mousepad' {
+  const normalizedMaterial = matLabelOf(material)?.toLowerCase() || String(material || '').trim().toLowerCase();
+  if (normalizedMaterial.includes('glass')) return 'glasspad';
+  if (normalizedMaterial.includes('alfombr')) return 'alfombra';
+  if (normalizedMaterial.includes('pro') || normalizedMaterial.includes('classic')) return 'mousepad';
+  const normalizedFallback = String(fallback || '').trim().toLowerCase();
+  if (normalizedFallback === 'glasspad' || normalizedFallback.includes('glass')) return 'glasspad';
+  if (normalizedFallback === 'alfombra' || normalizedFallback.includes('alfombr')) return 'alfombra';
+  return 'mousepad';
+}
+
 async function signUpload({
   bucket,
   contentType,
@@ -703,14 +714,13 @@ export async function createJobAndProduct(
   ];
   const normalizedProductType = productTypeCandidates
     .map((candidate) => (typeof candidate === 'string' ? candidate.trim().toLowerCase() : ''))
-    .find((candidate) => candidate === 'glasspad' || candidate === 'mousepad');
+    .find((candidate) => candidate === 'glasspad' || candidate === 'mousepad' || candidate === 'alfombra');
   const materialHint = (flow.material || (flow as any)?.options?.material || '').toString().trim().toLowerCase();
-  let productType: 'glasspad' | 'mousepad' = normalizedProductType
-    ? (normalizedProductType as 'glasspad' | 'mousepad')
-    : materialHint.includes('glass')
-      ? 'glasspad'
-      : 'mousepad';
-  let productLabel = PRODUCT_LABELS[productType];
+  let productType: 'glasspad' | 'alfombra' | 'mousepad' = resolveProductTypeFromMaterial(
+    materialHint,
+    normalizedProductType || 'mousepad',
+  );
+  let productLabel = productType === 'glasspad' ? 'Glasspad' : 'Mousepad';
   const designNameInput = (flow as any)?.designName;
   const designNameRaw = (designNameInput ?? '').toString(); // el input tal cual (servidor corta a 40)
   let designName = designNameRaw.trim();
@@ -930,8 +940,10 @@ export async function createJobAndProduct(
     );
     const forcedPrice = firstPositivePrice(uiPriceForPayload, priceTransferRaw, priceNormal);
     const resolvedMaterialForPayload = matLabelOf(materialLabel) || materialLabel || '';
-    const materialSuggestsGlass = resolvedMaterialForPayload.toLowerCase().includes('glass');
-    const payloadProductType: 'glasspad' | 'mousepad' = materialSuggestsGlass ? 'glasspad' : productType;
+    const payloadProductType: 'glasspad' | 'alfombra' | 'mousepad' = resolveProductTypeFromMaterial(
+      resolvedMaterialForPayload,
+      productType,
+    );
 
     const payload = {
       productType: payloadProductType,
@@ -1073,10 +1085,10 @@ export async function createJobAndProduct(
       payload.mockupUrl = payload.mockupPublicUrl;
     }
 
-    if ((payload.material || payload.materialResolved || payload.options?.material || '').toString().toLowerCase().includes('glass')) {
-      payload.productType = 'glasspad';
-      payload.options = { ...(payload.options || {}), productType: 'glasspad' };
-    }
+    const materialAfterOverrides = (payload.material || payload.materialResolved || payload.options?.material || '').toString().trim();
+    const productTypeAfterOverrides = resolveProductTypeFromMaterial(materialAfterOverrides, payload.productType);
+    payload.productType = productTypeAfterOverrides;
+    payload.options = { ...(payload.options || {}), productType: productTypeAfterOverrides };
 
     const normalizedPayloadPrice = parsePrice(payload.priceTransfer);
     payload.priceTransfer = Number.isFinite(normalizedPayloadPrice) ? Number(normalizedPayloadPrice) : 0;
