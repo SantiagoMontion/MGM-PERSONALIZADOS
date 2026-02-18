@@ -62,11 +62,22 @@ function safeNumber(value: unknown): number | undefined {
 }
 
 function parsePrice(value: unknown): number | undefined {
+  if (value && typeof value === 'object') {
+    const candidate = (value as { amount?: unknown; value?: unknown; price?: unknown }).amount
+      ?? (value as { amount?: unknown; value?: unknown; price?: unknown }).value
+      ?? (value as { amount?: unknown; value?: unknown; price?: unknown }).price;
+    return parsePrice(candidate);
+  }
   if (typeof value === 'number') {
     return Number.isFinite(value) ? value : undefined;
   }
   if (typeof value === 'string') {
-    const normalized = value.replace(/\./g, '').replace(/,/g, '.').trim();
+    const raw = value.trim();
+    if (!raw) return undefined;
+    const normalized = raw
+      .replace(/[^0-9,.-]/g, '')
+      .replace(/,/g, '')
+      .replace(/\.(?=.*\.)/g, '');
     if (!normalized) return undefined;
     const parsed = Number(normalized);
     return Number.isFinite(parsed) ? parsed : undefined;
