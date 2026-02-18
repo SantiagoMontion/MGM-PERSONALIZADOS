@@ -378,7 +378,11 @@ export default async function handler(req: any, res: any) {
     const title = mode === 'Glasspad'
       ? buildGlasspadTitle(measurementLabel)
       : `Mousepad Personalizado - ${mode}${measurementLabel ? ` ${measurementLabel}` : ''} | MGM-EDITOR`;
-    const productTypeRaw = typeof req.body?.productType === 'string' ? req.body.productType : mode;
+    const productTypeRaw = typeof req.body?.productType === 'string'
+      ? req.body.productType
+      : typeof req.body?.options?.productType === 'string'
+        ? req.body.options.productType
+        : 'mousepad';
     const templateSuffix = resolveTemplateSuffixByProductType(productTypeRaw);
     const designNameRaw = typeof req.body?.design_name === 'string'
       ? req.body.design_name
