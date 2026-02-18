@@ -6,6 +6,26 @@ import logger from '../../lib/_lib/logger.js';
 const ALLOWED_BUCKETS = new Set(['outputs', 'preview', 'uploads']);
 const DEFAULT_BUCKET = 'outputs';
 const DEFAULT_EXPIRES = 600;
+const SIGN_TIMEOUT_MS = 8_000;
+
+async function withTimeout(promise, timeoutMs, label) {
+  let timer;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => {
+          const error = new Error(`${label}_timeout`);
+          error.code = `${label}_timeout`;
+          error.timeoutMs = timeoutMs;
+          reject(error);
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 
 function sendJson(res, status, payload) {
   res.setHeader?.('Content-Type', 'application/json; charset=utf-8');
@@ -221,16 +241,21 @@ export default async function handler(req, res) {
     };
 
     const signInBucket = async (bucketName, keyToSign) => {
-      const { data, error } = await supabase
-        .storage
-        .from(bucketName)
-        .createSignedUploadUrl(keyToSign, expiresInRaw, { upsert: true, contentType });
+      const { data, error } = await withTimeout(
+        supabase
+          .storage
+          .from(bucketName)
+          .createSignedUploadUrl(keyToSign, expiresInRaw, { upsert: true, contentType }),
+        SIGN_TIMEOUT_MS,
+        'supabase_sign_upload_url',
+      );
       if (error || !data?.signedUrl) {
         if (isAlreadyExistsError(error)) {
           return {
-            collision: true,
+            skip: true,
             bucket: bucketName,
             objectKey: keyToSign,
+            publicUrl: computePublicUrl(bucketName, keyToSign),
           };
         }
         return { error: error || new Error('missing_signed_url'), bucket: bucketName };
@@ -244,37 +269,25 @@ export default async function handler(req, res) {
       };
     };
 
-    const signWithRetries = async (bucketName, initialObjectKey, maxAttempts = 4) => {
-      let attempt = 0;
-      let activeObjectKey = initialObjectKey;
-      while (attempt < maxAttempts) {
-        try {
-          const result = await signInBucket(bucketName, activeObjectKey);
-          if (result?.collision) {
-            attempt += 1;
-            activeObjectKey = ensureUniqueStoragePath(activeObjectKey);
-            continue;
-          }
-          return { ...result, objectKey: result?.objectKey || activeObjectKey };
-        } catch (error) {
-          if (isAlreadyExistsError(error)) {
-            attempt += 1;
-            activeObjectKey = ensureUniqueStoragePath(activeObjectKey);
-            continue;
-          }
-          throw error;
-        }
+    const signWithFallback = async (bucketName, activeObjectKey) => {
+      const publicUrl = computePublicUrl(bucketName, activeObjectKey);
+      try {
+        const result = await signInBucket(bucketName, activeObjectKey);
+        return { ...result, objectKey: result?.objectKey || activeObjectKey, publicUrl: result?.publicUrl || publicUrl };
+      } catch (error) {
+        return {
+          skip: true,
+          bucket: bucketName,
+          objectKey: activeObjectKey,
+          publicUrl,
+          error,
+        };
       }
-      return {
-        error: new Error('unable_to_allocate_unique_object_key'),
-        bucket: bucketName,
-        objectKey: activeObjectKey,
-      };
     };
 
     const signStageStartedAt = Date.now();
     let bucket = requestedBucket;
-    let signResult = await signWithRetries(bucket, objectKey);
+    let signResult = await signWithFallback(bucket, objectKey);
     objectKey = signResult?.objectKey || objectKey;
     const signStageDurationMs = Date.now() - signStageStartedAt;
 
@@ -311,7 +324,7 @@ export default async function handler(req, res) {
         error: reason,
       });
       bucket = DEFAULT_BUCKET;
-      signResult = await signWithRetries(bucket, objectKey);
+      signResult = await signWithFallback(bucket, objectKey);
       objectKey = signResult?.objectKey || objectKey;
       if (signResult.skip) {
         const publicUrl = signResult.publicUrl || computePublicUrl(bucket, objectKey);
@@ -331,16 +344,22 @@ export default async function handler(req, res) {
 
     if (signResult.error || !signResult?.data?.signedUrl) {
       const reason = signResult.error?.message || signResult.error || 'missing_signed_url';
-      logger.error?.('[storage:sign:error]', {
+      logger.warn?.('[storage:sign:fallback_public_url]', {
         diagId,
         bucket,
         objectKey,
         error: reason,
       });
-      sendJson(res, 500, {
-        ok: false,
-        error: 'sign_failed',
+      const publicUrl = signResult.publicUrl || computePublicUrl(bucket, objectKey);
+      sendJson(res, 200, {
+        ok: true,
+        skipUpload: true,
+        bucket,
+        objectKey,
+        publicUrl,
         diagId,
+        requestedBucket,
+        fallback: 'public_url',
         detail: reason,
       });
       return;
