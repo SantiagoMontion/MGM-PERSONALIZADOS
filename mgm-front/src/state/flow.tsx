@@ -70,6 +70,7 @@ export type FlowState = {
     draftOrderName?: string;
     warnings?: any[];
     warningMessages?: string[];
+    fingerprint?: string;
   };
   set: (p: Partial<FlowState>) => void;
   reset: () => void;

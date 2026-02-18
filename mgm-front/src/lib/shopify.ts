@@ -61,6 +61,22 @@ function safeNumber(value: unknown): number | undefined {
   return Number.isFinite(num) ? num : undefined;
 }
 
+
+function buildProductFingerprint(
+  designHash: unknown,
+  widthCm: unknown,
+  heightCm: unknown,
+  material: unknown,
+): string {
+  const normalizedHash = typeof designHash === 'string' ? designHash.trim().toLowerCase() : '';
+  const width = safeNumber(widthCm);
+  const height = safeNumber(heightCm);
+  const normalizedMaterial = typeof material === 'string' ? material.trim().toLowerCase() : '';
+  const widthToken = typeof width === 'number' && Number.isFinite(width) && width > 0 ? String(Math.round(width)) : '';
+  const heightToken = typeof height === 'number' && Number.isFinite(height) && height > 0 ? String(Math.round(height)) : '';
+  return [normalizedHash, widthToken, heightToken, normalizedMaterial].join('|');
+}
+
 function parsePrice(value: unknown): number | undefined {
   if (value && typeof value === 'object') {
     const candidate = (value as { amount?: unknown; value?: unknown; price?: unknown }).amount
@@ -633,10 +649,7 @@ export async function createJobAndProduct(
   const shouldRequestPrivateCheckout = isPrivate && !skipPrivateCheckout;
   const requestedVisibility: 'public' | 'private' = isPrivate ? 'private' : 'public';
   const normalizedDiscountCode = typeof discountCode === 'string' ? discountCode.trim() : '';
-  const canReuse = reuseLastProduct
-    && lastProduct?.productId
-    && lastProduct?.variantId
-    && lastProduct.visibility === requestedVisibility;
+  let canReuse = false;
 
   const customerEmail = typeof flow.customerEmail === 'string' ? flow.customerEmail.trim() : '';
   const jobIdForPdf = readJobId(flow);
@@ -717,6 +730,16 @@ export async function createJobAndProduct(
   const heightFromPx = pxToCm(masterHeightPx);
   widthCm = pickDimension(widthCm, widthFromFlow, widthFromMm, widthFromPx);
   heightCm = pickDimension(heightCm, heightFromFlow, heightFromMm, heightFromPx);
+  const currentProductFingerprint = buildProductFingerprint(designHashRaw, widthCm, heightCm, materialFromFlow);
+  const lastProductFingerprint = typeof lastProduct?.fingerprint === 'string'
+    ? lastProduct.fingerprint.trim().toLowerCase()
+    : '';
+  canReuse = reuseLastProduct
+    && Boolean(currentProductFingerprint)
+    && lastProduct?.productId
+    && lastProduct?.variantId
+    && lastProduct.visibility === requestedVisibility
+    && lastProductFingerprint === currentProductFingerprint;
   let priceTransferRaw = firstPositivePrice(
     flow.priceTransfer,
     (flow as any)?.pricing?.transfer,
@@ -1219,6 +1242,7 @@ export async function createJobAndProduct(
         visibility: visibilityResult,
         ...(warningsPayload ? { warnings: warningsPayload } : {}),
         ...(warningMessagesPayload ? { warningMessages: warningMessagesPayload } : {}),
+        ...(currentProductFingerprint ? { fingerprint: currentProductFingerprint } : {}),
       },
     });
     throw new Error('missing_variant');
@@ -1591,6 +1615,7 @@ export async function createJobAndProduct(
           ...(collectedWarningMessages && collectedWarningMessages.length
             ? { warningMessages: collectedWarningMessages }
             : {}),
+          ...(currentProductFingerprint ? { fingerprint: currentProductFingerprint } : {}),
         },
       });
     }
