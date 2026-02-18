@@ -984,6 +984,48 @@ export async function createJobAndProduct(
         : null,
     );
     const forcedPrice = firstPositivePrice(uiPriceForPayload, priceTransferRaw, priceNormal);
+    const visualPriceSelectors = [
+      '[data-transfer-price]',
+      '[data-price-transfer]',
+      '[data-testid="price"]',
+      '[data-testid="transfer-price"]',
+      '[class*="price"]',
+      '#transfer-price',
+      '#price-transfer',
+      '.calculator-price',
+      '.price',
+    ];
+    const parseVisualPrice = (value: string): number | undefined => {
+      const numericChunk = value.match(/[0-9][0-9.\s,]*/)?.[0] || '';
+      const onlyDigits = numericChunk.replace(/\D/g, '');
+      if (!onlyDigits) return undefined;
+      const parsed = Number.parseInt(onlyDigits, 10);
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+    };
+    let capturedVisualPrice: number | undefined;
+    if (typeof document !== 'undefined') {
+      for (const selector of visualPriceSelectors) {
+        const node = document.querySelector(selector);
+        if (!node) continue;
+        const candidateRaw = (node as HTMLInputElement).value
+          ?? node.getAttribute?.('data-transfer-price')
+          ?? node.getAttribute?.('data-price-transfer')
+          ?? node.textContent
+          ?? '';
+        const parsed = parseVisualPrice(candidateRaw);
+        if (typeof parsed === 'number' && parsed > 0) {
+          capturedVisualPrice = parsed;
+          break;
+        }
+      }
+      if (!(capturedVisualPrice > 0)) {
+        const fallbackText = document.body?.innerText?.match(/\$\s*[0-9][0-9.\s,]*/)?.[0] || '';
+        capturedVisualPrice = parseVisualPrice(fallbackText);
+      }
+    }
+    const resolvedPriceForPayload = (forcedPrice && forcedPrice > 0)
+      ? forcedPrice
+      : capturedVisualPrice;
     const resolvedMaterialForPayload = matLabelOf(materialLabel) || materialLabel || '';
     const payloadProductType: 'glasspad' | 'alfombra' | 'mousepad' = resolveProductTypeFromMaterial(
       resolvedMaterialForPayload,
@@ -1002,10 +1044,10 @@ export async function createJobAndProduct(
       widthCm,
       heightCm,
       approxDpi,
-      priceTransfer: forcedPrice, // forzado desde estado UI/calculadora cuando exista
+      priceTransfer: resolvedPriceForPayload, // forzado desde estado UI/calculadora cuando exista
       currency: priceCurrency,
       priceCurrency,
-      ...(forcedPrice != null ? { price: forcedPrice } : (priceNormal != null ? { price: priceNormal } : {})),
+      ...(resolvedPriceForPayload != null ? { price: resolvedPriceForPayload } : (priceNormal != null ? { price: priceNormal } : {})),
       lowQualityAck: Boolean(flow.lowQualityAck),
       imageAlt,
       filename,
@@ -1138,7 +1180,13 @@ export async function createJobAndProduct(
     const normalizedPayloadPrice = parsePrice(payload.priceTransfer);
     payload.priceTransfer = Number.isFinite(normalizedPayloadPrice) ? Number(normalizedPayloadPrice) : 0;
     if (!(payload.priceTransfer > 0)) {
-      const lastChancePrice = firstPositivePrice(resolveUiPriceForPayload(flow, overrides), priceTransferRaw, priceNormal, resolvePriceFromDomFallback());
+      const lastChancePrice = firstPositivePrice(
+        resolveUiPriceForPayload(flow, overrides),
+        capturedVisualPrice,
+        priceTransferRaw,
+        priceNormal,
+        resolvePriceFromDomFallback(),
+      );
       if (typeof lastChancePrice === 'number' && Number.isFinite(lastChancePrice) && lastChancePrice > 0) {
         payload.priceTransfer = lastChancePrice;
       }
@@ -1148,6 +1196,9 @@ export async function createJobAndProduct(
       : (Number.isFinite(Number(payload.price)) ? Number(payload.price) : payload.price);
 
     if (!(payload.priceTransfer > 0) || !(Number(payload.price) > 0)) {
+      if (typeof window !== 'undefined' && typeof window.alert === 'function') {
+        window.alert('Error crítico: El precio no se pudo sincronizar. Por favor, recarga la página.');
+      }
       const err: Error & { reason?: string; detail?: unknown } = new Error('missing_price_transfer');
       err.reason = 'missing_price_transfer';
       err.detail = {
