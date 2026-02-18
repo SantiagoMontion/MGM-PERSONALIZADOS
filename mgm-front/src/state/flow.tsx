@@ -27,7 +27,7 @@ const normalizeMaterial = (value: unknown): 'Glasspad' | 'PRO' | 'Alfombra' | 'C
 };
 
 export type FlowState = {
-  productType: 'mousepad' | 'glasspad';
+  productType: 'mousepad' | 'glasspad' | 'alfombra';
   editorState: any;
   mockupBlob?: Blob;
   mockupUrl?: string;
@@ -53,6 +53,7 @@ export type FlowState = {
   approxDpi?: number | null;
   priceTransfer?: number;
   priceNormal?: number;
+  priceAmount?: number;
   priceCurrency?: string;
   customerEmail?: string;
   lastProduct?: {
@@ -101,6 +102,7 @@ const defaultState: Omit<FlowState, 'set' | 'reset'> = {
   approxDpi: null,
   priceTransfer: 0,
   priceNormal: 0,
+  priceAmount: 0,
   priceCurrency: 'ARS',
   customerEmail: '',
   lastProduct: undefined,

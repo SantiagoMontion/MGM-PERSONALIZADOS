@@ -116,99 +116,18 @@ function firstPositivePrice(...candidates: unknown[]): number | undefined {
   return undefined;
 }
 
-function resolvePriceFromDomFallback(): number | undefined {
-  if (typeof document === 'undefined') return undefined;
-  const selectors = [
-    '[data-transfer-price]',
-    '[data-price-transfer]',
-    '[data-testid="price"]',
-    '[data-testid="transfer-price"]',
-    '[data-testid="price-transfer"]',
-    '[data-testid*="price"]',
-    '[class*="price"]',
-    '[id*="price"]',
-    '#transfer-price',
-    '#price-transfer',
-    'input[name="priceTransfer"]',
-    'input[name="price"]',
-  ];
-  for (const selector of selectors) {
-    const node = document.querySelector(selector);
-    if (!node) continue;
-    const candidate = (node as HTMLInputElement).value
-      ?? node.getAttribute?.('data-transfer-price')
-      ?? node.getAttribute?.('data-price-transfer')
-      ?? node.textContent;
-    const parsed = parsePrice(candidate);
-    if (typeof parsed === 'number' && Number.isFinite(parsed) && parsed > 0) {
-      return parsed;
-    }
-  }
-
-  const priceLikeNodes = Array.from(document.querySelectorAll('span,div,p,strong,b,small'));
-  for (const node of priceLikeNodes) {
-    const text = node.textContent?.trim();
-    if (!text || !/\$\s*[0-9]/.test(text)) continue;
-    const parsed = parsePrice(text);
-    if (typeof parsed === 'number' && Number.isFinite(parsed) && parsed > 0) {
-      return parsed;
-    }
-  }
-
-  const bodyText = document.body?.innerText;
-  if (bodyText) {
-    const priceToken = bodyText.match(/\$\s*[0-9][0-9\s.,]*/);
-    const parsed = parsePrice(priceToken?.[0]);
-    if (typeof parsed === 'number' && Number.isFinite(parsed) && parsed > 0) {
-      return parsed;
-    }
-  }
-
-  return undefined;
-}
-
-function resolveUiPriceForPayload(flow: FlowState, payloadOverrides?: Record<string, unknown> | null): number | undefined {
-  const overridePrice = firstPositivePrice(
-    payloadOverrides?.priceTransfer,
-    payloadOverrides?.price,
-    payloadOverrides?.priceNormal,
-  );
-  if (typeof overridePrice === 'number' && Number.isFinite(overridePrice) && overridePrice > 0) {
-    return overridePrice;
-  }
-
-  const fromFlowState = firstPositivePrice(
+function resolveUiPriceForPayload(flow: FlowState): number | undefined {
+  return firstPositivePrice(
     (flow as any)?.priceAmount,
     (flow as any)?.latestTransferPrice,
-    (flow as any)?.latestTransferPriceRef?.current,
-    (flow as any)?.calculator?.priceAmount,
-    (flow as any)?.calculator?.latestTransferPrice,
-    (flow as any)?.calculator?.transfer,
+    flow.priceTransfer,
+    flow.priceNormal,
+    flow.price,
     (flow as any)?.editorState?.priceAmount,
     (flow as any)?.editorState?.latestTransferPrice,
-    (flow as any)?.editorState?.latestTransferPriceRef?.current,
-    (flow as any)?.editorState?.calculator?.priceAmount,
-    (flow as any)?.editorState?.calculator?.latestTransferPrice,
-    (flow as any)?.editorState?.calculator?.transfer,
+    (flow as any)?.editorState?.priceTransfer,
+    (flow as any)?.editorState?.price,
   );
-  if (typeof fromFlowState === 'number' && Number.isFinite(fromFlowState) && fromFlowState > 0) {
-    return fromFlowState;
-  }
-
-  const fromWindow = typeof window !== 'undefined'
-    ? firstPositivePrice(
-      (window as any)?.priceAmount,
-      (window as any)?.latestTransferPrice,
-      (window as any)?.latestTransferPriceRef?.current,
-      (window as any)?.mgmPriceAmount,
-      (window as any)?.mgmTransferPrice,
-    )
-    : undefined;
-  if (typeof fromWindow === 'number' && Number.isFinite(fromWindow) && fromWindow > 0) {
-    return fromWindow;
-  }
-
-  return resolvePriceFromDomFallback();
 }
 
 function formatDimension(value?: number | null): string | undefined {
@@ -833,9 +752,6 @@ export async function createJobAndProduct(
       (flow as any)?.editorState?.calculator?.price,
     );
   }
-  if (!(typeof priceTransferRaw === 'number' && Number.isFinite(priceTransferRaw) && priceTransferRaw > 0)) {
-    priceTransferRaw = resolvePriceFromDomFallback();
-  }
   let measurementLabel = formatMeasurement(widthCm, heightCm);
   let productTitle = productType === 'glasspad'
     ? buildGlasspadTitle(designName, measurementLabel)
@@ -977,55 +893,11 @@ export async function createJobAndProduct(
       ? `${mockupUrlForPayload}${mockupUrlForPayload.includes('?') ? '&' : '?'}v=${mockupHashForPayload}`
       : mockupUrlForPayload || undefined;
 
-    const uiPriceForPayload = resolveUiPriceForPayload(
-      flow,
-      payloadOverrides && typeof payloadOverrides === 'object'
-        ? (payloadOverrides as Record<string, unknown>)
-        : null,
+    const resolvedPriceForPayload = firstPositivePrice(
+      resolveUiPriceForPayload(flow),
+      priceTransferRaw,
+      priceNormal,
     );
-    const forcedPrice = firstPositivePrice(uiPriceForPayload, priceTransferRaw, priceNormal);
-    const visualPriceSelectors = [
-      '[data-transfer-price]',
-      '[data-price-transfer]',
-      '[data-testid="price"]',
-      '[data-testid="transfer-price"]',
-      '[class*="price"]',
-      '#transfer-price',
-      '#price-transfer',
-      '.calculator-price',
-      '.price',
-    ];
-    const parseVisualPrice = (value: string): number | undefined => {
-      const numericChunk = value.match(/[0-9][0-9.\s,]*/)?.[0] || '';
-      const onlyDigits = numericChunk.replace(/\D/g, '');
-      if (!onlyDigits) return undefined;
-      const parsed = Number.parseInt(onlyDigits, 10);
-      return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
-    };
-    let capturedVisualPrice: number | undefined;
-    if (typeof document !== 'undefined') {
-      for (const selector of visualPriceSelectors) {
-        const node = document.querySelector(selector);
-        if (!node) continue;
-        const candidateRaw = (node as HTMLInputElement).value
-          ?? node.getAttribute?.('data-transfer-price')
-          ?? node.getAttribute?.('data-price-transfer')
-          ?? node.textContent
-          ?? '';
-        const parsed = parseVisualPrice(candidateRaw);
-        if (typeof parsed === 'number' && parsed > 0) {
-          capturedVisualPrice = parsed;
-          break;
-        }
-      }
-      if (!(capturedVisualPrice > 0)) {
-        const fallbackText = document.body?.innerText?.match(/\$\s*[0-9][0-9.\s,]*/)?.[0] || '';
-        capturedVisualPrice = parseVisualPrice(fallbackText);
-      }
-    }
-    const resolvedPriceForPayload = (forcedPrice && forcedPrice > 0)
-      ? forcedPrice
-      : capturedVisualPrice;
     const resolvedMaterialForPayload = matLabelOf(materialLabel) || materialLabel || '';
     const payloadProductType: 'glasspad' | 'alfombra' | 'mousepad' = resolveProductTypeFromMaterial(
       resolvedMaterialForPayload,
@@ -1117,23 +989,6 @@ export async function createJobAndProduct(
       if (typeof checkoutTypeOverride === 'string' && checkoutTypeOverride.trim()) {
         payload.checkoutType = checkoutTypeOverride.trim();
       }
-      const priceTransferOverride = overrides.priceTransfer;
-      if (typeof priceTransferOverride === 'number') {
-        payload.priceTransfer = priceTransferOverride;
-      } else if (typeof priceTransferOverride === 'string' && priceTransferOverride.trim()) {
-        const parsed = Number(priceTransferOverride);
-        if (Number.isFinite(parsed)) {
-          payload.priceTransfer = parsed;
-        }
-      }
-      const priceNormalOverride =
-        overrides.priceNormal != null ? overrides.priceNormal : overrides.price;
-      if (priceNormalOverride != null) {
-        const parsed = Number(priceNormalOverride);
-        if (Number.isFinite(parsed)) {
-          payload.price = parsed;
-        }
-      }
       const currencyOverride = overrides.currency;
       if (typeof currencyOverride === 'string' && currencyOverride.trim()) {
         const normalizedCurrency = currencyOverride.trim();
@@ -1177,23 +1032,15 @@ export async function createJobAndProduct(
     payload.productType = productTypeAfterOverrides;
     payload.options = { ...(payload.options || {}), productType: productTypeAfterOverrides };
 
-    const normalizedPayloadPrice = parsePrice(payload.priceTransfer);
-    payload.priceTransfer = Number.isFinite(normalizedPayloadPrice) ? Number(normalizedPayloadPrice) : 0;
-    if (!(payload.priceTransfer > 0)) {
-      const lastChancePrice = firstPositivePrice(
-        resolveUiPriceForPayload(flow, overrides),
-        capturedVisualPrice,
-        priceTransferRaw,
-        priceNormal,
-        resolvePriceFromDomFallback(),
-      );
-      if (typeof lastChancePrice === 'number' && Number.isFinite(lastChancePrice) && lastChancePrice > 0) {
-        payload.priceTransfer = lastChancePrice;
-      }
-    }
-    payload.price = payload.priceTransfer > 0
-      ? payload.priceTransfer
-      : (Number.isFinite(Number(payload.price)) ? Number(payload.price) : payload.price);
+    const calculatorPriceForPayload = firstPositivePrice(
+      resolveUiPriceForPayload(flow),
+      priceTransferRaw,
+      priceNormal,
+    );
+    payload.priceTransfer = Number.isFinite(Number(calculatorPriceForPayload))
+      ? Number(calculatorPriceForPayload)
+      : 0;
+    payload.price = payload.priceTransfer;
 
     if (!(payload.priceTransfer > 0) || !(Number(payload.price) > 0)) {
       if (typeof window !== 'undefined' && typeof window.alert === 'function') {
