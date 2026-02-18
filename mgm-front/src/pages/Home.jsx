@@ -1476,7 +1476,11 @@ export default function Home() {
         finalHeightCm = 42;
       }
 
-      const nextProductType = finalMaterial === 'Glasspad' ? 'glasspad' : 'mousepad';
+      const nextProductType = finalMaterial === 'Glasspad'
+        ? 'glasspad'
+        : finalMaterial === 'Alfombra'
+          ? 'alfombra'
+          : 'mousepad';
       flow.set({
         // Guardar SIEMPRE la medida elegida por el cliente (cm), para evitar caer a px/DPI
         widthCm: finalWidthCm,
@@ -1509,6 +1513,7 @@ export default function Home() {
         approxDpi: effDpi || null,
         priceTransfer: transferPrice,
         priceNormal: normalPrice,
+        priceAmount: transferPrice,
         priceCurrency: PRICE_CURRENCY,
       });
       try {
