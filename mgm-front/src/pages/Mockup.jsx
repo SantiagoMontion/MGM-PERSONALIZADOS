@@ -20,6 +20,20 @@ import { isTouchDevice } from '@/lib/device.ts';
 
 const safeStr = (v) => (typeof v === 'string' ? v : '').trim();
 
+const toRoundedPositiveNumber = (value) => {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num <= 0) return '';
+  return String(Math.round(num));
+};
+
+const buildProductFingerprint = ({ designHash, widthCm, heightCm, material }) => {
+  const normalizedHash = safeStr(designHash).toLowerCase();
+  const normalizedMaterial = safeStr(material).toLowerCase();
+  const widthToken = toRoundedPositiveNumber(widthCm);
+  const heightToken = toRoundedPositiveNumber(heightCm);
+  return [normalizedHash, widthToken, heightToken, normalizedMaterial].join('|');
+};
+
 const normalizeMaterialLabel = (raw) => {
   const label = safeStr(raw);
   if (label === 'Alfombra') return 'Alfombra';
@@ -2823,6 +2837,16 @@ export default function Mockup() {
   );
 
   const lastProduct = flow?.lastProduct || null;
+  const currentFingerprint = buildProductFingerprint({
+    designHash: flow?.designHash,
+    widthCm: flow?.widthCm ?? flow?.editorState?.size_cm?.w,
+    heightCm: flow?.heightCm ?? flow?.editorState?.size_cm?.h,
+    material: flow?.material,
+  });
+  const lastFingerprint = safeStr(lastProduct?.fingerprint).toLowerCase();
+  const shouldReuseLastProduct = Boolean(currentFingerprint)
+    && Boolean(lastFingerprint)
+    && currentFingerprint === lastFingerprint;
   const lastProductId = pickFirstString(lastProduct?.productId, lastProduct?.id);
   const lastVariantId = pickFirstString(
     lastProduct?.variantId,
@@ -3257,6 +3281,20 @@ export default function Mockup() {
     }
   }
 
+
+  const resolveReusableTarget = useCallback((mode) => {
+    if (!shouldReuseLastProduct || !lastProduct) return null;
+    const SHOPIFY_DOMAIN = import.meta.env.VITE_SHOPIFY_DOMAIN || '';
+    const target = pickCommerceTarget(lastProduct, SHOPIFY_DOMAIN);
+    if (mode === 'private') {
+      if (typeof lastProduct.checkoutUrl === 'string' && lastProduct.checkoutUrl.trim()) {
+        return lastProduct.checkoutUrl.trim();
+      }
+      return target;
+    }
+    return target;
+  }, [lastProduct, shouldReuseLastProduct]);
+
   async function startCartFlow(extraOptions = {}) {
     if (busy && cartStatus !== 'idle') return;
     setToast(null);
@@ -3275,6 +3313,23 @@ export default function Mockup() {
         extraOptions && typeof extraOptions === 'object' ? { ...extraOptions } : {};
       if (normalizedDiscountCode) {
         baseOptions.discountCode = normalizedDiscountCode;
+      }
+      console.log(shouldReuseLastProduct ? '♻️ Reutilizando producto existente' : '🆕 Creando nuevo producto por cambio de parámetros');
+      if (shouldReuseLastProduct) {
+        baseOptions.reuseLastProduct = true;
+        const reusableTarget = resolveReusableTarget('cart');
+        if (reusableTarget) {
+          const opened = openCommerceTarget(reusableTarget);
+          didOpenTarget = opened || didOpenTarget;
+          if (opened) {
+            finalizeCartSuccess('Abrimos tu producto existente para evitar duplicados.', {
+              skipNavigate: true,
+              preserveLastProduct: true,
+            });
+            setCartStatus('idle');
+            return;
+          }
+        }
       }
       diag('[cart-flow] create_job_and_product_start');
       const result = await runPublish('cart', flow, baseOptions);
@@ -3497,6 +3552,21 @@ export default function Mockup() {
         mode === 'private' || !normalizedDiscountCode
           ? jobOptions
           : { ...jobOptions, discountCode: normalizedDiscountCode };
+      console.log(shouldReuseLastProduct ? '♻️ Reutilizando producto existente' : '🆕 Creando nuevo producto por cambio de parámetros');
+      if (shouldReuseLastProduct) {
+        jobOptionsWithDiscount.reuseLastProduct = true;
+        const reusableTarget = resolveReusableTarget(mode);
+        if (reusableTarget) {
+          const opened = openCommerceTarget(reusableTarget);
+          if (opened) {
+            finalizeCartSuccess('Reutilizamos tu producto existente sin recrearlo.', {
+              skipNavigate: true,
+              preserveLastProduct: true,
+            });
+            return;
+          }
+        }
+      }
       diag(`[${mode}-flow] create_job_and_product_start`);
       const result = await runPublish(mode, submissionFlow, jobOptionsWithDiscount);
       diag(`[${mode}-flow] create_job_and_product_success`, {
