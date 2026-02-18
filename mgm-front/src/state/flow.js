@@ -10,6 +10,9 @@ const PERSIST_KEYS = [
   'mockupUrl',
   'mockupPublicUrl',
   'mockupHash',
+  'priceTransfer',
+  'priceNormal',
+  'priceCurrency',
 ];
 
 const asStr = (value) => (typeof value === 'string' ? value : value == null ? '' : String(value));
@@ -86,6 +89,18 @@ export function FlowProvider({ children }) {
             }
             return;
           }
+          if (key === 'priceTransfer' || key === 'priceNormal') {
+            const num = Number(parsed[key]);
+            if (Number.isFinite(num) && num > 0) {
+              next[key] = num;
+            }
+            return;
+          }
+          if (key === 'priceCurrency') {
+            const curr = safeStr(parsed[key], 'ARS');
+            if (curr) next[key] = curr;
+            return;
+          }
           if (key === 'options') {
             const opts = parsed.options;
             if (opts && typeof opts === 'object') {
@@ -153,6 +168,18 @@ export function FlowProvider({ children }) {
           }
           return;
         }
+        if (key === 'priceTransfer' || key === 'priceNormal') {
+          const num = Number(value);
+          if (Number.isFinite(num) && num > 0) {
+            payload[key] = num;
+          }
+          return;
+        }
+        if (key === 'priceCurrency') {
+          const curr = safeStr(value, 'ARS');
+          if (curr) payload[key] = curr;
+          return;
+        }
         payload[key] = key === 'material' ? normalizeMaterial(value) || state.material : value;
       });
       window.localStorage.setItem(FLOW_STORAGE_KEY, JSON.stringify(payload));
@@ -168,6 +195,9 @@ export function FlowProvider({ children }) {
     state.mockupUrl,
     state.mockupPublicUrl,
     state.mockupHash,
+    state.priceTransfer,
+    state.priceNormal,
+    state.priceCurrency,
   ]);
 
   const value = {
