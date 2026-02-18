@@ -74,6 +74,16 @@ function parsePrice(value: unknown): number | undefined {
   return undefined;
 }
 
+function firstPositivePrice(...candidates: unknown[]): number | undefined {
+  for (const candidate of candidates) {
+    const parsed = parsePrice(candidate);
+    if (typeof parsed === 'number' && Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return undefined;
+}
+
 function formatDimension(value?: number | null): string | undefined {
   if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return undefined;
   const rounded = Math.round(value * 10) / 10;
@@ -637,10 +647,28 @@ export async function createJobAndProduct(
   const heightFromPx = pxToCm(masterHeightPx);
   widthCm = pickDimension(widthCm, widthFromFlow, widthFromMm, widthFromPx);
   heightCm = pickDimension(heightCm, heightFromFlow, heightFromMm, heightFromPx);
-  let priceTransferRaw = parsePrice(flow.priceTransfer);
+  let priceTransferRaw = firstPositivePrice(
+    flow.priceTransfer,
+    (flow as any)?.pricing?.transfer,
+    (flow as any)?.calculatorPricing?.transfer,
+    (flow as any)?.quote?.transfer,
+    (flow as any)?.editorState?.pricing?.transfer,
+    (flow as any)?.editorState?.calculatorPricing?.transfer,
+  );
   const priceCurrencyRaw = typeof flow.priceCurrency === 'string' ? flow.priceCurrency : 'ARS';
   let priceCurrency = priceCurrencyRaw.trim() || 'ARS';
-  const priceNormal = parsePrice(flow.priceNormal);
+  const priceNormal = firstPositivePrice(
+    flow.priceNormal,
+    flow.price,
+    (flow as any)?.pricing?.normal,
+    (flow as any)?.calculatorPricing?.normal,
+    (flow as any)?.quote?.normal,
+    (flow as any)?.editorState?.pricing?.normal,
+    (flow as any)?.editorState?.calculatorPricing?.normal,
+  );
+  if (!(typeof priceTransferRaw === 'number' && Number.isFinite(priceTransferRaw) && priceTransferRaw > 0)) {
+    priceTransferRaw = priceNormal;
+  }
   let measurementLabel = formatMeasurement(widthCm, heightCm);
   let productTitle = productType === 'glasspad'
     ? buildGlasspadTitle(designName, measurementLabel)

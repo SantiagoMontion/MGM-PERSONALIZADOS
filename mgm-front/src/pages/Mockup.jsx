@@ -31,6 +31,16 @@ const normalizeMaterialLabel = (raw) => {
   return '';
 };
 
+const parsePositivePrice = (...values) => {
+  for (const value of values) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return 0;
+};
+
 // NO mezclar material con productType.
 // productType = mousepad/glasspad (tipo de producto).
 // material = Classic/PRO/Glasspad (tarifa/título).
@@ -681,8 +691,25 @@ function buildShopifyPayload(flowState, mode) {
   const roundedWidth = Number.isFinite(widthCm) && widthCm > 0 ? Math.round(widthCm) : undefined;
   const roundedHeight = Number.isFinite(heightCm) && heightCm > 0 ? Math.round(heightCm) : undefined;
   const title = buildTitle({ productType, mat, widthCm: roundedWidth, heightCm: roundedHeight, designName });
-  const priceTransfer = Number(source?.priceTransfer ?? 0);
-  const priceNormal = Number(source?.priceNormal ?? 0);
+  const priceTransfer = parsePositivePrice(
+    source?.priceTransfer,
+    source?.pricing?.transfer,
+    source?.calculatorPricing?.transfer,
+    source?.quote?.transfer,
+    source?.editorState?.pricing?.transfer,
+    source?.editorState?.calculatorPricing?.transfer,
+    source?.priceNormal,
+    source?.price,
+  );
+  const priceNormal = parsePositivePrice(
+    source?.priceNormal,
+    source?.price,
+    source?.pricing?.normal,
+    source?.calculatorPricing?.normal,
+    source?.quote?.normal,
+    source?.editorState?.pricing?.normal,
+    source?.editorState?.calculatorPricing?.normal,
+  );
   const currency = source?.priceCurrency;
   const mockupUrl = source?.mockupPublicUrl || source?.mockupUrl || null;
   const payload = {
@@ -3954,8 +3981,16 @@ export default function Mockup() {
       designName: resolvedDesignName,
     });
 
-    const priceTransferRaw = Number(flowState?.priceTransfer ?? 0);
-    const price = Number.isFinite(priceTransferRaw) ? priceTransferRaw : 0;
+    const price = parsePositivePrice(
+      flowState?.priceTransfer,
+      flowState?.pricing?.transfer,
+      flowState?.calculatorPricing?.transfer,
+      flowState?.quote?.transfer,
+      flowState?.editorState?.pricing?.transfer,
+      flowState?.editorState?.calculatorPricing?.transfer,
+      flowState?.priceNormal,
+      flowState?.price,
+    );
 
     const baseOverrides = {
       material: mat,
@@ -4618,6 +4653,5 @@ export default function Mockup() {
     </div>
   );
 }
-
 
 
