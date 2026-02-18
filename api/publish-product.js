@@ -11,6 +11,9 @@ const MAX_REQUEST_BODY_BYTES = 32 * 1024 * 1024;
 const CORS_ALLOW_HEADERS = 'content-type, authorization, x-diag';
 const CORS_ALLOW_METHODS = 'POST, OPTIONS';
 const CORS_MAX_AGE = '86400';
+const DEDUPE_TTL_MS = 5 * 60 * 1000;
+const inFlightPublishByFingerprint = new Map();
+const recentPublishByFingerprint = new Map();
 
 export const config = {
   memory: 256,
@@ -97,6 +100,86 @@ function sendJsonWithCors(req, res, status, payload) {
   } else {
     res.end(json);
   }
+}
+
+function cleanExpiredPublishCache(now = Date.now()) {
+  for (const [key, value] of recentPublishByFingerprint.entries()) {
+    if (!value || !Number.isFinite(value.expiresAt) || value.expiresAt <= now) {
+      recentPublishByFingerprint.delete(key);
+    }
+  }
+}
+
+function buildPublishFingerprint({ designHash, widthCm, heightCm }) {
+  const hash = typeof designHash === 'string' ? designHash.trim().toLowerCase() : '';
+  const width = Number(widthCm);
+  const height = Number(heightCm);
+  if (!/^[a-f0-9]{64}$/.test(hash)) return null;
+  if (!Number.isFinite(width) || width <= 0) return null;
+  if (!Number.isFinite(height) || height <= 0) return null;
+  return `${hash}|${Math.round(width)}x${Math.round(height)}`;
+}
+
+function captureJsonResponse(res) {
+  let settled = false;
+  let resolveCapture;
+  const capturePromise = new Promise((resolve) => {
+    resolveCapture = resolve;
+  });
+  const settle = (capture) => {
+    if (settled) return;
+    settled = true;
+    resolveCapture(capture);
+  };
+
+  const originalStatus = typeof res.status === 'function' ? res.status.bind(res) : null;
+  const originalJson = typeof res.json === 'function' ? res.json.bind(res) : null;
+  const originalEnd = typeof res.end === 'function' ? res.end.bind(res) : null;
+
+  let statusCode = Number.isFinite(res?.statusCode) ? res.statusCode : 200;
+
+  if (originalStatus) {
+    res.status = (code) => {
+      if (Number.isFinite(code)) statusCode = code;
+      return originalStatus(code);
+    };
+  }
+
+  if (originalJson) {
+    res.json = (body) => {
+      settle({ status: statusCode, body });
+      return originalJson(body);
+    };
+  }
+
+  if (originalEnd) {
+    res.end = (chunk, encoding, cb) => {
+      if (!settled) {
+        let parsed = null;
+        if (typeof chunk === 'string' && chunk.trim()) {
+          try { parsed = JSON.parse(chunk); } catch {}
+        } else if (Buffer.isBuffer(chunk) && chunk.length) {
+          try { parsed = JSON.parse(chunk.toString('utf8')); } catch {}
+        }
+        if (parsed && typeof parsed === 'object') {
+          settle({ status: statusCode, body: parsed });
+        }
+      }
+      return originalEnd(chunk, encoding, cb);
+    };
+  }
+
+  return {
+    done: capturePromise,
+    restore() {
+      if (originalStatus) res.status = originalStatus;
+      if (originalJson) res.json = originalJson;
+      if (originalEnd) res.end = originalEnd;
+    },
+    settleFallback() {
+      if (!settled) settle({ status: statusCode, body: null });
+    },
+  };
 }
 
 function resolveShopDomain() {
@@ -513,6 +596,19 @@ export default async function handler(req, res) {
   parsedBody.productType = productType;
   parsedBody.widthCm = Number.isFinite(widthCmSafe) && widthCmSafe > 0 ? widthCmSafe : undefined;
   parsedBody.heightCm = Number.isFinite(heightCmSafe) && heightCmSafe > 0 ? heightCmSafe : undefined;
+  const publishFingerprint = buildPublishFingerprint({
+    designHash: parsedBody.designHash,
+    widthCm: parsedBody.widthCm,
+    heightCm: parsedBody.heightCm,
+  });
+  if (publishFingerprint) {
+    parsedBody.publishFingerprint = publishFingerprint;
+  }
+  const idempotencySuffix = String(parsedBody?.material || parsedBody?.materialResolved || mat || 'material')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-');
+  parsedBody.shopifyIdempotencyKey = `publish:${designHashRaw}:${idempotencySuffix || 'material'}`.slice(0, 255);
   parsedBody.title = finalTitle;
   const priceTransfer = parseMoney(
     parsedBody.priceTransfer ?? parsedBody.price_transfer ?? parsedBody.priceTranferencia,
@@ -659,8 +755,55 @@ export default async function handler(req, res) {
       return;
     }
     req.mgmDiagId = diagId;
-    await realHandler(req, res);
+    cleanExpiredPublishCache();
+    if (publishFingerprint) {
+      const inflight = inFlightPublishByFingerprint.get(publishFingerprint);
+      if (inflight?.promise) {
+        console.warn('🛡️ Idempotencia activada: Pedido duplicado detectado para hash:', designHashRaw);
+        const replay = await inflight.promise;
+        if (replay?.body && Number.isFinite(replay?.status)) {
+          sendJsonWithCors(req, res, replay.status, replay.body);
+          return;
+        }
+      }
+      const recent = recentPublishByFingerprint.get(publishFingerprint);
+      if (recent?.body && Number.isFinite(recent?.status) && Number.isFinite(recent?.expiresAt) && recent.expiresAt > Date.now()) {
+        console.warn('🛡️ Idempotencia activada: Pedido duplicado detectado para hash:', designHashRaw);
+        sendJsonWithCors(req, res, recent.status, recent.body);
+        return;
+      }
+    }
+
+    const capture = captureJsonResponse(res);
+    const publishExecution = (async () => {
+      try {
+        await realHandler(req, res);
+      } finally {
+        capture.settleFallback();
+        capture.restore();
+      }
+      return capture.done;
+    })();
+
+    if (publishFingerprint) {
+      inFlightPublishByFingerprint.set(publishFingerprint, { promise: publishExecution });
+    }
+
+    const settled = await publishExecution;
+    if (publishFingerprint && settled?.body && Number.isFinite(settled?.status)) {
+      recentPublishByFingerprint.set(publishFingerprint, {
+        status: settled.status,
+        body: settled.body,
+        expiresAt: Date.now() + DEDUPE_TTL_MS,
+      });
+    }
+    if (publishFingerprint) {
+      inFlightPublishByFingerprint.delete(publishFingerprint);
+    }
   } catch (err) {
+    if (publishFingerprint) {
+      inFlightPublishByFingerprint.delete(publishFingerprint);
+    }
     const step = err?.code === 'SHOPIFY_TIMEOUT' ? err?.step || 'shopify_request' : 'real_handler';
     logApiError('publish-product', { diagId, step, error: err });
     if (!res.headersSent) {
