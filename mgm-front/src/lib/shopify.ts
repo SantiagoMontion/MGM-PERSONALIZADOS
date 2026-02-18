@@ -74,13 +74,34 @@ function parsePrice(value: unknown): number | undefined {
   if (typeof value === 'string') {
     const raw = value.trim();
     if (!raw) return undefined;
-    const normalized = raw
-      .replace(/[^0-9,.-]/g, '')
-      .replace(/,/g, '')
-      .replace(/\.(?=.*\.)/g, '');
-    if (!normalized) return undefined;
+    const cleaned = raw.replace(/[^0-9,.-]/g, '');
+    if (!cleaned) return undefined;
+
+    const hasDot = cleaned.includes('.');
+    const hasComma = cleaned.includes(',');
+    let normalized = cleaned;
+
+    if (hasDot && hasComma) {
+      const lastDot = cleaned.lastIndexOf('.');
+      const lastComma = cleaned.lastIndexOf(',');
+      if (lastComma > lastDot) {
+        normalized = cleaned.replace(/\./g, '').replace(',', '.');
+      } else {
+        normalized = cleaned.replace(/,/g, '');
+      }
+    } else if (hasComma) {
+      normalized = /,\d{1,2}$/.test(cleaned)
+        ? cleaned.replace(/\./g, '').replace(',', '.')
+        : cleaned.replace(/,/g, '');
+    } else if (hasDot) {
+      normalized = /\.\d{1,2}$/.test(cleaned)
+        ? cleaned.replace(/,/g, '')
+        : cleaned.replace(/\./g, '');
+    }
+
     const parsed = Number(normalized);
-    return Number.isFinite(parsed) ? parsed : undefined;
+    if (!Number.isFinite(parsed)) return undefined;
+    return Math.round(parsed);
   }
   return undefined;
 }
@@ -100,8 +121,12 @@ function resolvePriceFromDomFallback(): number | undefined {
   const selectors = [
     '[data-transfer-price]',
     '[data-price-transfer]',
+    '[data-testid="price"]',
     '[data-testid="transfer-price"]',
     '[data-testid="price-transfer"]',
+    '[data-testid*="price"]',
+    '[class*="price"]',
+    '[id*="price"]',
     '#transfer-price',
     '#price-transfer',
     'input[name="priceTransfer"]',
@@ -119,6 +144,26 @@ function resolvePriceFromDomFallback(): number | undefined {
       return parsed;
     }
   }
+
+  const priceLikeNodes = Array.from(document.querySelectorAll('span,div,p,strong,b,small'));
+  for (const node of priceLikeNodes) {
+    const text = node.textContent?.trim();
+    if (!text || !/\$\s*[0-9]/.test(text)) continue;
+    const parsed = parsePrice(text);
+    if (typeof parsed === 'number' && Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+
+  const bodyText = document.body?.innerText;
+  if (bodyText) {
+    const priceToken = bodyText.match(/\$\s*[0-9][0-9\s.,]*/);
+    const parsed = parsePrice(priceToken?.[0]);
+    if (typeof parsed === 'number' && Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+
   return undefined;
 }
 
@@ -1101,6 +1146,16 @@ export async function createJobAndProduct(
     payload.price = payload.priceTransfer > 0
       ? payload.priceTransfer
       : (Number.isFinite(Number(payload.price)) ? Number(payload.price) : payload.price);
+
+    if (!(payload.priceTransfer > 0) || !(Number(payload.price) > 0)) {
+      const err: Error & { reason?: string; detail?: unknown } = new Error('missing_price_transfer');
+      err.reason = 'missing_price_transfer';
+      err.detail = {
+        payloadPriceTransfer: payload.priceTransfer,
+        payloadPrice: payload.price,
+      };
+      throw err;
+    }
 
     console.log('🚀 PAYLOAD SALIDA:', JSON.stringify(payload, null, 2));
 
