@@ -81,8 +81,6 @@ function buildDownloadUrl(publicUrl, filename) {
   return url.toString();
 }
 
-const GENERIC_PREVIEW_THUMBNAIL = '/icons/community-hero.png';
-
 function PreviewThumbnail({ src }) {
   const [status, setStatus] = useState(src ? 'loading' : 'fallback');
 
@@ -90,30 +88,29 @@ function PreviewThumbnail({ src }) {
     setStatus(src ? 'loading' : 'fallback');
   }, [src]);
 
-  const activeSrc = status === 'error' || status === 'fallback'
-    ? GENERIC_PREVIEW_THUMBNAIL
-    : src;
   const showLoading = Boolean(src) && status === 'loading';
+  const showFallback = status === 'error' || status === 'fallback';
 
   return (
     <>
       {showLoading ? <span className={styles.previewPlaceholder}>Cargando…</span> : null}
-      <img
-        src={activeSrc}
-        alt="Miniatura MGMGAMERS"
-        className={styles.previewImage}
-        loading="lazy"
-        referrerPolicy="no-referrer"
-        onLoad={() => {
-          if (status === 'loading') setStatus('loaded');
-        }}
-        onError={() => {
-          if (activeSrc !== GENERIC_PREVIEW_THUMBNAIL) {
+      {showFallback ? <div className={styles.previewPlaceholder}>Sin miniatura</div> : null}
+      {!showFallback ? (
+        <img
+          src={src}
+          alt="Miniatura MGMGAMERS"
+          className={styles.previewImage}
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          onLoad={() => {
+            if (status === 'loading') setStatus('loaded');
+          }}
+          onError={() => {
             setStatus('error');
-          }
-        }}
-        style={showLoading ? { display: 'none' } : undefined}
-      />
+          }}
+          style={showLoading ? { display: 'none' } : undefined}
+        />
+      ) : null}
     </>
   );
 }
