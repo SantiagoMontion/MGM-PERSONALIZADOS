@@ -7,6 +7,22 @@ const FRONT_ORIGIN = (process.env.FRONT_ORIGIN || 'https://mgm-app.vercel.app').
 const REQUIRED_ENV = resolveEnvRequirements('SHOPIFY_ADMIN', 'SUPABASE_SERVICE');
 const SHOPIFY_TIMEOUT_STATUS = 504;
 const MAX_PAYLOAD_BYTES = 20 * 1024 * 1024;
+
+
+function sanitizeShopifyImageUrl(rawUrl) {
+  if (typeof rawUrl !== 'string') return '';
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return '';
+  const noQuery = trimmed.split('?')[0].trim();
+  if (!noQuery) return '';
+  try {
+    const parsed = new URL(noQuery);
+    return encodeURI(`${parsed.origin}${parsed.pathname}`);
+  } catch {
+    return encodeURI(noQuery);
+  }
+}
+
 const MAX_REQUEST_BODY_BYTES = 32 * 1024 * 1024;
 const CORS_ALLOW_HEADERS = 'content-type, authorization, x-diag';
 const CORS_ALLOW_METHODS = 'POST, OPTIONS';
@@ -475,7 +491,7 @@ export default async function handler(req, res) {
 
   req.body = parsedBody;
 
-  const mockupPublicRaw = typeof parsedBody.mockupPublicUrl === 'string' ? parsedBody.mockupPublicUrl.trim() : '';
+  const mockupPublicRaw = sanitizeShopifyImageUrl(typeof parsedBody.mockupPublicUrl === 'string' ? parsedBody.mockupPublicUrl : '');
   const mockupHashRaw = typeof parsedBody.mockupHash === 'string' ? parsedBody.mockupHash.trim() : '';
   const pdfUrlRaw = typeof parsedBody.pdfPublicUrl === 'string' ? parsedBody.pdfPublicUrl.trim() : '';
   const designHashRaw = typeof parsedBody.designHash === 'string' ? parsedBody.designHash.trim().toLowerCase() : '';
@@ -509,7 +525,7 @@ export default async function handler(req, res) {
     return;
   }
 
-  const versionedMockupUrl = `${mockupPublicRaw}${mockupPublicRaw.includes('?') ? '&' : '?'}v=${mockupHash}`;
+  const versionedMockupUrl = mockupPublicRaw ? `${mockupPublicRaw}?v=${mockupHash}` : '';
   parsedBody.mockupUrl = versionedMockupUrl;
   parsedBody.mockupPublicUrl = mockupPublicRaw;
   parsedBody.mockupHash = mockupHash;
@@ -692,7 +708,7 @@ export default async function handler(req, res) {
         images.push({ attachment: base64, filename, altText: fallbackName });
       }
     } else {
-      const mockupUrlValue = typeof parsedBody.mockupUrl === 'string' ? parsedBody.mockupUrl.trim() : '';
+      const mockupUrlValue = sanitizeShopifyImageUrl(typeof parsedBody.mockupUrl === 'string' ? parsedBody.mockupUrl : '');
       if (mockupUrlValue.startsWith('data:image')) {
         const base64 = (mockupUrlValue.split(',')[1] || '').trim();
         if (base64) {
