@@ -669,6 +669,8 @@ export async function createJobAndProduct(
   const isPrivate = mode === 'private';
   const shouldRequestPrivateCheckout = isPrivate && !skipPrivateCheckout;
   const requestedVisibility: 'public' | 'private' = isPrivate ? 'private' : 'public';
+  const nowMs = Date.now();
+  const lastProductReuseWindowMs = 2 * 60 * 1000;
   const normalizedDiscountCode = typeof discountCode === 'string' ? discountCode.trim() : '';
   let canReuse = false;
 
@@ -755,12 +757,35 @@ export async function createJobAndProduct(
   const lastProductFingerprint = typeof lastProduct?.fingerprint === 'string'
     ? lastProduct.fingerprint.trim().toLowerCase()
     : '';
+  const lastProductCreatedAtRaw =
+    typeof lastProduct?.createdAt === 'number'
+      ? lastProduct.createdAt
+      : typeof lastProduct?.createdAtMs === 'number'
+        ? lastProduct.createdAtMs
+        : typeof lastProduct?.timestamp === 'number'
+          ? lastProduct.timestamp
+          : NaN;
+  const hasRecentLastProduct =
+    Number.isFinite(lastProductCreatedAtRaw)
+    && lastProductCreatedAtRaw > 0
+    && (nowMs - lastProductCreatedAtRaw) <= lastProductReuseWindowMs;
+  const emergencyReuse = hasRecentLastProduct
+    && lastProduct?.productId
+    && lastProduct?.variantId
+    && lastProduct.visibility === requestedVisibility;
   canReuse = reuseLastProduct
     && Boolean(currentProductFingerprint)
     && lastProduct?.productId
     && lastProduct?.variantId
     && lastProduct.visibility === requestedVisibility
     && lastProductFingerprint === currentProductFingerprint;
+  if (!canReuse && emergencyReuse) {
+    canReuse = true;
+    warn('[createJobAndProduct] emergency_reuse_last_product', {
+      productId: lastProduct?.productId,
+      ageMs: nowMs - lastProductCreatedAtRaw,
+    });
+  }
   let priceTransferRaw = firstPositivePrice(
     flow.priceTransfer,
     (flow as any)?.pricing?.transfer,
@@ -1264,6 +1289,9 @@ export async function createJobAndProduct(
         ...(warningsPayload ? { warnings: warningsPayload } : {}),
         ...(warningMessagesPayload ? { warningMessages: warningMessagesPayload } : {}),
         ...(currentProductFingerprint ? { fingerprint: currentProductFingerprint } : {}),
+        createdAt: nowMs,
+        createdAtMs: nowMs,
+        timestamp: nowMs,
       },
     });
     throw new Error('missing_variant');
@@ -1304,6 +1332,16 @@ export async function createJobAndProduct(
       ? { warningMessages: collectedWarningMessages }
       : {}),
   };
+
+  if (!result.checkoutUrl && variantId && mode === 'checkout') {
+    const fallbackCheckoutUrl = buildCartPermalink(variantId, 1, {
+      discountCode: normalizedDiscountCode || undefined,
+      returnTo: '/checkout',
+    });
+    if (fallbackCheckoutUrl) {
+      result.checkoutUrl = fallbackCheckoutUrl;
+    }
+  }
 
   const publishJsonForResult = publish && typeof publish === 'object' ? (publish as Record<string, unknown>) : null;
   if (publishJsonForResult) {
@@ -1524,80 +1562,34 @@ export async function createJobAndProduct(
           mode,
           ...(normalizedDiscountCode ? { discount: normalizedDiscountCode } : {}),
         };
-        const ckResp = await apiFetch('/api/create-checkout', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(checkoutPayload),
-        });
-        const ck = await ckResp.json().catch(() => null);
-        (result as Record<string, unknown>).publicCheckoutResponse = ck && typeof ck === 'object' ? ck : null;
-        (result as Record<string, unknown>).publicCheckoutStatus = typeof ckResp.status === 'number' ? ckResp.status : null;
-        if (SHOULD_LOG_COMMERCE) {
+        void (async () => {
           try {
-            diag('[commerce]', {
-              tag: 'public-checkout-response',
-              status: typeof ckResp.status === 'number' ? ckResp.status : null,
-              keys: ck && typeof ck === 'object' ? Object.keys(ck) : [],
-              checkoutUrl:
-                (typeof ck?.checkoutUrl === 'string' && ck.checkoutUrl.trim())
-                  ? ck.checkoutUrl.trim()
-                  : typeof ck?.url === 'string' && ck.url.trim()
-                    ? ck.url.trim()
-                    : null,
-              diagId: typeof ck?.diagId === 'string' && ck.diagId ? ck.diagId : null,
-              mode: typeof ck?.mode === 'string' ? ck.mode : null,
-              error: typeof ck?.error === 'string' ? ck.error : null,
+            const ckResp = await apiFetch('/api/create-checkout', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(checkoutPayload),
             });
-          } catch (logErr) {
-            warn('[createJobAndProduct] public_checkout_log_failed', logErr);
+            const ck = await ckResp.json().catch(() => null);
+            (result as Record<string, unknown>).publicCheckoutResponse = ck && typeof ck === 'object' ? ck : null;
+            (result as Record<string, unknown>).publicCheckoutStatus = typeof ckResp.status === 'number' ? ckResp.status : null;
+            const checkoutUrlFromResponse =
+              typeof ck?.checkoutUrl === 'string' && ck.checkoutUrl.trim()
+                ? ck.checkoutUrl.trim()
+                : typeof ck?.url === 'string' && ck.url.trim()
+                  ? ck.url.trim()
+                  : '';
+            if (ckResp.ok && ck?.ok !== false && checkoutUrlFromResponse) {
+              result.checkoutUrl = checkoutUrlFromResponse;
+            } else {
+              warn('[createJobAndProduct] checkout_link_failed_fallback_to_cart_permalink', {
+                reason: typeof ck?.error === 'string' && ck.error ? ck.error : 'checkout_link_failed',
+                status: typeof ckResp.status === 'number' ? ckResp.status : null,
+              });
+            }
+          } catch (checkoutErr) {
+            warn('[createJobAndProduct] async_checkout_request_failed', checkoutErr);
           }
-        }
-        const checkoutUrlFromResponse =
-          typeof ck?.checkoutUrl === 'string' && ck.checkoutUrl.trim()
-            ? ck.checkoutUrl.trim()
-            : typeof ck?.url === 'string' && ck.url.trim()
-              ? ck.url.trim()
-              : '';
-        const okFromResponse = ckResp.ok && ck?.ok !== false && Boolean(checkoutUrlFromResponse);
-        if (!okFromResponse) {
-          const reason = typeof ck?.error === 'string' && ck.error ? ck.error : 'checkout_link_failed';
-          const err: Error & {
-            reason?: string;
-            friendlyMessage?: string;
-            missing?: string[];
-            detail?: unknown;
-            status?: number;
-            userErrors?: unknown;
-          } = new Error(reason);
-          err.reason = reason;
-          if (Array.isArray(ck?.missing) && ck.missing.length) {
-            err.missing = ck.missing;
-          }
-          if (ck?.detail) {
-            err.detail = ck.detail;
-          }
-          if (Array.isArray(ck?.userErrors) && ck.userErrors.length) {
-            err.userErrors = ck.userErrors;
-          }
-          const message = typeof ck?.message === 'string' ? ck.message.trim() : '';
-          if (message) {
-            err.friendlyMessage = message;
-          }
-          if (typeof ckResp.status === 'number') {
-            err.status = ckResp.status;
-          }
-          throw err;
-        }
-        result.checkoutUrl = checkoutUrlFromResponse;
-        const checkoutIdFromResponse =
-          typeof ck?.checkoutId === 'string' && ck.checkoutId.trim()
-            ? ck.checkoutId.trim()
-            : typeof ck?.checkout_id === 'string' && ck.checkout_id.trim()
-              ? ck.checkout_id.trim()
-              : '';
-        if (checkoutIdFromResponse) {
-          (result as Record<string, unknown>).checkoutId = checkoutIdFromResponse;
-        }
+        })();
       }
     }
     if (SHOULD_LOG_COMMERCE) {
@@ -1637,6 +1629,9 @@ export async function createJobAndProduct(
             ? { warningMessages: collectedWarningMessages }
             : {}),
           ...(currentProductFingerprint ? { fingerprint: currentProductFingerprint } : {}),
+          createdAt: nowMs,
+          createdAtMs: nowMs,
+          timestamp: nowMs,
         },
       });
     }
