@@ -17,6 +17,8 @@ const DEFAULT_ROOT = '';
 type PrintRow = {
   id?: string | number;
   title?: string | null;
+  file_name?: string | null;
+  file_path?: string | null;
   slug?: string | null;
   thumb_url?: string | null;
   thumbUrl?: string | null;
@@ -243,7 +245,7 @@ function mapRowToItem(row: PrintRow): SearchResultItem {
     null;
   return {
     id: (row.id as string | number | null) ?? null,
-    title: row.title ?? null,
+    title: row.file_name ?? row.title ?? null,
     slug: row.slug ?? null,
     thumbUrl: thumb,
     tags: row.tags ?? null,
@@ -266,8 +268,8 @@ async function searchPrints(
   try {
     const { data, error, count } = await client
       .from(PRINTS_TABLE)
-      .select('id, title, slug, thumb_url, price, popularity, created_at, tags, preview_url, mockup_public_url', { count: 'exact' })
-      .or(`title.ilike.${pattern},tags.ilike.${pattern},slug.ilike.${pattern}`)
+      .select('id, file_name, file_path, slug, thumb_url, price, popularity, created_at, tags, preview_url, mockup_public_url', { count: 'exact' })
+      .or(`file_name.ilike.${pattern},slug.ilike.${pattern},file_path.ilike.${pattern}`)
       .order('popularity', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false, nullsFirst: false })
       .range(offset, offset + limit - 1)
