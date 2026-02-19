@@ -97,7 +97,7 @@ function PreviewThumbnail({ src }) {
   }, [src, status]);
 
   const showLoading = Boolean(src) && status === 'loading';
-  const showFallback = status === 'fallback';
+  const showFallback = ['fallback', 'failed', 'error'].includes(status);
 
   return (
     <>
