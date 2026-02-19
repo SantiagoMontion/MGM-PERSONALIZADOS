@@ -2,6 +2,12 @@ import shopifyWebhook from '../lib/handlers/shopifyWebhook.js';
 import { createApiHandler } from '../api/_lib/createHandler.js';
 import { resolveEnvRequirements } from '../api/_lib/envChecks.js';
 
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
+
 export default createApiHandler({
   methods: 'POST',
   rateLimitKey: 'shopify-webhook',
