@@ -10,6 +10,7 @@ const PERSIST_KEYS = [
   'mockupUrl',
   'mockupPublicUrl',
   'mockupHash',
+  'lastProduct',
 ];
 
 const asStr = (value: unknown, fallback = ''): string =>
@@ -227,6 +228,7 @@ export function FlowProvider({ children }: { children: ReactNode }) {
     state.mockupUrl,
     state.mockupPublicUrl,
     state.mockupHash,
+    state.lastProduct,
   ]);
 
   return <FlowContext.Provider value={value}>{children}</FlowContext.Provider>;

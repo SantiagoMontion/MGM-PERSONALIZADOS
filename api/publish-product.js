@@ -622,8 +622,19 @@ export default async function handler(req, res) {
     : Number.isFinite(priceNormal)
       ? priceNormal
       : 0;
+  const normalizedPriceValue = Number(priceValue);
+  if (!Number.isFinite(normalizedPriceValue) || normalizedPriceValue <= 0) {
+    sendJsonWithCors(req, res, 400, {
+      ok: false,
+      error: 'precio_invalido',
+      reason: 'precio_invalido',
+      message: 'El precio debe ser mayor a 0 para publicar en Shopify.',
+      diagId,
+    });
+    return;
+  }
   const currencyValue = String(parsedBody.currency || process.env.SHOPIFY_CART_PRESENTMENT_CURRENCY || 'USD');
-  parsedBody.price = priceValue;
+  parsedBody.price = normalizedPriceValue;
   parsedBody.currency = currencyValue;
   const modeFromBody = typeof parsedBody.mode === 'string' ? parsedBody.mode.trim().toLowerCase() : '';
   const isPrivate = parsedBody.private === true
