@@ -88,14 +88,22 @@ function PreviewThumbnail({ src }) {
     setStatus(src ? 'loading' : 'fallback');
   }, [src]);
 
+  useEffect(() => {
+    if (!src || status !== 'loading') return undefined;
+    const timeoutId = window.setTimeout(() => {
+      setStatus((current) => (current === 'loading' ? 'error' : current));
+    }, 8000);
+    return () => window.clearTimeout(timeoutId);
+  }, [src, status]);
+
   const showLoading = Boolean(src) && status === 'loading';
   const showFallback = status === 'error' || status === 'fallback';
 
   return (
     <>
       {showLoading ? <span className={styles.previewPlaceholder}>Cargando…</span> : null}
-      {showFallback ? <div className={styles.previewPlaceholder}>Sin miniatura</div> : null}
-      {!showFallback ? (
+      {showFallback ? <div className={styles.previewPlaceholder}>Sin vista previa</div> : null}
+      {src && !showFallback ? (
         <img
           src={src}
           alt="Miniatura MGMGAMERS"
@@ -103,7 +111,7 @@ function PreviewThumbnail({ src }) {
           loading="lazy"
           referrerPolicy="no-referrer"
           onLoad={() => {
-            if (status === 'loading') setStatus('loaded');
+            setStatus('loaded');
           }}
           onError={() => {
             setStatus('error');
