@@ -6,10 +6,6 @@ export default createApiHandler({
   methods: 'POST',
   rateLimitKey: 'shopify-webhook',
   context: 'shopify-webhook',
-  requiredEnv: resolveEnvRequirements(
-    'SHOPIFY_ADMIN',
-    'SUPABASE_SERVICE',
-    'SHOPIFY_WEBHOOK_SECRET',
-  ),
+  requiredEnv: resolveEnvRequirements('SHOPIFY_WEBHOOK_SECRET'),
   handler: shopifyWebhook,
 });
