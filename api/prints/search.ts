@@ -108,6 +108,17 @@ type SearchTerms = {
   tokens: string[];
 };
 
+const ALLOWED_SORT_COLUMNS = new Set(['created_at', 'file_name']);
+
+function parseSortColumn(value: unknown): 'created_at' | 'file_name' {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (typeof raw !== 'string') return 'created_at';
+  const normalized = raw.trim().toLowerCase();
+  return ALLOWED_SORT_COLUMNS.has(normalized)
+    ? (normalized as 'created_at' | 'file_name')
+    : 'created_at';
+}
+
 function normalizeForSearch(str: string): string {
   if (typeof str !== 'string') {
     return '';
@@ -258,6 +269,7 @@ async function searchPrints(
   query: string,
   limit: number,
   offset: number,
+  sortBy: 'created_at' | 'file_name',
 ): Promise<{ items: SearchResultItem[]; total: number }> {
   const pattern = `%${escapeForIlike(query)}%`;
   const controller = new AbortController();
@@ -265,9 +277,9 @@ async function searchPrints(
   try {
     const { data, error, count } = await client
       .from(PRINTS_TABLE)
-      .select('id, file_name, file_path, slug, preview_url, popularity, created_at, tags, mockup_public_url', { count: 'exact' })
+      .select('id, file_name, file_path, slug, preview_url, created_at, tags, mockup_public_url', { count: 'exact' })
       .or(`file_name.ilike.${pattern},slug.ilike.${pattern},file_path.ilike.${pattern}`)
-      .order('created_at', { ascending: false, nullsFirst: false })
+      .order(sortBy, { ascending: false, nullsFirst: false })
       .range(offset, offset + limit - 1)
       .abortSignal(controller.signal);
 
@@ -922,6 +934,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const limit = parseLimit(req.query?.limit);
   const offset = parseOffset(req.query?.offset);
+  const sortBy = parseSortColumn(req.query?.sortBy ?? req.query?.sort ?? req.query?.orderBy);
   const debug = parseDebug(req.query?.debug);
   const searchTerms = buildSearchTerms(rawQuery);
 
@@ -945,7 +958,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (client) {
     try {
-      const { items, total } = await searchPrints(client, rawQuery, limit, offset);
+      const { items, total } = await searchPrints(client, rawQuery, limit, offset, sortBy);
       if (total > 0) {
         sendJsonResponse(req, res, 200, {
           ok: true,
@@ -955,6 +968,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           offset,
           diagId,
           mode: 'db',
+          sortBy,
         });
         return;
       }
@@ -1016,6 +1030,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     offset,
     diagId,
     mode: 'storage',
+    sortBy,
   };
 
   if (debug) {
