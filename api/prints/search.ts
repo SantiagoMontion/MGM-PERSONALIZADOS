@@ -31,6 +31,7 @@ type PrintRow = {
   mockupPublicUrl?: string | null;
   mockup_public_url?: string | null;
   material?: string | null;
+  file_size_bytes?: number | null;
   options?: Record<string, unknown> | null;
   designName?: string | null;
   design_name?: string | null;
@@ -53,10 +54,14 @@ type SearchResultItem = {
   title: string | null;
   slug: string | null;
   thumbUrl: string | null;
-  tags: string[] | string | null;
+  tags: string[];
   popularity: number | null;
   createdAt: string | null;
   previewUrl: string | null;
+  widthCm: number | null;
+  heightCm: number | null;
+  material: string | null;
+  sizeBytes: number | null;
 };
 
 type StorageListError = { prefix: string; message: string };
@@ -257,10 +262,14 @@ function mapRowToItem(row: PrintRow): SearchResultItem {
     title: row.file_name ?? row.title ?? null,
     slug: row.slug ?? null,
     thumbUrl: thumb,
-    tags: row.tags ?? null,
+    tags: [],
     popularity: typeof row.popularity === 'number' ? row.popularity : null,
     createdAt: created,
     previewUrl: preview,
+    widthCm: row.width_cm || null,
+    heightCm: row.height_cm || null,
+    material: row.material || null,
+    sizeBytes: row.file_size_bytes || null,
   };
 }
 
@@ -277,7 +286,7 @@ async function searchPrints(
   try {
     const { data, error, count } = await client
       .from(PRINTS_TABLE)
-      .select('id, file_name, file_path, slug, preview_url, created_at, tags, mockup_public_url', { count: 'exact' })
+      .select('id, created_at, file_name, file_path, slug, preview_url, width_cm, height_cm, material, file_size_bytes', { count: 'estimated' })
       .or(`file_name.ilike.${pattern},slug.ilike.${pattern},file_path.ilike.${pattern}`)
       .order(sortBy, { ascending: false, nullsFirst: false })
       .range(offset, offset + limit - 1)
