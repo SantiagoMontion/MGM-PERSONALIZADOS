@@ -174,8 +174,9 @@ export default function Busqueda() {
       const trimmed = candidate.trim();
       if (!trimmed) continue;
       if (/^https?:\/\//i.test(trimmed)) return trimmed;
-      if (trimmed.startsWith('/api/')) return trimmed;
-      if (/^api\//i.test(trimmed)) return `/${trimmed.replace(/^\/+/, '')}`;
+      if (trimmed.startsWith('/api/prints/preview') || /^api\/prints\/preview/i.test(trimmed)) {
+        continue;
+      }
       if (/^\/storage\/v1\/object\//i.test(trimmed) && SUPA_URL) {
         return `${SUPA_URL}${trimmed}`;
       }
