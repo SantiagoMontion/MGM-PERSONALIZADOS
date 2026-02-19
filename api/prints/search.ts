@@ -52,12 +52,14 @@ type PrintRow = {
 type SearchResultItem = {
   id: string | number | null;
   title: string | null;
+  fileName: string | null;
   slug: string | null;
   thumbUrl: string | null;
   tags: string[];
   popularity: number | null;
   createdAt: string | null;
   previewUrl: string | null;
+  downloadUrl: string | null;
   widthCm: number | null;
   heightCm: number | null;
   material: string | null;
@@ -247,7 +249,7 @@ function isAbortError(error: unknown): boolean {
   return false;
 }
 
-function mapRowToItem(row: PrintRow): SearchResultItem {
+async function mapRowToItem(storage: SupabaseStorageClient, row: PrintRow): Promise<SearchResultItem> {
   const thumb = row.thumbUrl ?? row.thumb_url ?? null;
   const created = row.createdAt ?? row.created_at ?? null;
   const preview =
@@ -257,15 +259,18 @@ function mapRowToItem(row: PrintRow): SearchResultItem {
     row.mockup_public_url ??
     publicUrlForMockup(row) ??
     null;
+  const downloadUrl = row.file_path ? await resolveStorageUrl(storage, row.file_path) : null;
   return {
     id: (row.id as string | number | null) ?? null,
     title: row.file_name ?? row.title ?? null,
+    fileName: row.file_name ?? null,
     slug: row.slug ?? null,
     thumbUrl: thumb,
     tags: [],
     popularity: typeof row.popularity === 'number' ? row.popularity : null,
     createdAt: created,
     previewUrl: preview,
+    downloadUrl,
     widthCm: row.width_cm || null,
     heightCm: row.height_cm || null,
     material: row.material || null,
@@ -300,7 +305,8 @@ async function searchPrints(
     }
 
     const rows = Array.isArray(data) ? data : [];
-    const items = rows.map(mapRowToItem);
+    const storage = client.storage.from(process.env.SEARCH_STORAGE_BUCKET || DEFAULT_BUCKET);
+    const items = await Promise.all(rows.map((row) => mapRowToItem(storage, row as PrintRow)));
     const total = typeof count === 'number' && Number.isFinite(count) ? count : items.length;
     return { items, total };
   } finally {
