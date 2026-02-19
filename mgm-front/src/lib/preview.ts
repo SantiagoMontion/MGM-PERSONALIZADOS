@@ -8,9 +8,37 @@ export function buildMockupBaseName({ designName, widthCm, heightCm, material }:
 
 export function pdfKeyToPreviewKey(pdfKey: string) {
   // outputs/pdf-YYYY-MM/<base>.pdf  ->  preview/mockups-YYYY-MM/<base>.png
-  const m = pdfKey.match(/^outputs\/pdf-(\d{4}-\d{2})\/(.+)\.pdf$/i);
-  if (!m) return null;
-  return `preview/mockups-${m[1]}/${m[2]}.png`;
+  const normalized = pdfKey
+    .trim()
+    .replace(/^https?:\/\/[^/]+\//i, '')
+    .replace(/^storage\/v1\/object\/public\//i, '')
+    .replace(/^\/+/, '');
+
+  let monthFolder: string | null = null;
+  let rawFilename: string | null = null;
+
+  let m = normalized.match(/^(?:outputs\/)?pdf-(\d{4}-\d{2})\/(.+)\.pdf(?:$|[?#])/i);
+  if (m) {
+    monthFolder = m[1];
+    rawFilename = m[2];
+  }
+
+  if (!monthFolder || !rawFilename) {
+    m = normalized.match(/^(?:outputs\/)?pdf\/(\d{4})\/(\d{2})\/(.+)\.pdf(?:$|[?#])/i);
+    if (m) {
+      monthFolder = `${m[1]}-${m[2]}`;
+      rawFilename = m[3];
+    }
+  }
+
+  if (!monthFolder || !rawFilename) return null;
+
+  const deduped = rawFilename
+    .replace(/-(\d{1,3}x\d{1,3})-([^-/]+)-\1-\2$/i, '-$1-$2')
+    .replace(/-(\d{1,3}x\d{1,3})-([^-/]+)-\1-/i, '-$1-$2-')
+    .replace(/-{2,}/g, '-');
+
+  return `preview/mockups-${monthFolder}/${deduped}.png`;
 }
 
 export function normalizePreviewUrl(urlOrKey: string, supaUrl: string) {

@@ -268,7 +268,7 @@ async function searchPrints(
   try {
     const { data, error, count } = await client
       .from(PRINTS_TABLE)
-      .select('id, file_name, file_path, slug, thumb_url, price, popularity, created_at, tags, preview_url, mockup_public_url', { count: 'exact' })
+      .select('id, file_name, file_path, slug, preview_url, price, popularity, created_at, tags, mockup_public_url', { count: 'exact' })
       .or(`file_name.ilike.${pattern},slug.ilike.${pattern},file_path.ilike.${pattern}`)
       .order('popularity', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false, nullsFirst: false })
