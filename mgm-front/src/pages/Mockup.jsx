@@ -1282,6 +1282,7 @@ export default function Mockup() {
   const modalRef = useRef(null);
   const firstActionButtonRef = useRef(null);
   const isPublishingRef = useRef(false);
+  const createJobPromiseRef = useRef(null);
   const wasModalOpenedRef = useRef(false);
   const successToastTimeoutRef = useRef(null);
 
@@ -4221,6 +4222,12 @@ export default function Mockup() {
 
   // ---- Compra directa: evitar wrappers que cortan en silencio ----
   async function buyDirect(mode, overridesOverride, options = {}) {
+    if (createJobPromiseRef.current) {
+      diag('[buy] direct:dedup_reused', { mode });
+      return createJobPromiseRef.current;
+    }
+
+    const requestPromise = (async () => {
     const normalizedOptions = options && typeof options === 'object' ? options : {};
     const skipEnsure = Boolean(normalizedOptions.skipEnsure);
     const autoOpen = normalizedOptions.autoOpen !== false;
@@ -4313,6 +4320,16 @@ export default function Mockup() {
       error('[buy] direct:error', mode, err);
       setToast((prev) => (prev ? prev : { message: 'No se pudo crear el producto.' }));
       throw err;
+    }
+    })();
+
+    createJobPromiseRef.current = requestPromise;
+    try {
+      return await requestPromise;
+    } finally {
+      if (createJobPromiseRef.current === requestPromise) {
+        createJobPromiseRef.current = null;
+      }
     }
   }
 
@@ -4607,9 +4624,10 @@ export default function Mockup() {
         </section>
         <button
           type="button"
-          disabled={busy}
+          disabled={busy || buyBtnBusy || privateBusy || purchaseLocked || isPublishing}
           className={styles.hiddenButton}
           onClick={() => {
+            if (busy || buyBtnBusy || privateBusy || purchaseLocked || isPublishingRef.current) return;
             debugTrackFire('cta_click_private', rid);
             trackEvent('cta_click_private', {
               rid,
