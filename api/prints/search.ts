@@ -23,7 +23,6 @@ type PrintRow = {
   thumb_url?: string | null;
   thumbUrl?: string | null;
   tags?: string | string[] | null;
-  price?: number | string | null;
   popularity?: number | null;
   created_at?: string | null;
   createdAt?: string | null;
@@ -55,7 +54,6 @@ type SearchResultItem = {
   slug: string | null;
   thumbUrl: string | null;
   tags: string[] | string | null;
-  price: number | string | null;
   popularity: number | null;
   createdAt: string | null;
   previewUrl: string | null;
@@ -249,7 +247,6 @@ function mapRowToItem(row: PrintRow): SearchResultItem {
     slug: row.slug ?? null,
     thumbUrl: thumb,
     tags: row.tags ?? null,
-    price: row.price ?? null,
     popularity: typeof row.popularity === 'number' ? row.popularity : null,
     createdAt: created,
     previewUrl: preview,
@@ -268,9 +265,8 @@ async function searchPrints(
   try {
     const { data, error, count } = await client
       .from(PRINTS_TABLE)
-      .select('id, file_name, file_path, slug, preview_url, price, popularity, created_at, tags, mockup_public_url', { count: 'exact' })
+      .select('id, file_name, file_path, slug, preview_url, popularity, created_at, tags, mockup_public_url', { count: 'exact' })
       .or(`file_name.ilike.${pattern},slug.ilike.${pattern},file_path.ilike.${pattern}`)
-      .order('popularity', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false, nullsFirst: false })
       .range(offset, offset + limit - 1)
       .abortSignal(controller.signal);
