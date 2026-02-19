@@ -276,6 +276,8 @@ export default function Busqueda() {
         limit: String(PAGE_LIMIT),
         offset: String(Math.max(0, nextOffset)),
       });
+      params.delete('sort');
+      params.delete('sortBy');
       const endpoint = `/api/prints/search?${params.toString()}`;
       const headers = { Accept: 'application/json' };
       if (gateToken) {
