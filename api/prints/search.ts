@@ -31,6 +31,7 @@ type PrintRow = {
   mockupPublicUrl?: string | null;
   mockup_public_url?: string | null;
   material?: string | null;
+  file_size_bytes?: number | null;
   options?: Record<string, unknown> | null;
   designName?: string | null;
   design_name?: string | null;
@@ -51,12 +52,18 @@ type PrintRow = {
 type SearchResultItem = {
   id: string | number | null;
   title: string | null;
+  fileName: string | null;
   slug: string | null;
   thumbUrl: string | null;
-  tags: string[] | string | null;
+  tags: string[];
   popularity: number | null;
   createdAt: string | null;
   previewUrl: string | null;
+  downloadUrl: string | null;
+  widthCm: number | null;
+  heightCm: number | null;
+  material: string | null;
+  sizeBytes: number | null;
 };
 
 type StorageListError = { prefix: string; message: string };
@@ -242,7 +249,7 @@ function isAbortError(error: unknown): boolean {
   return false;
 }
 
-function mapRowToItem(row: PrintRow): SearchResultItem {
+async function mapRowToItem(storage: SupabaseStorageClient, row: PrintRow): Promise<SearchResultItem> {
   const thumb = row.thumbUrl ?? row.thumb_url ?? null;
   const created = row.createdAt ?? row.created_at ?? null;
   const preview =
@@ -252,15 +259,22 @@ function mapRowToItem(row: PrintRow): SearchResultItem {
     row.mockup_public_url ??
     publicUrlForMockup(row) ??
     null;
+  const downloadUrl = row.file_path ? await resolveStorageUrl(storage, row.file_path) : null;
   return {
     id: (row.id as string | number | null) ?? null,
     title: row.file_name ?? row.title ?? null,
+    fileName: row.file_name ?? null,
     slug: row.slug ?? null,
     thumbUrl: thumb,
-    tags: row.tags ?? null,
+    tags: [],
     popularity: typeof row.popularity === 'number' ? row.popularity : null,
     createdAt: created,
     previewUrl: preview,
+    downloadUrl,
+    widthCm: row.width_cm || null,
+    heightCm: row.height_cm || null,
+    material: row.material || null,
+    sizeBytes: row.file_size_bytes || null,
   };
 }
 
@@ -277,7 +291,7 @@ async function searchPrints(
   try {
     const { data, error, count } = await client
       .from(PRINTS_TABLE)
-      .select('id, file_name, file_path, slug, preview_url, created_at, tags, mockup_public_url', { count: 'exact' })
+      .select('id, created_at, file_name, file_path, slug, preview_url, width_cm, height_cm, material, file_size_bytes', { count: 'estimated' })
       .or(`file_name.ilike.${pattern},slug.ilike.${pattern},file_path.ilike.${pattern}`)
       .order(sortBy, { ascending: false, nullsFirst: false })
       .range(offset, offset + limit - 1)
@@ -291,7 +305,8 @@ async function searchPrints(
     }
 
     const rows = Array.isArray(data) ? data : [];
-    const items = rows.map(mapRowToItem);
+    const storage = client.storage.from(process.env.SEARCH_STORAGE_BUCKET || DEFAULT_BUCKET);
+    const items = await Promise.all(rows.map((row) => mapRowToItem(storage, row as PrintRow)));
     const total = typeof count === 'number' && Number.isFinite(count) ? count : items.length;
     return { items, total };
   } finally {
