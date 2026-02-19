@@ -10,6 +10,7 @@ const PERSIST_KEYS = [
   'mockupUrl',
   'mockupPublicUrl',
   'mockupHash',
+  'lastProduct',
   'priceTransfer',
   'priceNormal',
   'priceCurrency',
@@ -198,6 +199,7 @@ export function FlowProvider({ children }) {
     state.priceTransfer,
     state.priceNormal,
     state.priceCurrency,
+    state.lastProduct,
   ]);
 
   const value = {
