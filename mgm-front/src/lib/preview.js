@@ -4,9 +4,34 @@ export function buildMockupBaseName({ designName, widthCm, heightCm, material })
 }
 
 export function pdfKeyToPreviewKey(pdfKey) {
-  const m = pdfKey.match(/^outputs\/pdf-(\d{4}-\d{2})\/(.+)\.pdf$/i);
-  if (!m) return null;
-  return `preview/mockups-${m[1]}/${m[2]}.png`;
+  if (typeof pdfKey !== 'string') return null;
+  const normalized = pdfKey.trim().replace(/^https?:\/\/[^/]+\//i, '').replace(/^\/+/, '');
+  if (!normalized) return null;
+
+  let monthFolder = null;
+  let rawFilename = null;
+
+  let m = normalized.match(/^outputs\/pdf-(\d{4}-\d{2})\/(.+)\.pdf(?:$|[?#])/i);
+  if (m) {
+    monthFolder = m[1];
+    rawFilename = m[2];
+  }
+
+  if (!monthFolder || !rawFilename) {
+    m = normalized.match(/^outputs\/pdf\/(\d{4})\/(\d{2})\/(.+)\.pdf(?:$|[?#])/i);
+    if (m) {
+      monthFolder = `${m[1]}-${m[2]}`;
+      rawFilename = m[3];
+    }
+  }
+
+  if (!monthFolder || !rawFilename) return null;
+
+  const dedupedFilename = rawFilename
+    .replace(/-(\d{1,3}x\d{1,3})-([^-/]+)-\1-/i, '-$1-$2-')
+    .replace(/-{2,}/g, '-');
+
+  return `preview/mockups-${monthFolder}/${dedupedFilename}.png`;
 }
 
 export function normalizePreviewUrl(urlOrKey, supaUrl) {
