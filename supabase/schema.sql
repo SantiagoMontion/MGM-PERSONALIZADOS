@@ -71,6 +71,7 @@ create table if not exists public.prints (
   bucket text not null default 'outputs',
   file_path text not null,
   file_name text not null,
+  preview_url text,
   slug text,
   width_cm numeric,
   height_cm numeric,
@@ -93,6 +94,9 @@ create index if not exists idx_prints_slug_trgm
 
 create index if not exists idx_prints_filename_trgm
   on public.prints using gin (file_name gin_trgm_ops);
+
+create index if not exists idx_prints_filepath_trgm
+  on public.prints using gin (file_path gin_trgm_ops);
 
 create or replace function public.set_prints_updated_at()
 returns trigger as $$
