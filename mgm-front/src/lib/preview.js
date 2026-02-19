@@ -48,7 +48,7 @@ export function normalizePreviewUrl(urlOrKey, supaUrl) {
 
   let key = urlOrKey
     .replace(/^https?:\/\/[^/]+\/storage\/v1\/object\/public\//, '')
-    .replace(/^outputs\/mockups-/i, `${bucket}/mockups-`)
+    .replace(/^outputs\//i, `${bucket}/`)
     .replace(/^preview\//i, '')
     .replace(/^mockups\//i, '')
     .replace(new RegExp(`^${bucket}/`, 'i'), '');

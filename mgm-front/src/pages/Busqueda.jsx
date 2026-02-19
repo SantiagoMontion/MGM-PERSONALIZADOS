@@ -97,13 +97,13 @@ function PreviewThumbnail({ src }) {
   }, [src, status]);
 
   const showLoading = Boolean(src) && status === 'loading';
-  const showFallback = status === 'error' || status === 'fallback';
+  const showFallback = status === 'fallback';
 
   return (
     <>
       {showLoading ? <span className={styles.previewPlaceholder}>Cargando…</span> : null}
       {showFallback ? <div className={styles.previewPlaceholder}>Sin vista previa</div> : null}
-      {src && !showFallback ? (
+      {src && !showFallback && status !== 'failed' ? (
         <img
           src={src}
           alt="Miniatura MGMGAMERS"
@@ -114,7 +114,7 @@ function PreviewThumbnail({ src }) {
             setStatus('loaded');
           }}
           onError={() => {
-            setStatus('error');
+            setStatus('failed');
           }}
           style={showLoading ? { display: 'none' } : undefined}
         />
@@ -202,7 +202,9 @@ export default function Busqueda() {
       if (!trimmed) continue;
       const prefixed = trimmed.startsWith('preview/')
         ? trimmed
-        : `preview/${trimmed.replace(/^\/+/, '')}`;
+        : trimmed.startsWith('outputs/')
+          ? `preview/${trimmed.replace(/^outputs\//i, '')}`
+          : `preview/${trimmed.replace(/^\/+/, '')}`;
       const normalized = normalizePreviewUrl(trimmed, SUPA_URL)
         || normalizePreviewUrl(prefixed, SUPA_URL);
       if (normalized && !looksLikePdfUrl(normalized)) return normalized;
