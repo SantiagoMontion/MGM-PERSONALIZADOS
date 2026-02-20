@@ -14,18 +14,7 @@ function sanitizeShopifyImageUrl(rawUrl) {
   const trimmed = rawUrl.trim();
   if (!trimmed) return '';
 
-  let decoded = trimmed;
-  for (let i = 0; i < 3; i += 1) {
-    try {
-      const next = decodeURIComponent(decoded);
-      if (next === decoded) break;
-      decoded = next;
-    } catch {
-      break;
-    }
-  }
-
-  const noQuery = decoded.split('?')[0].trim();
+  const noQuery = trimmed.split('?')[0].trim();
   if (!noQuery) return '';
 
   try {
@@ -714,7 +703,8 @@ export default async function handler(req, res) {
     const images = [];
     const dataUrl = typeof parsedBody.mockupDataUrl === 'string' ? parsedBody.mockupDataUrl.trim() : '';
     const fallbackName = designName || 'Mockup';
-    const filename = `${fallbackName}.png`;
+    const fallbackFilenameBase = fallbackName.replace(/\s+/g, '-');
+    const filename = `${fallbackFilenameBase}.png`;
     if (dataUrl.startsWith('data:image')) {
       const base64 = (dataUrl.split(',')[1] || '').trim();
       if (base64) {

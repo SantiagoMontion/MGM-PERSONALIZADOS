@@ -4182,7 +4182,7 @@ export default function Mockup() {
       await ensureMockupUrlInFlow(flow);
       const overrides = { ...buildOverridesFromUi('cart'), private: false };
       const result = await buyDirect('cart', overrides, { autoOpen: false });
-      const outcome = finalizePurchase(result, flow, bridgeRid, 'No se pudo abrir el producto. Intenta de nuevo.');
+      const outcome = finalizePurchase(result, flow, bridgeRid, 'No se pudo abrir el producto. Intenta de nuevo.', 'cart');
       return outcome;
     } catch (err) {
       warn('[cart] error', err);
@@ -4205,14 +4205,31 @@ export default function Mockup() {
     return null;
   }
 
-  function finalizePurchase(result, flowRef, bridgeRid, fallbackMessage = 'No se pudo abrir el producto. Intenta de nuevo.') {
+  function resolveOpenUrl(mode, out) {
+    if (mode === 'cart') {
+      const productUrlFromMeta =
+        typeof out?.meta?.productUrl === 'string' && out.meta.productUrl.trim()
+          ? out.meta.productUrl.trim()
+          : '';
+      if (productUrlFromMeta) return productUrlFromMeta;
+
+      const productUrlDirect =
+        typeof out?.productUrl === 'string' && out.productUrl.trim()
+          ? out.productUrl.trim()
+          : '';
+      if (productUrlDirect) return productUrlDirect;
+    }
+    return pickOpenUrl(out);
+  }
+
+  function finalizePurchase(result, flowRef, bridgeRid, fallbackMessage = 'No se pudo abrir el producto. Intenta de nuevo.', mode = null) {
     if (!result) {
       if (bridgeRid) {
         publishBridgeError(bridgeRid, fallbackMessage);
       }
       return { ok: false };
     }
-    const targetUrl = pickOpenUrl(result);
+    const targetUrl = resolveOpenUrl(mode, result);
     if (isHttpUrl(targetUrl)) {
       if (bridgeRid) {
         publishBridgeUrl(bridgeRid, targetUrl);
@@ -4306,7 +4323,7 @@ export default function Mockup() {
         payloadOverrides: overrides,
         discountCode: discountCode || undefined,
       });
-      const openUrl = pickOpenUrl(result);
+      const openUrl = resolveOpenUrl(mode, result);
       if (openUrl && result && typeof result === 'object' && !result.url) {
         try {
           result.url = openUrl;
@@ -4381,7 +4398,7 @@ export default function Mockup() {
         visibility: 'public',
       };
       const result = await buyDirect('checkout', { ...overrides, private: false }, { autoOpen: false });
-      return finalizePurchase(result, flow, bridgeRid, 'No se pudo abrir el checkout. Intenta nuevamente.');
+      return finalizePurchase(result, flow, bridgeRid, 'No se pudo abrir el checkout. Intenta nuevamente.', 'checkout');
     } catch (err) {
       error('[checkout-public-flow]', err);
       const fallbackMessage = 'Ocurrió un error al procesar el checkout.';
@@ -4433,7 +4450,7 @@ export default function Mockup() {
         { ...overrides, private: true, mode: 'private', checkoutType: 'private' },
         { autoOpen: false },
       );
-      return finalizePurchase(result, flow, bridgeRid, 'No se pudo abrir el checkout privado. Proba de nuevo.');
+      return finalizePurchase(result, flow, bridgeRid, 'No se pudo abrir el checkout privado. Proba de nuevo.', 'checkout');
     } catch (err) {
       error('[checkout-private-flow]', err);
       const fallbackMessage = 'Ocurrió un error al procesar el checkout privado.';
