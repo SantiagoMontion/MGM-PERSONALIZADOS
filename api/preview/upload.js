@@ -38,7 +38,7 @@ export function stableMockupKey(meta = {}, pngBytes = Buffer.alloc(0)) {
   const materialSegment = slugifyName(sanitizeMaterial(meta?.material)) || sanitizeMaterial(meta?.material);
   const hash8 = createHash('sha1').update(pngBytes).digest('hex').slice(0, 8);
   return {
-    key: `mockups-${yyyy}-${mm}/${slug} ${widthSegment}x${heightSegment} ${materialSegment} ${hash8}.png`,
+    key: `mockups-${yyyy}-${mm}/${slug}-${widthSegment}x${heightSegment}-${materialSegment}-${hash8}.png`,
     hash8,
   };
 }
