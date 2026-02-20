@@ -224,6 +224,32 @@ function cmFromPx(px: unknown, dpi: unknown): number {
   return Math.max(1, Math.round((pxNum / dpiNum) * 2.54));
 }
 
+function normalizeUrlSingleEncode(rawUrl: unknown): string {
+  if (typeof rawUrl !== 'string') return '';
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return '';
+  const withoutQuery = trimmed.split('?')[0].trim();
+  if (!withoutQuery) return '';
+
+  let decoded = withoutQuery;
+  for (let i = 0; i < 3; i += 1) {
+    try {
+      const next = decodeURIComponent(decoded);
+      if (next === decoded) break;
+      decoded = next;
+    } catch {
+      break;
+    }
+  }
+
+  try {
+    const parsed = new URL(decoded);
+    return encodeURI(`${parsed.origin}${parsed.pathname}`);
+  } catch {
+    return encodeURI(decoded);
+  }
+}
+
 function matLabelOf(material: unknown): string | null {
   const raw = (material ?? '').toString().trim();
   if (!raw) return null;
@@ -753,6 +779,18 @@ export async function createJobAndProduct(
   const heightFromPx = pxToCm(masterHeightPx);
   widthCm = pickDimension(widthCm, widthFromFlow, widthFromMm, widthFromPx);
   heightCm = pickDimension(heightCm, heightFromFlow, heightFromMm, heightFromPx);
+  const earlyOverrides =
+    payloadOverrides && typeof payloadOverrides === 'object'
+      ? (payloadOverrides as Record<string, unknown>)
+      : null;
+  const widthOverride = Number(earlyOverrides?.widthCm);
+  if (Number.isFinite(widthOverride) && widthOverride > 0) {
+    widthCm = Math.round(widthOverride);
+  }
+  const heightOverride = Number(earlyOverrides?.heightCm);
+  if (Number.isFinite(heightOverride) && heightOverride > 0) {
+    heightCm = Math.round(heightOverride);
+  }
   const currentProductFingerprint = buildProductFingerprint(designHashRaw, widthCm, heightCm, materialFromFlow);
   const lastProductFingerprint = typeof lastProduct?.fingerprint === 'string'
     ? lastProduct.fingerprint.trim().toLowerCase()
@@ -952,7 +990,7 @@ export async function createJobAndProduct(
         mockupUrlForPayload = '';
         warn('[shopify] mockup_head_not_ready', { url: failedUrl });
       } else {
-        mockupUrlForPayload = mockupUrlPublic;
+        mockupUrlForPayload = normalizeUrlSingleEncode(mockupUrlPublic) || mockupUrlPublic;
       }
     } else if (supaUrl) {
       mockupUrlForPayload = '';
@@ -1067,13 +1105,15 @@ export async function createJobAndProduct(
       const mockupOverride = overrides.mockupUrl;
       if (typeof mockupOverride === 'string' && mockupOverride.trim()) {
         const trimmed = mockupOverride.trim();
-        payload.mockupUrl = normalizePreviewUrl(trimmed, SUPABASE_PUBLIC_URL) || trimmed;
+        const normalized = normalizePreviewUrl(trimmed, SUPABASE_PUBLIC_URL) || trimmed;
+        payload.mockupUrl = normalizeUrlSingleEncode(normalized) || normalized;
       }
       const mockupPublicOverride = overrides.mockupPublicUrl;
       if (typeof mockupPublicOverride === 'string' && mockupPublicOverride.trim()) {
         const trimmed = mockupPublicOverride.trim();
         const normalized = normalizePreviewUrl(trimmed, SUPABASE_PUBLIC_URL);
-        payload.mockupPublicUrl = normalized || trimmed;
+        const resolved = normalized || trimmed;
+        payload.mockupPublicUrl = normalizeUrlSingleEncode(resolved) || resolved;
       }
       const mockupHashOverride = overrides.mockupHash;
       if (typeof mockupHashOverride === 'string' && mockupHashOverride.trim()) {
