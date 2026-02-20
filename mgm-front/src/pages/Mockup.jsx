@@ -509,8 +509,26 @@ export async function ensureMockupUrlInFlow(flow, input) {
   const dpi = Number(state?.approxDpi ?? input?.dpi ?? 300);
   const basics = extractFlowBasics(state);
   const { productType, mat, widthCm, heightCm, designName } = basics;
-  const widthRounded = Number.isFinite(widthCm) && widthCm > 0 ? Math.round(widthCm) : undefined;
-  const heightRounded = Number.isFinite(heightCm) && heightCm > 0 ? Math.round(heightCm) : undefined;
+  const printDpi = Number(state?.printDpi ?? state?.approxDpi ?? input?.dpi ?? 300);
+  const pxToCmFromRaw = (px) => {
+    const pxValue = Number(px);
+    if (!Number.isFinite(pxValue) || pxValue <= 0 || !Number.isFinite(printDpi) || printDpi <= 0) return undefined;
+    return Math.round(pxValue / (printDpi / 2.54));
+  };
+  const rawWidthCm = Number(state?.widthCm ?? state?.editorState?.widthCm);
+  const rawHeightCm = Number(state?.heightCm ?? state?.editorState?.heightCm);
+  const fallbackWidthCm = Number.isFinite(rawWidthCm) && rawWidthCm > 0
+    ? rawWidthCm
+    : pxToCmFromRaw(state?.masterWidthPx ?? state?.editorState?.masterWidthPx);
+  const fallbackHeightCm = Number.isFinite(rawHeightCm) && rawHeightCm > 0
+    ? rawHeightCm
+    : pxToCmFromRaw(state?.masterHeightPx ?? state?.editorState?.masterHeightPx);
+  const widthRounded = Number.isFinite(widthCm) && widthCm > 0
+    ? Math.round(widthCm)
+    : (Number.isFinite(fallbackWidthCm) && fallbackWidthCm > 0 ? Math.round(fallbackWidthCm) : undefined);
+  const heightRounded = Number.isFinite(heightCm) && heightCm > 0
+    ? Math.round(heightCm)
+    : (Number.isFinite(fallbackHeightCm) && fallbackHeightCm > 0 ? Math.round(fallbackHeightCm) : undefined);
   const title = buildTitle({ productType, mat, widthCm: widthRounded, heightCm: heightRounded, designName });
   const composition = {
     widthPx: Number(state?.masterWidthPx ?? input?.widthPx ?? image.naturalWidth ?? image.width ?? 0),
