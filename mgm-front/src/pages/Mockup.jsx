@@ -509,9 +509,28 @@ export async function ensureMockupUrlInFlow(flow, input) {
   const dpi = Number(state?.approxDpi ?? input?.dpi ?? 300);
   const basics = extractFlowBasics(state);
   const { productType, mat, widthCm, heightCm, designName } = basics;
-  const widthRounded = Number.isFinite(widthCm) && widthCm > 0 ? Math.round(widthCm) : undefined;
-  const heightRounded = Number.isFinite(heightCm) && heightCm > 0 ? Math.round(heightCm) : undefined;
-  const title = buildTitle({ productType, mat, widthCm: widthRounded, heightCm: heightRounded, designName });
+  const widthCandidate = Number(state?.widthCm ?? state?.composition?.widthCm ?? input?.widthCm);
+  const heightCandidate = Number(state?.heightCm ?? state?.composition?.heightCm ?? input?.heightCm);
+  const widthRounded = Number.isFinite(widthCm) && widthCm > 0
+    ? Math.round(widthCm)
+    : (Number.isFinite(widthCandidate) && widthCandidate > 0 ? Math.round(widthCandidate) : undefined);
+  const heightRounded = Number.isFinite(heightCm) && heightCm > 0
+    ? Math.round(heightCm)
+    : (Number.isFinite(heightCandidate) && heightCandidate > 0 ? Math.round(heightCandidate) : undefined);
+  const resolvedDesignName = safeStr(designName) || safeStr(state?.designName) || 'Personalizado';
+  const mockupFilenameBase = buildExportBaseName(
+    resolvedDesignName,
+    Number.isFinite(widthRounded) ? widthRounded : 0,
+    Number.isFinite(heightRounded) ? heightRounded : 0,
+    mat,
+  ).replace(/\s+/g, '-');
+  const title = mockupFilenameBase || buildTitle({
+    productType,
+    mat,
+    widthCm: widthRounded,
+    heightCm: heightRounded,
+    designName: resolvedDesignName,
+  });
   const composition = {
     widthPx: Number(state?.masterWidthPx ?? input?.widthPx ?? image.naturalWidth ?? image.width ?? 0),
     heightPx: Number(state?.masterHeightPx ?? input?.heightPx ?? image.naturalHeight ?? image.height ?? 0),
@@ -538,6 +557,7 @@ export async function ensureMockupUrlInFlow(flow, input) {
     const uploadResult = await uploadPreviewViaApi(
       {
         title,
+        designName: resolvedDesignName,
         widthCm: Number.isFinite(widthRounded) ? widthRounded : undefined,
         heightCm: Number.isFinite(heightRounded) ? heightRounded : undefined,
         material: mat,

@@ -1,6 +1,8 @@
 export function buildMockupBaseName({ designName, widthCm, heightCm, material }) {
   const base = `${(designName || 'Mousepad').trim()} ${widthCm}x${heightCm} ${material}`.trim();
-  return base.replace(/\b(\d+x\d+\s+\w+)\s+\1\b/i, '$1');
+  return base
+    .replace(/\b(\d+x\d+\s+\w+)\s+\1\b/i, '$1')
+    .replace(/\s+/g, '-');
 }
 
 export function pdfKeyToPreviewKey(pdfKey) {
