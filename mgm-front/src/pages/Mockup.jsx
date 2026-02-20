@@ -4365,14 +4365,22 @@ export default function Mockup() {
       await ensureMockupPublicReady(flow);
       await ensureMockupUrlInFlow(flow);
       const baseOverrides = buildOverridesFromUi('checkout') || {};
+      const widthCmResolved = Number(baseOverrides?.widthCm);
+      const heightCmResolved = Number(baseOverrides?.heightCm);
       const overrides = {
         ...baseOverrides,
         options: {
           ...(typeof baseOverrides.options === 'object' && baseOverrides.options ? baseOverrides.options : {}),
         },
+        widthCm: Number.isFinite(widthCmResolved) && widthCmResolved > 0
+          ? Math.round(widthCmResolved)
+          : undefined,
+        heightCm: Number.isFinite(heightCmResolved) && heightCmResolved > 0
+          ? Math.round(heightCmResolved)
+          : undefined,
         visibility: 'public',
       };
-      const result = await buyDirect('checkout', { ...overrides, private: false }, { skipEnsure: true, autoOpen: false });
+      const result = await buyDirect('checkout', { ...overrides, private: false }, { autoOpen: false });
       return finalizePurchase(result, flow, bridgeRid, 'No se pudo abrir el checkout. Intenta nuevamente.');
     } catch (err) {
       error('[checkout-public-flow]', err);
@@ -4405,17 +4413,25 @@ export default function Mockup() {
       await ensureMockupPublicReady(flow);
       await ensureMockupUrlInFlow(flow);
       const baseOverrides = buildOverridesFromUi('private') || {};
+      const widthCmResolved = Number(baseOverrides?.widthCm);
+      const heightCmResolved = Number(baseOverrides?.heightCm);
       const overrides = {
         ...baseOverrides,
         options: {
           ...(typeof baseOverrides.options === 'object' && baseOverrides.options ? baseOverrides.options : {}),
         },
+        widthCm: Number.isFinite(widthCmResolved) && widthCmResolved > 0
+          ? Math.round(widthCmResolved)
+          : undefined,
+        heightCm: Number.isFinite(heightCmResolved) && heightCmResolved > 0
+          ? Math.round(heightCmResolved)
+          : undefined,
         visibility: 'private',
       };
       const result = await buyDirect(
         'checkout',
         { ...overrides, private: true, mode: 'private', checkoutType: 'private' },
-        { skipEnsure: true, autoOpen: false },
+        { autoOpen: false },
       );
       return finalizePurchase(result, flow, bridgeRid, 'No se pudo abrir el checkout privado. Proba de nuevo.');
     } catch (err) {

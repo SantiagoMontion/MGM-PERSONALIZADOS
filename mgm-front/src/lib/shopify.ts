@@ -1602,34 +1602,32 @@ export async function createJobAndProduct(
           mode,
           ...(normalizedDiscountCode ? { discount: normalizedDiscountCode } : {}),
         };
-        void (async () => {
-          try {
-            const ckResp = await apiFetch('/api/create-checkout', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(checkoutPayload),
+        try {
+          const ckResp = await apiFetch('/api/create-checkout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(checkoutPayload),
+          });
+          const ck = await ckResp.json().catch(() => null);
+          (result as Record<string, unknown>).publicCheckoutResponse = ck && typeof ck === 'object' ? ck : null;
+          (result as Record<string, unknown>).publicCheckoutStatus = typeof ckResp.status === 'number' ? ckResp.status : null;
+          const checkoutUrlFromResponse =
+            typeof ck?.checkoutUrl === 'string' && ck.checkoutUrl.trim()
+              ? ck.checkoutUrl.trim()
+              : typeof ck?.url === 'string' && ck.url.trim()
+                ? ck.url.trim()
+                : '';
+          if (ckResp.ok && ck?.ok !== false && checkoutUrlFromResponse) {
+            result.checkoutUrl = checkoutUrlFromResponse;
+          } else {
+            warn('[createJobAndProduct] checkout_link_failed_fallback_to_cart_permalink', {
+              reason: typeof ck?.error === 'string' && ck.error ? ck.error : 'checkout_link_failed',
+              status: typeof ckResp.status === 'number' ? ckResp.status : null,
             });
-            const ck = await ckResp.json().catch(() => null);
-            (result as Record<string, unknown>).publicCheckoutResponse = ck && typeof ck === 'object' ? ck : null;
-            (result as Record<string, unknown>).publicCheckoutStatus = typeof ckResp.status === 'number' ? ckResp.status : null;
-            const checkoutUrlFromResponse =
-              typeof ck?.checkoutUrl === 'string' && ck.checkoutUrl.trim()
-                ? ck.checkoutUrl.trim()
-                : typeof ck?.url === 'string' && ck.url.trim()
-                  ? ck.url.trim()
-                  : '';
-            if (ckResp.ok && ck?.ok !== false && checkoutUrlFromResponse) {
-              result.checkoutUrl = checkoutUrlFromResponse;
-            } else {
-              warn('[createJobAndProduct] checkout_link_failed_fallback_to_cart_permalink', {
-                reason: typeof ck?.error === 'string' && ck.error ? ck.error : 'checkout_link_failed',
-                status: typeof ckResp.status === 'number' ? ckResp.status : null,
-              });
-            }
-          } catch (checkoutErr) {
-            warn('[createJobAndProduct] async_checkout_request_failed', checkoutErr);
           }
-        })();
+        } catch (checkoutErr) {
+          warn('[createJobAndProduct] checkout_request_failed', checkoutErr);
+        }
       }
     }
     if (SHOULD_LOG_COMMERCE) {
