@@ -13,8 +13,21 @@ function sanitizeShopifyImageUrl(rawUrl) {
   if (typeof rawUrl !== 'string') return '';
   const trimmed = rawUrl.trim();
   if (!trimmed) return '';
-  const noQuery = trimmed.split('?')[0].trim();
+
+  let decoded = trimmed;
+  for (let i = 0; i < 3; i += 1) {
+    try {
+      const next = decodeURIComponent(decoded);
+      if (next === decoded) break;
+      decoded = next;
+    } catch {
+      break;
+    }
+  }
+
+  const noQuery = decoded.split('?')[0].trim();
   if (!noQuery) return '';
+
   try {
     const parsed = new URL(noQuery);
     return encodeURI(`${parsed.origin}${parsed.pathname}`);

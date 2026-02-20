@@ -101,6 +101,13 @@ const extractFlowBasics = (flow) => {
     return NaN;
   };
 
+  const dpi = Number(flow?.approxDpi ?? flow?.editorState?.approxDpi ?? 300);
+  const pxToCm = (value) => {
+    const px = Number(value);
+    if (!Number.isFinite(px) || px <= 0 || !Number.isFinite(dpi) || dpi <= 0) return NaN;
+    return Math.round((px / dpi) * 2.54);
+  };
+
   let widthCm = resolveNumber(
     flow?.widthCm,
     flow?.composition?.widthCm,
@@ -108,6 +115,10 @@ const extractFlowBasics = (flow) => {
     flow?.editorState?.size_cm?.w,
     flow?.editorState?.composition?.widthCm,
     flow?.masterWidthMm ? Number(flow.masterWidthMm) / 10 : undefined,
+    pxToCm(flow?.masterWidthPx),
+    pxToCm(flow?.editorState?.masterWidthPx),
+    pxToCm(flow?.composition?.widthPx),
+    pxToCm(flow?.editorState?.composition?.widthPx),
   );
   let heightCm = resolveNumber(
     flow?.heightCm,
@@ -116,6 +127,10 @@ const extractFlowBasics = (flow) => {
     flow?.editorState?.size_cm?.h,
     flow?.editorState?.composition?.heightCm,
     flow?.masterHeightMm ? Number(flow.masterHeightMm) / 10 : undefined,
+    pxToCm(flow?.masterHeightPx),
+    pxToCm(flow?.editorState?.masterHeightPx),
+    pxToCm(flow?.composition?.heightPx),
+    pxToCm(flow?.editorState?.composition?.heightPx),
   );
 
   if (mat === 'Glasspad') {
