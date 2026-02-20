@@ -224,30 +224,28 @@ function cmFromPx(px: unknown, dpi: unknown): number {
   return Math.max(1, Math.round((pxNum / dpiNum) * 2.54));
 }
 
-function normalizeUrlSingleEncode(rawUrl: unknown): string {
+function normalizeMockupUrl(rawUrl: unknown): string {
   if (typeof rawUrl !== 'string') return '';
   const trimmed = rawUrl.trim();
   if (!trimmed) return '';
-  const withoutQuery = trimmed.split('?')[0].trim();
-  if (!withoutQuery) return '';
+  const cleanUrl = trimmed.split('?')[0].trim();
+  return cleanUrl;
+}
 
-  let decoded = withoutQuery;
-  for (let i = 0; i < 3; i += 1) {
-    try {
-      const next = decodeURIComponent(decoded);
-      if (next === decoded) break;
-      decoded = next;
-    } catch {
-      break;
-    }
-  }
+function sanitizeMockupFilenameBase(value: unknown): string {
+  const raw = (value ?? '').toString();
+  return raw
+    .replace(/[\\/:*?"<>|]+/g, '-')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .trim();
+}
 
-  try {
-    const parsed = new URL(decoded);
-    return encodeURI(`${parsed.origin}${parsed.pathname}`);
-  } catch {
-    return encodeURI(decoded);
-  }
+function resolveMeasurementForFilename(value: unknown, fallback: number): number {
+  const num = Number(value);
+  if (Number.isFinite(num) && num > 0) return Math.round(num);
+  return Math.max(1, Math.round(fallback));
 }
 
 function matLabelOf(material: unknown): string | null {
@@ -448,10 +446,10 @@ export async function ensureMockupUrl(flow: FlowState): Promise<string> {
     heightCm,
     material: mat.replace(/\s+.*/, ''),
   });
-  const filenameBase = filenameBaseRaw.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const filenameBase = sanitizeMockupFilenameBase(filenameBaseRaw);
   const title = typeof flowAny?.title === 'string' && flowAny.title.trim()
-    ? flowAny.title.trim()
-    : filenameBase || safeName(flowAny?.designName);
+    ? sanitizeMockupFilenameBase(flowAny.title)
+    : filenameBase || sanitizeMockupFilenameBase(safeName(flowAny?.designName));
   const contentType = mockupBlob.type || 'image/png';
   const dataUrl = await blobToDataUrl(mockupBlob);
 
@@ -864,8 +862,10 @@ export async function createJobAndProduct(
     ? buildGlasspadTitle(designName, measurementLabel)
     : buildDefaultTitle(productLabel, designName, measurementLabel, materialLabel);
   let metaDescription = buildMetaDescription(productLabel, designName, measurementLabel, materialLabel);
-  const widthForName = typeof widthCm === 'number' && Number.isFinite(widthCm) ? widthCm : 0;
-  const heightForName = typeof heightCm === 'number' && Number.isFinite(heightCm) ? heightCm : 0;
+  const widthFallback = cmFromPx((flow as any)?.masterWidthPx, (flow as any)?.approxDpi || 300);
+  const heightFallback = cmFromPx((flow as any)?.masterHeightPx, (flow as any)?.approxDpi || 300);
+  const widthForName = resolveMeasurementForFilename(widthCm, widthFallback);
+  const heightForName = resolveMeasurementForFilename(heightCm, heightFallback);
   const materialForName = (materialLabel || 'Classic').replace(/\s+.*/, '');
   const mockupBaseNameRaw = buildMockupBaseName({
     designName: designName || productTitle || 'Mousepad',
@@ -873,7 +873,7 @@ export async function createJobAndProduct(
     heightCm: heightForName,
     material: materialForName,
   });
-  const mockupBaseName = mockupBaseNameRaw.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const mockupBaseName = sanitizeMockupFilenameBase(mockupBaseNameRaw);
   const fallbackMockupName = mockupBaseName || designName || productTitle || 'Mockup';
 
   if (!pdfPublicUrl) {
@@ -990,7 +990,7 @@ export async function createJobAndProduct(
         mockupUrlForPayload = '';
         warn('[shopify] mockup_head_not_ready', { url: failedUrl });
       } else {
-        mockupUrlForPayload = normalizeUrlSingleEncode(mockupUrlPublic) || mockupUrlPublic;
+        mockupUrlForPayload = normalizeMockupUrl(mockupUrlPublic) || mockupUrlPublic;
       }
     } else if (supaUrl) {
       mockupUrlForPayload = '';
@@ -1106,14 +1106,14 @@ export async function createJobAndProduct(
       if (typeof mockupOverride === 'string' && mockupOverride.trim()) {
         const trimmed = mockupOverride.trim();
         const normalized = normalizePreviewUrl(trimmed, SUPABASE_PUBLIC_URL) || trimmed;
-        payload.mockupUrl = normalizeUrlSingleEncode(normalized) || normalized;
+        payload.mockupUrl = normalizeMockupUrl(normalized) || normalized;
       }
       const mockupPublicOverride = overrides.mockupPublicUrl;
       if (typeof mockupPublicOverride === 'string' && mockupPublicOverride.trim()) {
         const trimmed = mockupPublicOverride.trim();
         const normalized = normalizePreviewUrl(trimmed, SUPABASE_PUBLIC_URL);
         const resolved = normalized || trimmed;
-        payload.mockupPublicUrl = normalizeUrlSingleEncode(resolved) || resolved;
+        payload.mockupPublicUrl = normalizeMockupUrl(resolved) || resolved;
       }
       const mockupHashOverride = overrides.mockupHash;
       if (typeof mockupHashOverride === 'string' && mockupHashOverride.trim()) {
@@ -1602,32 +1602,34 @@ export async function createJobAndProduct(
           mode,
           ...(normalizedDiscountCode ? { discount: normalizedDiscountCode } : {}),
         };
-        try {
-          const ckResp = await apiFetch('/api/create-checkout', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(checkoutPayload),
-          });
-          const ck = await ckResp.json().catch(() => null);
-          (result as Record<string, unknown>).publicCheckoutResponse = ck && typeof ck === 'object' ? ck : null;
-          (result as Record<string, unknown>).publicCheckoutStatus = typeof ckResp.status === 'number' ? ckResp.status : null;
-          const checkoutUrlFromResponse =
-            typeof ck?.checkoutUrl === 'string' && ck.checkoutUrl.trim()
-              ? ck.checkoutUrl.trim()
-              : typeof ck?.url === 'string' && ck.url.trim()
-                ? ck.url.trim()
-                : '';
-          if (ckResp.ok && ck?.ok !== false && checkoutUrlFromResponse) {
-            result.checkoutUrl = checkoutUrlFromResponse;
-          } else {
-            warn('[createJobAndProduct] checkout_link_failed_fallback_to_cart_permalink', {
-              reason: typeof ck?.error === 'string' && ck.error ? ck.error : 'checkout_link_failed',
-              status: typeof ckResp.status === 'number' ? ckResp.status : null,
+        void (async () => {
+          try {
+            const ckResp = await apiFetch('/api/create-checkout', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(checkoutPayload),
             });
+            const ck = await ckResp.json().catch(() => null);
+            (result as Record<string, unknown>).publicCheckoutResponse = ck && typeof ck === 'object' ? ck : null;
+            (result as Record<string, unknown>).publicCheckoutStatus = typeof ckResp.status === 'number' ? ckResp.status : null;
+            const checkoutUrlFromResponse =
+              typeof ck?.checkoutUrl === 'string' && ck.checkoutUrl.trim()
+                ? ck.checkoutUrl.trim()
+                : typeof ck?.url === 'string' && ck.url.trim()
+                  ? ck.url.trim()
+                  : '';
+            if (ckResp.ok && ck?.ok !== false && checkoutUrlFromResponse) {
+              result.checkoutUrl = checkoutUrlFromResponse;
+            } else {
+              warn('[createJobAndProduct] checkout_link_failed_fallback_to_cart_permalink', {
+                reason: typeof ck?.error === 'string' && ck.error ? ck.error : 'checkout_link_failed',
+                status: typeof ckResp.status === 'number' ? ckResp.status : null,
+              });
+            }
+          } catch (checkoutErr) {
+            warn('[createJobAndProduct] async_checkout_request_failed', checkoutErr);
           }
-        } catch (checkoutErr) {
-          warn('[createJobAndProduct] checkout_request_failed', checkoutErr);
-        }
+        })();
       }
     }
     if (SHOULD_LOG_COMMERCE) {
