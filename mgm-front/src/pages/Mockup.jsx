@@ -4400,8 +4400,10 @@ export default function Mockup() {
       await ensureMockupPublicReady(flow);
       await ensureMockupUrlInFlow(flow);
       const baseOverrides = buildOverridesFromUi('checkout') || {};
-      const widthCmResolved = Number(baseOverrides?.widthCm);
-      const heightCmResolved = Number(baseOverrides?.heightCm);
+      const flowState = (typeof flow?.get === 'function' ? flow.get() : flow) || {};
+      const flowBasics = extractFlowBasics(flowState);
+      const widthCmResolved = Number(baseOverrides?.widthCm ?? flowBasics?.widthCm);
+      const heightCmResolved = Number(baseOverrides?.heightCm ?? flowBasics?.heightCm);
       const overrides = {
         ...baseOverrides,
         options: {
@@ -4448,8 +4450,10 @@ export default function Mockup() {
       await ensureMockupPublicReady(flow);
       await ensureMockupUrlInFlow(flow);
       const baseOverrides = buildOverridesFromUi('private') || {};
-      const widthCmResolved = Number(baseOverrides?.widthCm);
-      const heightCmResolved = Number(baseOverrides?.heightCm);
+      const flowState = (typeof flow?.get === 'function' ? flow.get() : flow) || {};
+      const flowBasics = extractFlowBasics(flowState);
+      const widthCmResolved = Number(baseOverrides?.widthCm ?? flowBasics?.widthCm);
+      const heightCmResolved = Number(baseOverrides?.heightCm ?? flowBasics?.heightCm);
       const overrides = {
         ...baseOverrides,
         options: {
