@@ -2904,19 +2904,34 @@ export default function Mockup() {
     return isDataUrl(state?.mockupDataUrl) ? state.mockupDataUrl : null;
   }, [flow]);
 
-  const mockupPublicUrlValue = safeStr(flow?.mockupPublicUrl);
-  const mockupHashValue = safeStr(flow?.mockupHash);
-  const mockupReady = flow?.mockupUploadOk === true
-    && Boolean(mockupPublicUrlValue)
-    && !mockupPublicUrlValue.startsWith('blob:')
-    && mockupHashValue.length >= 6;
+  const flowStateForPurchase = (typeof flow?.get === 'function' ? flow.get() : flow) || {};
+  const mockupPublicUrlValue = safeStr(flowStateForPurchase?.mockupPublicUrl);
+  const hasPrintFullResDataUrl = isDataUrl(flowStateForPurchase?.printFullResDataUrl);
+  const hasPersistedMockupPublicUrl = Boolean(mockupPublicUrlValue) && !mockupPublicUrlValue.startsWith('blob:');
   const hasMockupImage = useMemo(() => {
     if (typeof mockupImageSrc === 'string') {
       return mockupImageSrc.trim().length > 0;
     }
     return Boolean(mockupImageSrc);
   }, [mockupImageSrc]);
-  const purchaseLocked = !(mockupReady || hasMockupImage);
+  const purchaseLocked = !(hasPrintFullResDataUrl || hasPersistedMockupPublicUrl);
+
+  const handleMissingPrintDataError = (err, bridgeRid = null) => {
+    const reason = safeStr(err?.reason || err?.code || err?.message).toLowerCase();
+    const isMissingPrintData = reason.includes('missing_print_fullres_dataurl')
+      || (reason.includes('missing')
+        && (reason.includes('image') || reason.includes('imagen') || reason.includes('print') || reason.includes('fullres')));
+    if (!isMissingPrintData) {
+      return false;
+    }
+    const friendlyMessage = 'La imagen de alta calidad aún se está procesando o se perdió la sesión. Por favor, vuelve al editor para recargar tu diseño.';
+    if (bridgeRid) {
+      publishBridgeError(bridgeRid, friendlyMessage);
+    }
+    alert(friendlyMessage);
+    navigate('/');
+    return true;
+  };
 
   const lastMockupErrorRef = useRef(null);
   useEffect(() => {
@@ -4197,7 +4212,14 @@ export default function Mockup() {
     window.open(`/bridge?rid=${encodeURIComponent(bridgeRid)}`, '_blank', 'noopener');
     setCartStatus('creating');
     try {
-      await ensureMockupUrlInFlow(flow);
+      try {
+        await ensureMockupUrlInFlow(flow);
+      } catch (err) {
+        if (handleMissingPrintDataError(err, bridgeRid)) {
+          return null;
+        }
+        throw err;
+      }
       const overrides = { ...buildOverridesFromUi('cart'), private: false };
       const result = await buyDirect('cart', overrides, { autoOpen: false });
       const outcome = finalizePurchase(result, flow, bridgeRid, 'No se pudo abrir el producto. Intenta de nuevo.', 'cart');
@@ -4398,7 +4420,14 @@ export default function Mockup() {
     try {
       setBuyPromptOpen(false);
       await ensureMockupPublicReady(flow);
-      await ensureMockupUrlInFlow(flow);
+      try {
+        await ensureMockupUrlInFlow(flow);
+      } catch (err) {
+        if (handleMissingPrintDataError(err, bridgeRid)) {
+          return null;
+        }
+        throw err;
+      }
       const baseOverrides = buildOverridesFromUi('checkout') || {};
       const flowState = (typeof flow?.get === 'function' ? flow.get() : flow) || {};
       const flowBasics = extractFlowBasics(flowState);
@@ -4448,7 +4477,14 @@ export default function Mockup() {
     try {
       setBuyPromptOpen(false);
       await ensureMockupPublicReady(flow);
-      await ensureMockupUrlInFlow(flow);
+      try {
+        await ensureMockupUrlInFlow(flow);
+      } catch (err) {
+        if (handleMissingPrintDataError(err, bridgeRid)) {
+          return null;
+        }
+        throw err;
+      }
       const baseOverrides = buildOverridesFromUi('private') || {};
       const flowState = (typeof flow?.get === 'function' ? flow.get() : flow) || {};
       const flowBasics = extractFlowBasics(flowState);
