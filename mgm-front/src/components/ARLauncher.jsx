@@ -3,7 +3,7 @@ import { isTouchDevice } from '@/lib/device.ts';
 import styles from './ARLauncher.module.css';
 
 const MODEL_VIEWER_SCRIPT_ID = 'mgm-model-viewer-script';
-const MODEL_SRC = '/assets/models/mousepad_base.glb';
+const MODEL_SRC = 'https://vxkewodclwozoennpqqv.supabase.co/storage/v1/object/public/preview/models/mousepad.glb';
 
 const parsePositiveNumber = (value) => {
   const num = Number(value);
@@ -45,6 +45,7 @@ export default function ARLauncher({ printFullResDataUrl, widthCm, heightCm }) {
   const modelViewerRef = useRef(null);
   const [isVisibleOnDevice, setIsVisibleOnDevice] = useState(false);
   const [isLaunching, setIsLaunching] = useState(false);
+  const [isModelReady, setIsModelReady] = useState(false);
 
   useEffect(() => {
     ensureModelViewerScript();
@@ -62,37 +63,71 @@ export default function ARLauncher({ printFullResDataUrl, widthCm, heightCm }) {
   }, [widthCm, heightCm]);
 
   const scale = useMemo(() => {
-    const widthM = (resolvedSize.widthCm ?? 100) / 100;
-    const heightM = (resolvedSize.heightCm ?? 100) / 100;
+    const widthM = (resolvedSize.widthCm ?? 1) / 100;
+    const heightM = (resolvedSize.heightCm ?? 1) / 100;
     return `${widthM} 0.003 ${heightM}`;
   }, [resolvedSize.heightCm, resolvedSize.widthCm]);
 
+  const arModes = 'webxr scene-viewer quick-look';
+
+  useEffect(() => {
+    const el = modelViewerRef.current;
+    if (!el) return;
+
+    const onLoad = () => {
+      setIsModelReady(true);
+      console.log('[ar-launcher] model loaded and ready', { src: MODEL_SRC });
+    };
+
+    if (el.model) {
+      setIsModelReady(true);
+      return undefined;
+    }
+
+    setIsModelReady(false);
+    el.addEventListener('load', onLoad);
+    return () => {
+      el.removeEventListener('load', onLoad);
+    };
+  }, []);
+
+  useEffect(() => {
+    const el = modelViewerRef.current;
+    if (!el || !isModelReady || typeof printFullResDataUrl !== 'string' || !printFullResDataUrl.trim()) return;
+
+    const hydrateTexture = async () => {
+      try {
+        await el.updateComplete;
+        const firstMaterial = el.model?.materials?.[0];
+        if (!firstMaterial) return;
+
+        const texture = await el.createTexture(printFullResDataUrl.trim());
+        const materials = el.model?.materials || [];
+        materials.forEach((material) => {
+          const pbr = material?.pbrMetallicRoughness;
+          const baseTextureSlot = pbr?.baseColorTexture;
+          if (baseTextureSlot?.setTexture) {
+            baseTextureSlot.setTexture(texture);
+          }
+        });
+      } catch (err) {
+        console.error('[ar-launcher] failed to prepare texture', err);
+      }
+    };
+
+    hydrateTexture();
+  }, [isModelReady, printFullResDataUrl]);
+
   const launchAr = async () => {
-    if (!isVisibleOnDevice || isLaunching) return;
+    if (!isVisibleOnDevice || isLaunching || !isModelReady) return;
     const el = modelViewerRef.current;
     if (!el || typeof el.activateAR !== 'function') return;
-    if (typeof printFullResDataUrl !== 'string' || !printFullResDataUrl.trim()) return;
 
     try {
       setIsLaunching(true);
-      await el.updateComplete;
-      if (!el.model) {
-        await new Promise((resolve) => {
-          const onLoad = () => {
-            el.removeEventListener('load', onLoad);
-            resolve();
-          };
-          el.addEventListener('load', onLoad);
-        });
-      }
-      const texture = await el.createTexture(printFullResDataUrl.trim());
-      const materials = el.model?.materials || [];
-      materials.forEach((material) => {
-        const pbr = material?.pbrMetallicRoughness;
-        const baseTextureSlot = pbr?.baseColorTexture;
-        if (baseTextureSlot?.setTexture) {
-          baseTextureSlot.setTexture(texture);
-        }
+      console.log('[ar-launcher] activateAR() direct call', {
+        isModelReady,
+        src: MODEL_SRC,
       });
       await el.activateAR();
     } catch (err) {
@@ -106,20 +141,21 @@ export default function ARLauncher({ printFullResDataUrl, widthCm, heightCm }) {
 
   return (
     <div className={styles.wrapper}>
-      <button type="button" className={styles.button} onClick={launchAr} disabled={isLaunching}>
+      <button type="button" className={styles.button} onClick={launchAr} disabled={isLaunching || !isModelReady}>
         <span aria-hidden="true" className={styles.icon}>📷</span>
-        Ver en mi escritorio (AR)
+        {isModelReady ? 'Ver en mi escritorio (AR)' : 'Cargando modelo...'}
       </button>
       <model-viewer
         ref={modelViewerRef}
         src={MODEL_SRC}
+        crossorigin="anonymous"
         ar
-        ar-modes="webxr scene-viewer quick-look"
+        ar-modes={arModes}
         ar-placement="floor"
         camera-controls={false}
         shadow-intensity="0"
         scale={scale}
-        style={{ display: 'none' }}
+        style={{ position: 'absolute', width: '1px', height: '1px', opacity: '0', pointerEvents: 'none' }}
       />
     </div>
   );
