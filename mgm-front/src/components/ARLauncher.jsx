@@ -195,6 +195,8 @@ export default function ARLauncher({ printFullResDataUrl, widthCm, heightCm }) {
     setLoadError('');
     setScreenLog('');
 
+    // Reinicia el recurso antes de cada intento para evitar estados/caché residuales.
+    el.src = '';
     el.setAttribute('crossorigin', 'anonymous');
     el.src = activeModelSrc;
 
@@ -275,7 +277,6 @@ export default function ARLauncher({ printFullResDataUrl, widthCm, heightCm }) {
       {screenLog ? <div role="status">{screenLog}</div> : null}
       <model-viewer
         ref={modelViewerRef}
-        crossorigin="anonymous"
         ar
         ar-modes={arModes}
         ar-placement="floor"
