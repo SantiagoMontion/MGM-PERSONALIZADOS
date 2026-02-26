@@ -179,6 +179,9 @@ export default function ARLauncher({ printFullResDataUrl, widthCm, heightCm }) {
       if (timeoutId) window.clearTimeout(timeoutId);
       setConnectionErrorState();
       if (!triedFallbackRef.current && activeModelSrc === MODEL_SRC) {
+        if (reason.includes('timeout')) {
+          el.src = '';
+        }
         console.error(`[ar-launcher] ${reason}; loading fallback plane`, err);
         swapToFallbackModel();
         return;
@@ -188,15 +191,13 @@ export default function ARLauncher({ printFullResDataUrl, widthCm, heightCm }) {
 
     console.log('Intentando descargar de Supabase:', activeModelSrc);
 
-    if (el.model) {
-      setLoadError('');
-      setScreenLog('');
-      setModelLoaded(true);
-      return undefined;
-    }
-
     setModelLoaded(false);
     setLoadError('');
+    setScreenLog('');
+
+    el.setAttribute('crossorigin', 'anonymous');
+    el.src = activeModelSrc;
+
     timeoutId = window.setTimeout(() => {
       onFailure(`load timeout after ${LOAD_TIMEOUT_MS / 1000}s`);
     }, LOAD_TIMEOUT_MS);
@@ -246,6 +247,10 @@ export default function ARLauncher({ printFullResDataUrl, widthCm, heightCm }) {
 
     try {
       setIsLaunching(true);
+      console.log('[ar-launcher] state before activateAR()', {
+        modelState: el.model,
+        currentSrc: el.src,
+      });
       console.log('[ar-launcher] activateAR() direct call', {
         modelLoaded,
         src: activeModelSrc,
@@ -270,7 +275,6 @@ export default function ARLauncher({ printFullResDataUrl, widthCm, heightCm }) {
       {screenLog ? <div role="status">{screenLog}</div> : null}
       <model-viewer
         ref={modelViewerRef}
-        src={activeModelSrc}
         crossorigin="anonymous"
         ar
         ar-modes={arModes}
