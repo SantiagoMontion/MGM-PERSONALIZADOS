@@ -3,12 +3,25 @@
 }
 
 .viewerContainer {
+  position: relative;
   width: 100%;
   min-height: 320px;
   border-radius: 12px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.18);
   background: radial-gradient(circle at top, rgba(79, 79, 79, 0.2), rgba(16, 16, 16, 0.8));
+}
+
+.modelFallback {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: 20px;
+  font-size: 14px;
+  color: rgba(242, 243, 245, 0.9);
+  background: rgba(16, 16, 16, 0.72);
 }
 
 .modelViewer {

@@ -10,6 +10,19 @@ const toFinitePositiveNumber = (value, fallback = 1) => {
 
 const supportsDataUrl = (value) => typeof value === 'string' && /^data:image\//i.test(value.trim());
 
+const isAbsoluteHttpUrl = (value) => typeof value === 'string' && /^https?:\/\//i.test(value.trim());
+
+const resolveModelUrl = (modelSrc) => {
+  const fallbackPath = '/assets/models/mousepad.glb';
+  const rawValue = typeof modelSrc === 'string' && modelSrc.trim() ? modelSrc.trim() : fallbackPath;
+
+  if (typeof window === 'undefined') return rawValue;
+  if (isAbsoluteHttpUrl(rawValue) || rawValue.startsWith('data:') || rawValue.startsWith('blob:')) return rawValue;
+
+  const normalizedPath = rawValue.startsWith('/') ? rawValue : `/${rawValue.replace(/^\/+/, '')}`;
+  return `${window.location.origin}${normalizedPath}`;
+};
+
 function ensureModelViewerScript() {
   if (typeof window === 'undefined') return Promise.resolve(false);
   if (window.customElements?.get('model-viewer')) return Promise.resolve(true);
@@ -37,13 +50,16 @@ export default function Mousepad3DPreview({
   printFullResDataUrl,
   widthCm,
   heightCm,
-  modelSrc = '/models/mousepad-base.glb',
+  modelSrc,
   usdzSrc,
 }) {
   const modelViewerRef = useRef(null);
   const textureRef = useRef(null);
   const [ready, setReady] = useState(false);
   const [textureStatus, setTextureStatus] = useState('idle');
+  const [modelStatus, setModelStatus] = useState('idle');
+
+  const resolvedModelSrc = useMemo(() => resolveModelUrl(modelSrc), [modelSrc]);
 
   const resolvedWidthCm = toFinitePositiveNumber(widthCm, 90);
   const resolvedHeightCm = toFinitePositiveNumber(heightCm, 40);
@@ -135,6 +151,33 @@ export default function Mousepad3DPreview({
     };
   }, [printFullResDataUrl, ready]);
 
+  useEffect(() => {
+    if (!ready) return undefined;
+    const modelViewer = modelViewerRef.current;
+    if (!modelViewer) return undefined;
+
+    const onModelLoad = () => {
+      setModelStatus('loaded');
+      console.info('[Mousepad3DPreview] Modelo cargado correctamente desde URL:', resolvedModelSrc);
+    };
+
+    const onModelError = (event) => {
+      setModelStatus('error');
+      console.error('[Mousepad3DPreview] Error al cargar modelo 3D. URL:', resolvedModelSrc);
+      console.error('Error detallado de model-viewer:', event?.detail);
+    };
+
+    modelViewer.addEventListener('load', onModelLoad);
+    modelViewer.addEventListener('error', onModelError);
+
+    console.info('[Mousepad3DPreview] Intentando cargar modelo 3D desde URL:', resolvedModelSrc);
+
+    return () => {
+      modelViewer.removeEventListener('load', onModelLoad);
+      modelViewer.removeEventListener('error', onModelError);
+    };
+  }, [ready, resolvedModelSrc]);
+
   const showIOSHint = !usdzSrc;
 
   return (
@@ -143,7 +186,7 @@ export default function Mousepad3DPreview({
         {ready ? (
           <model-viewer
             ref={modelViewerRef}
-            src={modelSrc}
+            src={resolvedModelSrc}
             ios-src={usdzSrc}
             ar
             ar-modes="webxr scene-viewer quick-look"
@@ -158,6 +201,11 @@ export default function Mousepad3DPreview({
         ) : (
           <div className={styles.loadingState}>Cargando visualizador 3D…</div>
         )}
+        {modelStatus === 'error' ? (
+          <div className={styles.modelFallback}>
+            Modelo no encontrado. Verifique que mousepad.glb esté en la carpeta public.
+          </div>
+        ) : null}
       </div>
 
       <p className={styles.caption}>
