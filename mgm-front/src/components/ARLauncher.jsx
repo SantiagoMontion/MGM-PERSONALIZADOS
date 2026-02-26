@@ -42,6 +42,7 @@ function ensureModelViewerScript() {
 }
 
 export default function ARLauncher({ printFullResDataUrl, widthCm, heightCm }) {
+  const modelSrc = MODEL_SRC;
   const modelViewerRef = useRef(null);
   const [isVisibleOnDevice, setIsVisibleOnDevice] = useState(false);
   const [isLaunching, setIsLaunching] = useState(false);
@@ -81,7 +82,7 @@ export default function ARLauncher({ printFullResDataUrl, widthCm, heightCm }) {
       if (timeoutId) window.clearTimeout(timeoutId);
       setLoadError('');
       setModelLoaded(true);
-      console.log('[ar-launcher] model loaded and ready', { src: MODEL_SRC });
+      console.log('[ar-launcher] model loaded and ready', { src: modelSrc });
     };
 
     const onError = (err) => {
@@ -91,7 +92,7 @@ export default function ARLauncher({ printFullResDataUrl, widthCm, heightCm }) {
       console.error('[ar-launcher] model failed to load', err);
     };
 
-    console.log('Intentando descargar de Supabase:', MODEL_SRC);
+    console.log('Intentando descargar de Supabase:', modelSrc);
 
     if (el.model) {
       setLoadError('');
@@ -104,7 +105,7 @@ export default function ARLauncher({ printFullResDataUrl, widthCm, heightCm }) {
     timeoutId = window.setTimeout(() => {
       setModelLoaded(false);
       setLoadError('No se pudo cargar el modelo. Verifica tu conexión o el CORS de Supabase');
-      console.error('[ar-launcher] load timeout after 7s', { src: MODEL_SRC });
+      console.error('[ar-launcher] load timeout after 7s', { src: modelSrc });
     }, 7000);
 
     el.addEventListener('load', onLoad);
@@ -114,7 +115,7 @@ export default function ARLauncher({ printFullResDataUrl, widthCm, heightCm }) {
       el.removeEventListener('load', onLoad);
       el.removeEventListener('error', onError);
     };
-  }, []);
+  }, [modelSrc]);
 
   useEffect(() => {
     const el = modelViewerRef.current;
@@ -152,7 +153,7 @@ export default function ARLauncher({ printFullResDataUrl, widthCm, heightCm }) {
       setIsLaunching(true);
       console.log('[ar-launcher] activateAR() direct call', {
         modelLoaded,
-        src: MODEL_SRC,
+        src: modelSrc,
       });
       await el.activateAR();
     } catch (err) {
@@ -168,12 +169,12 @@ export default function ARLauncher({ printFullResDataUrl, widthCm, heightCm }) {
     <div className={styles.wrapper}>
       <button type="button" className={styles.button} onClick={launchAr} disabled={isLaunching || !modelLoaded || Boolean(loadError)}>
         <span aria-hidden="true" className={styles.icon}>📷</span>
-        {modelLoaded ? 'Ver en mi escritorio' : 'Cargando...'}
+        {modelLoaded ? 'Ver en mi escritorio' : (loadError ? 'Error al cargar' : 'Cargando...')}
       </button>
       {loadError ? <p role="alert">{loadError}</p> : null}
       <model-viewer
         ref={modelViewerRef}
-        src={MODEL_SRC}
+        src={modelSrc}
         crossorigin="anonymous"
         ar
         ar-modes={arModes}
