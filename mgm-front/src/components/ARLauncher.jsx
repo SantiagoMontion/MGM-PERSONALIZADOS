@@ -52,6 +52,7 @@ export default function ARLauncher({ printFullResDataUrl, widthCm, heightCm }) {
   const [isVisibleOnDevice, setIsVisibleOnDevice] = useState(false);
   const [isLaunching, setIsLaunching] = useState(false);
   const [isIphone, setIsIphone] = useState(false);
+  const [modelLoaded, setModelLoaded] = useState(false);
 
   useEffect(() => {
     ensureModelViewerScript();
@@ -79,32 +80,55 @@ export default function ARLauncher({ printFullResDataUrl, widthCm, heightCm }) {
     ? 'quick-look webxr scene-viewer'
     : 'webxr scene-viewer quick-look'), [isIphone]);
 
+  useEffect(() => {
+    const el = modelViewerRef.current;
+    if (!el || typeof printFullResDataUrl !== 'string' || !printFullResDataUrl.trim()) return;
+
+    const hydrateTexture = async () => {
+      try {
+        await el.updateComplete;
+        if (!el.model) return;
+        const texture = await el.createTexture(printFullResDataUrl.trim());
+        const materials = el.model?.materials || [];
+        materials.forEach((material) => {
+          const pbr = material?.pbrMetallicRoughness;
+          const baseTextureSlot = pbr?.baseColorTexture;
+          if (baseTextureSlot?.setTexture) {
+            baseTextureSlot.setTexture(texture);
+          }
+        });
+      } catch (err) {
+        console.error('[ar-launcher] failed to prepare texture', err);
+      }
+    };
+
+    const onLoad = () => {
+      setModelLoaded(true);
+      hydrateTexture();
+    };
+
+    if (el.model) {
+      setModelLoaded(true);
+      hydrateTexture();
+      return undefined;
+    }
+
+    el.addEventListener('load', onLoad);
+    return () => {
+      el.removeEventListener('load', onLoad);
+    };
+  }, [printFullResDataUrl]);
+
   const launchAr = async () => {
     if (!isVisibleOnDevice || isLaunching) return;
     const el = modelViewerRef.current;
     if (!el || typeof el.activateAR !== 'function') return;
-    if (typeof printFullResDataUrl !== 'string' || !printFullResDataUrl.trim()) return;
 
     try {
       setIsLaunching(true);
-      await el.updateComplete;
-      if (!el.model) {
-        await new Promise((resolve) => {
-          const onLoad = () => {
-            el.removeEventListener('load', onLoad);
-            resolve();
-          };
-          el.addEventListener('load', onLoad);
-        });
-      }
-      const texture = await el.createTexture(printFullResDataUrl.trim());
-      const materials = el.model?.materials || [];
-      materials.forEach((material) => {
-        const pbr = material?.pbrMetallicRoughness;
-        const baseTextureSlot = pbr?.baseColorTexture;
-        if (baseTextureSlot?.setTexture) {
-          baseTextureSlot.setTexture(texture);
-        }
+      console.log('[ar-launcher] activateAR() direct call', {
+        modelLoaded,
+        src: MODEL_SRC,
       });
       await el.activateAR();
     } catch (err) {
@@ -132,7 +156,7 @@ export default function ARLauncher({ printFullResDataUrl, widthCm, heightCm }) {
         camera-controls={false}
         shadow-intensity="0"
         scale={scale}
-        style={{ display: 'none' }}
+        style={{ position: 'absolute', width: '1px', height: '1px', opacity: '0', pointerEvents: 'none' }}
       />
     </div>
   );
