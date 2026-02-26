@@ -3,7 +3,7 @@ import { isTouchDevice } from '@/lib/device.ts';
 import styles from './ARLauncher.module.css';
 
 const MODEL_VIEWER_SCRIPT_ID = 'mgm-model-viewer-script';
-const MODEL_SRC = '/assets/models/mousepad_base.glb';
+const MODEL_SRC = 'https://vxkewodclwozoennpqqv.supabase.co/storage/v1/object/public/preview/models/mousepad.glb';
 
 const parsePositiveNumber = (value) => {
   const num = Number(value);
@@ -21,6 +21,12 @@ const detectMobileOrTablet = () => {
     ? window.matchMedia('(max-width: 1024px)').matches
     : false;
   return mobileRegex.test(ua) || (coarsePointer && narrowScreen) || isTouchDevice();
+};
+
+const detectIphone = () => {
+  if (typeof window === 'undefined') return false;
+  const ua = window.navigator?.userAgent || '';
+  return /iPhone/i.test(ua);
 };
 
 const getDimensionsFromQuery = () => {
@@ -45,10 +51,12 @@ export default function ARLauncher({ printFullResDataUrl, widthCm, heightCm }) {
   const modelViewerRef = useRef(null);
   const [isVisibleOnDevice, setIsVisibleOnDevice] = useState(false);
   const [isLaunching, setIsLaunching] = useState(false);
+  const [isIphone, setIsIphone] = useState(false);
 
   useEffect(() => {
     ensureModelViewerScript();
     setIsVisibleOnDevice(detectMobileOrTablet());
+    setIsIphone(detectIphone());
   }, []);
 
   const resolvedSize = useMemo(() => {
@@ -62,10 +70,14 @@ export default function ARLauncher({ printFullResDataUrl, widthCm, heightCm }) {
   }, [widthCm, heightCm]);
 
   const scale = useMemo(() => {
-    const widthM = (resolvedSize.widthCm ?? 100) / 100;
-    const heightM = (resolvedSize.heightCm ?? 100) / 100;
+    const widthM = (resolvedSize.widthCm ?? 1) / 100;
+    const heightM = (resolvedSize.heightCm ?? 1) / 100;
     return `${widthM} 0.003 ${heightM}`;
   }, [resolvedSize.heightCm, resolvedSize.widthCm]);
+
+  const arModes = useMemo(() => (isIphone
+    ? 'quick-look webxr scene-viewer'
+    : 'webxr scene-viewer quick-look'), [isIphone]);
 
   const launchAr = async () => {
     if (!isVisibleOnDevice || isLaunching) return;
@@ -113,8 +125,9 @@ export default function ARLauncher({ printFullResDataUrl, widthCm, heightCm }) {
       <model-viewer
         ref={modelViewerRef}
         src={MODEL_SRC}
+        crossorigin="anonymous"
         ar
-        ar-modes="webxr scene-viewer quick-look"
+        ar-modes={arModes}
         ar-placement="floor"
         camera-controls={false}
         shadow-intensity="0"
