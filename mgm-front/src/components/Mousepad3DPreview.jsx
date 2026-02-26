@@ -37,7 +37,7 @@ export default function Mousepad3DPreview({
   printFullResDataUrl,
   widthCm,
   heightCm,
-  modelSrc = '/models/mousepad-base.glb',
+  modelSrc = '/assets/models/mousepad.glb',
   usdzSrc,
 }) {
   const modelViewerRef = useRef(null);
@@ -45,8 +45,28 @@ export default function Mousepad3DPreview({
   const [ready, setReady] = useState(false);
   const [textureStatus, setTextureStatus] = useState('idle');
 
-  const resolvedWidthCm = toFinitePositiveNumber(widthCm, 90);
-  const resolvedHeightCm = toFinitePositiveNumber(heightCm, 40);
+  const queryDimensions = useMemo(() => {
+    if (typeof window === 'undefined') return { widthCm: null, heightCm: null };
+    const params = new URLSearchParams(window.location.search);
+    const queryWidth = Number(params.get('w'));
+    const queryHeight = Number(params.get('h'));
+    return {
+      widthCm: Number.isFinite(queryWidth) && queryWidth > 0 ? queryWidth : null,
+      heightCm: Number.isFinite(queryHeight) && queryHeight > 0 ? queryHeight : null,
+    };
+  }, []);
+
+  const resolvedWidthCm = toFinitePositiveNumber(queryDimensions.widthCm ?? widthCm, 90);
+  const resolvedHeightCm = toFinitePositiveNumber(queryDimensions.heightCm ?? heightCm, 40);
+
+  const modelUrl = useMemo(() => {
+    if (typeof window === 'undefined') return modelSrc;
+    try {
+      return new URL(modelSrc, window.location.origin).toString();
+    } catch {
+      return modelSrc;
+    }
+  }, [modelSrc]);
 
   const scale = useMemo(() => {
     const x = resolvedWidthCm / 100;
@@ -57,6 +77,7 @@ export default function Mousepad3DPreview({
 
   useEffect(() => {
     let mounted = true;
+    console.log('Cargando modelo desde:', modelUrl);
     ensureModelViewerScript()
       .then(() => {
         if (mounted) setReady(true);
@@ -68,7 +89,7 @@ export default function Mousepad3DPreview({
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [modelUrl]);
 
   useEffect(() => {
     if (!ready) return undefined;
@@ -143,7 +164,7 @@ export default function Mousepad3DPreview({
         {ready ? (
           <model-viewer
             ref={modelViewerRef}
-            src={modelSrc}
+            src={modelUrl}
             ios-src={usdzSrc}
             ar
             ar-modes="webxr scene-viewer quick-look"
