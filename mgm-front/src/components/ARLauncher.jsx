@@ -46,6 +46,7 @@ export default function ARLauncher({ printFullResDataUrl, widthCm, heightCm }) {
   const [isVisibleOnDevice, setIsVisibleOnDevice] = useState(false);
   const [isLaunching, setIsLaunching] = useState(false);
   const [modelLoaded, setModelLoaded] = useState(false);
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
     ensureModelViewerScript();
@@ -74,20 +75,44 @@ export default function ARLauncher({ printFullResDataUrl, widthCm, heightCm }) {
     const el = modelViewerRef.current;
     if (!el) return;
 
+    let timeoutId;
+
     const onLoad = () => {
+      if (timeoutId) window.clearTimeout(timeoutId);
+      setLoadError('');
       setModelLoaded(true);
       console.log('[ar-launcher] model loaded and ready', { src: MODEL_SRC });
     };
 
+    const onError = (err) => {
+      if (timeoutId) window.clearTimeout(timeoutId);
+      setModelLoaded(false);
+      setLoadError('No se pudo cargar el modelo. Verifica tu conexión o el CORS de Supabase');
+      console.error('[ar-launcher] model failed to load', err);
+    };
+
+    console.log('Intentando descargar de Supabase:', MODEL_SRC);
+
     if (el.model) {
+      setLoadError('');
       setModelLoaded(true);
       return undefined;
     }
 
     setModelLoaded(false);
+    setLoadError('');
+    timeoutId = window.setTimeout(() => {
+      setModelLoaded(false);
+      setLoadError('No se pudo cargar el modelo. Verifica tu conexión o el CORS de Supabase');
+      console.error('[ar-launcher] load timeout after 7s', { src: MODEL_SRC });
+    }, 7000);
+
     el.addEventListener('load', onLoad);
+    el.addEventListener('error', onError);
     return () => {
+      if (timeoutId) window.clearTimeout(timeoutId);
       el.removeEventListener('load', onLoad);
+      el.removeEventListener('error', onError);
     };
   }, []);
 
@@ -141,10 +166,11 @@ export default function ARLauncher({ printFullResDataUrl, widthCm, heightCm }) {
 
   return (
     <div className={styles.wrapper}>
-      <button type="button" className={styles.button} onClick={launchAr} disabled={isLaunching || !modelLoaded}>
+      <button type="button" className={styles.button} onClick={launchAr} disabled={isLaunching || !modelLoaded || Boolean(loadError)}>
         <span aria-hidden="true" className={styles.icon}>📷</span>
         {modelLoaded ? 'Ver en mi escritorio' : 'Cargando...'}
       </button>
+      {loadError ? <p role="alert">{loadError}</p> : null}
       <model-viewer
         ref={modelViewerRef}
         src={MODEL_SRC}
