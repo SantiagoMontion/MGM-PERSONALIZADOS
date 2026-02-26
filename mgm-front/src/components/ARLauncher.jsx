@@ -23,12 +23,6 @@ const detectMobileOrTablet = () => {
   return mobileRegex.test(ua) || (coarsePointer && narrowScreen) || isTouchDevice();
 };
 
-const detectIphone = () => {
-  if (typeof window === 'undefined') return false;
-  const ua = window.navigator?.userAgent || '';
-  return /iPhone/i.test(ua);
-};
-
 const getDimensionsFromQuery = () => {
   if (typeof window === 'undefined') return { widthCm: null, heightCm: null };
   const params = new URLSearchParams(window.location.search);
@@ -51,13 +45,11 @@ export default function ARLauncher({ printFullResDataUrl, widthCm, heightCm }) {
   const modelViewerRef = useRef(null);
   const [isVisibleOnDevice, setIsVisibleOnDevice] = useState(false);
   const [isLaunching, setIsLaunching] = useState(false);
-  const [isIphone, setIsIphone] = useState(false);
-  const [modelLoaded, setModelLoaded] = useState(false);
+  const [isModelReady, setIsModelReady] = useState(false);
 
   useEffect(() => {
     ensureModelViewerScript();
     setIsVisibleOnDevice(detectMobileOrTablet());
-    setIsIphone(detectIphone());
   }, []);
 
   const resolvedSize = useMemo(() => {
@@ -76,18 +68,39 @@ export default function ARLauncher({ printFullResDataUrl, widthCm, heightCm }) {
     return `${widthM} 0.003 ${heightM}`;
   }, [resolvedSize.heightCm, resolvedSize.widthCm]);
 
-  const arModes = useMemo(() => (isIphone
-    ? 'quick-look webxr scene-viewer'
-    : 'webxr scene-viewer quick-look'), [isIphone]);
+  const arModes = 'webxr scene-viewer quick-look';
 
   useEffect(() => {
     const el = modelViewerRef.current;
-    if (!el || typeof printFullResDataUrl !== 'string' || !printFullResDataUrl.trim()) return;
+    if (!el) return;
+
+    const onLoad = () => {
+      setIsModelReady(true);
+      console.log('[ar-launcher] model loaded and ready', { src: MODEL_SRC });
+    };
+
+    if (el.model) {
+      setIsModelReady(true);
+      return undefined;
+    }
+
+    setIsModelReady(false);
+    el.addEventListener('load', onLoad);
+    return () => {
+      el.removeEventListener('load', onLoad);
+    };
+  }, []);
+
+  useEffect(() => {
+    const el = modelViewerRef.current;
+    if (!el || !isModelReady || typeof printFullResDataUrl !== 'string' || !printFullResDataUrl.trim()) return;
 
     const hydrateTexture = async () => {
       try {
         await el.updateComplete;
-        if (!el.model) return;
+        const firstMaterial = el.model?.materials?.[0];
+        if (!firstMaterial) return;
+
         const texture = await el.createTexture(printFullResDataUrl.trim());
         const materials = el.model?.materials || [];
         materials.forEach((material) => {
@@ -102,32 +115,18 @@ export default function ARLauncher({ printFullResDataUrl, widthCm, heightCm }) {
       }
     };
 
-    const onLoad = () => {
-      setModelLoaded(true);
-      hydrateTexture();
-    };
-
-    if (el.model) {
-      setModelLoaded(true);
-      hydrateTexture();
-      return undefined;
-    }
-
-    el.addEventListener('load', onLoad);
-    return () => {
-      el.removeEventListener('load', onLoad);
-    };
-  }, [printFullResDataUrl]);
+    hydrateTexture();
+  }, [isModelReady, printFullResDataUrl]);
 
   const launchAr = async () => {
-    if (!isVisibleOnDevice || isLaunching) return;
+    if (!isVisibleOnDevice || isLaunching || !isModelReady) return;
     const el = modelViewerRef.current;
     if (!el || typeof el.activateAR !== 'function') return;
 
     try {
       setIsLaunching(true);
       console.log('[ar-launcher] activateAR() direct call', {
-        modelLoaded,
+        isModelReady,
         src: MODEL_SRC,
       });
       await el.activateAR();
@@ -142,9 +141,9 @@ export default function ARLauncher({ printFullResDataUrl, widthCm, heightCm }) {
 
   return (
     <div className={styles.wrapper}>
-      <button type="button" className={styles.button} onClick={launchAr} disabled={isLaunching}>
+      <button type="button" className={styles.button} onClick={launchAr} disabled={isLaunching || !isModelReady}>
         <span aria-hidden="true" className={styles.icon}>📷</span>
-        Ver en mi escritorio (AR)
+        {isModelReady ? 'Ver en mi escritorio (AR)' : 'Cargando modelo...'}
       </button>
       <model-viewer
         ref={modelViewerRef}
