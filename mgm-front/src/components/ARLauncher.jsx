@@ -4,6 +4,7 @@ import styles from './ARLauncher.module.css';
 
 const MODEL_VIEWER_SCRIPT_ID = 'mgm-model-viewer-script';
 const MODEL_SRC = 'https://vxkewodclwozoennpqqv.supabase.co/storage/v1/object/public/preview/models/mousepad.glb';
+const LOAD_TIMEOUT_MS = 5000;
 
 const parsePositiveNumber = (value) => {
   const num = Number(value);
@@ -41,16 +42,91 @@ function ensureModelViewerScript() {
   document.head.appendChild(script);
 }
 
+const createFallbackPlaneGltfBlobUrl = () => {
+  const positions = new Float32Array([
+    -0.5, 0, -0.5,
+    0.5, 0, -0.5,
+    0.5, 0, 0.5,
+    -0.5, 0, 0.5,
+  ]);
+  const indices = new Uint16Array([0, 1, 2, 0, 2, 3]);
+
+  const positionBytes = new Uint8Array(positions.buffer);
+  const indexBytes = new Uint8Array(indices.buffer);
+  const merged = new Uint8Array(positionBytes.byteLength + indexBytes.byteLength);
+  merged.set(positionBytes, 0);
+  merged.set(indexBytes, positionBytes.byteLength);
+
+  const bufferBase64 = window.btoa(String.fromCharCode(...merged));
+
+  const gltf = {
+    asset: { version: '2.0' },
+    scenes: [{ nodes: [0] }],
+    scene: 0,
+    nodes: [{ mesh: 0 }],
+    meshes: [{
+      primitives: [{
+        attributes: { POSITION: 0 },
+        indices: 1,
+      }],
+    }],
+    buffers: [{
+      byteLength: merged.byteLength,
+      uri: `data:application/octet-stream;base64,${bufferBase64}`,
+    }],
+    bufferViews: [
+      { buffer: 0, byteOffset: 0, byteLength: positionBytes.byteLength, target: 34962 },
+      {
+        buffer: 0,
+        byteOffset: positionBytes.byteLength,
+        byteLength: indexBytes.byteLength,
+        target: 34963,
+      },
+    ],
+    accessors: [
+      {
+        bufferView: 0,
+        componentType: 5126,
+        count: 4,
+        type: 'VEC3',
+        min: [-0.5, 0, -0.5],
+        max: [0.5, 0, 0.5],
+      },
+      {
+        bufferView: 1,
+        componentType: 5123,
+        count: 6,
+        type: 'SCALAR',
+      },
+    ],
+  };
+
+  const blob = new Blob([JSON.stringify(gltf)], { type: 'model/gltf+json' });
+  return URL.createObjectURL(blob);
+};
+
 export default function ARLauncher({ printFullResDataUrl, widthCm, heightCm }) {
   const modelViewerRef = useRef(null);
+  const fallbackBlobUrlRef = useRef('');
+  const triedFallbackRef = useRef(false);
+
   const [isVisibleOnDevice, setIsVisibleOnDevice] = useState(false);
   const [isLaunching, setIsLaunching] = useState(false);
   const [modelLoaded, setModelLoaded] = useState(false);
   const [loadError, setLoadError] = useState('');
+  const [activeModelSrc, setActiveModelSrc] = useState(MODEL_SRC);
+  const [screenLog, setScreenLog] = useState('');
 
   useEffect(() => {
     ensureModelViewerScript();
     setIsVisibleOnDevice(detectMobileOrTablet());
+  }, []);
+
+  useEffect(() => () => {
+    if (fallbackBlobUrlRef.current) {
+      URL.revokeObjectURL(fallbackBlobUrlRef.current);
+      fallbackBlobUrlRef.current = '';
+    }
   }, []);
 
   const resolvedSize = useMemo(() => {
@@ -77,35 +153,56 @@ export default function ARLauncher({ printFullResDataUrl, widthCm, heightCm }) {
 
     let timeoutId;
 
+    const setConnectionErrorState = () => {
+      setLoadError('No se pudo cargar el modelo. Verifica tu conexión o el CORS de Supabase');
+      setScreenLog('Error de conexión con el modelo 3D');
+      setModelLoaded(false);
+    };
+
+    const swapToFallbackModel = () => {
+      if (!fallbackBlobUrlRef.current) {
+        fallbackBlobUrlRef.current = createFallbackPlaneGltfBlobUrl();
+      }
+      triedFallbackRef.current = true;
+      setActiveModelSrc(fallbackBlobUrlRef.current);
+    };
+
     const onLoad = () => {
       if (timeoutId) window.clearTimeout(timeoutId);
       setLoadError('');
+      setScreenLog('');
       setModelLoaded(true);
-      console.log('[ar-launcher] model loaded and ready', { src: MODEL_SRC });
+      console.log('[ar-launcher] model loaded and ready', { src: activeModelSrc });
     };
 
-    const onError = (err) => {
+    const onFailure = (reason, err) => {
       if (timeoutId) window.clearTimeout(timeoutId);
-      setModelLoaded(false);
-      setLoadError('No se pudo cargar el modelo. Verifica tu conexión o el CORS de Supabase');
-      console.error('[ar-launcher] model failed to load', err);
+      setConnectionErrorState();
+      if (!triedFallbackRef.current && activeModelSrc === MODEL_SRC) {
+        if (reason.includes('timeout')) {
+          el.src = '';
+        }
+        console.error(`[ar-launcher] ${reason}; loading fallback plane`, err);
+        swapToFallbackModel();
+        return;
+      }
+      console.error(`[ar-launcher] ${reason}`, err);
     };
 
-    console.log('Intentando descargar de Supabase:', MODEL_SRC);
-
-    if (el.model) {
-      setLoadError('');
-      setModelLoaded(true);
-      return undefined;
-    }
+    console.log('Intentando descargar de Supabase:', activeModelSrc);
 
     setModelLoaded(false);
     setLoadError('');
+    setScreenLog('');
+
+    el.setAttribute('crossorigin', 'anonymous');
+    el.src = activeModelSrc;
+
     timeoutId = window.setTimeout(() => {
-      setModelLoaded(false);
-      setLoadError('No se pudo cargar el modelo. Verifica tu conexión o el CORS de Supabase');
-      console.error('[ar-launcher] load timeout after 7s', { src: MODEL_SRC });
-    }, 7000);
+      onFailure(`load timeout after ${LOAD_TIMEOUT_MS / 1000}s`);
+    }, LOAD_TIMEOUT_MS);
+
+    const onError = (err) => onFailure('model failed to load', err);
 
     el.addEventListener('load', onLoad);
     el.addEventListener('error', onError);
@@ -114,7 +211,7 @@ export default function ARLauncher({ printFullResDataUrl, widthCm, heightCm }) {
       el.removeEventListener('load', onLoad);
       el.removeEventListener('error', onError);
     };
-  }, []);
+  }, [activeModelSrc]);
 
   useEffect(() => {
     const el = modelViewerRef.current;
@@ -150,9 +247,13 @@ export default function ARLauncher({ printFullResDataUrl, widthCm, heightCm }) {
 
     try {
       setIsLaunching(true);
+      console.log('[ar-launcher] state before activateAR()', {
+        modelState: el.model,
+        currentSrc: el.src,
+      });
       console.log('[ar-launcher] activateAR() direct call', {
         modelLoaded,
-        src: MODEL_SRC,
+        src: activeModelSrc,
       });
       await el.activateAR();
     } catch (err) {
@@ -168,12 +269,12 @@ export default function ARLauncher({ printFullResDataUrl, widthCm, heightCm }) {
     <div className={styles.wrapper}>
       <button type="button" className={styles.button} onClick={launchAr} disabled={isLaunching || !modelLoaded || Boolean(loadError)}>
         <span aria-hidden="true" className={styles.icon}>📷</span>
-        {modelLoaded ? 'Ver en mi escritorio' : 'Cargando...'}
+        {modelLoaded ? 'Ver en mi escritorio' : (loadError ? 'Error al cargar' : 'Cargando...')}
       </button>
       {loadError ? <p role="alert">{loadError}</p> : null}
+      {screenLog ? <div role="status">{screenLog}</div> : null}
       <model-viewer
         ref={modelViewerRef}
-        src={MODEL_SRC}
         crossorigin="anonymous"
         ar
         ar-modes={arModes}
