@@ -1313,6 +1313,10 @@ export default function Mockup() {
   const [toast, setToast] = useState(null);
   const [isBuyPromptOpen, setBuyPromptOpen] = useState(false);
   const [is3dPreviewOpen, setIs3dPreviewOpen] = useState(false);
+
+  const show3dPreviewButton =
+    ((typeof process !== 'undefined' && process?.env?.NODE_ENV === 'development')
+      || (typeof window !== 'undefined' && window.location.search.includes('preview3d=true')));
   const buyNowButtonRef = useRef(null);
   const modalRef = useRef(null);
   const firstActionButtonRef = useRef(null);
@@ -4679,19 +4683,21 @@ export default function Mockup() {
               Arma un carrito con todo lo que te guste <br></br> y obtené envío gratis ❤️
             </p>
           </div>
-          <div className={styles.ctaCard}>
-            <button
-              type="button"
-              className={`${styles.ctaButton} ${styles.ctaButton3d}`}
-              onClick={() => setIs3dPreviewOpen(true)}
-            >
-              <span className={styles.ctaIcon3d} aria-hidden="true">🧊</span>
-              Ver en mi escritorio
-            </button>
-            <p className={styles.ctaHint}>
-              Vista previa 3D y AR con el tamaño real de tu mousepad.
-            </p>
-          </div>
+          {show3dPreviewButton ? (
+            <div className={styles.ctaCard}>
+              <button
+                type="button"
+                className={`${styles.ctaButton} ${styles.ctaButton3d}`}
+                onClick={() => setIs3dPreviewOpen(true)}
+              >
+                <span className={styles.ctaIcon3d} aria-hidden="true">🧊</span>
+                Ver en mi escritorio
+              </button>
+              <p className={styles.ctaHint}>
+                Vista previa 3D y AR con el tamaño real de tu mousepad.
+              </p>
+            </div>
+          ) : null}
           <div className={styles.ctaCard}>
             <CtaButton
               className={`${styles.ctaButton} ${styles.ctaButtonPrimary1}`}
