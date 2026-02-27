@@ -6,6 +6,11 @@ const MODEL_VIEWER_SCRIPT_ID = 'mgm-model-viewer-script';
 const MODEL_SRC = 'https://vxkewodclwozoennpqqv.supabase.co/storage/v1/object/public/preview/models/mousepad.glb';
 const LOAD_TIMEOUT_MS = 5000;
 
+const withCacheBypass = (src) => {
+  const separator = src.includes('?') ? '&' : '?';
+  return `${src}${separator}t=${Date.now()}`;
+};
+
 const parsePositiveNumber = (value) => {
   const num = Number(value);
   return Number.isFinite(num) && num > 0 ? num : null;
@@ -115,7 +120,14 @@ export default function ARLauncher({ printFullResDataUrl, widthCm, heightCm }) {
   const [modelLoaded, setModelLoaded] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [activeModelSrc, setActiveModelSrc] = useState(MODEL_SRC);
-  const [screenLog, setScreenLog] = useState('');
+  const [screenLog, setScreenLog] = useState([]);
+
+  const appendLog = (message) => {
+    setScreenLog((prev) => {
+      const entry = `${new Date().toLocaleTimeString()} · ${message}`;
+      return [...prev.slice(-5), entry];
+    });
+  };
 
   useEffect(() => {
     ensureModelViewerScript();
@@ -155,7 +167,7 @@ export default function ARLauncher({ printFullResDataUrl, widthCm, heightCm }) {
 
     const setConnectionErrorState = () => {
       setLoadError('No se pudo cargar el modelo. Verifica tu conexión o el CORS de Supabase');
-      setScreenLog('Error de conexión con el modelo 3D');
+      appendLog('Error de conexión con el modelo 3D');
       setModelLoaded(false);
     };
 
@@ -170,7 +182,7 @@ export default function ARLauncher({ printFullResDataUrl, widthCm, heightCm }) {
     const onLoad = () => {
       if (timeoutId) window.clearTimeout(timeoutId);
       setLoadError('');
-      setScreenLog('');
+      appendLog('Modelo cargado y listo para AR');
       setModelLoaded(true);
       console.log('[ar-launcher] model loaded and ready', { src: activeModelSrc });
     };
@@ -189,16 +201,20 @@ export default function ARLauncher({ printFullResDataUrl, widthCm, heightCm }) {
       console.error(`[ar-launcher] ${reason}`, err);
     };
 
-    console.log('Intentando descargar de Supabase:', activeModelSrc);
+    const runtimeSrc = withCacheBypass(activeModelSrc);
+    console.log('Intentando descargar de Supabase:', runtimeSrc);
+    appendLog(`Iniciando Fetch: ${runtimeSrc}`);
 
     setModelLoaded(false);
     setLoadError('');
-    setScreenLog('');
+    setScreenLog([]);
 
     // Reinicia el recurso antes de cada intento para evitar estados/caché residuales.
     el.src = '';
     el.setAttribute('crossorigin', 'anonymous');
-    el.src = activeModelSrc;
+    appendLog('CORS aplicado (crossorigin=anonymous)');
+    el.src = runtimeSrc;
+    appendLog('src asignado al model-viewer');
 
     timeoutId = window.setTimeout(() => {
       onFailure(`load timeout after ${LOAD_TIMEOUT_MS / 1000}s`);
@@ -206,12 +222,30 @@ export default function ARLauncher({ printFullResDataUrl, widthCm, heightCm }) {
 
     const onError = (err) => onFailure('model failed to load', err);
 
+    const onProgress = (evt) => {
+      const detail = evt?.detail;
+      const ratio = typeof detail?.totalProgress === 'number' ? detail.totalProgress : null;
+      if (ratio === null) {
+        appendLog('Descargando: progreso no disponible');
+        return;
+      }
+      const percent = Math.round(ratio * 100);
+      appendLog(`Descargando ${percent}%`);
+    };
+    const onModelVisibility = (evt) => {
+      appendLog(`model-visibility: ${evt?.detail?.visible ? 'visible' : 'hidden'}`);
+    };
+
     el.addEventListener('load', onLoad);
     el.addEventListener('error', onError);
+    el.addEventListener('progress', onProgress);
+    el.addEventListener('model-visibility', onModelVisibility);
     return () => {
       if (timeoutId) window.clearTimeout(timeoutId);
       el.removeEventListener('load', onLoad);
       el.removeEventListener('error', onError);
+      el.removeEventListener('progress', onProgress);
+      el.removeEventListener('model-visibility', onModelVisibility);
     };
   }, [activeModelSrc]);
 
@@ -243,12 +277,18 @@ export default function ARLauncher({ printFullResDataUrl, widthCm, heightCm }) {
   }, [modelLoaded, printFullResDataUrl]);
 
   const launchAr = async () => {
-    if (!isVisibleOnDevice || isLaunching || !modelLoaded) return;
+    if (!isVisibleOnDevice || isLaunching) return;
     const el = modelViewerRef.current;
     if (!el || typeof el.activateAR !== 'function') return;
 
+    if (!modelLoaded) {
+      appendLog('AR bloqueado: el modelo sigue pendiente de carga');
+      return;
+    }
+
     try {
       setIsLaunching(true);
+      appendLog('Invocando activateAR()');
       console.log('[ar-launcher] state before activateAR()', {
         modelState: el.model,
         currentSrc: el.src,
@@ -258,7 +298,9 @@ export default function ARLauncher({ printFullResDataUrl, widthCm, heightCm }) {
         src: activeModelSrc,
       });
       await el.activateAR();
+      appendLog('activateAR() resuelto');
     } catch (err) {
+      appendLog('activateAR() falló');
       console.error('[ar-launcher] failed to activate AR', err);
     } finally {
       setIsLaunching(false);
@@ -274,7 +316,11 @@ export default function ARLauncher({ printFullResDataUrl, widthCm, heightCm }) {
         {modelLoaded ? 'Ver en mi escritorio' : (loadError ? 'Error al cargar' : 'Cargando...')}
       </button>
       {loadError ? <p role="alert">{loadError}</p> : null}
-      {screenLog ? <div role="status">{screenLog}</div> : null}
+      {screenLog.length ? (
+        <div role="status" className={styles.logger}>
+          {screenLog.map((line, index) => <div key={`${line}-${index}`}>{line}</div>)}
+        </div>
+      ) : null}
       <model-viewer
         ref={modelViewerRef}
         ar
@@ -283,7 +329,7 @@ export default function ARLauncher({ printFullResDataUrl, widthCm, heightCm }) {
         camera-controls={false}
         shadow-intensity="0"
         scale={scale}
-        style={{ position: 'absolute', width: '1px', height: '1px', opacity: '0', pointerEvents: 'none' }}
+        className={styles.preloadModelViewer}
       />
     </div>
   );
