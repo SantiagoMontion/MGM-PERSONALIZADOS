@@ -28,6 +28,28 @@
   line-height: 1;
 }
 
+.logger {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #303030;
+  background: #101010;
+  color: #d7ffd7;
+  font-size: 12px;
+  line-height: 1.4;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+}
+
+.preloadModelViewer {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  opacity: 0.01;
+  pointer-events: none;
+  left: -10000px;
+  top: -10000px;
+}
+
 @media (max-width: 640px) {
   .button {
     padding: 16px 20px;
