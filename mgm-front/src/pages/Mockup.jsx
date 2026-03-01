@@ -2,6 +2,7 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { PDFDocument } from 'pdf-lib';
 import Toast from '@/components/Toast.jsx';
+import Mousepad3DPreview from '@/components/Mousepad3DPreview.jsx';
 import { useFlow } from '@/state/flow.js';
 import { downloadBlob, renderMockup1080 } from '@/lib/mockup.js';
 import styles from './Mockup.module.css';
@@ -1311,6 +1312,7 @@ export default function Mockup() {
   const [isPublishing, setIsPublishing] = useState(false);
   const [toast, setToast] = useState(null);
   const [isBuyPromptOpen, setBuyPromptOpen] = useState(false);
+  const [is3dPreviewOpen, setIs3dPreviewOpen] = useState(false);
   const buyNowButtonRef = useRef(null);
   const modalRef = useRef(null);
   const firstActionButtonRef = useRef(null);
@@ -2905,6 +2907,9 @@ export default function Mockup() {
   }, [flow]);
 
   const flowStateForPurchase = (typeof flow?.get === 'function' ? flow.get() : flow) || {};
+  const preview3DWidthCm = Number(flowStateForPurchase?.widthCm ?? flowStateForPurchase?.editorState?.size_cm?.w);
+  const preview3DHeightCm = Number(flowStateForPurchase?.heightCm ?? flowStateForPurchase?.editorState?.size_cm?.h);
+  const preview3DTexture = safeStr(flowStateForPurchase?.printFullResDataUrl) || null;
   const mockupPublicUrlValue = safeStr(flowStateForPurchase?.mockupPublicUrl);
   const hasPrintFullResDataUrl = isDataUrl(flowStateForPurchase?.printFullResDataUrl);
   const hasPersistedMockupPublicUrl = Boolean(mockupPublicUrlValue) && !mockupPublicUrlValue.startsWith('blob:');
@@ -4673,8 +4678,19 @@ export default function Mockup() {
             <p className={styles.ctaHint}>
               Arma un carrito con todo lo que te guste <br></br> y obtené envío gratis ❤️
             </p>
-            
-             
+          </div>
+          <div className={styles.ctaCard}>
+            <button
+              type="button"
+              className={`${styles.ctaButton} ${styles.ctaButton3d}`}
+              onClick={() => setIs3dPreviewOpen(true)}
+            >
+              <span className={styles.ctaIcon3d} aria-hidden="true">🧊</span>
+              Ver en mi escritorio
+            </button>
+            <p className={styles.ctaHint}>
+              Vista previa 3D y AR con el tamaño real de tu mousepad.
+            </p>
           </div>
           <div className={styles.ctaCard}>
             <CtaButton
@@ -4876,6 +4892,39 @@ export default function Mockup() {
                 })}
               />
             </div>
+          </div>
+        </div>
+      ) : null}
+      {is3dPreviewOpen ? (
+        <div
+          role="presentation"
+          className={styles.modalBackdrop}
+          onClick={() => setIs3dPreviewOpen(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Vista previa 3D de tu mousepad"
+            className={`${styles.modalCard} ${styles.preview3dModal}`}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setIs3dPreviewOpen(false)}
+              aria-label="Cerrar vista 3D"
+              className={styles.modalClose}
+            >
+              ×
+            </button>
+            <h2 className={styles.modalTitle}>Ver en mi escritorio</h2>
+            <p className={styles.modalDescription}>
+              Girá el modelo y tocá el ícono AR para colocarlo sobre una superficie horizontal.
+            </p>
+            <Mousepad3DPreview
+              printFullResDataUrl={preview3DTexture}
+              widthCm={preview3DWidthCm}
+              heightCm={preview3DHeightCm}
+            />
           </div>
         </div>
       ) : null}
