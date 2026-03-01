@@ -45,6 +45,40 @@ const normalizeMaterialLabel = (raw) => {
   return '';
 };
 
+const MGM_AR_MODEL_GLB_URL = 'https://vxkewodclwozoennpqqv.supabase.co/storage/v1/object/public/preview/models/mousepad.glb';
+const MGM_AR_MODEL_USDZ_URL = typeof import.meta.env?.VITE_AR_MODEL_USDZ_URL === 'string'
+  ? import.meta.env.VITE_AR_MODEL_USDZ_URL.trim()
+  : '';
+const MGM_AR_IOS_SIZE_LINK_URL = typeof import.meta.env?.VITE_AR_SIZE_LINK_URL === 'string'
+  ? import.meta.env.VITE_AR_SIZE_LINK_URL.trim()
+  : 'https://size.link';
+
+const detectMobileOs = () => {
+  if (typeof navigator === 'undefined') {
+    return { isAndroid: false, isIos: false };
+  }
+  const userAgent = String(navigator.userAgent || navigator.vendor || '').toLowerCase();
+  const isAndroid = /android/.test(userAgent);
+  const isIos = /iphone|ipad|ipod/.test(userAgent)
+    || (userAgent.includes('mac') && typeof document !== 'undefined' && 'ontouchend' in document);
+  return { isAndroid, isIos };
+};
+
+const buildArScale = (widthCm, heightCm) => {
+  const widthMeters = Number(widthCm) / 100;
+  const heightMeters = Number(heightCm) / 100;
+  const safeWidth = Number.isFinite(widthMeters) && widthMeters > 0 ? widthMeters : 0.49;
+  const safeHeight = Number.isFinite(heightMeters) && heightMeters > 0 ? heightMeters : 0.42;
+  return `${safeWidth.toFixed(3)},0.003,${safeHeight.toFixed(3)}`;
+};
+
+const buildAndroidArIntentUrl = (widthCm, heightCm) => {
+  const modelFile = encodeURIComponent(MGM_AR_MODEL_GLB_URL);
+  const scale = encodeURIComponent(buildArScale(widthCm, heightCm));
+  const fallback = encodeURIComponent('https://mgmgamers.com');
+  return `intent://ar_only?model_file=${modelFile}&scale=${scale}#Intent;scheme=https;package=com.google.ar.core;action=android.intent.action.VIEW;S.browser_fallback_url=${fallback};end;`;
+};
+
 const parsePositivePriceValue = (value) => {
   if (value && typeof value === 'object') {
     const nested = value.amount ?? value.value ?? value.price;
@@ -1312,6 +1346,22 @@ export default function Mockup() {
   const [toast, setToast] = useState(null);
   const [isBuyPromptOpen, setBuyPromptOpen] = useState(false);
   const buyNowButtonRef = useRef(null);
+  const { isAndroid, isIos } = useMemo(() => detectMobileOs(), []);
+
+  const arCtaHref = useMemo(() => {
+    const state = (typeof flow?.get === 'function' ? flow.get() : flow) || {};
+    const basics = extractFlowBasics(state);
+    if (isAndroid) {
+      return buildAndroidArIntentUrl(basics?.widthCm, basics?.heightCm);
+    }
+    if (isIos && MGM_AR_MODEL_USDZ_URL) {
+      return MGM_AR_MODEL_USDZ_URL;
+    }
+    if (isIos) {
+      return MGM_AR_IOS_SIZE_LINK_URL;
+    }
+    return MGM_AR_IOS_SIZE_LINK_URL;
+  }, [flow, isAndroid, isIos]);
   const modalRef = useRef(null);
   const firstActionButtonRef = useRef(null);
   const isPublishingRef = useRef(false);
@@ -4644,6 +4694,38 @@ export default function Mockup() {
         
 
         <div className={styles.ctaRow}>
+          <div className={styles.ctaCard}>
+            <a
+              href={arCtaHref}
+              className={`${styles.ctaButton} ${styles.ctaButtonPrimary}`}
+              rel={isIos ? 'ar' : 'noopener noreferrer'}
+              target={isAndroid ? '_self' : '_blank'}
+              onClick={(event) => {
+                if (busy || cartInteractionBusy || buyBtnBusy || isPublishing) {
+                  event.preventDefault();
+                  return;
+                }
+                if (isAndroid) {
+                  event.preventDefault();
+                  const state = (typeof flow?.get === 'function' ? flow.get() : flow) || {};
+                  const basics = extractFlowBasics(state);
+                  const intentUrl = buildAndroidArIntentUrl(basics?.widthCm, basics?.heightCm);
+                  try {
+                    window.location.assign(intentUrl);
+                  } catch (err) {
+                    warn('[mockup] ar_android_open_failed', err);
+                    window.location.assign('https://mgmgamers.com');
+                  }
+                }
+              }}
+              aria-label="Ver medida RA"
+            >
+              Ver medida RA
+            </a>
+            <p className={styles.ctaHint}>
+              Abrí la cámara y visualizá tu medida real al instante 📐
+            </p>
+          </div>
           <div className={styles.ctaCard}>
             <button
               type="button"
