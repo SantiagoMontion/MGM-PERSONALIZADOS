@@ -1994,6 +1994,20 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     },
     [applyBgColor],
   );
+
+  const openArMeasure = useCallback(() => {
+    const ancho = Number.isFinite(wCm) ? wCm : Number(sizeCm?.w ?? 0);
+    const largo = Number.isFinite(hCm) ? hCm : Number(sizeCm?.h ?? 0);
+    const params = new URLSearchParams({
+      l: String(largo),
+      w: String(ancho),
+      h: "0.3",
+      units: "cm",
+    });
+    const arUrl = `https://size.link/?${params.toString()}`;
+    window.open(arUrl, "_blank", "noopener,noreferrer");
+  }, [hCm, sizeCm?.h, sizeCm?.w, wCm]);
+
   const iconButtonClass = (isActive) =>
     isActive
       ? `${styles.iconOnlyButton} ${styles.iconOnlyButtonActive}`
@@ -2885,6 +2899,21 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                     onError={handleIconError(isCircular ? "cuadrado" : "circular")}
                   />
                 )}
+              </button>
+            </ToolbarTooltip>
+          )}
+
+          {isTouch && (
+            <ToolbarTooltip label="Ver medida RA">
+              <button
+                type="button"
+                onClick={openArMeasure}
+                aria-label="Ver medida RA"
+                className={`${styles.iconOnlyButton} ${styles.arMeasureButton}`}
+              >
+                <span className={styles.arMeasureIcon} aria-hidden="true">
+                  📏
+                </span>
               </button>
             </ToolbarTooltip>
           )}
