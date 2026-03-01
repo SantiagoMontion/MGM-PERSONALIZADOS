@@ -143,6 +143,11 @@
   width: 100%;
 }
 
+.arLauncherWrap {
+  width: 100%;
+  margin-top: 6px;
+}
+
 @media (max-width: 1024px) {
   .previewWrapper {
     max-width: min(92vw, 720px);
