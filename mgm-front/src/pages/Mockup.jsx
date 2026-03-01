@@ -45,6 +45,7 @@ const normalizeMaterialLabel = (raw) => {
   return '';
 };
 
+
 const parsePositivePriceValue = (value) => {
   if (value && typeof value === 'object') {
     const nested = value.amount ?? value.value ?? value.price;
