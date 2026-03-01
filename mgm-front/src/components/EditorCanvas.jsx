@@ -106,6 +106,7 @@ const ACTION_ICON_MAP = {
   estirar: resolveIconAsset("estirar.svg"),
   circular: resolveIconAsset("shape-circle.svg"),
   cuadrado: resolveIconAsset("shape-square.svg"),
+  ar3d: resolveIconAsset("shape-square.svg"),
 
 };
 
@@ -240,6 +241,15 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const glassOverlayRef = useRef(null);
   const [wrapSize, setWrapSize] = useState({ w: 960, h: 540 });
   const isTouch = useMemo(() => isTouchDevice(), []);
+  const arMeasureUrl = useMemo(() => {
+    const widthCm = Number.isFinite(wCm) && wCm > 0 ? Number(wCm.toFixed(2)) : 90;
+    const heightCm = Number.isFinite(hCm) && hCm > 0 ? Number(hCm.toFixed(2)) : 40;
+    return `https://size.link/?l=${heightCm}&w=${widthCm}&h=0.3&units=cm`;
+  }, [hCm, wCm]);
+
+  const openArMeasure = useCallback(() => {
+    window.open(arMeasureUrl, "_blank", "noopener,noreferrer");
+  }, [arMeasureUrl]);
   const hasAdjustedViewRef = useRef(false);
   useEffect(() => {
     if (!isTouch) return;
@@ -2885,6 +2895,31 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                     onError={handleIconError(isCircular ? "cuadrado" : "circular")}
                   />
                 )}
+              </button>
+            </ToolbarTooltip>
+          )}
+
+          {isTouch && (
+            <ToolbarTooltip label="Ver medida RA">
+              <button
+                type="button"
+                onClick={openArMeasure}
+                aria-label="Ver medida RA"
+                className={styles.arMeasureButton}
+              >
+                {missingIcons.ar3d ? (
+                  <span className={styles.iconFallback} aria-hidden="true">
+                    3D
+                  </span>
+                ) : (
+                  <img
+                    src={ACTION_ICON_MAP.ar3d}
+                    alt="Ver medida RA"
+                    className={styles.iconOnlyButtonImage}
+                    onError={handleIconError("ar3d")}
+                  />
+                )}
+                <span className={styles.arMeasureButtonLabel}>Ver medida RA</span>
               </button>
             </ToolbarTooltip>
           )}
