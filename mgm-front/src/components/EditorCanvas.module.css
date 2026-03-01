@@ -353,6 +353,28 @@
   box-shadow: none;
 }
 
+.arMeasureButton {
+  border-color: #7c3aed;
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.92), rgba(79, 70, 229, 0.92));
+}
+
+@media (hover: hover) {
+  .arMeasureButton:not(:disabled):hover {
+    border-color: #8b5cf6;
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.94), rgba(99, 102, 241, 0.94));
+  }
+}
+
+.arMeasureButton:not(:disabled):active {
+  border-color: #6d28d9;
+  background: linear-gradient(135deg, rgba(109, 40, 217, 0.96), rgba(67, 56, 202, 0.96));
+}
+
+.arMeasureIcon {
+  font-size: 20px;
+  line-height: 1;
+}
+
 .iconOnlyButtonImage {
   width: 25px;
   height: 25px;
