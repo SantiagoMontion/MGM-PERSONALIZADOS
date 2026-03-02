@@ -1,3 +1,5 @@
+import styles from './OrderTracking.module.css';
+
 export default function OrderTracking() {
   const mockOrder = {
     orderNumber: 'MGM-2026-00125',
@@ -29,41 +31,39 @@ export default function OrderTracking() {
     },
   };
 
-  const currentTag = mockOrder.tags.find((tag) => stageByTag[tag]);
-  const currentStage = currentTag
-    ? stageByTag[currentTag]
+  const activeTag = mockOrder.tags.find((tag) => stageByTag[tag]);
+  const activeStage = activeTag
+    ? stageByTag[activeTag]
     : {
-        title: 'Tu pedido está siendo preparado',
-        description: 'Estamos actualizando el estado de tu pedido. En breve vas a ver más detalles.',
-        mediaLabel: 'Estado en actualización',
-      };
+      title: 'Tu pedido está siendo preparado',
+      description: 'Estamos actualizando el estado de tu pedido. En breve vas a ver más detalles.',
+      mediaLabel: 'Estado en actualización',
+    };
 
   return (
-    <section className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
-      <header className="rounded-lg border border-neutral-700 bg-neutral-900 p-5 shadow-sm sm:p-6">
-        <p className="text-sm text-neutral-300">Seguimiento de pedido</p>
-        <h1 className="mt-1 text-2xl font-semibold text-neutral-100 sm:text-3xl">Pedido #{mockOrder.orderNumber}</h1>
-        <p className="mt-2 text-sm text-neutral-300">Cliente: {mockOrder.customerName}</p>
+    <section className={styles.container}>
+      <header className={styles.card}>
+        <p className={styles.eyebrow}>Seguimiento de pedido</p>
+        <h1 className={styles.title}>Pedido #{mockOrder.orderNumber}</h1>
+        <p className={styles.subtitle}>Cliente: {mockOrder.customerName}</p>
       </header>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <article className="rounded-lg border border-neutral-700 bg-neutral-900 p-5 shadow-sm">
-          <p className="text-xs uppercase tracking-wide text-neutral-400">Estado de pago</p>
-          <p className="mt-2 text-lg font-medium text-neutral-100">
-            {mockOrder.financialStatus === 'paid' ? 'Pagado' : 'Pendiente de pago'}
-          </p>
+      <div className={styles.summaryGrid}>
+        <article className={styles.card}>
+          <p className={styles.label}>Estado de pago</p>
+          <p className={styles.value}>{mockOrder.financialStatus === 'paid' ? 'Pagado' : 'Pendiente de pago'}</p>
         </article>
 
-        <article className="rounded-lg border border-neutral-700 bg-neutral-900 p-5 shadow-sm">
-          <p className="text-xs uppercase tracking-wide text-neutral-400">Total</p>
-          <p className="mt-2 text-lg font-medium text-neutral-100">{mockOrder.totalPrice}</p>
+        <article className={styles.card}>
+          <p className={styles.label}>Total</p>
+          <p className={styles.value}>{mockOrder.totalPrice}</p>
         </article>
       </div>
 
       {mockOrder.financialStatus === 'pending' && (
-        <article className="rounded-lg border border-amber-500/50 bg-neutral-900 p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-neutral-100">Pago pendiente: transferencia bancaria</h2>
-          <div className="mt-3 space-y-1 text-sm text-neutral-300">
+        <article className={`${styles.card} ${styles.pendingCard}`}>
+          <h2 className={styles.pendingTitle}>Pago pendiente: transferencia bancaria</h2>
+          <div className={styles.pendingInfo}>
             <p>CBU: 0000003100098765432101</p>
             <p>Alias: MGM.GAMERS.SJ</p>
             <p>Banco: Banco Nación</p>
@@ -71,22 +71,19 @@ export default function OrderTracking() {
         </article>
       )}
 
-      <article className="rounded-lg border border-neutral-700 bg-neutral-900 p-5 shadow-sm sm:p-6">
-        <h2 className="text-xl font-semibold text-neutral-100">{currentStage.title}</h2>
-        <p className="mt-2 text-sm text-neutral-300">{currentStage.description}</p>
-
-        <div className="mt-4 rounded-md border border-dashed border-neutral-600 bg-neutral-800/60 p-6 text-center text-sm text-neutral-400">
-          {currentStage.mediaLabel} (contenedor para video/imagen)
-        </div>
+      <article className={styles.card}>
+        <h2 className={styles.sectionTitle}>{activeStage.title}</h2>
+        <p className={styles.sectionDescription}>{activeStage.description}</p>
+        <div className={styles.mediaPlaceholder}>{activeStage.mediaLabel} (contenedor para video/imagen)</div>
       </article>
 
       {mockOrder.trackingUrl && (
-        <div>
+        <div className={styles.actions}>
           <a
             href={mockOrder.trackingUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center justify-center rounded-lg border border-neutral-600 bg-neutral-100 px-5 py-2 text-sm font-medium text-neutral-900 transition hover:bg-white"
+            className={styles.trackingButton}
           >
             Ir al seguimiento externo
           </a>
