@@ -18,6 +18,7 @@ import PreguntasFrecuentes from './pages/PreguntasFrecuentes.jsx';
 import Busqueda from './pages/Busqueda.jsx';
 import Tutorial from './pages/Tutorial.jsx';
 import Bridge from './pages/Bridge.jsx';
+import OrderTracking from './pages/OrderTracking.jsx';
 import NotFound, { NotFoundBoundary } from './pages/NotFound.jsx';
 import { OrderFlowProvider } from './store/orderFlow';
 import { FlowProvider } from './state/flow.js';
@@ -51,6 +52,7 @@ const routes = [
       { path: '/confirm', element: <Confirm /> },
       { path: '/mockup', element: <Mockup /> },
       { path: '/bridge', element: <Bridge /> },
+      { path: '/seguimiento', element: <OrderTracking /> },
       { path: '/calculadora', element: <CalculadoraPage /> },
       { path: '/creating/:jobId', element: <Creating /> },
       { path: '/result/:jobId', element: <Result /> },
