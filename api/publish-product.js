@@ -42,13 +42,24 @@ export const config = {
   },
 };
 
-function normalizeMaterialFromProductType(productType) {
-  const normalized = String(productType || '').toLowerCase();
+function normalizeIncomingMaterial(material) {
+  const raw = typeof material === 'string' ? material.trim() : '';
+  if (!raw) return 'Classic';
+  const normalized = raw.toLowerCase();
+  if (normalized === 'pro') return 'PRO';
+  if (normalized === 'classic' || normalized === 'clasic') return 'Classic';
   if (normalized.includes('glass')) return 'Glasspad';
-  if (normalized.includes('pro')) return 'PRO';
   if (normalized.includes('alfombr')) return 'Alfombra';
-  if (normalized.includes('classic')) return 'Classic';
-  return 'Classic';
+  if (normalized.includes('lamp') || normalized.includes('ilumin')) return 'Lámpara';
+  return raw;
+}
+
+function inferProductTypeFromMaterial(material) {
+  const normalized = String(material || '').toLowerCase();
+  if (normalized.includes('glass')) return 'glasspad';
+  if (normalized === 'pro') return 'pro';
+  if (normalized.includes('alfombr')) return 'alfombra';
+  return 'mousepad';
 }
 
 function parseMoney(value) {
@@ -558,7 +569,14 @@ export default async function handler(req, res) {
       ?? parsedBody?.productType
       ?? 'mousepad',
   ).trim().toLowerCase() || 'mousepad';
-  const mat = normalizeMaterialFromProductType(productType);
+  const incomingMaterial = parsedBody?.material ?? parsedBody?.materialResolved ?? parsedBody?.options?.material;
+  const mat = normalizeIncomingMaterial(incomingMaterial);
+  if (!productType || productType === 'mousepad') {
+    const inferredType = inferProductTypeFromMaterial(mat);
+    if (inferredType && inferredType !== 'mousepad') {
+      productType = inferredType;
+    }
+  }
   let widthCmSafe = Number(parsedBody?.widthCm ?? NaN);
   let heightCmSafe = Number(parsedBody?.heightCm ?? NaN);
   if (Number.isFinite(widthCmSafe) && widthCmSafe > 0) {
