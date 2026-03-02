@@ -882,6 +882,13 @@
   box-shadow: none;
 }
 
+.continueButtonPublishing {
+  background: #6f6f76;
+  border-color: #7f7f86;
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
 .continueButton:not(:disabled):hover {
   background: #529b417c;
   border-color: #ffffff88;

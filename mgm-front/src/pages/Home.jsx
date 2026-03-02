@@ -799,6 +799,9 @@ export default function Home() {
   }
 
   async function handleContinue() {
+    if (busy) {
+      return;
+    }
     const ridCandidate =
       uploaded?.upload_diag_id
       || flow?.uploadDiagId
@@ -1582,6 +1585,7 @@ export default function Home() {
   const description = 'Mousepad Profesionales Personalizados, Gamers, diseño y medida que quieras. Perfectos para gaming control y speed.';
   const url = 'https://www.mgmgamers.store/';
   const hasImage = Boolean(uploaded);
+  const isPublishing = busy;
   const isCanvasReady = Boolean(hasImage && imageUrl);
   const requiresLowAck = hasImage && level === 'bad';
   const ackLowMissing = requiresLowAck && !ackLow;
@@ -2243,11 +2247,11 @@ export default function Home() {
               )}
               {hasImage && (
                 <button
-                  className={`${styles.continueButton} ${styles.canvasContinue}`}
-                  disabled={busy || ackLowMissing}
+                  className={`${styles.continueButton} ${styles.canvasContinue} ${isPublishing ? styles.continueButtonPublishing : ''}`.trim()}
+                  disabled={isPublishing || ackLowMissing}
                   onClick={handleContinue}
                 >
-                  Continuar
+                  {isPublishing ? 'Procesando diseño…' : 'Continuar'}
                 </button>
               )}
               {moderationNotice && (
