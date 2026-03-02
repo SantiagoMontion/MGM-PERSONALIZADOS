@@ -52,7 +52,7 @@ const routes = [
       { path: '/confirm', element: <Confirm /> },
       { path: '/mockup', element: <Mockup /> },
       { path: '/bridge', element: <Bridge /> },
-      { path: '/seguimiento', element: <OrderTracking /> },
+      { path: '/seguimiento/:orderId', element: <OrderTracking /> },
       { path: '/calculadora', element: <CalculadoraPage /> },
       { path: '/creating/:jobId', element: <Creating /> },
       { path: '/result/:jobId', element: <Result /> },
