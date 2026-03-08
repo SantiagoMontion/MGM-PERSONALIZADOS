@@ -45,7 +45,13 @@ const formatDisplayValue = (value) => {
 };
 
 const MATERIAL_OPTIONS = [
-  { value: 'Glasspad', main: 'GLASSPAD', variant: 'speed' },
+  {
+    value: 'Glasspad',
+    main: 'GLASSPAD',
+    variant: 'speed',
+    disabled: true,
+    disabledReason: 'Sin stock',
+  },
   { value: 'PRO', main: 'PRO', variant: 'control' },
   { value: 'Classic', main: 'CLASSIC', variant: 'híbrido' },
   { value: 'Alfombra', main: 'ALFOMBRA', variant: 'para piso' },
@@ -559,6 +565,7 @@ export default function SizeControls({ material, size, onChange, locked = false,
                   aria-disabled={option.disabled ? 'true' : 'false'}
                   className={optionClasses}
                   tabIndex={option.disabled ? -1 : 0}
+                  title={option.disabled ? option.disabledReason || 'Sin stock' : undefined}
                   onClick={(event) => {
                     event.preventDefault();
 
