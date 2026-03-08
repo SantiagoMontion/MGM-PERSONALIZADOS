@@ -36,8 +36,10 @@ const Calculadora = ({ width, height, material, setPrice, className, render }) =
     // Glasspad: fixed price
     if (mode === "Glasspad") {
       const transferPrice = GLASSPAD_TRANSFER_PRICE;
-      const normalFromTransfer = Math.round(transferPrice * 1.25);
-      return { valid: true, transfer: transferPrice, normal: normalFromTransfer };
+      const precioConAumento = transferPrice * 1.34;
+      const transferPriceRounded = Math.round(precioConAumento / 500) * 500;
+      const normalFromTransfer = Math.round(transferPriceRounded * 1.25);
+      return { valid: true, transfer: transferPriceRounded, normal: normalFromTransfer };
     }
 
     // Pro / Clasic
