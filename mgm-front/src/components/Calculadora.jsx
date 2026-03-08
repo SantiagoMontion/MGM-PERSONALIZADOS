@@ -89,9 +89,11 @@ const Calculadora = ({ width, height, material, setPrice, className, render }) =
     const transferBase = Math.round(clientFinalPrice * 0.8);
     const surcharge = STANDARD_SURCHARGE + (mode === "Clasic" ? STANDARD_SURCHARGE : 0);
     const transferWithExtra = transferBase + surcharge;
-    const normalFromTransfer = Math.round(transferWithExtra / 0.8);
+    const precioConAumento = transferWithExtra * 1.34;
+    const transferPriceRounded = Math.round(precioConAumento / 500) * 500;
+    const normalFromTransfer = Math.round(transferPriceRounded / 0.8);
 
-    return { valid: true, transfer: transferWithExtra, normal: normalFromTransfer };
+    return { valid: true, transfer: transferPriceRounded, normal: normalFromTransfer };
   }, [mode, normalizedWidthCm, normalizedHeightCm]);
 
   // Push price to parent AFTER render
