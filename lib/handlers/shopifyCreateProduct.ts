@@ -108,7 +108,7 @@ function buildGlasspadTitle(measurement?: string): string {
   const parts = ['Glasspad'];
   const normalizedMeasurement = (measurement || '').trim();
   if (normalizedMeasurement) parts.push(normalizedMeasurement);
-  return `${parts.join(' ')} | MGM-EDITOR`;
+  return `${parts.join(' ')} | Custom`;
 }
 
 
@@ -377,7 +377,7 @@ export default async function handler(req: any, res: any) {
     const measurementLabel = formatMeasurement(width, height);
     const title = mode === 'Glasspad'
       ? buildGlasspadTitle(measurementLabel)
-      : `Mousepad Personalizado - ${mode}${measurementLabel ? ` ${measurementLabel}` : ''} | MGM-EDITOR`;
+      : `Mousepad Personalizado - ${mode}${measurementLabel ? ` ${measurementLabel}` : ''} | Custom`;
     const productTypeRaw = typeof req.body?.productType === 'string'
       ? req.body.productType
       : typeof req.body?.options?.productType === 'string'
