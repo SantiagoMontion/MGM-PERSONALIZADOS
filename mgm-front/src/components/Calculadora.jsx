@@ -7,7 +7,11 @@ const rolloData = {
 };
 
 const STANDARD_SURCHARGE = 2000;
+const AREA_SURCHARGE_FACTOR = 5000;
 const GLASSPAD_TRANSFER_PRICE = 130000; // con transferencia (fijo)
+const BASE_INCREASE_FACTOR = 1.12;
+const NEW_INFLATION_FACTOR = 1.07;
+const ACCUMULATED_INCREASE_FACTOR = BASE_INCREASE_FACTOR * NEW_INFLATION_FACTOR;
 
 function formatARS(n) {
   return n.toLocaleString("es-AR", { maximumFractionDigits: 0, minimumFractionDigits: 0 });
@@ -36,7 +40,7 @@ const Calculadora = ({ width, height, material, setPrice, className, render }) =
     // Glasspad: fixed price
     if (mode === "Glasspad") {
       const transferPrice = GLASSPAD_TRANSFER_PRICE;
-      const precioConAumento = transferPrice * 1.12;
+      const precioConAumento = transferPrice * ACCUMULATED_INCREASE_FACTOR;
       const transferPriceRounded = Math.round(precioConAumento / 500) * 500;
       const normalFromTransfer = Math.round(transferPriceRounded * 1.25);
       return { valid: true, transfer: transferPriceRounded, normal: normalFromTransfer };
@@ -76,9 +80,8 @@ const Calculadora = ({ width, height, material, setPrice, className, render }) =
 
     let baseFinalPrice = Math.min(yieldPrice, areaPrice);
 
-    const surchargeFactor = 5000;
     const extraArea = Math.max(0, area - baselineArea);
-    const areaSurcharge = surchargeFactor * extraArea;
+    const areaSurcharge = AREA_SURCHARGE_FACTOR * extraArea;
 
     if (normalizedWidthCm < 40 && normalizedHeightCm < 40) {
       baseFinalPrice *= 1.3;
@@ -91,7 +94,7 @@ const Calculadora = ({ width, height, material, setPrice, className, render }) =
     const transferBase = Math.round(clientFinalPrice * 0.8);
     const surcharge = STANDARD_SURCHARGE + (mode === "Clasic" ? STANDARD_SURCHARGE : 0);
     const transferWithExtra = transferBase + surcharge;
-    const precioConAumento = transferWithExtra * 1.12;
+    const precioConAumento = transferWithExtra * ACCUMULATED_INCREASE_FACTOR;
     const transferPriceRounded = Math.round(precioConAumento / 500) * 500;
     const normalFromTransfer = Math.round(transferPriceRounded / 0.8);
 
