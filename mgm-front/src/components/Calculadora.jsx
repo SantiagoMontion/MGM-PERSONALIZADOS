@@ -6,8 +6,13 @@ const rolloData = {
   Alfombra: { width: 140, pricePerMeter: 30000, multiplier: 2.5, baselineArea: 0.36 },
 };
 
+const INFLATION_MULTIPLIER = 1.07;
 const STANDARD_SURCHARGE = 2000;
 const GLASSPAD_TRANSFER_PRICE = 130000; // con transferencia (fijo)
+const AREA_SURCHARGE_FACTOR = 5000;
+
+const applyInflation = (price) => price * INFLATION_MULTIPLIER;
+const roundToNearest500 = (price) => Math.round(price / 500) * 500;
 
 function formatARS(n) {
   return n.toLocaleString("es-AR", { maximumFractionDigits: 0, minimumFractionDigits: 0 });
@@ -35,10 +40,9 @@ const Calculadora = ({ width, height, material, setPrice, className, render }) =
   const computed = useMemo(() => {
     // Glasspad: fixed price
     if (mode === "Glasspad") {
-      const transferPrice = GLASSPAD_TRANSFER_PRICE;
-      const precioConAumento = transferPrice * 1.12;
-      const transferPriceRounded = Math.round(precioConAumento / 500) * 500;
-      const normalFromTransfer = Math.round(transferPriceRounded * 1.25);
+      const transferPrice = applyInflation(GLASSPAD_TRANSFER_PRICE);
+      const transferPriceRounded = roundToNearest500(transferPrice);
+      const normalFromTransfer = roundToNearest500(transferPriceRounded * 1.25);
       return { valid: true, transfer: transferPriceRounded, normal: normalFromTransfer };
     }
 
@@ -47,6 +51,7 @@ const Calculadora = ({ width, height, material, setPrice, className, render }) =
     if (!rollo) return { valid: false, transfer: 0, normal: 0 };
 
     const { width: rolloWidth, pricePerMeter, multiplier, baselineArea } = rollo;
+    const inflatedPricePerMeter = applyInflation(pricePerMeter);
     const rolloWidthM = rolloWidth / 100;
 
     const pieceWidthM = normalizedWidthCm / 100;
@@ -57,26 +62,26 @@ const Calculadora = ({ width, height, material, setPrice, className, render }) =
     const unitsRotated = Math.floor(rolloWidthM / pieceHeightM) * Math.max(Math.floor(1 / pieceWidthM), 1);
     const unitsPerMeter = Math.max(unitsHorizontal, unitsRotated, 1);
 
-    const defaultPricePerUnit = pricePerMeter / unitsPerMeter;
+    const defaultPricePerUnit = inflatedPricePerMeter / unitsPerMeter;
     const useRotatedModel = !(pieceWidthM === 1.4 && pieceHeightM === 1) && pieceWidthM > 1 && pieceWidthM < rolloWidthM;
 
     const finalCostPerUnit = useRotatedModel
       ? (() => {
           const piecesPerRow = Math.floor(rolloWidthM / pieceHeightM);
-          const baseCostPerUnit = pricePerMeter / piecesPerRow;
-          const extraCost = ((pieceWidthM - 1) * pricePerMeter) / piecesPerRow;
+          const baseCostPerUnit = inflatedPricePerMeter / piecesPerRow;
+          const extraCost = ((pieceWidthM - 1) * inflatedPricePerMeter) / piecesPerRow;
           return baseCostPerUnit + extraCost;
         })()
       : defaultPricePerUnit;
 
     const yieldPrice = finalCostPerUnit * multiplier;
-    const costPerM2 = pricePerMeter / rolloWidthM;
+    const costPerM2 = inflatedPricePerMeter / rolloWidthM;
     const area = pieceWidthM * pieceHeightM;
     const areaPrice = area * costPerM2 * multiplier;
 
     let baseFinalPrice = Math.min(yieldPrice, areaPrice);
 
-    const surchargeFactor = 5000;
+    const surchargeFactor = applyInflation(AREA_SURCHARGE_FACTOR);
     const extraArea = Math.max(0, area - baselineArea);
     const areaSurcharge = surchargeFactor * extraArea;
 
@@ -84,16 +89,15 @@ const Calculadora = ({ width, height, material, setPrice, className, render }) =
       baseFinalPrice *= 1.3;
     }
 
-    const roundTo500 = (p) => Math.ceil(p / 500) * 500;
-    const basePriceRounded = roundTo500(baseFinalPrice + areaSurcharge);
+    const basePriceRounded = roundToNearest500(baseFinalPrice + areaSurcharge);
 
-    const clientFinalPrice = Math.round(basePriceRounded * 1.25);
-    const transferBase = Math.round(clientFinalPrice * 0.8);
-    const surcharge = STANDARD_SURCHARGE + (mode === "Clasic" ? STANDARD_SURCHARGE : 0);
+    const clientFinalPrice = roundToNearest500(basePriceRounded * 1.25);
+    const transferBase = roundToNearest500(clientFinalPrice * 0.8);
+    const inflatedStandardSurcharge = applyInflation(STANDARD_SURCHARGE);
+    const surcharge = inflatedStandardSurcharge + (mode === "Clasic" ? inflatedStandardSurcharge : 0);
     const transferWithExtra = transferBase + surcharge;
-    const precioConAumento = transferWithExtra * 1.12;
-    const transferPriceRounded = Math.round(precioConAumento / 500) * 500;
-    const normalFromTransfer = Math.round(transferPriceRounded / 0.8);
+    const transferPriceRounded = roundToNearest500(transferWithExtra);
+    const normalFromTransfer = roundToNearest500(transferPriceRounded / 0.8);
 
     return { valid: true, transfer: transferPriceRounded, normal: normalFromTransfer };
   }, [mode, normalizedWidthCm, normalizedHeightCm]);
