@@ -238,6 +238,10 @@ function escapeForIlike(term: string): string {
   return term.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
 }
 
+function quotePostgrestFilterValue(value: string): string {
+  return `"${String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+}
+
 function isAbortError(error: unknown): boolean {
   if (!error) return false;
   if (error instanceof Error) {
@@ -286,13 +290,14 @@ async function searchPrints(
   sortBy: 'created_at' | 'file_name',
 ): Promise<{ items: SearchResultItem[]; total: number }> {
   const pattern = `%${escapeForIlike(query)}%`;
+  const quotedPattern = quotePostgrestFilterValue(pattern);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), SUPABASE_TIMEOUT_MS);
   try {
     const { data, error, count } = await client
       .from(PRINTS_TABLE)
       .select('id, created_at, file_name, file_path, slug, preview_url, width_cm, height_cm, material, file_size_bytes', { count: 'estimated' })
-      .or(`file_name.ilike.${pattern},slug.ilike.${pattern},file_path.ilike.${pattern}`)
+      .or(`file_name.ilike.${quotedPattern},slug.ilike.${quotedPattern},file_path.ilike.${quotedPattern}`)
       .order(sortBy, { ascending: false, nullsFirst: false })
       .range(offset, offset + limit - 1)
       .abortSignal(controller.signal);
