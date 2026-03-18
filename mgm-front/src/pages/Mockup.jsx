@@ -153,7 +153,7 @@ const extractFlowBasics = (flow) => {
 
 const buildTitle = ({ productType, mat, widthCm, heightCm, designName }) => {
   if (mat === 'Glasspad') {
-    return `Glasspad ${designName} 49x42 | MGM-EDITOR`;
+    return `Glasspad ${designName} 49x42 | Custom`;
   }
   if (mat === 'Alfombra') {
     const w = Number(widthCm);
@@ -162,7 +162,7 @@ const buildTitle = ({ productType, mat, widthCm, heightCm, designName }) => {
     if (Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0) {
       parts.push(`${w}x${h}`);
     }
-    parts.push('|', 'MGM-EDITOR');
+    parts.push('|', 'Custom');
     return parts.join(' ');
   }
   const prefix = productType.toLowerCase().includes('mouse') ? 'Mousepad' : 'Mousepad';
@@ -172,7 +172,7 @@ const buildTitle = ({ productType, mat, widthCm, heightCm, designName }) => {
   if (Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0) {
     parts.push(`${w}x${h}`);
   }
-  parts.push(mat, '|', 'MGM-EDITOR');
+  parts.push(mat, '|', 'Custom');
   return parts.join(' ');
 };
 
@@ -1270,13 +1270,13 @@ export default function Mockup() {
     const hasDims = widthCm != null && heightCm != null;
     if (isGlass) {
       return hasDims
-        ? `${baseCategory} ${designNameValue} ${widthCm}x${heightCm} | MGM-EDITOR`
-        : `${baseCategory} ${designNameValue} | MGM-EDITOR`;
+        ? `${baseCategory} ${designNameValue} ${widthCm}x${heightCm} | Custom`
+        : `${baseCategory} ${designNameValue} | Custom`;
     }
     const matPart = materialLabel ? ` ${materialLabel}` : '';
     return hasDims
-      ? `${baseCategory} ${designNameValue} ${widthCm}x${heightCm}${matPart} | MGM-EDITOR`
-      : `${baseCategory} ${designNameValue}${matPart} | MGM-EDITOR`;
+      ? `${baseCategory} ${designNameValue} ${widthCm}x${heightCm}${matPart} | Custom`
+      : `${baseCategory} ${designNameValue}${matPart} | Custom`;
   }, [flow]);
 
   useEffect(() => {
@@ -1620,7 +1620,7 @@ export default function Mockup() {
         }
       };
 
-      pushCandidate(window.__MGM_EDITOR__);
+      pushCandidate(window.__CUSTOM__);
       pushCandidate(window.__MGM_CANVAS__);
       pushCandidate(window.__EDITOR__);
       pushCandidate(window.__CANVAS__);

@@ -622,9 +622,9 @@ export default async function handler(req, res) {
     productLabel === 'Mousepad' ? mat : '',
   ].filter(Boolean);
   const computedTitle = designName
-    ? `${nameParts.join(' ')} | MGM-EDITOR`
+    ? `${nameParts.join(' ')} | Custom`
     : parsedBody.title;
-  const finalTitle = typeof parsedBody.title === 'string' && parsedBody.title.includes('| MGM-EDITOR')
+  const finalTitle = typeof parsedBody.title === 'string' && parsedBody.title.includes('| Custom')
     ? parsedBody.title
     : computedTitle;
   parsedBody.materialResolved = mat;
