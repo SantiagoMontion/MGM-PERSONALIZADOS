@@ -1,9 +1,9 @@
 import SeoJsonLd from '../components/SeoJsonLd';
 
 export default function ComoFunciona() {
-  const title = 'Cómo funciona — MGMGAMERS';
+  const title = 'Cómo funciona — NOTMID';
   const description = 'Explicación del proceso para crear tu mousepad personalizado.';
-  const url = 'https://www.mgmgamers.store/como-funciona';
+  const url = 'https://personalizados.notmid.ar/como-funciona';
   return (
     <>
       <SeoJsonLd
@@ -13,8 +13,8 @@ export default function ComoFunciona() {
         jsonLd={{
           '@context': 'https://schema.org',
           '@type': 'Organization',
-          name: 'MGMGAMERS',
-          url: 'https://www.mgmgamers.store',
+          name: 'NOTMID',
+          url: 'https://personalizados.notmid.ar',
           sameAs: ['https://www.instagram.com/mgmgamers.store']
         }}
       />

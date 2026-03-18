@@ -1,9 +1,9 @@
 import SeoJsonLd from '../components/SeoJsonLd';
 
 export default function Tutorial() {
-  const title = 'Tutorial — MGMGAMERS';
+  const title = 'Tutorial — NOTMID';
   const description = 'Próximamente: guía para utilizar el editor y crear tu mousepad.';
-  const url = 'https://www.mgmgamers.store/tutorial';
+  const url = 'https://personalizados.notmid.ar/tutorial';
 
   return (
     <>
@@ -14,8 +14,8 @@ export default function Tutorial() {
         jsonLd={{
           '@context': 'https://schema.org',
           '@type': 'Organization',
-          name: 'MGMGAMERS',
-          url: 'https://www.mgmgamers.store',
+          name: 'NOTMID',
+          url: 'https://personalizados.notmid.ar',
           sameAs: ['https://www.instagram.com/mgmgamers.store']
         }}
       />
