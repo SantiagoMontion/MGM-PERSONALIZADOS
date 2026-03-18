@@ -1581,9 +1581,9 @@ export default function Home() {
   }
 
 
-  const title = 'Tu Mousepad Personalizado — MGMGAMERS';
-  const description = 'Mousepad Profesionales Personalizados, Gamers, diseño y medida que quieras. Perfectos para gaming control y speed.';
-  const url = 'https://www.mgmgamers.store/';
+  const title = 'Mousepad Personalizado a Medida | Calidad Gamer y Profesional | NOTMID';
+  const description = 'Diseñá tu mousepad personalizado a medida con calidad profesional. Ideal para gaming, trabajo o setup creativo. Envíos a todo el país – NOTMID.';
+  const url = 'https://personalizados.notmid.ar/';
   const hasImage = Boolean(uploaded);
   const isPublishing = busy;
   const isCanvasReady = Boolean(hasImage && imageUrl);
@@ -2071,8 +2071,8 @@ export default function Home() {
         jsonLd={{
           '@context': 'https://schema.org',
           '@type': 'Organization',
-          name: 'MGMGAMERS',
-          url: 'https://www.mgmgamers.store',
+          name: 'NOTMID',
+          url: 'https://personalizados.notmid.ar',
           sameAs: ['https://www.instagram.com/mgmgamers.store']
         }}
       />

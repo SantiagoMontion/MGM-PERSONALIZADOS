@@ -2,12 +2,14 @@ import React from 'react';
 import { Helmet } from 'react-helmet-async';
 
 const BASE = {
-  siteName: 'MGMGAMERS',
-  canonical: 'https://www.mgmgamers.store',
-  title: 'Tu Mousepad Personalizado — MGMGAMERS',
+  siteName: 'NOTMID',
+  canonical: 'https://personalizados.notmid.ar/',
+  title: 'Mousepad Personalizado a Medida | Calidad Gamer y Profesional | NOTMID',
   description:
-    'Mousepad Profesionales Personalizados, Gamers, diseño y medida que quieras. Perfectos para gaming control y speed.',
-  ogImage: '/og/og-default.png',
+    'Diseñá tu mousepad personalizado a medida con calidad profesional. Ideal para gaming, trabajo o setup creativo. Envíos a todo el país – NOTMID.',
+  keywords:
+    'mousepad personalizado, mousepad gamer personalizado, mousepad a medida, deskmat personalizado, mousepad grande personalizado',
+  ogImage: 'https://personalizados.notmid.ar/og/notmid-og-1200x630.svg',
   locale: 'es_AR'
 };
 
@@ -26,6 +28,7 @@ export default function SeoJsonLd({
       <Helmet prioritizeSeoTags>
         <title>{title}</title>
         <meta name="description" content={description} />
+        <meta name="keywords" content={BASE.keywords} />
         <link rel="canonical" href={canonical} />
         {noIndex && <meta name="robots" content="noindex,nofollow" />}
 

@@ -1,9 +1,9 @@
 import SeoJsonLd from '../components/SeoJsonLd';
 
 export default function PreguntasFrecuentes() {
-  const title = 'Preguntas frecuentes — MGMGAMERS';
+  const title = 'Preguntas frecuentes — NOTMID';
   const description = 'Respuestas a dudas comunes sobre nuestros mousepads personalizados.';
-  const url = 'https://www.mgmgamers.store/preguntas-frecuentes';
+  const url = 'https://personalizados.notmid.ar/preguntas-frecuentes';
   return (
     <>
       <SeoJsonLd
@@ -13,8 +13,8 @@ export default function PreguntasFrecuentes() {
         jsonLd={{
           '@context': 'https://schema.org',
           '@type': 'Organization',
-          name: 'MGMGAMERS',
-          url: 'https://www.mgmgamers.store',
+          name: 'NOTMID',
+          url: 'https://personalizados.notmid.ar',
           sameAs: ['https://www.instagram.com/mgmgamers.store']
         }}
       />

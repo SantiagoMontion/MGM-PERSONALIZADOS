@@ -3,4 +3,4 @@ Disallow: /api/
 Disallow: /admin/
 Disallow: /preview/
 Allow: /
-Sitemap: https://www.mgmgamers.store/sitemap.xml
+Sitemap: https://personalizados.notmid.ar/sitemap.xml

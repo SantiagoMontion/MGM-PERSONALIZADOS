@@ -1,9 +1,9 @@
 import SeoJsonLd from '../components/SeoJsonLd';
 
 export default function MousepadsPersonalizados() {
-  const title = 'Mousepads Profesionales Personalizados — MGMGAMERS';
+  const title = 'Mousepads Profesionales Personalizados — NOTMID';
   const description = 'Mousepad Profesionales Personalizados, Gamers, diseño y medida que quieras. Perfectos para gaming control y speed.';
-  const url = 'https://www.mgmgamers.store/mousepads-personalizados';
+  const url = 'https://personalizados.notmid.ar/mousepads-personalizados';
   return (
     <>
       <SeoJsonLd
@@ -13,8 +13,8 @@ export default function MousepadsPersonalizados() {
         jsonLd={{
           '@context': 'https://schema.org',
           '@type': 'Organization',
-          name: 'MGMGAMERS',
-          url: 'https://www.mgmgamers.store',
+          name: 'NOTMID',
+          url: 'https://personalizados.notmid.ar',
           sameAs: ['https://www.instagram.com/mgmgamers.store']
         }}
       />
