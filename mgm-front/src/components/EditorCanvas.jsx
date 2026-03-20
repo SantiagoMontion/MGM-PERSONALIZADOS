@@ -618,7 +618,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     [imgBaseCm?.w, imgBaseCm?.h],
   );
 
-  const getLiveNodeTransform = useCallback(
+  const getImageNodeTransform = useCallback(
     () => readNodeTransform() ?? null,
     [readNodeTransform],
   );
@@ -864,14 +864,14 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const stickRef = useRef({ x: null, y: null, activeX: false, activeY: false });
   const onImgDragStart = () => {
     stickRef.current = { x: null, y: null, activeX: false, activeY: false };
-    const live = getLiveNodeTransform();
+    const live = getImageNodeTransform();
     pushHistory(live?.tx ?? imgTx);
     stickyFitRef.current = null;
     skipStickyFitOnceRef.current = false;
   };
   const dragBoundFunc = useCallback(
     (pos) => {
-      const live = getLiveNodeTransform();
+      const live = getImageNodeTransform();
       const baseTx = live?.tx ?? imgTx;
 
       if (!imgBaseCm || isTransformingRef.current || !baseTx) return pos;
@@ -975,7 +975,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       return { x: cx, y: cy };
     },
     [
-      getLiveNodeTransform,
+      getImageNodeTransform,
       imgBaseCm,
       imgTx,
       viewScale,
@@ -1162,7 +1162,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
   // centro actual
   const currentCenter = () => {
-    const live = getLiveNodeTransform();
+    const live = getImageNodeTransform();
     if (live) return { cx: live.cx, cy: live.cy };
     const w = imgBaseCm.w * Math.abs(imgTx.scaleX);
     const h = imgBaseCm.h * Math.abs(imgTx.scaleY);
@@ -1298,7 +1298,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         imgTx.flipX,
         imgTx.flipY,
         imgTx.rotation_deg,
-        getLiveNodeTransform,
+        getImageNodeTransform,
         syncNodeToFit,
       ],
   );
@@ -1317,7 +1317,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   }, [applyFit]);
 
   const centerHoriz = useCallback(() => {
-    const live = getLiveNodeTransform();
+    const live = getImageNodeTransform();
     if (!imgBaseCm) return;
     const scaleX = live?.tx.scaleX ?? imgTx.scaleX;
     const w = imgBaseCm.w * Math.abs(scaleX);
@@ -1327,10 +1327,10 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       ...(live?.tx ?? {}),
       x_cm: (workCm.w - w) / 2,
     }));
-  }, [getLiveNodeTransform, imgBaseCm?.w, workCm.w, imgTx]);
+  }, [getImageNodeTransform, imgBaseCm?.w, workCm.w, imgTx]);
 
   const centerVert = useCallback(() => {
-    const live = getLiveNodeTransform();
+    const live = getImageNodeTransform();
     if (!imgBaseCm) return;
     const scaleY = live?.tx.scaleY ?? imgTx.scaleY;
     const h = imgBaseCm.h * Math.abs(scaleY);
@@ -1340,11 +1340,11 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       ...(live?.tx ?? {}),
       y_cm: (workCm.h - h) / 2,
     }));
-  }, [getLiveNodeTransform, imgBaseCm?.h, workCm.h, imgTx]);
+  }, [getImageNodeTransform, imgBaseCm?.h, workCm.h, imgTx]);
 
   const alignEdge = (edge) => {
     if (!imgBaseCm) return;
-    const live = getLiveNodeTransform();
+    const live = getImageNodeTransform();
     const scaleX = live?.tx.scaleX ?? imgTx.scaleX;
     const scaleY = live?.tx.scaleY ?? imgTx.scaleY;
     const rotationDeg = live?.tx.rotation_deg ?? imgTx.rotation_deg;
