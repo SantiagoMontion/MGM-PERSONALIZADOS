@@ -397,7 +397,8 @@
 }
 
 /* Modo claro: textos/medidas del lienzo paso 2 sobre fondo claro (no forzar blanco) */
-html.light {
+html.light,
+body.light {
   --nm-step-two-caption: rgba(51, 65, 85, 0.72);
   --nm-step-two-measure-label: rgba(71, 85, 105, 0.82);
   --nm-step-two-measure-line: rgba(15, 23, 42, 0.14);
@@ -419,6 +420,9 @@ html.light {
   --nm-step-two-action-text: rgba(30, 41, 59, 0.9);
   --nm-step-two-action-text-hover: #0f172a;
   --nm-step-two-action-rail-divider: rgba(15, 23, 42, 0.12);
+  /* Light mode: textos antes ligados a tokens "dark" deben verse negros */
+  --nm-on-dark-70: #000000;
+  --nm-text-subtle-dark: #000000;
 }
 
 /* ================================

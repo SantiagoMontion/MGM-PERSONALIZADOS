@@ -308,6 +308,7 @@ const STEP_TWO_PREVIEW_FRAME_LIFT_100CM_HEIGHT_DESKTOP_PX = 0;
 const STEP_TWO_100CM_DESKTOP_STAGE_TIGHTEN_PX = 96;
 const STEP_TWO_SMALL_STAGE_MAX_SIDE_CM = 35;
 const STEP_TWO_SMALL_STAGE_VISUAL_SCALE = 0.8;
+const STEP_TWO_MOBILE_STAGE_VISUAL_SCALE = 1.08;
 const STEP_TWO_DESKTOP_TOOLBAR_EXTRA_WIDTH_PX = 20;
 const STEP_TWO_TOOLBAR_EXTRA_GAP_PX = 20;
 /** Misma imagen de fondo por posición que las categorías anteriores; ahora enlaces a sitios de wallpapers. */
@@ -3381,6 +3382,19 @@ export default function Home() {
         width: Math.max(1, Math.round(fittedStage.width * STEP_TWO_SMALL_STAGE_VISUAL_SCALE)),
         height: Math.max(1, Math.round(fittedStage.height * STEP_TWO_SMALL_STAGE_VISUAL_SCALE)),
       };
+    }
+    if (isMobileViewport) {
+      const mobileScale = Math.min(
+        STEP_TWO_MOBILE_STAGE_VISUAL_SCALE,
+        maxStageWidthPx / Math.max(1, fittedStage.width),
+        maxStageHeightPx / Math.max(1, fittedStage.height),
+      );
+      if (mobileScale > 1) {
+        fittedStage = {
+          width: Math.max(1, Math.round(fittedStage.width * mobileScale)),
+          height: Math.max(1, Math.round(fittedStage.height * mobileScale)),
+        };
+      }
     }
     const shellWidthPx = Math.max(
       320,

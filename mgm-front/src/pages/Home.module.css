@@ -2450,19 +2450,13 @@ body.light [class*='stepOneSecondaryAction'] svg {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: inherit !important;
+  border-radius: 20px !important;
   overflow: hidden !important;
   background: transparent !important;
-  box-sizing: border-box;
-  border: 1px solid #ffffff !important;
+  border: none !important;
   box-shadow: none !important;
   position: relative;
   z-index: 5;
-}
-
-html.light .stepTwoCanvasWrapper,
-body.light .stepTwoCanvasWrapper {
-  border-color: #000000 !important;
 }
 
 .stepTwoCanvasWrapper :global(.konvajs-content),
@@ -2816,6 +2810,11 @@ body.light .stepTwoCanvasWrapper {
 html.light .stepTwoFooter,
 body.light .stepTwoFooter {
   background: #f4f4f4 !important;
+}
+
+html.light .stepTwoFooterPriceCaption,
+body.light .stepTwoFooterPriceCaption {
+  color: #000000 !important;
 }
 
 .stepTwoFooterTopRow {
@@ -3456,6 +3455,24 @@ body.light .stepTwoToolsDrawer.dark .stepTwoDrawerClose {
   background: #ffffff !important;
   border-color: rgba(0, 0, 0, 0.08) !important;
   color: rgba(0, 0, 0, 0.78) !important;
+}
+
+html.light .stepTwoConfigDrawer.dark .ackIndicator,
+body.light .stepTwoConfigDrawer.dark .ackIndicator {
+  border-color: rgba(0, 0, 0, 0.6) !important;
+  color: #000000 !important;
+}
+
+html.light .stepTwoConfigDrawer.dark .ackCheckbox:checked + .ackIndicator,
+body.light .stepTwoConfigDrawer.dark .ackCheckbox:checked + .ackIndicator {
+  border-color: #000000 !important;
+}
+
+html.light .stepTwoConfigDrawer.dark .stepTwoContainColorLabel,
+body.light .stepTwoConfigDrawer.dark .stepTwoContainColorLabel,
+html.light .stepTwoContainColorLabel,
+body.light .stepTwoContainColorLabel {
+  color: #000000 !important;
 }
 
 .stepTwoToolsDrawer {
@@ -4570,6 +4587,7 @@ body.light .stepTwoToolsDrawer.dark .stepTwoDrawerClose {
   .stepOneSecondaryAction {
     font-size: var(--fs-sm);
     margin-inline: auto;
+    margin-bottom: 15px;
   }
 
   .stepOneGalleryOverlay {
@@ -4764,12 +4782,12 @@ body.light .stepTwoToolsDrawer.dark .stepTwoDrawerClose {
     grid-column: auto;
     grid-row: auto;
     align-items: center;
-    inline-size: min(100%, calc(var(--step-two-stage-width, 100%) * 1.08));
+    inline-size: min(100%, var(--step-two-stage-width, 100%));
     margin-block-start: 10px;
   }
 
   .stepTwoPreviewViewport {
-    inline-size: min(100%, calc(var(--step-two-stage-width, 100%) * 1.08));
+    inline-size: min(100%, var(--step-two-stage-width, 100%));
     max-inline-size: 100%;
     /* La fila de medida (p. ej. «100 CM») es absolute bajo el lienzo: reservar hueco para no superponer el caption */
     padding-block-end: calc(var(--step-two-measure-offset, 12px) + 22px);

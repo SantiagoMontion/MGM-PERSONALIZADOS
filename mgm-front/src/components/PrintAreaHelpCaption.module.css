@@ -89,7 +89,7 @@
 @media (max-width: 767px) {
   .popover {
     inset-inline-start: auto;
-    inset-inline-end: 0;
+    inset-inline-end: -34px;
     transform: none;
     inline-size: min(280px, calc(100vw - 24px));
     max-inline-size: min(280px, calc(100vw - 24px));

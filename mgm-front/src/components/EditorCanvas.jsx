@@ -387,6 +387,10 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       PREVIEW_CORNER_RADIUS_PX / pixelsPerCm,
     );
   }, [baseScale, hCm, isCircular, viewScale, wCm]);
+  const previewOutlineStrokeCm = useMemo(
+    () => 1 / Math.max(baseScale * viewScale, 0.0001),
+    [baseScale, viewScale],
+  );
   const viewScaleRef = useRef(viewScale);
   const viewPosRef = useRef(viewPos);
 
@@ -745,6 +749,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   }, [undo]);
 
   const defaultBgColor = readRootCssVar('--nm-canvas-bg-light');
+  const previewOutlineColor = readRootCssVar('--foreground');
   const selectionStrokeColor = readRootCssVar('--nm-selection-stroke');
   const guidePrimaryColor = readRootCssVar('--nm-guide-primary');
   const qualityUnknownColor = readRootCssVar('--nm-slate-400');
@@ -2943,6 +2948,16 @@ const EditorCanvas = forwardRef(function EditorCanvas(
             </Layer>
           )}
           <Layer listening={false}>
+            <Rect
+              x={0}
+              y={0}
+              width={workCm.w}
+              height={workCm.h}
+              cornerRadius={previewCornerRadiusCm}
+              stroke={previewOutlineColor}
+              strokeWidth={previewOutlineStrokeCm}
+              listening={false}
+            />
             {/* guÃ­as */}
             <Shape
               sceneFunc={(ctx, shape) => {
