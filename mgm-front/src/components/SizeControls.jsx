@@ -7,7 +7,9 @@ import {
   STANDARD,
   GLASSPAD_SIZE_CM,
   MIN_DIMENSION_CM_BY_MATERIAL,
+  isFixedPad49x42Material,
 } from '../lib/material.js';
+import { DEFAULT_ICON_FALLBACK } from '../lib/iconRegistry.js';
 import { useFloatingMenu } from '../hooks/useFloatingMenu.js';
 
 const INVALID_NUMBER_MESSAGE = 'Ingresá un número';
@@ -99,20 +101,27 @@ const useMediaQuery = (query) => {
 
 /**
  * Props:
- * - material: 'Classic' | 'PRO' | 'Glasspad' | 'Alfombra'
+ * - material: 'Classic' | 'PRO' | 'Glasspad' | 'Ultra' | 'Alfombra'
  * - size: { w, h }
  * - onChange: ({ material?, w?, h? }) => void
  */
-export default function SizeControls({ material, size, onChange, locked = false, disabled = false }) {
+export default function SizeControls({
+  material,
+  size,
+  onChange,
+  locked = false,
+  disabled = false,
+  showMaterialSelector = true,
+}) {
   const limits = LIMITS[material] || { maxW: size.w, maxH: size.h };
-  const isGlasspad = material === 'Glasspad';
+  const isFixedPad49x42 = isFixedPad49x42Material(material);
   const isMobile = useMediaQuery(MOBILE_QUERY);
   const filteredPresets = useMemo(() => {
-    if (isGlasspad) return [];
+    if (isFixedPad49x42) return [];
     const presets = STANDARD[material] || [];
     
     return presets;
-  }, [isGlasspad, material, isMobile]);
+  }, [isFixedPad49x42, material, isMobile]);
 
   const widthErrorId = useId();
   const heightErrorId = useId();
@@ -121,6 +130,7 @@ export default function SizeControls({ material, size, onChange, locked = false,
   const [hText, setHText] = useState(formatDisplayValue(size.h));
   const [errors, setErrors] = useState({ w: '', h: '' });
   const [isSeriesOpen, setSeriesOpen] = useState(false);
+  const [measureIconsMissing, setMeasureIconsMissing] = useState({ width: false, height: false });
 
   const seriesTriggerRef = useRef(null);
   const seriesMenuRef = useRef(null);
@@ -166,13 +176,13 @@ export default function SizeControls({ material, size, onChange, locked = false,
     });
   }, [size.h]);
 
-  const glasspadInitRef = useRef(false);
+  const fixedPadInitRef = useRef(false);
   useEffect(() => {
-    if (material !== 'Glasspad') {
-      glasspadInitRef.current = false;
+    if (!isFixedPad49x42Material(material)) {
+      fixedPadInitRef.current = false;
       return;
     }
-    if (glasspadInitRef.current && !disabled) return;
+    if (fixedPadInitRef.current && !disabled) return;
 
     const targetW = formatDisplayValue(GLASSPAD_SIZE_CM.w);
     const targetH = formatDisplayValue(GLASSPAD_SIZE_CM.h);
@@ -186,12 +196,12 @@ export default function SizeControls({ material, size, onChange, locked = false,
     });
 
     if (disabled) {
-      glasspadInitRef.current = false;
+      fixedPadInitRef.current = false;
       return;
     }
 
     onChange?.({ w: GLASSPAD_SIZE_CM.w, h: GLASSPAD_SIZE_CM.h });
-    glasspadInitRef.current = true;
+    fixedPadInitRef.current = true;
   }, [material, onChange, disabled]);
 
   useEffect(() => {
@@ -272,7 +282,7 @@ export default function SizeControls({ material, size, onChange, locked = false,
   };
 
   const handleWChange = (e) => {
-    if (disabled || locked || isGlasspad) return;
+    if (disabled || locked || isFixedPad49x42) return;
     const v = e.target.value;
     if (v === '' || numPattern.test(v)) {
       setWText(v);
@@ -283,7 +293,7 @@ export default function SizeControls({ material, size, onChange, locked = false,
     }
   };
   const handleHChange = (e) => {
-    if (disabled || locked || isGlasspad) return;
+    if (disabled || locked || isFixedPad49x42) return;
     const v = e.target.value;
     if (v === '' || numPattern.test(v)) {
       setHText(v);
@@ -316,7 +326,7 @@ export default function SizeControls({ material, size, onChange, locked = false,
   };
 
   const commitDimension = (field) => {
-    if (disabled || locked || isGlasspad) return { status: 'disabled' };
+    if (disabled || locked || isFixedPad49x42) return { status: 'disabled' };
     const inputRef = field === 'w' ? wInputRef : hInputRef;
     const text = field === 'w' ? wText : hText;
     const result = parseAndNormalizeDimension(field, text);
@@ -370,7 +380,7 @@ export default function SizeControls({ material, size, onChange, locked = false,
   };
 
   const handleDimensionKeyDown = (field) => (event) => {
-    if (disabled || locked || isGlasspad) return;
+    if (disabled || locked || isFixedPad49x42) return;
     if (event.key === 'Enter' && !event.nativeEvent?.isComposing) {
       event.preventDefault();
       const outcome = commitDimension(field);
@@ -428,38 +438,58 @@ export default function SizeControls({ material, size, onChange, locked = false,
       <div className={`${styles.section} ${styles.formRow}`}>
         <span className={styles.groupLabel}>Medidas (cm)</span>
         <div className={styles.measureRow}>
-          <label className={measureFieldClass(locked || isGlasspad || disabled)}>
+          <label className={measureFieldClass(locked || isFixedPad49x42 || disabled)}>
             <span className={styles.measureLabel}>Largo</span>
-            <img src="/icons/ancho.png" alt="" className={styles.measureIcon} aria-hidden="true" />
+            {measureIconsMissing.width ? (
+              <span className={styles.measureIconFallback} aria-hidden="true">{DEFAULT_ICON_FALLBACK}</span>
+            ) : (
+              <img
+                src="/icons/ancho.png"
+                alt=""
+                className={styles.measureIcon}
+                aria-hidden="true"
+                onError={() => setMeasureIconsMissing((prev) => ({ ...prev, width: true }))}
+              />
+            )}
             <input
               ref={wInputRef}
               className={styles.measureInput}
-              value={isGlasspad ? GLASSPAD_SIZE_CM.w : wText}
-              onChange={!isGlasspad ? handleWChange : undefined}
-              onBlur={!isGlasspad ? handleWBlur : undefined}
-              onKeyDown={!isGlasspad ? handleDimensionKeyDown('w') : undefined}
+              value={isFixedPad49x42 ? GLASSPAD_SIZE_CM.w : wText}
+              onChange={!isFixedPad49x42 ? handleWChange : undefined}
+              onBlur={!isFixedPad49x42 ? handleWBlur : undefined}
+              onKeyDown={!isFixedPad49x42 ? handleDimensionKeyDown('w') : undefined}
               inputMode="decimal"
               pattern="[0-9]*"
               aria-invalid={errors.w ? 'true' : 'false'}
               aria-describedby={errors.w ? widthErrorId : undefined}
-              disabled={locked || isGlasspad || disabled}
+              disabled={locked || isFixedPad49x42 || disabled}
             />
           </label>
-          <label className={measureFieldClass(locked || isGlasspad || disabled)}>
+          <label className={measureFieldClass(locked || isFixedPad49x42 || disabled)}>
             <span className={styles.measureLabel}>Ancho</span>
-            <img src="/icons/largo.png" alt="" className={styles.measureIcon} aria-hidden="true" />
+            {measureIconsMissing.height ? (
+              <span className={styles.measureIconFallback} aria-hidden="true">{DEFAULT_ICON_FALLBACK}</span>
+            ) : (
+              <img
+                src="/icons/largo.png"
+                alt=""
+                className={styles.measureIcon}
+                aria-hidden="true"
+                onError={() => setMeasureIconsMissing((prev) => ({ ...prev, height: true }))}
+              />
+            )}
             <input
               ref={hInputRef}
               className={styles.measureInput}
-              value={isGlasspad ? GLASSPAD_SIZE_CM.h : hText}
-              onChange={!isGlasspad ? handleHChange : undefined}
-              onBlur={!isGlasspad ? handleHBlur : undefined}
-              onKeyDown={!isGlasspad ? handleDimensionKeyDown('h') : undefined}
+              value={isFixedPad49x42 ? GLASSPAD_SIZE_CM.h : hText}
+              onChange={!isFixedPad49x42 ? handleHChange : undefined}
+              onBlur={!isFixedPad49x42 ? handleHBlur : undefined}
+              onKeyDown={!isFixedPad49x42 ? handleDimensionKeyDown('h') : undefined}
               inputMode="decimal"
               pattern="[0-9]*"
               aria-invalid={errors.h ? 'true' : 'false'}
               aria-describedby={errors.h ? heightErrorId : undefined}
-              disabled={locked || isGlasspad || disabled}
+              disabled={locked || isFixedPad49x42 || disabled}
             />
           </label>
         </div>
@@ -498,104 +528,101 @@ export default function SizeControls({ material, size, onChange, locked = false,
         
       </div>
 
-      <div className={`${styles.section} ${styles.seriesSection} ${styles.formRow}`}>
-  <span className={styles.groupLabel}>Serie</span>
-  <div className={styles.selectGroup}>
-    <button
-      type="button"
-      className={styles.selectTrigger}
-      aria-haspopup="listbox"
-      aria-expanded={isSeriesOpen}
-      aria-controls={seriesMenuId}
-      ref={seriesTriggerRef}
-      onClick={() => {
-        if (disabled) return;
-        setSeriesOpen((prev) => !prev);
-      }}
-      disabled={disabled}
-    >
-      <span className={styles.selectLabel}>
-        <strong className={styles.selectLabelStrong}>{activeMaterialOption.main}</strong>
-        <em className={styles.selectLabelSoft}>{activeMaterialOption.variant}</em>
-      </span>
-      <svg className={styles.selectChevron} viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2" />
-      </svg>
-    </button>
+      {showMaterialSelector && (
+        <div className={`${styles.section} ${styles.seriesSection} ${styles.formRow}`}>
+          <span className={styles.groupLabel}>Serie</span>
+          <div className={styles.selectGroup}>
+            <button
+              type="button"
+              className={styles.selectTrigger}
+              aria-haspopup="listbox"
+              aria-expanded={isSeriesOpen}
+              aria-controls={seriesMenuId}
+              ref={seriesTriggerRef}
+              onClick={() => {
+                if (disabled) return;
+                setSeriesOpen((prev) => !prev);
+              }}
+              disabled={disabled}
+            >
+              <span className={styles.selectLabel}>
+                <strong className={styles.selectLabelStrong}>{activeMaterialOption.main}</strong>
+                <em className={styles.selectLabelSoft}>{activeMaterialOption.variant}</em>
+              </span>
+              <svg className={styles.selectChevron} viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2" />
+              </svg>
+            </button>
 
-    {isSeriesOpen
-      && seriesTriggerRef.current
-      && portalTarget
-      && createPortal(
-        (
-          <div
-            id={seriesMenuId}
-            role="listbox"
-            className={styles.selectMenu}
-            style={floatingMenuStyle}
-            ref={seriesMenuRef}
-            onPointerDown={(event) => {
-              event.stopPropagation();
-            }}
-          >
-            {MATERIAL_OPTIONS.map((option) => {
-              const isActive = material === option.value;
-              const optionClasses = [
-                styles.selectOption,
-                option.disabled ? styles.selectOptionDisabled : '',
-              ]
-                .filter(Boolean)
-                .join(' ');
-              const closeSeriesMenu = () => {
+            {isSeriesOpen
+              && seriesTriggerRef.current
+              && portalTarget
+              && createPortal(
+                (
+                  <div
+                    id={seriesMenuId}
+                    role="listbox"
+                    className={styles.selectMenu}
+                    style={floatingMenuStyle}
+                    ref={seriesMenuRef}
+                    onPointerDown={(event) => {
+                      event.stopPropagation();
+                    }}
+                  >
+                    {MATERIAL_OPTIONS.map((option) => {
+                      const isActive = material === option.value;
+                      const optionClasses = [
+                        styles.selectOption,
+                        option.disabled ? styles.selectOptionDisabled : '',
+                      ]
+                        .filter(Boolean)
+                        .join(' ');
+                      const closeSeriesMenu = () => {
+                        setSeriesOpen(false);
 
-                setSeriesOpen(false);
+                        if (disabled || option.disabled) return;
+                        if (String(option.value) !== String(material)) {
+                          onChange({ material: option.value });
+                        }
+                      };
+                      return (
+                        <div
+                          role="option"
+                          key={option.value}
+                          aria-selected={isActive}
+                          aria-disabled={option.disabled ? 'true' : 'false'}
+                          className={optionClasses}
+                          tabIndex={option.disabled ? -1 : 0}
+                          title={option.disabled ? option.disabledReason || 'Sin stock' : undefined}
+                          onClick={(event) => {
+                            event.preventDefault();
 
-                if (disabled || option.disabled) return;
-                if (String(option.value) !== String(material)) {
-                  onChange({ material: option.value });
-                }
+                            if (option.disabled) return;
+                            closeSeriesMenu();
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault();
 
-
-              };
-              return (
-                <div
-                  role="option"
-                  key={option.value}
-                  aria-selected={isActive}
-                  aria-disabled={option.disabled ? 'true' : 'false'}
-                  className={optionClasses}
-                  tabIndex={option.disabled ? -1 : 0}
-                  title={option.disabled ? option.disabledReason || 'Sin stock' : undefined}
-                  onClick={(event) => {
-                    event.preventDefault();
-
-                    if (option.disabled) return;
-                    closeSeriesMenu();
-
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault();
-
-                      if (option.disabled) return;
-                      closeSeriesMenu();
-
-                    }
-                  }}
-                >
-                  <span className={styles.selectLabel}>
-                    <strong className={styles.selectLabelStrong}>{option.main}</strong>
-                    <em className={styles.selectLabelSoft}>{option.variant}</em>
-                  </span>
-                </div>
-              );
-            })}
+                              if (option.disabled) return;
+                              closeSeriesMenu();
+                            }
+                          }}
+                        >
+                          <span className={styles.selectLabel}>
+                            <strong className={styles.selectLabelStrong}>{option.main}</strong>
+                            <em className={styles.selectLabelSoft}>{option.variant}</em>
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ),
+                portalTarget,
+              )}
           </div>
-        ),
-        portalTarget,
+        </div>
       )}
-  </div>
-</div>
 
     </div>
   );

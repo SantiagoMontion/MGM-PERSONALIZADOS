@@ -2,6 +2,7 @@ import { error, warn } from '@/lib/log';
 /* eslint-disable */
 import {
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -27,6 +28,7 @@ import ColorPopover from "./ColorPopover";
 import { buildSubmitJobBody, prevalidateSubmitBody } from "../lib/jobPayload";
 import { submitJob } from "../lib/submitJob";
 import { renderGlasspadPNG } from "../lib/renderGlasspadPNG";
+import { isFixedPad49x42Material } from "../lib/material.js";
 import {
   DPI_WARN_THRESHOLD,
   DPI_LOW_THRESHOLD,
@@ -34,22 +36,18 @@ import {
 } from "../lib/dpi";
 import { resolveIconAsset } from "@/lib/iconRegistry.js";
 import { isTouchDevice } from "@/lib/device.ts";
-import { useMobileSelectedNodeGestures } from "@/hooks/useMobileSelectedNodeGestures";
 
 const CM_PER_INCH = 2.54;
 const mmToCm = (mm) => mm / 10;
 
-const VIEW_ZOOM_MIN = 0.3;
-const VIEW_ZOOM_MAX = 12;
-const IMG_ZOOM_MAX = 400; // límite amplio cuando mantengo proporción
-const STAGE_BG = "#181818";
-const SNAP_LIVE_CM = 2.0;
-const RELEASE_BASE_CM = 0.8;
-const RELEASE_MIN_CM = 0.2;
+const PREVIEW_CORNER_RADIUS_PX = 12;
+const IMG_ZOOM_MAX = 400; // lÃ­mite amplio cuando mantengo proporciÃ³n
+const ABSOLUTE_DRAG_SYNC_EPSILON_CM = 0.01;
+const COVER_AXIS_LOCK_EPSILON_CM = 0.01;
+const INITIAL_DRAG_JUMP_GUARD_PX = 100;
+const KEYBOARD_NUDGE_STEP_CM = 0.25;
+const KEYBOARD_FAST_NUDGE_STEP_CM = 0.5;
 const PRIMARY_SAFE_MARGIN_CM = 1.1;
-const SECONDARY_MARGIN_GAP_CM = 0.3;
-const SECONDARY_SAFE_MARGIN_CM =
-  PRIMARY_SAFE_MARGIN_CM + SECONDARY_MARGIN_GAP_CM;
 const CORNER_ANCHORS = new Set([
   "top-left",
   "top-right",
@@ -72,7 +70,38 @@ const drawRoundedPath = (ctx, w, h, radius) => {
   ctx.closePath();
 };
 
+const readViewportSize = (element, fallback = {}) => {
+  const rect = element?.getBoundingClientRect?.();
+  const fallbackWidth = Number(fallback?.width ?? fallback?.w);
+  const fallbackHeight = Number(fallback?.height ?? fallback?.h);
+  return {
+    width:
+      rect?.width > 0
+        ? rect.width
+        : Number.isFinite(fallbackWidth) && fallbackWidth > 0
+          ? fallbackWidth
+          : 600,
+    height:
+      rect?.height > 0
+        ? rect.height
+        : Number.isFinite(fallbackHeight) && fallbackHeight > 0
+          ? fallbackHeight
+          : 360,
+  };
+};
 
+const getCenteredStagePosition = ({
+  viewportWidth,
+  viewportHeight,
+  workWidth,
+  workHeight,
+  scale,
+}) => ({
+  x: Math.round((viewportWidth - workWidth * scale) / 2),
+  y: Math.round((viewportHeight - workHeight * scale) / 2),
+});
+
+const clampValue = (value, min, max) => Math.max(min, Math.min(max, value));
 
 const isTypingTarget = (el) => {
   if (!el) return false;
@@ -109,7 +138,13 @@ const ACTION_ICON_MAP = {
 
 };
 
-const DEFAULT_BG_COLOR = "#ffffff";
+const readRootCssVar = (name, fallback = "") => {
+  if (typeof window === "undefined" || !window.document?.documentElement) {
+    return fallback;
+  }
+  const value = window.getComputedStyle(window.document.documentElement).getPropertyValue(name);
+  return value?.trim() || fallback;
+};
 
 const normalizeHexColor = (value) => {
   if (typeof value !== "string") {
@@ -122,9 +157,9 @@ const normalizeHexColor = (value) => {
 };
 
 const HISTORY_ICON_SPECS = {
-  undo: { src: resolveIconAsset("undo.svg"), fallbackLabel: "↶" },
-  redo: { src: resolveIconAsset("redo.svg"), fallbackLabel: "↷" },
-  delete: { src: resolveIconAsset("delete.svg"), fallbackLabel: "✕" },
+  undo: { src: resolveIconAsset("undo.svg"), fallbackLabel: "â†¶" },
+  redo: { src: resolveIconAsset("redo.svg"), fallbackLabel: "â†·" },
+  delete: { src: resolveIconAsset("delete.svg"), fallbackLabel: "âœ•" },
 };
 
 
@@ -194,8 +229,9 @@ const ToolbarTooltip = ({ label, children, disabled = false }) => {
 const EditorCanvas = forwardRef(function EditorCanvas(
   {
     imageUrl,
+    externalImageUrl: externalImageUrlProp,
     imageFile,
-    sizeCm = { w: 90, h: 40 }, // tamaño final SIN sangrado (cm)
+    sizeCm = { w: 90, h: 40 }, // tamaÃ±o final SIN sangrado (cm)
     bleedMm = 3,
     dpi = 300,
     onLayoutChange,
@@ -206,9 +242,19 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     onClearImage,
     showCanvas = true,
     showHistoryControls = true,
+    showToolbar = true,
     onHistoryChange,
+    isReplacing = false,
+    onReplaceSettled,
+    onUnmountCleanup,
     topLeftOverlay,
     lienzoHeight,
+    editorRootClassName,
+    lienzoClassName,
+    lienzoStyle: lienzoStyleProp,
+    canvasWrapperClassName,
+    allowCanvasPan = true,
+    onImageDragStart,
   },
   ref,
 ) {
@@ -220,6 +266,10 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     () => ({ w: wCm + 2 * bleedCm, h: hCm + 2 * bleedCm }),
     [wCm, hCm, bleedCm],
   );
+  const coverReferenceCm = useMemo(
+    () => ({ w: workCm.w, h: workCm.h }),
+    [workCm.h, workCm.w],
+  );
 
   const cornerRadiusCm = useMemo(
     () => (isCircular ? Math.min(wCm, hCm) / 2 : BASE_CORNER_RADIUS_CM),
@@ -230,7 +280,12 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     [isCircular, workCm.h, workCm.w],
   );
   const primarySafeRadiusCm = Math.max(0, cornerRadiusCm - PRIMARY_SAFE_MARGIN_CM);
-  const secondarySafeRadiusCm = Math.max(0, cornerRadiusCm - SECONDARY_SAFE_MARGIN_CM);
+  const resolvedImageUrl = useMemo(() => {
+    const primary = typeof imageUrl === "string" ? imageUrl.trim() : "";
+    if (primary) return primary;
+    const fallback = typeof externalImageUrlProp === "string" ? externalImageUrlProp.trim() : "";
+    return fallback || null;
+  }, [externalImageUrlProp, imageUrl]);
 
   // viewport
   const wrapRef = useRef(null);
@@ -240,35 +295,46 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const glassOverlayRef = useRef(null);
   const [wrapSize, setWrapSize] = useState({ w: 960, h: 540 });
   const isTouch = useMemo(() => isTouchDevice(), []);
+  const isTouchImageDragEnabled = isTouch && !allowCanvasPan;
   const hasAdjustedViewRef = useRef(false);
   useEffect(() => {
-    if (!isTouch) return;
+    if (!isTouch) return undefined;
     const stage = stageRef.current;
     const container = stage?.container();
-    if (!container) return;
+    if (!container) return undefined;
 
     const getCanvases = () => Array.from(container.querySelectorAll("canvas"));
+    const previousCanvasStyles = new Map();
+    const previousContainerPointerEvents = container.style.pointerEvents;
+    const previousContainerTouchAction = container.style.touchAction;
     const restore = () => {
-      container.style.pointerEvents = "";
-      container.style.touchAction = "";
+      container.style.pointerEvents = previousContainerPointerEvents || "";
+      container.style.touchAction = previousContainerTouchAction || "";
       getCanvases().forEach((c) => {
-        c.style.pointerEvents = "";
-        c.style.touchAction = "";
+        const previous = previousCanvasStyles.get(c);
+        c.style.pointerEvents = previous?.pointerEvents || "";
+        c.style.touchAction = previous?.touchAction || "";
       });
     };
 
-    const forceScrollPassThrough = () => {
-      container.style.pointerEvents = "none";
-      container.style.touchAction = "pan-y pinch-zoom";
+    const applyTouchInteractionMode = () => {
+      container.style.pointerEvents = "auto";
+      container.style.touchAction = isTouchImageDragEnabled ? "none" : "pan-y";
       getCanvases().forEach((c) => {
-        c.style.pointerEvents = "none";
-        c.style.touchAction = "pan-y pinch-zoom";
+        if (!previousCanvasStyles.has(c)) {
+          previousCanvasStyles.set(c, {
+            pointerEvents: c.style.pointerEvents,
+            touchAction: c.style.touchAction,
+          });
+        }
+        c.style.pointerEvents = isTouchImageDragEnabled ? "auto" : "none";
+        c.style.touchAction = isTouchImageDragEnabled ? "none" : "pan-y";
       });
     };
 
-    forceScrollPassThrough();
+    applyTouchInteractionMode();
 
-    const observer = new MutationObserver(forceScrollPassThrough);
+    const observer = new MutationObserver(applyTouchInteractionMode);
     observer.observe(container, {
       attributes: true,
       attributeFilter: ["style"],
@@ -280,12 +346,14 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       observer.disconnect();
       restore();
     };
-  }, [isTouch]);
+  }, [isTouch, isTouchImageDragEnabled]);
   useEffect(() => {
     const ro = new ResizeObserver(() => {
-      const r = wrapRef.current?.getBoundingClientRect();
-      if (!r) return;
-      const next = { w: r.width, h: Math.max(360, r.height) };
+      const viewport = readViewportSize(wrapRef.current, { width: 600, height: 360 });
+      const next = {
+        w: viewport.width,
+        h: viewport.height,
+      };
       setWrapSize((prev) =>
         prev.w !== next.w || prev.h !== next.h ? next : prev,
       );
@@ -295,7 +363,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   }, []);
   const baseScale = useMemo(() => {
     const s = Math.min(wrapSize.w / workCm.w, wrapSize.h / workCm.h);
-    return s * 0.95;
+    return s;
   }, [wrapSize.w, wrapSize.h, workCm.w, workCm.h]);
   const [viewScale, setViewScale] = useState(1);
   const [viewPos, setViewPos] = useState(() => {
@@ -303,6 +371,22 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     const H = workCm.h * baseScale;
     return { x: (wrapSize.w - W) / 2, y: (wrapSize.h - H) / 2 };
   });
+  const previewCornerRadiusCm = useMemo(() => {
+    if (isCircular) return Math.min(workCm.w, workCm.h) / 2;
+    const pixelsPerCm = Math.max(baseScale * viewScale, 0.0001);
+    return Math.min(
+      Math.min(workCm.w, workCm.h) / 2,
+      PREVIEW_CORNER_RADIUS_PX / pixelsPerCm,
+    );
+  }, [baseScale, isCircular, viewScale, workCm.h, workCm.w]);
+  const previewPadCornerRadiusCm = useMemo(() => {
+    if (isCircular) return Math.min(wCm, hCm) / 2;
+    const pixelsPerCm = Math.max(baseScale * viewScale, 0.0001);
+    return Math.min(
+      Math.min(wCm, hCm) / 2,
+      PREVIEW_CORNER_RADIUS_PX / pixelsPerCm,
+    );
+  }, [baseScale, hCm, isCircular, viewScale, wCm]);
   const viewScaleRef = useRef(viewScale);
   const viewPosRef = useRef(viewPos);
 
@@ -334,11 +418,20 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     );
   };
 
+  const getStagePointerPosition = useCallback(
+    (stage) => stage?.getPointerPosition?.() ?? null,
+    [],
+  );
 
   const pointerWorld = (stage) => {
-    const pt = stage.getPointerPosition();
-    const k = baseScale * viewScale;
-    return { x: (pt.x - viewPos.x) / k, y: (pt.y - viewPos.y) / k };
+    const pt = getStagePointerPosition(stage);
+    if (!pt) return { x: 0, y: 0 };
+    const k = baseScale * viewScaleRef.current;
+    const currentViewPos = viewPosRef.current;
+    return {
+      x: (pt.x - currentViewPos.x) / k,
+      y: (pt.y - currentViewPos.y) / k,
+    };
   };
   const isOutsideWorkArea = (wp) =>
     wp.x < 0 || wp.y < 0 || wp.x > workCm.w || wp.y > workCm.h;
@@ -349,22 +442,10 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     setIsPickingColor(true);
   }, []);
 
-  // selección
+  // selecciÃ³n
   const imgRef = useRef(null);
   const trRef = useRef(null);
   const [showTransformer, setShowTransformer] = useState(true);
-  const transformerAnchors = isTouch
-    ? []
-    : [
-        "top-left",
-        "top-center",
-        "top-right",
-        "middle-left",
-        "middle-right",
-        "bottom-left",
-        "bottom-center",
-        "bottom-right",
-      ];
 
   const getSelectedNode = useCallback(() => {
     if (showTransformer && imgRef.current) {
@@ -375,8 +456,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     if (nodes && nodes.length > 0) return nodes[0];
     return null;
   }, [showTransformer]);
-
-  useMobileSelectedNodeGestures(stageRef, getSelectedNode);
 
   const isTargetOnImageOrTransformer = (target) => {
     if (!target) return false;
@@ -439,8 +518,13 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     const onImg = isTargetOnImageOrTransformer(e.target);
 
     if (!onImg) {
-      isPanningRef.current = true;
-      lastPointerRef.current = { x: e.evt.clientX, y: e.evt.clientY };
+      isPanningRef.current = allowCanvasPan;
+      if (allowCanvasPan) {
+        const stagePointer = getStagePointerPosition(stage);
+        if (stagePointer) {
+          lastPointerRef.current = stagePointer;
+        }
+      }
       if (isOutsideWorkArea(wp)) {
         clearSelection();
       }
@@ -455,97 +539,41 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   };
   const onStageMouseMove = (e) => {
     if (!isPanningRef.current) return;
-    const { clientX, clientY } = e.evt;
-    const dx = clientX - lastPointerRef.current.x;
-    const dy = clientY - lastPointerRef.current.y;
+    const stage = e.target.getStage();
+    const stagePointer = getStagePointerPosition(stage);
+    if (!stagePointer) return;
+    const dx = stagePointer.x - lastPointerRef.current.x;
+    const dy = stagePointer.y - lastPointerRef.current.y;
     if (dx !== 0 || dy !== 0) {
       hasAdjustedViewRef.current = true;
     }
-    lastPointerRef.current = { x: clientX, y: clientY };
+    lastPointerRef.current = stagePointer;
     setViewPos((p) => ({ x: p.x + dx, y: p.y + dy }));
   };
   const endPan = () => {
     isPanningRef.current = false;
   };
-
-  const onStageWheel = (e) => {
-    e.evt.preventDefault();
-    const { shiftKey, deltaY } = e.evt;
-    if (shiftKey) {
-      const step = (deltaY / 2) | 0;
-      hasAdjustedViewRef.current = true;
-      setViewPos((p) => {
-        const next = { ...p, x: p.x - step };
-        viewPosRef.current = next;
-        return next;
-      });
-      return;
-    }
-    const stage = e.target.getStage();
-    const pt = stage.getPointerPosition();
-    if (!pt) return;
-    const scaleBy = 1.08;
-    const oldScale = viewScaleRef.current;
-    const nextScale = deltaY > 0 ? oldScale / scaleBy : oldScale * scaleBy;
-    const clamped = Math.max(VIEW_ZOOM_MIN, Math.min(nextScale, VIEW_ZOOM_MAX));
-    const prevPos = viewPosRef.current;
-    const worldXPrev = (pt.x - prevPos.x) / (baseScale * oldScale);
-    const worldYPrev = (pt.y - prevPos.y) / (baseScale * oldScale);
-    const nextPos = {
-      x: pt.x - worldXPrev * (baseScale * clamped),
-      y: pt.y - worldYPrev * (baseScale * clamped),
-    };
-    hasAdjustedViewRef.current = true;
-    viewScaleRef.current = clamped;
-    viewPosRef.current = nextPos;
-    setViewScale(clamped);
-    setViewPos(nextPos);
+  const onStageTouchStart = (e) => {
+    e?.evt?.preventDefault?.();
+    onStageMouseDown(e);
   };
-
-  const clampViewScale = useCallback(
-    (next) => Math.max(VIEW_ZOOM_MIN, Math.min(next, VIEW_ZOOM_MAX)),
-    [],
-  );
-
-  const adjustViewScaleAtPoint = useCallback(
-    (nextScaleOrUpdater, anchor = { x: wrapSize.w / 2, y: wrapSize.h / 2 }) => {
-      setViewScale((prevScale) => {
-        const target =
-          typeof nextScaleOrUpdater === "function"
-            ? nextScaleOrUpdater(prevScale)
-            : nextScaleOrUpdater;
-        const clamped = clampViewScale(target);
-        setViewPos((prevPos) => {
-          const worldX = (anchor.x - prevPos.x) / (baseScale * prevScale);
-          const worldY = (anchor.y - prevPos.y) / (baseScale * prevScale);
-          return {
-            x: anchor.x - worldX * (baseScale * clamped),
-            y: anchor.y - worldY * (baseScale * clamped),
-          };
-        });
-        return clamped;
-      });
-    },
-    [baseScale, clampViewScale, wrapSize.w, wrapSize.h],
-  );
-
-  const handleZoomIn = useCallback(() => {
-    adjustViewScaleAtPoint((prev) => prev + 0.1);
-  }, [adjustViewScaleAtPoint]);
-
-  const handleZoomOut = useCallback(() => {
-    adjustViewScaleAtPoint((prev) => prev - 0.1);
-  }, [adjustViewScaleAtPoint]);
+  const onStageTouchMove = (e) => {
+    e?.evt?.preventDefault?.();
+    onStageMouseMove(e);
+  };
+  const onStageTouchEnd = (e) => {
+    e?.evt?.preventDefault?.();
+    endPan();
+  };
 
   const handleCenterCanvas = useCallback(() => {
     const stage = stageRef.current;
-    const container = stage?.container?.();
+    if (!stage) return;
 
-    if (!stage || !container) return;
-
-    const rect = container.getBoundingClientRect();
-    const viewportCenterX = rect.width / 2;
-    const viewportCenterY = rect.height / 2;
+    const viewportWidth = stage.width() || wrapSize.w;
+    const viewportHeight = stage.height() || wrapSize.h;
+    const viewportCenterX = viewportWidth / 2;
+    const viewportCenterY = viewportHeight / 2;
 
     const scale = stage.scaleX() || baseScale * viewScaleRef.current;
     const canvasCenterX = workCm.w / 2;
@@ -560,7 +588,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     stage.batchDraw();
     viewPosRef.current = nextPos;
     setViewPos(nextPos);
-  }, [baseScale, workCm.h, workCm.w]);
+  }, [baseScale, workCm.h, workCm.w, wrapSize.h, wrapSize.w]);
 
   useEffect(() => {
     if (!stageRef.current) return;
@@ -576,7 +604,12 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   }, []);
 
   // imagen
-  const [imgEl, imgStatus] = useImage(imageUrl || undefined);
+  const [imgEl, imgStatus] = useImage(resolvedImageUrl || undefined);
+  const previousResolvedImageUrlRef = useRef(resolvedImageUrl || null);
+  const replaceTargetUrlRef = useRef(null);
+  const replaceSettledRef = useRef(false);
+  const replaceTimeoutRef = useRef(null);
+  const replaceImageRef = useRef(null);
   const imgBaseCm = useMemo(() => {
     if (!imgEl) return null;
     return {
@@ -598,11 +631,34 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       const height = node.height() * Math.abs(nodeScaleY);
       const scaleX = (node.width() / baseW) * nodeScaleX;
       const scaleY = (node.height() / baseH) * nodeScaleY;
+      const localCenter = { x: node.x(), y: node.y() };
+      let absoluteCenter = null;
+
+      try {
+        const parentTransform = node.getParent?.()?.getAbsoluteTransform?.();
+        const absolutePosition = node.getAbsolutePosition?.();
+        if (
+          absolutePosition &&
+          parentTransform &&
+          typeof parentTransform.copy === "function"
+        ) {
+          absoluteCenter = parentTransform.copy().invert().point(absolutePosition);
+        }
+      } catch (err) {
+        absoluteCenter = null;
+      }
+
+      const cx = Number.isFinite(absoluteCenter?.x)
+        ? absoluteCenter.x
+        : localCenter.x;
+      const cy = Number.isFinite(absoluteCenter?.y)
+        ? absoluteCenter.y
+        : localCenter.y;
 
       return {
         tx: {
-          x_cm: node.x() - width / 2,
-          y_cm: node.y() - height / 2,
+          x_cm: cx - width / 2,
+          y_cm: cy - height / 2,
           scaleX,
           scaleY,
           rotation_deg: node.rotation(),
@@ -611,8 +667,10 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         },
         width,
         height,
-        cx: node.x(),
-        cy: node.y(),
+        cx,
+        cy,
+        localCenter,
+        absoluteCenter,
       };
     },
     [imgBaseCm?.w, imgBaseCm?.h],
@@ -686,17 +744,41 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     return () => window.removeEventListener("keydown", handler);
   }, [undo]);
 
+  const defaultBgColor = readRootCssVar('--nm-canvas-bg-light');
+  const selectionStrokeColor = readRootCssVar('--nm-selection-stroke');
+  const guidePrimaryColor = readRootCssVar('--nm-guide-primary');
+  const qualityUnknownColor = readRootCssVar('--nm-slate-400');
+  const qualityBadColor = readRootCssVar('--error');
+  const qualityWarnColor = readRootCssVar('--warning');
+  const qualityOkColor = readRootCssVar('--success');
   const [keepRatio, setKeepRatio] = useState(true);
   const keepRatioRef = useRef(true);
   const [mode, setMode] = useState("cover"); // 'cover' | 'contain' | 'stretch'
+  const canTransformImage = !isTouch && mode === "contain";
+  const transformerAnchors = canTransformImage
+    ? [
+        "top-left",
+        "top-center",
+        "top-right",
+        "middle-left",
+        "middle-right",
+        "bottom-left",
+        "bottom-center",
+        "bottom-right",
+      ]
+    : [];
+  const shouldShowTransformerOverlay = showTransformer && canTransformImage;
   const stickyFitRef = useRef(null);
+  const pendingRotateRefitModeRef = useRef(null);
   const skipStickyFitOnceRef = useRef(false);
-  const [bgColor, setBgColor] = useState(DEFAULT_BG_COLOR);
-  const lastCommittedBgColorRef = useRef(DEFAULT_BG_COLOR);
+  const [bgColor, setBgColor] = useState(defaultBgColor);
+  const lastCommittedBgColorRef = useRef(defaultBgColor);
   const [activeAlign, setActiveAlign] = useState({ horizontal: null, vertical: null });
   const isTransformingRef = useRef(false);
   const cornerScaleRef = useRef({ prev: null });
   const transformStateRef = useRef(null);
+  const dragJumpGuardRef = useRef({ awaitingFirstMove: false });
+  const getClampedPositionRef = useRef((x, y) => ({ x_cm: x, y_cm: y }));
 
   const setKeepRatioImmediate = useCallback(
     (value) => {
@@ -712,10 +794,21 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
   const moveBy = useCallback(
     (dx, dy) => {
+      const clampedPosition = getClampedPositionRef.current(
+        imgTx.x_cm + dx,
+        imgTx.y_cm + dy,
+        { tx: imgTx },
+      );
+      if (
+        clampedPosition.x_cm === imgTx.x_cm
+        && clampedPosition.y_cm === imgTx.y_cm
+      ) {
+        return;
+      }
       pushHistory(imgTx);
       stickyFitRef.current = null;
       skipStickyFitOnceRef.current = false;
-      setImgTx((tx) => ({ ...tx, x_cm: tx.x_cm + dx, y_cm: tx.y_cm + dy }));
+      setImgTx((tx) => ({ ...tx, ...clampedPosition }));
     },
     [imgTx, pushHistory],
   );
@@ -725,7 +818,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
       if (isTypingTarget(document.activeElement) || isTypingTarget(e.target)) return;
       e.preventDefault();
-      const step = e.shiftKey ? 1 : 0.5;
+      const step = e.shiftKey ? KEYBOARD_FAST_NUDGE_STEP_CM : KEYBOARD_NUDGE_STEP_CM;
       if (e.key === 'ArrowUp') moveBy(0, -step);
       if (e.key === 'ArrowDown') moveBy(0, step);
       if (e.key === 'ArrowLeft') moveBy(-step, 0);
@@ -735,7 +828,121 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     return () => window.removeEventListener('keydown', handler);
   }, [moveBy]);
 
+  const clearImageNodeCache = useCallback((redraw = false) => {
+    const node = imgRef.current;
+    if (!node || typeof node.clearCache !== "function") return;
+    node.clearCache();
+    if (redraw) {
+      node.getLayer()?.batchDraw();
+    }
+  }, []);
+
   const didInitRef = useRef(false);
+  const hasSyncedInitialNodeRef = useRef(false);
+  const hasForcedInitialNodeSyncRef = useRef(false);
+  const postLoadBatchDrawTimeoutRef = useRef(null);
+  const schedulePostLoadBatchDraw = useCallback(() => {
+    if (postLoadBatchDrawTimeoutRef.current) {
+      clearTimeout(postLoadBatchDrawTimeoutRef.current);
+    }
+    postLoadBatchDrawTimeoutRef.current = setTimeout(() => {
+      postLoadBatchDrawTimeoutRef.current = null;
+      imgRef.current?.getLayer()?.batchDraw?.();
+      stageRef.current?.batchDraw?.();
+    }, 100);
+  }, []);
+  const forceSyncDimensions = useCallback(() => {
+    if (!imgEl || imgStatus !== "loaded") return false;
+
+    const naturalWidth = Number(imgEl.naturalWidth);
+    const naturalHeight = Number(imgEl.naturalHeight);
+    if (!(naturalWidth > 0) || !(naturalHeight > 0)) return false;
+
+    const realWidthCm = (naturalWidth / dpi) * CM_PER_INCH;
+    const realHeightCm = (naturalHeight / dpi) * CM_PER_INCH;
+    if (!(realWidthCm > 0) || !(realHeightCm > 0)) return false;
+
+    const viewport = readViewportSize(wrapRef.current, {
+      width: wrapSize.w,
+      height: wrapSize.h,
+    });
+    const stage = stageRef.current;
+    const stageWidth = stage?.width?.() || viewport.width;
+    const stageHeight = stage?.height?.() || viewport.height;
+    if (!(stageWidth > 0) || !(stageHeight > 0)) return false;
+
+    const stageScale = Math.max(baseScale, 0.0001);
+    const initialCoverToleranceCm = 2 / stageScale;
+    const baseCoverScale = Math.max(
+      (coverReferenceCm.w + initialCoverToleranceCm * 2) / realWidthCm,
+      (coverReferenceCm.h + initialCoverToleranceCm * 2) / realHeightCm,
+    );
+    if (!Number.isFinite(baseCoverScale) || baseCoverScale <= 0) return false;
+
+    const syncedWidth = realWidthCm * baseCoverScale;
+    const syncedHeight = realHeightCm * baseCoverScale;
+    const nextTx = {
+      x_cm: (coverReferenceCm.w - syncedWidth) / 2,
+      y_cm: (coverReferenceCm.h - syncedHeight) / 2,
+      scaleX: baseCoverScale,
+      scaleY: baseCoverScale,
+      rotation_deg: 0,
+      flipX: false,
+      flipY: false,
+    };
+    const nextViewPos = {
+      x: stageWidth / 2 - (coverReferenceCm.w / 2) * baseScale,
+      y: stageHeight / 2 - (coverReferenceCm.h / 2) * baseScale,
+    };
+
+    const node = imgRef.current;
+    if (node) {
+      const centerX = nextTx.x_cm + syncedWidth / 2;
+      const centerY = nextTx.y_cm + syncedHeight / 2;
+      node.width(syncedWidth);
+      node.height(syncedHeight);
+      node.offsetX(node.width() / 2);
+      node.offsetY(node.height() / 2);
+      node.scaleX(1);
+      node.scaleY(1);
+      node.rotation(0);
+      node.position({ x: centerX, y: centerY });
+      clearImageNodeCache(true);
+    }
+
+    if (stage) {
+      stage.scale({ x: baseScale, y: baseScale });
+      stage.position(nextViewPos);
+      stage.batchDraw();
+    }
+
+    schedulePostLoadBatchDraw();
+
+    viewScaleRef.current = 1;
+    viewPosRef.current = nextViewPos;
+    setViewScale(1);
+    setViewPos(nextViewPos);
+    setImgTx(nextTx);
+    setMode("cover");
+    stickyFitRef.current = "cover";
+    skipStickyFitOnceRef.current = true;
+    hasAdjustedViewRef.current = false;
+    hasSyncedInitialNodeRef.current = true;
+    hasForcedInitialNodeSyncRef.current = true;
+    didInitRef.current = true;
+    return true;
+  }, [
+    baseScale,
+    clearImageNodeCache,
+    coverReferenceCm.h,
+    coverReferenceCm.w,
+    dpi,
+    imgEl,
+    imgStatus,
+    schedulePostLoadBatchDraw,
+    wrapSize.h,
+    wrapSize.w,
+  ]);
   // Reiniciar al cargar una nueva imagen
   useEffect(() => {
     undoStackRef.current = [];
@@ -744,98 +951,141 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     stickyFitRef.current = null;
     skipStickyFitOnceRef.current = false;
     didInitRef.current = false;
+    hasSyncedInitialNodeRef.current = false;
+    hasForcedInitialNodeSyncRef.current = false;
     hasAdjustedViewRef.current = false;
+    if (postLoadBatchDrawTimeoutRef.current) {
+      clearTimeout(postLoadBatchDrawTimeoutRef.current);
+      postLoadBatchDrawTimeoutRef.current = null;
+    }
     setViewScale(1);
-    const stageW = workCm.w * baseScale;
-    const stageH = workCm.h * baseScale;
-    setViewPos({
-      x: (wrapSize.w - stageW) / 2,
-      y: (wrapSize.h - stageH) / 2,
+    const viewport = readViewportSize(wrapRef.current, {
+      width: wrapSize.w,
+      height: wrapSize.h,
     });
-  }, [imageUrl, imageFile, updateHistoryCounts]);
+    const nextViewPos = getCenteredStagePosition({
+      viewportWidth: viewport.width,
+      viewportHeight: viewport.height,
+      workWidth: coverReferenceCm.w,
+      workHeight: coverReferenceCm.h,
+      scale: baseScale,
+    });
+    viewScaleRef.current = 1;
+    viewPosRef.current = nextViewPos;
+    setViewPos(nextViewPos);
+  }, [baseScale, coverReferenceCm.h, coverReferenceCm.w, imageFile, resolvedImageUrl, updateHistoryCounts]);
+
+  useEffect(() => {
+    return () => {
+      if (postLoadBatchDrawTimeoutRef.current) {
+        clearTimeout(postLoadBatchDrawTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     setActiveAlign({ horizontal: null, vertical: null });
-  }, [imageUrl, imageFile]);
+  }, [resolvedImageUrl, imageFile]);
 
-  // Ajuste inicial: imagen contenida y centrada una sola vez por carga
+  const clearReplaceWatchdog = useCallback(() => {
+    if (replaceTimeoutRef.current) {
+      clearTimeout(replaceTimeoutRef.current);
+      replaceTimeoutRef.current = null;
+    }
+    if (replaceImageRef.current) {
+      replaceImageRef.current.onload = null;
+      replaceImageRef.current.onerror = null;
+      replaceImageRef.current = null;
+    }
+  }, []);
+
+  const settleReplace = useCallback((status = "loaded", expectedUrl = null) => {
+    if (replaceSettledRef.current) return;
+    if (
+      expectedUrl
+      && replaceTargetUrlRef.current
+      && expectedUrl !== replaceTargetUrlRef.current
+    ) {
+      return;
+    }
+    replaceSettledRef.current = true;
+    clearReplaceWatchdog();
+    onReplaceSettled?.(status);
+  }, [clearReplaceWatchdog, onReplaceSettled]);
+
   useEffect(() => {
-    if (!imgBaseCm || !imgEl || didInitRef.current) return;
+    const previousUrl = previousResolvedImageUrlRef.current || null;
+    const currentUrl = resolvedImageUrl || null;
 
-    const containerWidth = wrapRef.current?.clientWidth ?? wrapSize.w;
-    const containerHeight = wrapRef.current?.clientHeight ?? wrapSize.h;
+    if (!isReplacing) {
+      previousResolvedImageUrlRef.current = currentUrl;
+      replaceTargetUrlRef.current = null;
+      replaceSettledRef.current = false;
+      clearReplaceWatchdog();
+      return;
+    }
 
-    if (!(containerWidth > 0 && containerHeight > 0)) return;
+    if (!currentUrl || currentUrl === previousUrl) return undefined;
 
-    const baseContainScale = Math.min(
-      workCm.w / imgBaseCm.w,
-      workCm.h / imgBaseCm.h,
-    );
+    replaceTargetUrlRef.current = currentUrl;
+    replaceSettledRef.current = false;
+    clearReplaceWatchdog();
 
-    if (!Number.isFinite(baseContainScale) || baseContainScale <= 0) return;
+    const newImage = new Image();
+    const settleLoaded = () => settleReplace("loaded", currentUrl);
+    const settleFailed = () => settleReplace("failed", currentUrl);
 
-    const dispWcm = imgBaseCm.w * baseContainScale;
-    const dispHcm = imgBaseCm.h * baseContainScale;
+    newImage.onload = settleLoaded;
+    newImage.onerror = settleFailed;
+    replaceImageRef.current = newImage;
+    replaceTimeoutRef.current = setTimeout(() => {
+      settleReplace("timeout", currentUrl);
+    }, 10000);
+    newImage.src = currentUrl;
 
-    const initial = {
-      x_cm: (workCm.w - dispWcm) / 2,
-      y_cm: (workCm.h - dispHcm) / 2,
-      scaleX: baseContainScale,
-      scaleY: baseContainScale,
-      rotation_deg: 0,
-      flipX: false,
-      flipY: false,
-    };
-
-    const padding = 0.22;
-    const usableW = Math.max(0, containerWidth * (1 - 2 * padding));
-    const usableH = Math.max(0, containerHeight * (1 - 2 * padding));
-
-    const dispWpx = dispWcm * baseScale;
-    const dispHpx = dispHcm * baseScale;
-
-    let nextViewScale = 1;
-    if (dispWpx > 0 && dispHpx > 0 && usableW > 0 && usableH > 0) {
-      const containScalePx = Math.min(usableW / dispWpx, usableH / dispHpx);
-      const safeContain = Math.max(0, Math.min(containScalePx, 1));
-      const clamped = Math.max(
-        VIEW_ZOOM_MIN,
-        Math.min(safeContain, VIEW_ZOOM_MAX),
-      );
-      if (Number.isFinite(clamped)) {
-        nextViewScale = clamped;
+    if (newImage.complete) {
+      if (newImage.naturalWidth > 0) {
+        settleLoaded();
+      } else {
+        settleFailed();
       }
     }
 
-    setImgTx(initial);
-    setMode("contain");
-    stickyFitRef.current = "contain";
-    skipStickyFitOnceRef.current = true;
-    setViewScale(nextViewScale);
+    previousResolvedImageUrlRef.current = currentUrl;
 
-    const stageW = workCm.w * baseScale * nextViewScale;
-    const stageH = workCm.h * baseScale * nextViewScale;
+    return () => {
+      if (replaceImageRef.current === newImage) {
+        newImage.onload = null;
+        newImage.onerror = null;
+        replaceImageRef.current = null;
+      }
+      if (replaceTimeoutRef.current) {
+        clearTimeout(replaceTimeoutRef.current);
+        replaceTimeoutRef.current = null;
+      }
+    };
+  }, [clearReplaceWatchdog, isReplacing, resolvedImageUrl, settleReplace]);
 
-    setViewPos({
-      x: (containerWidth - stageW) / 2,
-      y: (containerHeight - stageH) / 2,
-    });
+  useEffect(() => () => {
+    clearReplaceWatchdog();
+  }, [clearReplaceWatchdog]);
 
-    didInitRef.current = true;
-  }, [
-    imgBaseCm,
-    imgEl,
-    workCm.w,
-    workCm.h,
-    baseScale,
-    wrapSize.w,
-    wrapSize.h,
-  ]);
+  useEffect(() => {
+    if (!isReplacing || replaceSettledRef.current) return;
+    if (!replaceTargetUrlRef.current || resolvedImageUrl !== replaceTargetUrlRef.current) return;
+    if (imgStatus !== "loaded" && imgStatus !== "failed") return;
+    settleReplace(imgStatus, resolvedImageUrl);
+  }, [imgStatus, isReplacing, resolvedImageUrl, settleReplace]);
+
+  // Ajuste inicial: reiniciamos offset, escala y viewport apenas termina la carga.
+  useLayoutEffect(() => {
+    if (didInitRef.current) return;
+    forceSyncDimensions();
+  }, [forceSyncDimensions]);
 
   // medidas visuales (para offset centro)
   const dispW = imgBaseCm ? imgBaseCm.w * Math.abs(imgTx.scaleX) : 0;
   const dispH = imgBaseCm ? imgBaseCm.h * Math.abs(imgTx.scaleY) : 0;
-  const selectionStrokeColor = "rgba(255, 255, 255, 0.9)";
   const selectionStrokeWidth = 0.14;
   const selectionCornerSize = Math.max(Math.min(dispW, dispH) * 0.08, 0.35);
   const hasGlassOverlay =
@@ -859,128 +1109,201 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     halfW: (Math.abs(w * Math.cos(ang)) + Math.abs(h * Math.sin(ang))) / 2,
     halfH: (Math.abs(w * Math.sin(ang)) + Math.abs(h * Math.cos(ang))) / 2,
   });
+  // imÃ¡n fuerte (centro + AABB rotado)
+  const getClampedPosition = useCallback(
+    (proposedX, proposedY, options = {}) => {
+      const txSource = options?.tx ?? imgTx;
+      const width = Number(
+        options?.width
+        ?? (imgBaseCm ? imgBaseCm.w * Math.abs(txSource?.scaleX ?? 0) : 0),
+      );
+      const height = Number(
+        options?.height
+        ?? (imgBaseCm ? imgBaseCm.h * Math.abs(txSource?.scaleY ?? 0) : 0),
+      );
+      const rotationDeg = Number.isFinite(Number(options?.rotationDeg))
+        ? Number(options.rotationDeg)
+        : Number(txSource?.rotation_deg) || 0;
+      const targetMode = options?.mode ?? mode;
 
-  // imán fuerte (centro + AABB rotado)
-  const stickRef = useRef({ x: null, y: null, activeX: false, activeY: false });
-  const onImgDragStart = () => {
-    stickRef.current = { x: null, y: null, activeX: false, activeY: false };
-    const live = getLiveNodeTransform();
+      if (!(width > 0) || !(height > 0)) {
+        return { x_cm: proposedX, y_cm: proposedY };
+      }
+
+      if (targetMode === "contain") {
+        return { x_cm: proposedX, y_cm: proposedY };
+      }
+
+      const centeredX = (workCm.w - width) / 2;
+      const centeredY = (workCm.h - height) / 2;
+      if (targetMode === "stretch") {
+        return { x_cm: centeredX, y_cm: centeredY };
+      }
+
+      const centerX = proposedX + width / 2;
+      const centerY = proposedY + height / 2;
+      const rotationRad = (rotationDeg * Math.PI) / 180;
+      const { halfW, halfH } = rotAABBHalf(width, height, rotationRad);
+      const aabbWidth = halfW * 2;
+      const aabbHeight = halfH * 2;
+      const widthDelta = Math.abs(aabbWidth - workCm.w);
+      const heightDelta = Math.abs(aabbHeight - workCm.h);
+      const lockX =
+        (widthDelta <= COVER_AXIS_LOCK_EPSILON_CM && heightDelta > COVER_AXIS_LOCK_EPSILON_CM)
+        || (widthDelta <= COVER_AXIS_LOCK_EPSILON_CM && heightDelta <= COVER_AXIS_LOCK_EPSILON_CM)
+        || (widthDelta > COVER_AXIS_LOCK_EPSILON_CM && heightDelta > COVER_AXIS_LOCK_EPSILON_CM && widthDelta <= heightDelta);
+      const lockY =
+        (!lockX && heightDelta <= COVER_AXIS_LOCK_EPSILON_CM)
+        || (!lockX && heightDelta > COVER_AXIS_LOCK_EPSILON_CM);
+      const minCenterX = workCm.w - halfW;
+      const maxCenterX = halfW;
+      const minCenterY = workCm.h - halfH;
+      const maxCenterY = halfH;
+      const clampedCenterX =
+        lockX
+          ? workCm.w / 2
+          : minCenterX <= maxCenterX
+            ? clampValue(centerX, minCenterX, maxCenterX)
+            : workCm.w / 2;
+      const clampedCenterY =
+        lockY
+          ? workCm.h / 2
+          : minCenterY <= maxCenterY
+            ? clampValue(centerY, minCenterY, maxCenterY)
+            : workCm.h / 2;
+
+      return {
+        x_cm: clampedCenterX - width / 2,
+        y_cm: clampedCenterY - height / 2,
+      };
+    },
+    [imgBaseCm, imgTx, mode, workCm.h, workCm.w],
+  );
+  getClampedPositionRef.current = getClampedPosition;
+
+  const resolveDragTransform = useCallback(
+    (nodeArg = imgRef.current) => {
+      const live = readNodeTransform(nodeArg);
+      if (!live?.tx) return null;
+
+      const absoluteCenter = live.absoluteCenter;
+      const stateCenter = {
+        x: imgTx.x_cm + live.width / 2,
+        y: imgTx.y_cm + live.height / 2,
+      };
+      const shouldPrioritizeAbsolute =
+        Number.isFinite(absoluteCenter?.x) &&
+        Number.isFinite(absoluteCenter?.y) &&
+        Math.hypot(
+          absoluteCenter.x - stateCenter.x,
+          absoluteCenter.y - stateCenter.y,
+        ) > ABSOLUTE_DRAG_SYNC_EPSILON_CM;
+
+      if (!shouldPrioritizeAbsolute) return live;
+
+      return {
+        ...live,
+        cx: absoluteCenter.x,
+        cy: absoluteCenter.y,
+        tx: {
+          ...live.tx,
+          x_cm: absoluteCenter.x - live.width / 2,
+          y_cm: absoluteCenter.y - live.height / 2,
+        },
+      };
+    },
+    [imgTx.x_cm, imgTx.y_cm, readNodeTransform],
+  );
+
+  const onImgDragStart = (e) => {
+    const node = e?.target ?? imgRef.current;
+    if (node && dispW > 0 && dispH > 0) {
+      const centerX = imgTx.x_cm + dispW / 2;
+      const centerY = imgTx.y_cm + dispH / 2;
+      node.width(dispW);
+      node.height(dispH);
+      node.offsetX(node.width() / 2);
+      node.offsetY(node.height() / 2);
+      node.scaleX(imgTx.flipX ? -1 : 1);
+      node.scaleY(imgTx.flipY ? -1 : 1);
+      node.rotation(imgTx.rotation_deg);
+      node.position({ x: centerX, y: centerY });
+      clearImageNodeCache(true);
+    }
+    dragJumpGuardRef.current = { awaitingFirstMove: true };
+    const live = resolveDragTransform(node);
+    if (live?.tx) {
+      setImgTx((prev) => ({ ...prev, ...live.tx }));
+    }
     pushHistory(live?.tx ?? imgTx);
     stickyFitRef.current = null;
     skipStickyFitOnceRef.current = false;
+    onImageDragStart?.();
   };
   const dragBoundFunc = useCallback(
-    (pos) => {
-      const live = getLiveNodeTransform();
+    function (pos) {
+      const node = this ?? imgRef.current;
+      const live = node ? resolveDragTransform(node) : getLiveNodeTransform();
       const baseTx = live?.tx ?? imgTx;
 
-      if (!imgBaseCm || isTransformingRef.current || !baseTx) return pos;
+      if (!imgBaseCm || isTransformingRef.current || !baseTx || !node) return pos;
 
-      let cx = pos.x;
-      let cy = pos.y;
-
-      const w = live?.width ?? imgBaseCm.w * Math.abs(baseTx.scaleX);
-      const h = live?.height ?? imgBaseCm.h * Math.abs(baseTx.scaleY);
-      const rotationRad = ((live?.tx.rotation_deg ?? imgTx.rotation_deg) * Math.PI) / 180;
-      const { halfW, halfH } = rotAABBHalf(w, h, rotationRad);
-
-      const releaseCm = Math.max(
-        RELEASE_MIN_CM,
-        RELEASE_BASE_CM / Math.max(viewScale, 1),
-      );
-
-      const dL = Math.abs(cx - halfW - 0);
-      const dR = Math.abs(workCm.w - (cx + halfW));
-      const dT = Math.abs(cy - halfH - 0);
-      const dB = Math.abs(workCm.h - (cy + halfH));
-
-      const ease = (d) => {
-        if (d >= SNAP_LIVE_CM) return 0;
-        const t = 1 - d / SNAP_LIVE_CM;
-        return t * t * t;
+      const parentTransform = node.getParent?.()?.getAbsoluteTransform?.();
+      const toLocalPoint = (point) => {
+        if (!parentTransform || typeof parentTransform.copy !== "function") {
+          return { x: point.x, y: point.y };
+        }
+        return parentTransform.copy().invert().point(point);
+      };
+      const toAbsolutePoint = (point) => {
+        if (!parentTransform || typeof parentTransform.copy !== "function") {
+          return { x: point.x, y: point.y };
+        }
+        return parentTransform.copy().point(point);
       };
 
-      // X
-      if (!stickRef.current.activeX) {
-        const eL = ease(dL);
-        const eR = ease(dR);
-        if (eL > 0 && eL >= eR) {
-          const target = halfW;
-          cx = cx * (1 - eL) + target * eL;
-          if (dL < 0.3) {
-            cx = target;
-            stickRef.current = {
-              ...stickRef.current,
-              activeX: true,
-              x: target,
-            };
-          }
-        } else if (eR > 0) {
-          const target = workCm.w - halfW;
-          cx = cx * (1 - eR) + target * eR;
-          if (dR < 0.3) {
-            cx = target;
-            stickRef.current = {
-              ...stickRef.current,
-              activeX: true,
-              x: target,
-            };
-          }
-        }
-      } else {
-        const diff = cx - stickRef.current.x;
-        if (Math.abs(diff) > releaseCm) {
-          stickRef.current = { ...stickRef.current, activeX: false, x: null };
-        } else {
-          cx = stickRef.current.x + diff * 0.35;
+      const currentAbsPos = node.getAbsolutePosition?.() ?? pos;
+      if (dragJumpGuardRef.current.awaitingFirstMove) {
+        dragJumpGuardRef.current.awaitingFirstMove = false;
+        const jumpX = Math.abs(pos.x - currentAbsPos.x);
+        const jumpY = Math.abs(pos.y - currentAbsPos.y);
+        if (
+          jumpX > INITIAL_DRAG_JUMP_GUARD_PX ||
+          jumpY > INITIAL_DRAG_JUMP_GUARD_PX
+        ) {
+          return currentAbsPos;
         }
       }
 
-      // Y
-      if (!stickRef.current.activeY) {
-        const eT = ease(dT);
-        const eB = ease(dB);
-        if (eT > 0 && eT >= eB) {
-          const target = halfH;
-          cy = cy * (1 - eT) + target * eT;
-          if (dT < 0.3) {
-            cy = target;
-            stickRef.current = {
-              ...stickRef.current,
-              activeY: true,
-              y: target,
-            };
-          }
-        } else if (eB > 0) {
-          const target = workCm.h - halfH;
-          cy = cy * (1 - eB) + target * eB;
-          if (dB < 0.3) {
-            cy = target;
-            stickRef.current = {
-              ...stickRef.current,
-              activeY: true,
-              y: target,
-            };
-          }
-        }
-      } else {
-        const diff = cy - stickRef.current.y;
-        if (Math.abs(diff) > releaseCm) {
-          stickRef.current = { ...stickRef.current, activeY: false, y: null };
-        } else {
-          cy = stickRef.current.y + diff * 0.35;
-        }
-      }
+      const proposedLocal = toLocalPoint(pos);
+      const w = live?.width ?? imgBaseCm.w * Math.abs(baseTx.scaleX);
+      const h = live?.height ?? imgBaseCm.h * Math.abs(baseTx.scaleY);
+      const rotationDeg = live?.tx.rotation_deg ?? imgTx.rotation_deg;
+      const clampedTx = getClampedPosition(
+        proposedLocal.x - w / 2,
+        proposedLocal.y - h / 2,
+        {
+          tx: baseTx,
+          width: w,
+          height: h,
+          rotationDeg,
+          mode,
+        },
+      );
+      const clampedLocal = {
+        x: clampedTx.x_cm + w / 2,
+        y: clampedTx.y_cm + h / 2,
+      };
 
-      return { x: cx, y: cy };
+      return toAbsolutePoint(clampedLocal);
     },
     [
       getLiveNodeTransform,
+      getClampedPosition,
       imgBaseCm,
       imgTx,
-      viewScale,
-      workCm.w,
-      workCm.h,
+      mode,
+      resolveDragTransform,
     ],
   );
 
@@ -992,15 +1315,33 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       trRef.current.getLayer()?.batchDraw();
     }
   };
+  const onImgTouchStart = (e) => {
+    e?.evt?.preventDefault?.();
+    onImgMouseDown();
+  };
+  const onImgTouchMove = (e) => {
+    e?.evt?.preventDefault?.();
+  };
+  const onImgTouchEnd = (e) => {
+    e?.evt?.preventDefault?.();
+  };
   const onImgDragMove = (e) => {
+    e?.evt?.preventDefault?.();
     isPanningRef.current = false;
-    const live = readNodeTransform(e.target);
+    const live = resolveDragTransform(e.target);
     if (live?.tx) {
       setImgTx((prev) => ({ ...prev, ...live.tx }));
     }
+    clearImageNodeCache();
   };
-  const onImgDragEnd = () => {
-    stickRef.current = { x: null, y: null, activeX: false, activeY: false };
+  const onImgDragEnd = (e) => {
+    e?.evt?.preventDefault?.();
+    dragJumpGuardRef.current = { awaitingFirstMove: false };
+    const live = resolveDragTransform();
+    if (live?.tx) {
+      setImgTx((prev) => ({ ...prev, ...live.tx }));
+    }
+    clearImageNodeCache(true);
   };
 
   // transformer
@@ -1008,18 +1349,17 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     keepRatioRef.current = keepRatio;
     if (!trRef.current) return;
     trRef.current.keepRatio(keepRatio);
-    if (showTransformer && imgRef.current)
+    if (shouldShowTransformerOverlay && imgRef.current)
       trRef.current.nodes([imgRef.current]);
     else trRef.current.nodes([]);
     trRef.current.getLayer()?.batchDraw();
-  }, [imgEl, keepRatio, showTransformer]);
+  }, [imgEl, keepRatio, shouldShowTransformerOverlay]);
 
   // fin de resize por esquinas
   const onTransformStart = useCallback(() => {
     if (isTouch) return;
 
     isTransformingRef.current = true;
-    stickRef.current = { x: null, y: null, activeX: false, activeY: false };
     const anchorName = trRef.current?.getActiveAnchor();
     const shouldKeep =
       !anchorName ||
@@ -1092,7 +1432,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     if (isTouch) return;
 
     isTransformingRef.current = false;
-    stickRef.current = { x: null, y: null, activeX: false, activeY: false };
     cornerScaleRef.current = { prev: null };
     if (!imgRef.current || !imgBaseCm) {
       setKeepRatioImmediate(true);
@@ -1122,13 +1461,13 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       const ratioY =
         prevH !== 0 && Number.isFinite(nextH / prevH) ? nextH / prevH : 1;
       const shouldKeep = keepRatioAtRelease;
-      // libre => sin límites superiores
+      // libre => sin lÃ­mites superiores
       if (!shouldKeep) {
         const newSX = Math.max(prev.scaleX * ratioX, 0.01);
         const newSY = Math.max(prev.scaleY * ratioY, 0.01);
         const w = imgBaseCm.w * newSX;
         const h = imgBaseCm.h * newSY;
-        return {
+        const nextTx = {
           x_cm: cx - w / 2,
           y_cm: cy - h / 2,
           scaleX: newSX,
@@ -1137,15 +1476,23 @@ const EditorCanvas = forwardRef(function EditorCanvas(
           flipX: nextSignX < 0,
           flipY: nextSignY < 0,
         };
+        const clampedPosition = getClampedPosition(nextTx.x_cm, nextTx.y_cm, {
+          tx: nextTx,
+          width: w,
+          height: h,
+          rotationDeg: rotation,
+          mode,
+        });
+        return { ...nextTx, ...clampedPosition };
       }
-      // mantener proporción con clamp razonable
+      // mantener proporciÃ³n con clamp razonable
       const uni = Math.max(
         0.01,
         Math.min(prev.scaleX * ratioX, IMG_ZOOM_MAX),
       );
       const w = imgBaseCm.w * uni;
       const h = imgBaseCm.h * uni;
-      return {
+      const nextTx = {
         x_cm: cx - w / 2,
         y_cm: cy - h / 2,
         scaleX: uni,
@@ -1154,9 +1501,18 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         flipX: nextSignX < 0,
         flipY: nextSignY < 0,
       };
+      const clampedPosition = getClampedPosition(nextTx.x_cm, nextTx.y_cm, {
+        tx: nextTx,
+        width: w,
+        height: h,
+        rotationDeg: rotation,
+        mode,
+      });
+      return { ...nextTx, ...clampedPosition };
     });
     n.scaleX(nextSignX);
     n.scaleY(nextSignY);
+    clearImageNodeCache(true);
     setKeepRatioImmediate(true);
   };
 
@@ -1172,17 +1528,62 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     const syncNodeToFit = useCallback((tx, width, height) => {
       const node = imgRef.current;
       if (!node || !(width > 0) || !(height > 0)) return;
+      const centerX = tx.x_cm + width / 2;
+      const centerY = tx.y_cm + height / 2;
 
       node.width(width);
       node.height(height);
+      node.offsetX(node.width() / 2);
+      node.offsetY(node.height() / 2);
       node.scaleX(tx.flipX ? -1 : 1);
       node.scaleY(tx.flipY ? -1 : 1);
       node.rotation(tx.rotation_deg);
-      node.position({ x: tx.x_cm + width / 2, y: tx.y_cm + height / 2 });
+      node.position({ x: centerX, y: centerY });
+      clearImageNodeCache();
       node.getLayer()?.batchDraw();
-    }, []);
+    }, [clearImageNodeCache]);
 
-    // cover/contain/estirar con rotación
+    useLayoutEffect(() => {
+      if (hasSyncedInitialNodeRef.current) return;
+      if (!imgEl || !imgBaseCm || !(dispW > 0) || !(dispH > 0)) return;
+
+      syncNodeToFit(imgTx, dispW, dispH);
+      hasSyncedInitialNodeRef.current = true;
+    }, [
+      dispH,
+      dispW,
+      imgBaseCm,
+      imgEl,
+      imgTx.flipX,
+      imgTx.flipY,
+      imgTx.rotation_deg,
+      imgTx.x_cm,
+      imgTx.y_cm,
+      syncNodeToFit,
+    ]);
+
+    // cover/contain/estirar con rotaciÃ³n
+    useEffect(() => {
+      if (hasForcedInitialNodeSyncRef.current) return;
+      if (!didInitRef.current || !imgEl || !imgBaseCm || !(dispW > 0) || !(dispH > 0)) return;
+
+      syncNodeToFit(imgTx, dispW, dispH);
+      stageRef.current?.batchDraw?.();
+      hasForcedInitialNodeSyncRef.current = true;
+    }, [
+      dispH,
+      dispW,
+      imgBaseCm,
+      imgEl,
+      imgTx.flipX,
+      imgTx.flipY,
+      imgTx.rotation_deg,
+      imgTx.x_cm,
+      imgTx.y_cm,
+      mode,
+      syncNodeToFit,
+    ]);
+
     const applyFit = useCallback(
       (mode, options = {}) => {
         if (!imgBaseCm) return;
@@ -1204,14 +1605,18 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         })();
 
         const fallbackCenter = liveState ?? currentCenter();
+        const defaultCenter =
+          mode === "cover" || mode === "stretch"
+            ? { cx: workCm.w / 2, cy: workCm.h / 2 }
+            : fallbackCenter;
         const targetCx =
           options?.center?.x ??
           options?.center?.cx ??
-          fallbackCenter.cx;
+          defaultCenter.cx;
         const targetCy =
           options?.center?.y ??
           options?.center?.cy ??
-          fallbackCenter.cy;
+          defaultCenter.cy;
         const currentRotation = liveState?.rotation_deg ?? imgTx.rotation_deg;
         const currentFlipX = liveState?.flipX ?? imgTx.flipX;
         const currentFlipY = liveState?.flipY ?? imgTx.flipY;
@@ -1316,59 +1721,114 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     stickyFitRef.current = "stretch";
   }, [applyFit]);
 
+  useLayoutEffect(() => {
+    const pendingMode = pendingRotateRefitModeRef.current;
+    if (!pendingMode || !imgEl || !imgBaseCm) return;
+
+    pendingRotateRefitModeRef.current = null;
+    const rafId = window.requestAnimationFrame(() => {
+      applyFit(pendingMode, {
+        center: { x: workCm.w / 2, y: workCm.h / 2 },
+      });
+    });
+
+    return () => window.cancelAnimationFrame(rafId);
+  }, [applyFit, imgBaseCm, imgEl, imgTx.rotation_deg, workCm.h, workCm.w]);
+
+  const updatePositionWithModeClamp = useCallback(
+    (proposedX, proposedY, options = {}) => {
+      if (!imgBaseCm) return;
+      const live = options.live ?? getLiveNodeTransform();
+      const liveTx = live?.tx ?? imgTx;
+      const width = Number(
+        options?.width ?? (imgBaseCm.w * Math.abs(liveTx.scaleX)),
+      );
+      const height = Number(
+        options?.height ?? (imgBaseCm.h * Math.abs(liveTx.scaleY)),
+      );
+      const rotationDeg = Number.isFinite(Number(options?.rotationDeg))
+        ? Number(options.rotationDeg)
+        : liveTx.rotation_deg;
+      const clampedPosition = getClampedPosition(proposedX, proposedY, {
+        tx: liveTx,
+        width,
+        height,
+        rotationDeg,
+        mode: options?.mode ?? mode,
+      });
+
+      if (
+        clampedPosition.x_cm === liveTx.x_cm &&
+        clampedPosition.y_cm === liveTx.y_cm
+      ) {
+        return;
+      }
+
+      pushHistory(liveTx);
+      stickyFitRef.current = null;
+      skipStickyFitOnceRef.current = false;
+      setImgTx((tx) => ({
+        ...tx,
+        ...liveTx,
+        ...clampedPosition,
+      }));
+    },
+    [getClampedPosition, getLiveNodeTransform, imgBaseCm, imgTx, mode, pushHistory],
+  );
+
   const centerHoriz = useCallback(() => {
     const live = getLiveNodeTransform();
     if (!imgBaseCm) return;
-    const scaleX = live?.tx.scaleX ?? imgTx.scaleX;
-    const w = imgBaseCm.w * Math.abs(scaleX);
-    pushHistory(live?.tx ?? imgTx);
-    setImgTx((tx) => ({
-      ...tx,
-      ...(live?.tx ?? {}),
-      x_cm: (workCm.w - w) / 2,
-    }));
-  }, [getLiveNodeTransform, imgBaseCm?.w, workCm.w, imgTx]);
+    const liveTx = live?.tx ?? imgTx;
+    const width = imgBaseCm.w * Math.abs(liveTx.scaleX);
+    const height = imgBaseCm.h * Math.abs(liveTx.scaleY);
+    updatePositionWithModeClamp((workCm.w - width) / 2, liveTx.y_cm, {
+      live,
+      width,
+      height,
+      rotationDeg: liveTx.rotation_deg,
+    });
+  }, [getLiveNodeTransform, imgBaseCm, imgTx, updatePositionWithModeClamp, workCm.w]);
 
   const centerVert = useCallback(() => {
     const live = getLiveNodeTransform();
     if (!imgBaseCm) return;
-    const scaleY = live?.tx.scaleY ?? imgTx.scaleY;
-    const h = imgBaseCm.h * Math.abs(scaleY);
-    pushHistory(live?.tx ?? imgTx);
-    setImgTx((tx) => ({
-      ...tx,
-      ...(live?.tx ?? {}),
-      y_cm: (workCm.h - h) / 2,
-    }));
-  }, [getLiveNodeTransform, imgBaseCm?.h, workCm.h, imgTx]);
+    const liveTx = live?.tx ?? imgTx;
+    const width = imgBaseCm.w * Math.abs(liveTx.scaleX);
+    const height = imgBaseCm.h * Math.abs(liveTx.scaleY);
+    updatePositionWithModeClamp(liveTx.x_cm, (workCm.h - height) / 2, {
+      live,
+      width,
+      height,
+      rotationDeg: liveTx.rotation_deg,
+    });
+  }, [getLiveNodeTransform, imgBaseCm, imgTx, updatePositionWithModeClamp, workCm.h]);
 
-  const alignEdge = (edge) => {
+  const alignEdge = useCallback((edge) => {
     if (!imgBaseCm) return;
     const live = getLiveNodeTransform();
-    const scaleX = live?.tx.scaleX ?? imgTx.scaleX;
-    const scaleY = live?.tx.scaleY ?? imgTx.scaleY;
-    const rotationDeg = live?.tx.rotation_deg ?? imgTx.rotation_deg;
-    const w = imgBaseCm.w * Math.abs(scaleX);
-    const h = imgBaseCm.h * Math.abs(scaleY);
+    const liveTx = live?.tx ?? imgTx;
+    const width = imgBaseCm.w * Math.abs(liveTx.scaleX);
+    const height = imgBaseCm.h * Math.abs(liveTx.scaleY);
+    const rotationDeg = liveTx.rotation_deg;
     const rotationRad = (rotationDeg * Math.PI) / 180;
-    const { halfW, halfH } = rotAABBHalf(w, h, rotationRad);
+    const { halfW, halfH } = rotAABBHalf(width, height, rotationRad);
 
-    let cx = (live?.cx ?? imgTx.x_cm + w / 2);
-    let cy = (live?.cy ?? imgTx.y_cm + h / 2);
+    let cx = live?.cx ?? liveTx.x_cm + width / 2;
+    let cy = live?.cy ?? liveTx.y_cm + height / 2;
 
     if (edge === "left") cx = halfW;
     if (edge === "right") cx = workCm.w - halfW;
     if (edge === "top") cy = halfH;
     if (edge === "bottom") cy = workCm.h - halfH;
 
-    pushHistory(live?.tx ?? imgTx);
-    setImgTx((tx) => ({
-      ...tx,
-      ...(live?.tx ?? {}),
-      x_cm: cx - (imgBaseCm.w * Math.abs(scaleX)) / 2,
-      y_cm: cy - (imgBaseCm.h * Math.abs(scaleY)) / 2,
-    }));
-  };
+    updatePositionWithModeClamp(cx - width / 2, cy - height / 2, {
+      live,
+      width,
+      height,
+      rotationDeg,
+    });
+  }, [getLiveNodeTransform, imgBaseCm, imgTx, updatePositionWithModeClamp, workCm.h, workCm.w]);
 
   const flipHorizontal = useCallback(() => {
     if (!imgEl) return;
@@ -1394,14 +1854,16 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
   const rotate90 = useCallback(() => {
     if (!imgEl) return;
+    const shouldRefit = mode === "cover" || mode === "stretch";
     pushHistory(imgTx);
-    stickyFitRef.current = null;
+    pendingRotateRefitModeRef.current = shouldRefit ? mode : null;
+    stickyFitRef.current = shouldRefit ? mode : null;
     skipStickyFitOnceRef.current = false;
     setImgTx((tx) => ({
       ...tx,
       rotation_deg: (tx.rotation_deg + 90) % 360,
     }));
-  }, [imgEl, imgTx, pushHistory]);
+  }, [imgEl, imgTx, mode, pushHistory]);
 
   useEffect(() => {
     if (!stickyFitRef.current) return;
@@ -1445,10 +1907,19 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
     if (hasAdjustedViewRef.current && !wrapChanged) return;
 
-    const stageW = workCm.w * baseScale;
-    const stageH = workCm.h * baseScale;
-    const targetX = (wrapSize.w - stageW) / 2;
-    const targetY = (wrapSize.h - stageH) / 2;
+    const viewport = readViewportSize(wrapRef.current, {
+      width: wrapSize.w,
+      height: wrapSize.h,
+    });
+    const centeredPos = getCenteredStagePosition({
+      viewportWidth: viewport.width,
+      viewportHeight: viewport.height,
+      workWidth: workCm.w,
+      workHeight: workCm.h,
+      scale: baseScale,
+    });
+    const targetX = centeredPos.x;
+    const targetY = centeredPos.y;
     setViewPos((prev) => {
       if (
         Math.abs(prev.x - targetX) < 0.5 &&
@@ -1464,7 +1935,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     wrapSize.h,
     workCm.w,
     workCm.h,
-    imageUrl,
+    resolvedImageUrl,
     imageFile,
     material,
   ]);
@@ -1484,7 +1955,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
   const quality = useMemo(() => {
     if (dpiEffective == null) {
-      return { label: "—", color: "#9ca3af", level: null };
+      return { label: "â€”", color: qualityUnknownColor, level: null };
     }
     const level = qualityLevel({
       dpi: dpiEffective,
@@ -1496,23 +1967,23 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     if (level === "bad") {
       return {
         label: `Baja (Revisar, ${dpiEffective | 0} DPI)`,
-        color: "#ef4444",
+        color: qualityBadColor,
         level,
       };
     }
     if (level === "warn") {
       return {
         label: `Buena (${dpiEffective | 0} DPI)`,
-        color: "#f59e0b",
+        color: qualityWarnColor,
         level,
       };
     }
     return {
       label: `Excelente (${Math.min(300, dpiEffective | 0)} DPI)`,
-      color: "#10b981",
+      color: qualityOkColor,
       level,
     };
-  }, [dpiEffective]);
+  }, [dpiEffective, qualityBadColor, qualityOkColor, qualityUnknownColor, qualityWarnColor]);
 
   const getPadRectPx = () => {
     const k = baseScale * viewScale;
@@ -1583,7 +2054,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
   const padRectPx = getPadRectPx();
   const exportScale = padRectPx.w / wCm;
-  const shouldRenderCanvas = showCanvas && Boolean(imageUrl);
+  const shouldRenderCanvas = showCanvas && Boolean(resolvedImageUrl);
   const canUndo = historyCounts.undo > 0;
   const canRedo = historyCounts.redo > 0;
 
@@ -1858,7 +2329,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         crop_px: { left, top, width, height },
         rotate_deg: ((imgTx.rotation_deg % 360) + 360) % 360,
         fit_mode: mode,
-        bg: mode === "contain" ? bgColor : "#ffffff",
+        bg: mode === "contain" ? bgColor : defaultBgColor,
         canvas_px: {
           w: Math.round(workW / cmPerPx),
           h: Math.round(workH / cmPerPx),
@@ -1881,7 +2352,37 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     startPickColor,
     undo,
     redo,
+    fitCover,
+    fitContain,
+    fitStretchCentered,
+    centerHoriz,
+    centerVert,
+    alignLeft: () => alignEdge("left"),
+    alignRight: () => alignEdge("right"),
+    alignTop: () => alignEdge("top"),
+    alignBottom: () => alignEdge("bottom"),
+    flipHorizontal,
+    flipVertical,
+    rotate90,
+    openArMeasure,
     getHistoryCounts: () => ({ ...historyCounts }),
+    getBackgroundColor: () => bgColor,
+    previewBackgroundColor: (hex) => {
+      const normalized = normalizeHexColor(hex) || defaultBgColor;
+      setBgColor((prev) => {
+        if (prev?.toLowerCase() === normalized.toLowerCase()) return prev;
+        return normalized;
+      });
+    },
+    commitBackgroundColor: (hex) => {
+      const normalized = normalizeHexColor(hex) || defaultBgColor;
+      setBgColor((prev) => {
+        if (prev?.toLowerCase() === normalized.toLowerCase()) return prev;
+        return normalized;
+      });
+      lastCommittedBgColorRef.current = normalized;
+      onPickedColor?.(normalized);
+    },
   }));
 
   // popover color
@@ -1956,7 +2457,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
   const applyBgColor = useCallback(
     (hex, { notify = false } = {}) => {
-      const normalized = normalizeHexColor(hex) || DEFAULT_BG_COLOR;
+      const normalized = normalizeHexColor(hex) || defaultBgColor;
       let didChange = false;
       setBgColor((prev) => {
         if (prev?.toLowerCase() === normalized.toLowerCase()) {
@@ -2020,19 +2521,46 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   };
   const wrapperClassName = [
     styles.canvasWrapper,
+    isTouchImageDragEnabled ? styles.canvasWrapperTouchDrag : '',
     isPanningRef.current ? styles.grabbing : '',
     isPickingColor ? styles.picking : '',
     !shouldRenderCanvas ? styles.canvasWrapperInactive : '',
+    canvasWrapperClassName || '',
   ]
     .filter(Boolean)
     .join(' ');
-  const lienzoStyle = lienzoHeight != null ? { height: `${lienzoHeight}px` } : undefined;
-  const canvasSurfaceStyle = useMemo(() => ({ height: '100%' }), []);
+  const showReplacingOverlay = isReplacing;
+  const isImageDraggable = mode !== "stretch" && (!isTouch || isTouchImageDragEnabled);
+  const imageDragBoundFunc =
+    isImageDraggable && mode === "cover" ? dragBoundFunc : undefined;
+  const editorRootClasses = [styles.editorRoot, editorRootClassName || '']
+    .filter(Boolean)
+    .join(' ');
+  const lienzoClasses = [styles.lienzo, lienzoClassName || '']
+    .filter(Boolean)
+    .join(' ');
+  const lienzoStyle = useMemo(() => {
+    const nextStyle = { ...(lienzoStyleProp || {}) };
+    if (lienzoHeight != null) {
+      nextStyle.height = `${lienzoHeight}px`;
+    }
+    return Object.keys(nextStyle).length ? nextStyle : undefined;
+  }, [lienzoHeight, lienzoStyleProp]);
   // track latest callback to avoid effect loops when parent re-renders
   const layoutChangeRef = useRef(onLayoutChange);
   useEffect(() => {
     layoutChangeRef.current = onLayoutChange;
   }, [onLayoutChange]);
+  const unmountCleanupRef = useRef(onUnmountCleanup);
+  useEffect(() => {
+    unmountCleanupRef.current = onUnmountCleanup;
+  }, [onUnmountCleanup]);
+  useEffect(() => {
+    return () => {
+      layoutChangeRef.current?.(null);
+      unmountCleanupRef.current?.();
+    };
+  }, []);
 
   // export layout
   useEffect(() => {
@@ -2057,7 +2585,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         flipY: imgTx.flipY,
       },
       mode,
-      background: mode === "contain" ? bgColor : "#ffffff",
+      background: mode === "contain" ? bgColor : defaultBgColor,
       corner_radius_cm: cornerRadiusCm,
       shape: isCircular ? "circle" : "rounded_rect",
     });
@@ -2081,7 +2609,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         material: materialSelected,
         size: { w: sizeCm?.w, h: sizeCm?.h, bleed_mm: 3 },
         fit_mode: transform?.fitMode, // 'cover'|'contain'|'stretch'
-        bg: bgColor || "#ffffff",
+        bg: bgColor || defaultBgColor,
         dpi: Math.round(currentDpi || 300),
         uploads: {
           signed_url: uploadUrlResponse?.upload?.signed_url,
@@ -2113,10 +2641,16 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
   return (
     <>
-      <div className={styles.editorRoot}>
-      <div className={styles.lienzo} style={lienzoStyle}>
+      <div className={editorRootClasses}>
+      <div className={lienzoClasses} style={lienzoStyle}>
         {/* Canvas */}
-        <div ref={wrapRef} className={wrapperClassName} style={canvasSurfaceStyle}>
+        <div ref={wrapRef} className={wrapperClassName}>
+          {showReplacingOverlay ? (
+            <div className={styles.replacingOverlay} role="status" aria-live="polite">
+              <div className={styles.replacingSpinner} aria-hidden="true" />
+              <span className={styles.visuallyHidden}>Procesando nueva imagen</span>
+            </div>
+          ) : null}
           <Stage
           ref={stageRef}
           width={wrapSize.w}
@@ -2126,23 +2660,24 @@ const EditorCanvas = forwardRef(function EditorCanvas(
           x={viewPos.x}
           y={viewPos.y}
           draggable={false}
-          onWheel={onStageWheel}
           onMouseDown={onStageMouseDown}
           onMouseMove={onStageMouseMove}
-            onMouseUp={endPan}
-            onMouseLeave={endPan}
-            style={{ display: shouldRenderCanvas ? 'block' : 'none' }}
+          onMouseUp={endPan}
+          onMouseLeave={endPan}
+          onTouchStart={isTouchImageDragEnabled ? onStageTouchStart : undefined}
+          onTouchMove={isTouchImageDragEnabled ? onStageTouchMove : undefined}
+          onTouchEnd={isTouchImageDragEnabled ? onStageTouchEnd : undefined}
+          onTouchCancel={isTouchImageDragEnabled ? onStageTouchEnd : undefined}
+            style={{
+              display: shouldRenderCanvas ? 'block' : 'none',
+              width: '100%',
+              height: '100%',
+              maxWidth: 'none',
+              background: 'transparent',
+              touchAction: isTouchImageDragEnabled ? 'none' : 'auto',
+            }}
           >
             <Layer>
-              {/* fondo global del stage */}
-              <Rect
-                x={-2000}
-                y={-2000}
-                width={4000}
-                height={4000}
-                fill={STAGE_BG}
-              />
-
               <Rect
                 name="background-hit-area"
                 x={0}
@@ -2157,22 +2692,22 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
               {/* Mesa de trabajo (gris) con borde redondeado SIEMPRE */}
               <Group
-                clipFunc={(ctx) => drawRoundedPath(ctx, workCm.w, workCm.h, workCornerRadiusCm)}
+                clipFunc={(ctx) => drawRoundedPath(ctx, workCm.w, workCm.h, previewCornerRadiusCm)}
               >
               <Rect
                 x={0}
                 y={0}
                 width={workCm.w}
                 height={workCm.h}
-                fill="#f3f4f6"
+                fill="transparent"
                 listening={false}
               />
             </Group>
 
-            {/* Si 'contain': pintamos el color de fondo SIEMPRE debajo del arte (también al deseleccionar) */}
+            {/* Si 'contain': pintamos el color de fondo SIEMPRE debajo del arte (tambiÃ©n al deseleccionar) */}
             {mode === "contain" && (
               <Group
-                clipFunc={(ctx) => drawRoundedPath(ctx, workCm.w, workCm.h, workCornerRadiusCm)}
+                clipFunc={(ctx) => drawRoundedPath(ctx, workCm.w, workCm.h, previewCornerRadiusCm)}
               >
                 <Rect
                   x={0}
@@ -2188,40 +2723,47 @@ const EditorCanvas = forwardRef(function EditorCanvas(
             {/* IMAGEN: seleccionada = sin recorte; deseleccionada = recortada con radio */}
             {imgEl &&
               imgBaseCm &&
-              (showTransformer && !isTouch ? (
+              (shouldShowTransformerOverlay ? (
                 <>
-                  <KonvaImage
-                    ref={imgRef}
-                    image={imgEl}
-                    x={imgTx.x_cm + dispW / 2}
-                    y={imgTx.y_cm + dispH / 2}
-                    width={dispW}
-                    height={dispH}
-                    offsetX={dispW / 2}
-                    offsetY={dispH / 2}
-                    scaleX={imgTx.flipX ? -1 : 1}
-                    scaleY={imgTx.flipY ? -1 : 1}
-                    rotation={imgTx.rotation_deg}
-                    draggable={!isTouch}
-                    dragBoundFunc={!isTouch ? dragBoundFunc : undefined}
-                    onDragStart={!isTouch ? onImgDragStart : undefined}
-                    onMouseDown={onImgMouseDown}
-                    onClick={onImgMouseDown}
-                    onTap={onImgMouseDown}
-                    onDragMove={onImgDragMove}
-                    onDragEnd={onImgDragEnd}
-                    listening={true}
-                  />
-                  {!isTouch && (
-                    <Transformer
-                      ref={trRef}
-                      visible={showTransformer}
-                      rotateEnabled={!isTouch}
-                      rotateAnchorOffset={40}
-                      rotationSnaps={[0, 90, 180, 270]}
-                      keepRatio={keepRatio}
-                      enabledAnchors={transformerAnchors}
-                      boundBoxFunc={(oldBox, newBox) => {
+                  <Group
+                    clipFunc={(ctx) => drawRoundedPath(ctx, workCm.w, workCm.h, previewCornerRadiusCm)}
+                  >
+                    <KonvaImage
+                      ref={imgRef}
+                      image={imgEl}
+                      x={imgTx.x_cm + dispW / 2}
+                      y={imgTx.y_cm + dispH / 2}
+                      width={dispW}
+                      height={dispH}
+                      offsetX={dispW / 2}
+                      offsetY={dispH / 2}
+                      scaleX={imgTx.flipX ? -1 : 1}
+                      scaleY={imgTx.flipY ? -1 : 1}
+                      rotation={imgTx.rotation_deg}
+                      draggable={isImageDraggable}
+                      dragBoundFunc={imageDragBoundFunc}
+                      onDragStart={isImageDraggable ? onImgDragStart : undefined}
+                      onMouseDown={onImgMouseDown}
+                      onTouchStart={isImageDraggable ? onImgTouchStart : undefined}
+                      onTouchMove={isImageDraggable ? onImgTouchMove : undefined}
+                      onTouchEnd={isImageDraggable ? onImgTouchEnd : undefined}
+                      onTouchCancel={isImageDraggable ? onImgTouchEnd : undefined}
+                      onClick={onImgMouseDown}
+                      onTap={onImgMouseDown}
+                      onDragMove={isImageDraggable ? onImgDragMove : undefined}
+                      onDragEnd={isImageDraggable ? onImgDragEnd : undefined}
+                      listening={true}
+                    />
+                  </Group>
+                  <Transformer
+                    ref={trRef}
+                    visible={shouldShowTransformerOverlay}
+                    rotateEnabled={canTransformImage}
+                    rotateAnchorOffset={40}
+                    rotationSnaps={[0, 90, 180, 270]}
+                    keepRatio={keepRatio}
+                    enabledAnchors={transformerAnchors}
+                    boundBoxFunc={(oldBox, newBox) => {
                         const rotationDeg = transformStateRef.current?.rotationDeg ??
                           ((imgTx.rotation_deg % 360) + 360) % 360;
                         const isRightAngle = rotationDeg === 90 || rotationDeg === 270;
@@ -2233,13 +2775,13 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                         const MIN_H = 0.02 * baseH;
 
                         if (!keepRatioRef.current) {
-                          // ⟵ MODO LIBRE: sólo mínimo, SIN límites superiores
+                          // âŸµ MODO LIBRE: sÃ³lo mÃ­nimo, SIN lÃ­mites superiores
                           const w = Math.max(MIN_W, newBox.width);
                           const h = Math.max(MIN_H, newBox.height);
                           return { ...newBox, width: w, height: h };
                         }
 
-                        // Mantener proporción original incluso si venimos de "estirar"
+                        // Mantener proporciÃ³n original incluso si venimos de "estirar"
                         const MIN_SCALE = 0.02;
                         const MAX_SCALE = IMG_ZOOM_MAX;
                         const thetaDeg = isRightAngle ? rotationDeg : imgTx.rotation_deg;
@@ -2312,15 +2854,14 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                         cornerScaleRef.current.prev = clampedScale;
 
                         return { ...newBox, width, height };
-                      }}
-                      onTransformStart={onTransformStart}
-                      onTransformEnd={onTransformEnd}
-                    />
-                  )}
+                    }}
+                    onTransformStart={onTransformStart}
+                    onTransformEnd={onTransformEnd}
+                  />
                 </>
                 ) : (
                   <Group
-                    clipFunc={(ctx) => drawRoundedPath(ctx, workCm.w, workCm.h, workCornerRadiusCm)}
+                    clipFunc={(ctx) => drawRoundedPath(ctx, workCm.w, workCm.h, previewCornerRadiusCm)}
                   >
                     <Rect
                       x={0}
@@ -2331,7 +2872,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                       onClick={handleBackgroundClick}
                       onTap={handleBackgroundClick}
                     />
-                    {/* si estás en 'contain', pintar el color debajo del arte */}
+                    {/* si estÃ¡s en 'contain', pintar el color debajo del arte */}
                     {mode === "contain" && (
                       <Rect
                         x={0}
@@ -2353,20 +2894,24 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                     scaleX={imgTx.flipX ? -1 : 1}
                     scaleY={imgTx.flipY ? -1 : 1}
                     rotation={imgTx.rotation_deg}
-                    draggable={!isTouch}
-                    dragBoundFunc={!isTouch ? dragBoundFunc : undefined}
-                    onDragStart={!isTouch ? onImgDragStart : undefined}
+                    draggable={isImageDraggable}
+                    dragBoundFunc={imageDragBoundFunc}
+                    onDragStart={isImageDraggable ? onImgDragStart : undefined}
                     onMouseDown={onImgMouseDown}
+                    onTouchStart={isImageDraggable ? onImgTouchStart : undefined}
+                    onTouchMove={isImageDraggable ? onImgTouchMove : undefined}
+                    onTouchEnd={isImageDraggable ? onImgTouchEnd : undefined}
+                    onTouchCancel={isImageDraggable ? onImgTouchEnd : undefined}
                     onClick={onImgMouseDown}
                     onTap={onImgMouseDown}
-                    onDragMove={!isTouch ? onImgDragMove : undefined}
-                    onDragEnd={!isTouch ? onImgDragEnd : undefined}
+                    onDragMove={isImageDraggable ? onImgDragMove : undefined}
+                    onDragEnd={isImageDraggable ? onImgDragEnd : undefined}
                     listening={true}
                   />
                 </Group>
               ))}
 
-            {/* máscara fuera del área */}
+            {/* mÃ¡scara fuera del Ã¡rea */}
           </Layer>
           {hasGlassOverlay && (
             <Layer id="glasspadOverlayLayer" listening={false}>
@@ -2378,7 +2923,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                 width={wCm}
                 height={hCm}
                 clipFunc={(ctx) => {
-                  ctx.rect(0, 0, wCm, hCm);
+                  drawRoundedPath(ctx, wCm, hCm, previewPadCornerRadiusCm);
                 }}
               >
                 <KonvaImage
@@ -2398,13 +2943,13 @@ const EditorCanvas = forwardRef(function EditorCanvas(
             </Layer>
           )}
           <Layer listening={false}>
-            {/* guías */}
+            {/* guÃ­as */}
             <Shape
               sceneFunc={(ctx, shape) => {
                 ctx.save();
                 ctx.setLineDash([]);
-                drawRoundedPath(ctx, workCm.w, workCm.h, workCornerRadiusCm);
-                ctx.strokeStyle = "#ef4444";
+                drawRoundedPath(ctx, workCm.w, workCm.h, previewCornerRadiusCm);
+                ctx.strokeStyle = "transparent";
                 ctx.lineWidth = shape.strokeWidth();
                 ctx.stroke();
                 ctx.restore();
@@ -2424,7 +2969,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                   Math.max(0, hCm - 2 * PRIMARY_SAFE_MARGIN_CM),
                   primarySafeRadiusCm,
                 );
-                ctx.strokeStyle = "#111827";
+                ctx.strokeStyle = guidePrimaryColor;
                 ctx.setLineDash([0.4, 0.4]);
                 ctx.lineWidth = shape.strokeWidth();
                 ctx.stroke();
@@ -2432,27 +2977,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               }}
               strokeWidth={0.04}
             />
-              <Shape
-                sceneFunc={(ctx, shape) => {
-                  ctx.save();
-                  ctx.translate(
-                    bleedCm + SECONDARY_SAFE_MARGIN_CM,
-                    bleedCm + SECONDARY_SAFE_MARGIN_CM,
-                  );
-                  drawRoundedPath(
-                    ctx,
-                    Math.max(0, wCm - 2 * SECONDARY_SAFE_MARGIN_CM),
-                    Math.max(0, hCm - 2 * SECONDARY_SAFE_MARGIN_CM),
-                    secondarySafeRadiusCm,
-                  );
-                  ctx.strokeStyle = "#6b7280";
-                  ctx.setLineDash([0.3, 0.3]);
-                  ctx.lineWidth = shape.strokeWidth();
-                  ctx.stroke();
-                  ctx.restore();
-                }}
-                strokeWidth={0.03}
-              />
             </Layer>
           </Stage>
           <Stage
@@ -2478,7 +3002,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                   y={0}
                   width={padRectPx.w}
                   height={padRectPx.h}
-                  fill={mode === "contain" ? bgColor : "#ffffff"}
+                  fill={mode === "contain" ? bgColor : defaultBgColor}
                   listening={false}
                 />
                 {imgEl && imgBaseCm && (
@@ -2499,16 +3023,16 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               </Group>
             </Layer>
           </Stage>
-          {isTouch && (
+          {isTouch && !isTouchImageDragEnabled && (
             <div className={styles.touchScrollOverlay} aria-hidden="true" />
           )}
-          {imageUrl && imgStatus !== "loaded" && (
+          {!showReplacingOverlay && resolvedImageUrl && imgStatus !== "loaded" && (
             <div className={`spinner ${styles.spinnerOverlay}`} />
           )}
-          {isTouch && (
+          {false && isTouch && (
             <div className={styles.mobileCanvasControls}>
               <button type="button" onClick={handleZoomOut} aria-label="Alejar">
-                −
+                âˆ’
               </button>
               <button type="button" onClick={handleZoomIn} aria-label="Acercar">
                 +
@@ -2564,7 +3088,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
           <button
             type="button"
             onClick={() => onClearImage?.()}
-            disabled={!onClearImage || !imageUrl}
+            disabled={!onClearImage || !resolvedImageUrl}
             className={`${styles.historyButton} ${styles.historyButtonDanger}`}
             aria-label="Eliminar"
           >
@@ -2585,6 +3109,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         </div>
       )}
 
+      {showToolbar && (
       <div className={styles.overlayBottomCenter}>
         {/* Toolbar */}
         <div className={styles.toolbarScroller}>
@@ -2727,12 +3252,12 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               )}
             </button>
           </ToolbarTooltip>
-          <ToolbarTooltip label="Rotar 90°">
+          <ToolbarTooltip label="Rotar 90Â°">
             <button
               type="button"
               onClick={rotate90}
               disabled={!imgEl}
-              aria-label="Rotar 90°"
+              aria-label="Rotar 90Â°"
               className={styles.iconOnlyButton}
             >
               {missingIcons.rotar ? (
@@ -2808,7 +3333,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
             </button>
           </ToolbarTooltip>
 
-          <ToolbarTooltip label="Diseño completo" disabled={!imgEl}>
+          <ToolbarTooltip label="DiseÃ±o completo" disabled={!imgEl}>
             <div className={styles.colorWrapper}>
               <button
                 type="button"
@@ -2872,7 +3397,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
             </button>
           </ToolbarTooltip>
 
-          {material !== "Glasspad" && onToggleCircular && (
+          {!isFixedPad49x42Material(material) && onToggleCircular && (
             <ToolbarTooltip
               label={isCircular ? "Volver a rectangular" : "Lienzo circular"}
               disabled={!imgEl}
@@ -2912,7 +3437,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                 className={`${styles.iconOnlyButton} ${styles.arMeasureButton}`}
               >
                 <span className={styles.arMeasureIcon} aria-hidden="true">
-                  📏
+                  ðŸ“
                 </span>
               </button>
             </ToolbarTooltip>
@@ -2937,12 +3462,13 @@ const EditorCanvas = forwardRef(function EditorCanvas(
             disabled={busy || !imgEl || !imageFile}
             className={styles.confirmButton}
           >
-            {busy ? "Creando…" : "Crear job"}
+            {busy ? "Creandoâ€¦" : "Crear job"}
           </button>
         )}
             </div>
           </div>
         </div>
+      )}
       </div>
 
       {topLeftOverlay ? (
@@ -2956,3 +3482,4 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 });
 
 export default EditorCanvas;
+

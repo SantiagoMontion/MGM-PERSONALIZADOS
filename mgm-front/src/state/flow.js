@@ -1,9 +1,10 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 
 const FLOW_STORAGE_KEY = 'mgm_flow_v1';
 const PERSIST_KEYS = [
-  'designName',
   'material',
+  'isCircular',
+  'shape',
   'widthCm',
   'heightCm',
   'options',
@@ -24,14 +25,62 @@ const safeStr = (value, fallback = '') => {
 const normalizeMaterial = (value) => {
   const normalized = safeStr(value).toLowerCase();
   if (normalized.includes('glass')) return 'Glasspad';
+  if (normalized.includes('ultra')) return 'Ultra';
   if (normalized.includes('pro')) return 'PRO';
   if (normalized.includes('alfombr')) return 'Alfombra';
   return normalized ? 'Classic' : '';
+};
+const normalizeShape = (value) => (
+  safeStr(value).toLowerCase() === 'circle' ? 'circle' : 'rounded_rect'
+);
+const isBlobUrl = (value) => typeof value === 'string' && value.startsWith('blob:');
+const revokeObjectUrl = (value) => {
+  if (!isBlobUrl(value)) return;
+  try {
+    URL.revokeObjectURL(value);
+  } catch {
+    // ignore
+  }
+};
+const buildImageAssetPatch = (nextAssetInput, prevState) => {
+  const prevAsset = prevState?.uploadedAsset || null;
+  const nextAssetRaw =
+    typeof nextAssetInput === 'function' ? nextAssetInput(prevAsset) : nextAssetInput;
+
+  if (!nextAssetRaw) {
+    return {
+      uploadedAsset: null,
+      masterFile: null,
+      imageLocalUrl: null,
+      imageSourceUrl: null,
+      fileOriginalUrl: null,
+    };
+  }
+
+  const nextAsset = {
+    ...(prevAsset && typeof prevAsset === 'object' ? prevAsset : {}),
+    ...nextAssetRaw,
+  };
+  const localUrl = safeStr(nextAsset.localUrl) || null;
+  const canonicalUrl = safeStr(nextAsset.canonical_url || nextAsset.file_original_url) || null;
+  const imageSourceUrl = localUrl || canonicalUrl || safeStr(nextAsset.imageUrl) || null;
+
+  return {
+    uploadedAsset: nextAsset,
+    masterFile: nextAsset.file ?? null,
+    imageLocalUrl: localUrl,
+    imageSourceUrl,
+    fileOriginalUrl: canonicalUrl,
+  };
 };
 
 const defaultState = {
   productType: 'mousepad',
   editorState: null,
+  uploadedAsset: null,
+  masterFile: null,
+  imageLocalUrl: null,
+  imageSourceUrl: null,
   mockupBlob: null,
   mockupUrl: null,
   mockupPublicUrl: null,
@@ -50,6 +99,8 @@ const defaultState = {
   jobId: null,
   designName: '',
   material: null,
+  isCircular: false,
+  shape: 'rounded_rect',
   options: {},
   widthCm: null,
   heightCm: null,
@@ -64,7 +115,10 @@ const defaultState = {
 
 const FlowContext = createContext({
   ...defaultState,
+  get: () => defaultState,
   set: () => {},
+  setImageAsset: () => {},
+  clearImageAsset: () => {},
   reset: () => {},
 });
 
@@ -109,6 +163,12 @@ export function FlowProvider({ children }) {
               if (opts.material) {
                 next.options.material = safeStr(opts.material);
               }
+              if ('shape' in opts) {
+                next.options.shape = normalizeShape(opts.shape);
+              }
+              if ('isCircular' in opts) {
+                next.options.isCircular = Boolean(opts.isCircular);
+              }
             }
             return;
           }
@@ -119,10 +179,18 @@ export function FlowProvider({ children }) {
             }
             return;
           }
+          if (key === 'shape') {
+            next.shape = normalizeShape(parsed.shape);
+            return;
+          }
+          if (key === 'isCircular') {
+            next.isCircular = Boolean(parsed.isCircular);
+            return;
+          }
           next[key] = parsed[key];
         });
       }
-      if (next.material === 'Glasspad') {
+      if (next.material === 'Glasspad' || next.material === 'Ultra') {
         if (!(Number.isFinite(next.widthCm) && next.widthCm > 0)) {
           next.widthCm = 49;
         }
@@ -144,6 +212,11 @@ export function FlowProvider({ children }) {
   };
 
   const [state, setState] = useState(loadInitial);
+  const stateRef = useRef(state);
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !window.localStorage) return;
@@ -163,9 +236,11 @@ export function FlowProvider({ children }) {
         if (key === 'options') {
           if (value && typeof value === 'object') {
             const matValue = safeStr(value.material || state.material);
-            if (matValue) {
-              payload.options = { material: matValue };
-            }
+            payload.options = {
+              ...(matValue ? { material: matValue } : {}),
+              shape: normalizeShape(value.shape || state.shape),
+              isCircular: Boolean(value.isCircular ?? state.isCircular),
+            };
           }
           return;
         }
@@ -181,6 +256,14 @@ export function FlowProvider({ children }) {
           if (curr) payload[key] = curr;
           return;
         }
+        if (key === 'shape') {
+          payload[key] = normalizeShape(value);
+          return;
+        }
+        if (key === 'isCircular') {
+          payload[key] = Boolean(value);
+          return;
+        }
         payload[key] = key === 'material' ? normalizeMaterial(value) || state.material : value;
       });
       window.localStorage.setItem(FLOW_STORAGE_KEY, JSON.stringify(payload));
@@ -188,8 +271,9 @@ export function FlowProvider({ children }) {
       console.warn('[flow] persist_failed', error);
     }
   }, [
-    state.designName,
     state.material,
+    state.isCircular,
+    state.shape,
     state.widthCm,
     state.heightCm,
     state.options,
@@ -202,24 +286,56 @@ export function FlowProvider({ children }) {
     state.lastProduct,
   ]);
 
+  const set = useCallback((partial) => {
+    setState((prev) => {
+      const nextPartial = typeof partial === 'function' ? partial(prev) : partial;
+      if (!nextPartial || typeof nextPartial !== 'object') return prev;
+      return { ...prev, ...nextPartial };
+    });
+  }, []);
+
+  const setImageAsset = useCallback((nextAssetInput) => {
+    setState((prev) => {
+      const previousLocalUrl = prev.imageLocalUrl || prev.uploadedAsset?.localUrl || null;
+      const patch = buildImageAssetPatch(nextAssetInput, prev);
+      const nextLocalUrl = patch.imageLocalUrl;
+
+      if (previousLocalUrl && previousLocalUrl !== nextLocalUrl) {
+        revokeObjectUrl(previousLocalUrl);
+      }
+
+      return {
+        ...prev,
+        ...patch,
+      };
+    });
+  }, []);
+
+  const clearImageAsset = useCallback(() => {
+    setImageAsset(null);
+  }, [setImageAsset]);
+
+  const reset = useCallback(() => {
+    const currentState = stateRef.current || defaultState;
+    revokeObjectUrl(currentState.mockupUrl);
+    revokeObjectUrl(currentState.imageLocalUrl || currentState.uploadedAsset?.localUrl);
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.removeItem(FLOW_STORAGE_KEY);
+      }
+    } catch {
+      // ignore
+    }
+    setState({ ...defaultState });
+  }, []);
+
   const value = {
     ...state,
-    set: (partial) => setState((s) => ({ ...s, ...partial })),
-    reset: () => {
-      try {
-        if (state.mockupUrl) URL.revokeObjectURL(state.mockupUrl);
-      } catch {
-        // ignore
-      }
-      try {
-        if (typeof window !== 'undefined' && window.localStorage) {
-          window.localStorage.removeItem(FLOW_STORAGE_KEY);
-        }
-      } catch {
-        // ignore
-      }
-      setState({ ...defaultState });
-    },
+    get: () => stateRef.current || defaultState,
+    set,
+    setImageAsset,
+    clearImageAsset,
+    reset,
   };
   return React.createElement(FlowContext.Provider, { value }, children);
 }

@@ -22,11 +22,12 @@ export default function Creating() {
     try {
       const mode = render_v2?.material || render?.material || 'Classic';
       const isGlasspad = mode === 'Glasspad';
+      const fixed49 = isGlasspad || mode === 'Ultra';
       const payload = {
         job_id: jobId,
         mode,
-        width_cm: isGlasspad ? 49 : Number(render_v2?.w_cm ?? render?.w_cm ?? 0),
-        height_cm: isGlasspad ? 42 : Number(render_v2?.h_cm ?? render?.h_cm ?? 0),
+        width_cm: fixed49 ? 49 : Number(render_v2?.w_cm ?? render?.w_cm ?? 0),
+        height_cm: fixed49 ? 42 : Number(render_v2?.h_cm ?? render?.h_cm ?? 0),
         design_url: render_v2?.design_url ?? render?.design_url ?? null,
         bleed_mm: Number(render_v2?.bleed_mm ?? render?.bleed_mm ?? 0),
         rotate_deg: Number(render_v2?.rotate_deg ?? render?.rotate_deg ?? 0),

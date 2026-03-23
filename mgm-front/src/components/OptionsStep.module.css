@@ -48,7 +48,11 @@
 .submitButtonIcon {
   width: 24px;
   height: 24px;
-  display: block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  font-weight: 700;
 
 }
 

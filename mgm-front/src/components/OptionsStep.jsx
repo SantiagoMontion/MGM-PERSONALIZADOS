@@ -16,14 +16,14 @@ import {
 import styles from './OptionsStep.module.css';
 import { buildSubmitJobBody, prevalidateSubmitBody } from '../lib/jobPayload';
 import { submitJob } from '../lib/submitJob';
-import { resolveIconAsset } from '../lib/iconRegistry.js';
+import { DEFAULT_ICON_FALLBACK, resolveIconAsset } from '../lib/iconRegistry.js';
 import { error } from '@/lib/log';
 
 const LOW_ACK_ERROR_MESSAGE = 'La calidad parece baja. Confirmá que aceptás continuar.';
 const CONTINUE_ICON_SRC = resolveIconAsset('continuar.svg');
 
 const Form = z.object({
-  material: z.enum(['Classic','PRO','Glasspad','Alfombra']),
+  material: z.enum(['Classic','PRO','Glasspad','Ultra','Alfombra']),
   w: z.number().positive(),
   h: z.number().positive(),
   fit: z.enum(['cover','contain','stretch']),
@@ -40,6 +40,7 @@ export default function OptionsStep({ uploaded, onSubmitted }) {
   const [ackLow, setAckLow] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [continueIconError, setContinueIconError] = useState(false);
 
   // Leer dimensiones reales de la imagen
   useEffect(() => {
@@ -54,7 +55,7 @@ export default function OptionsStep({ uploaded, onSubmitted }) {
   }, [uploaded]);
 
   useEffect(() => {
-    if (material === 'Glasspad') {
+    if (material === 'Glasspad' || material === 'Ultra') {
       setWText(String(GLASSPAD_SIZE_CM.w));
       setHText(String(GLASSPAD_SIZE_CM.h));
     }
@@ -182,6 +183,7 @@ export default function OptionsStep({ uploaded, onSubmitted }) {
             <option>Classic</option>
             <option>PRO</option>
             <option>Glasspad</option>
+            <option>Ultra</option>
             <option disabled>Alfombra</option>
           </select>
         </label>
@@ -203,7 +205,7 @@ export default function OptionsStep({ uploaded, onSubmitted }) {
             onBlur={handleWBlur}
             inputMode="decimal"
             pattern="[0-9]*"
-            disabled={material === 'Glasspad'}
+            disabled={material === 'Glasspad' || material === 'Ultra'}
           />
         </label>
         <label>Alto (cm)
@@ -213,7 +215,7 @@ export default function OptionsStep({ uploaded, onSubmitted }) {
             onBlur={handleHBlur}
             inputMode="decimal"
             pattern="[0-9]*"
-            disabled={material === 'Glasspad'}
+            disabled={material === 'Glasspad' || material === 'Ultra'}
           />
         </label>
         <small>Máximo {limits.maxW}×{limits.maxH} para {material}</small>
@@ -269,11 +271,18 @@ export default function OptionsStep({ uploaded, onSubmitted }) {
 
           <>
             <span className={styles.submitButtonText}>Continuar</span>
-            <img
-              alt="Continuar"
-              className={styles.submitButtonIcon}
-              src={CONTINUE_ICON_SRC}
-            />
+            {CONTINUE_ICON_SRC && !continueIconError ? (
+              <img
+                alt="Continuar"
+                className={styles.submitButtonIcon}
+                src={CONTINUE_ICON_SRC}
+                onError={() => setContinueIconError(true)}
+              />
+            ) : (
+              <span className={styles.submitButtonIcon} aria-hidden="true">
+                {DEFAULT_ICON_FALLBACK}
+              </span>
+            )}
           </>
 
         )}

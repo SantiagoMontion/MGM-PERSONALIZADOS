@@ -104,11 +104,23 @@ function formatMeasurement(width: unknown, height: unknown): string | undefined 
   return `${w}x${h}`;
 }
 
-function buildGlasspadTitle(measurement?: string): string {
-  const parts = ['Glasspad'];
+function formatCustomerMaterialLabel(material?: string, isCircular = false): string {
+  const normalizedMaterial = typeof material === 'string' ? material.trim() : '';
+  if (!normalizedMaterial) return isCircular ? 'Form' : '';
+  if (isCircular && normalizedMaterial !== 'Glasspad' && normalizedMaterial !== 'Ultra' && !/\bForm\b/i.test(normalizedMaterial)) {
+    return `${normalizedMaterial} Form`;
+  }
+  return normalizedMaterial;
+}
+
+function buildGlasspadTitle(designName?: string, measurement?: string): string {
+  const parts: string[] = [];
+  const normalizedName = (designName || '').trim();
+  if (normalizedName) parts.push(normalizedName);
   const normalizedMeasurement = (measurement || '').trim();
   if (normalizedMeasurement) parts.push(normalizedMeasurement);
-  return `${parts.join(' ')} | MGM-EDITOR`;
+  parts.push('Glasspad');
+  return `${parts.join(' ').trim() || 'Glasspad'} | Custom`;
 }
 
 
@@ -323,7 +335,7 @@ export default async function handler(req: any, res: any) {
 
   try {
     const { mode, width_cm, height_cm, bleed_mm, rotate_deg, image_dataurl, mockup_dataurl } = req.body || {};
-    const modeOk = ['Classic', 'Pro', 'Glasspad'].includes(mode);
+    const modeOk = ['Classic', 'Pro', 'Glasspad', 'Ultra'].includes(mode);
     const width = Number(width_cm);
     const height = Number(height_cm);
     const bleed = Number(bleed_mm);
@@ -375,9 +387,6 @@ export default async function handler(req: any, res: any) {
     }
     const base64 = mockupPayload.buffer.toString('base64');
     const measurementLabel = formatMeasurement(width, height);
-    const title = mode === 'Glasspad'
-      ? buildGlasspadTitle(measurementLabel)
-      : `Mousepad Personalizado - ${mode}${measurementLabel ? ` ${measurementLabel}` : ''} | MGM-EDITOR`;
     const productTypeRaw = typeof req.body?.productType === 'string'
       ? req.body.productType
       : typeof req.body?.options?.productType === 'string'
@@ -389,6 +398,16 @@ export default async function handler(req: any, res: any) {
       : typeof req.body?.designName === 'string'
         ? req.body.designName
         : '';
+    const normalizedShape = String(
+      req.body?.shape
+      || req.body?.options?.shape
+      || ((req.body?.isCircular === true || req.body?.options?.isCircular === true) ? 'circle' : 'rounded_rect'),
+    ).trim().toLowerCase();
+    const isCircularShape = normalizedShape === 'circle';
+    const displayMaterialLabel = formatCustomerMaterialLabel(mode === 'Glasspad' ? 'Glasspad' : String(mode || 'Mousepad'), isCircularShape);
+    const title = mode === 'Glasspad'
+      ? buildGlasspadTitle(designNameRaw, measurementLabel)
+      : `${[designNameRaw, measurementLabel, displayMaterialLabel].filter(Boolean).join(' ').trim() || displayMaterialLabel || 'Custom'} | Custom`;
     const designNameForPath = designNameRaw || title;
     const payload = {
       product: {

@@ -1,0 +1,87 @@
+.row {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 0;
+  margin-block-start: 5px;
+  inline-size: 100%;
+  max-inline-size: 100%;
+  pointer-events: auto;
+}
+
+.row p {
+  margin: 0;
+  flex: 0 1 auto;
+  inline-size: auto;
+  max-inline-size: 100%;
+}
+
+.helpWrap {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+}
+
+.helpButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 18px;
+  block-size: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: var(--nm-ink-850);
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--foreground) 12%, transparent);
+}
+
+.helpButton:hover {
+  background: var(--nm-stone-700);
+  color: #ffffff;
+}
+
+.helpButton:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
+}
+
+@media (max-width: 767px) {
+  .row {
+    padding-block-start: 10px;
+  }
+}
+
+.popover {
+  position: absolute;
+  z-index: 60;
+  inset-block-end: 100%;
+  inset-inline-start: 50%;
+  margin-block-end: 8px;
+  transform: translateX(-50%);
+  inline-size: min(280px, calc(100vw - 32px));
+  max-inline-size: min(280px, calc(100vw - 32px));
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--nm-ink-960);
+  border: 1px solid color-mix(in srgb, var(--foreground) 14%, transparent);
+  box-shadow:
+    0 var(--space-2) var(--space-8) color-mix(in srgb, #000000 45%, transparent),
+    0 var(--space-1) var(--space-3) color-mix(in srgb, #000000 35%, transparent);
+  color: #ffffff;
+  font-size: var(--fs-xs);
+  font-weight: 400;
+  line-height: 1.45;
+  letter-spacing: normal;
+  text-transform: none;
+  text-align: left;
+  pointer-events: auto;
+}

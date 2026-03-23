@@ -70,6 +70,18 @@
   opacity: 0.9;
 }
 
+.measureIconFallback {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--cfg-text-soft);
+  font-size: 14px;
+  font-weight: 700;
+}
+
 .measureInput {
   margin-left: auto;
   width: 50px;

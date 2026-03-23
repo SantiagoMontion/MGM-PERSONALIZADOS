@@ -1,20 +1,26 @@
 :root {
-  --cfg-bg: #2f3034;
-  --cfg-surface: #1b1c1f;
-  --cfg-text: #f6f7fb;
-  --cfg-text-soft: rgba(246, 247, 251, 0.85);
-  --cfg-border: rgba(128, 128, 128, 0.28);
-  --cfg-border-strong: rgba(200, 200, 200, 0.45);
-  --cfg-shadow: 0 18px 36px rgba(0, 0, 0, 0.4);
+  --cfg-bg: var(--surface-secondary);
+  --cfg-surface: var(--surface);
+  --cfg-text: var(--foreground);
+  --cfg-text-soft: var(--foreground-secondary);
+  --background-secondary: var(--surface-secondary);
+  --text-primary: var(--foreground);
+  --muted-foreground: var(--foreground-secondary);
+  --cfg-border: var(--border-default);
+  --cfg-border-strong: var(--border-strong);
+  --cfg-shadow: 0 var(--space-4) var(--space-8) color-mix(in srgb, currentColor 18%, transparent);
 }
 
 .page {
   display: flex;
   flex-direction: column;
-  gap: 32px;
-  padding: 0px 48px 0px;
-  min-height: 100%;
-  margin-top: -20px
+  flex: 1;
+  min-block-size: 0;
+  gap: var(--spacing-section-gap-sm);
+  padding: 0 var(--spacing-container-padding);
+  overflow: hidden;
+  box-sizing: border-box;
+  margin-top: var(--space-0);
 }
 
 
@@ -22,6 +28,8 @@
 .sectionOne {
   width: 100%;
   display: flex;
+  flex: 1;
+  min-block-size: 0;
 }
 
 .sectionOneInner {
@@ -30,8 +38,9 @@
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 32px;
-  min-height: 100%;
+  flex: 1;
+  min-block-size: 0;
+  gap: var(--spacing-section-gap-sm);
 }
 
 .continueButton {
@@ -41,10 +50,12 @@
   width: 100%;
   max-width: 1920px !important;
   margin: 0 auto;
+  margin-block-start: 0 !important;
+  padding-block-start: 0 !important;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 16px;
+  gap: var(--spacing-component-gap-lg);
 }
 
 .editor {
@@ -62,10 +73,10 @@
 }
 
 .configAccordion {
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--nm-on-dark-12);
   border-radius: 20px;
-  background: rgba(40, 40, 40, 0.85);
-  color: #f9fafb;
+  background: color-mix(in srgb, var(--nm-ink-840) 85%, transparent);
+  color: var(--nm-text-muted-dark);
   overflow: hidden;
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
@@ -73,8 +84,8 @@
 }
 
 .configAccordionOpen {
-  border-color: rgba(148, 163, 255, 0.55);
-  box-shadow: 0 24px 44px rgba(12, 12, 20, 0.45);
+  border-color: var(--nm-config-accent-border);
+  box-shadow: var(--nm-shadow-config);
 }
 
 .tutorialButton {
@@ -86,9 +97,9 @@
   padding: 9px 9px;
   min-width: 150px;
   border-radius: 12px;
-  border: 1px solid rgba(128,128,128,.45);
-  background: #181818;
-  color: #f7f7f9;
+  border: 1px solid var(--nm-control-border-subtle);
+  background: var(--nm-ink-900);
+  color: var(--nm-text-secondary-dark);
   font-size: 15px;
   font-weight: 400;
   letter-spacing: .02em;
@@ -104,7 +115,7 @@
 .configSheet {
   inline-size: min(100%, 442px);
   margin-inline: auto;
-  background: #282828d0;
+  background: var(--nm-sheet-bg);
   border: 1px solid var(--cfg-border);
   border-radius: 11px;
  
@@ -127,7 +138,7 @@
   content: "";
   position: absolute;
   inset: 0;
-  background: rgba(40, 40, 40, 0.7); /* #282828 al 70% */
+  background: color-mix(in srgb, var(--nm-ink-840) 70%, transparent);
   transform: scaleX(0);
   transform-origin: left center;
   transition: transform .32s ease;
@@ -147,7 +158,7 @@
   }
 
   .tutorialButton:hover {
-    border-color: rgba(200,200,200,.55);
+    border-color: var(--nm-control-border-contrast);
     transform: translateY(-1px);
   }
 }
@@ -161,7 +172,7 @@
 
 /* Accesibilidad: focus */
 .tutorialButton:focus-visible {
-  outline: 2px solid #79c0ff;
+  outline: 2px solid var(--nm-focus-blue);
   outline-offset: 3px;
 }
 
@@ -189,9 +200,9 @@
   gap: 14px;
   padding: 16px 20px;
   border-radius: 11px;
-  background: #2c2c2cd3;
-  border: 1px solid #5c5c5ca2;
-  color: #f6f7fb;
+  background: var(--nm-control-bg);
+  border: 1px solid var(--nm-config-trigger-border);
+  color: var(--nm-text-primary-dark);
   font-weight: 400;
   font-size: 1rem;
   cursor: pointer;
@@ -214,7 +225,7 @@
 
 @media (hover: hover) {
   .configTrigger:hover:not(:disabled) {
-    border: 1px solid #4e4e4ea2;
+    border: 1px solid var(--nm-config-trigger-border-hover);
   }
 }
 
@@ -233,8 +244,8 @@
   gap: 12px;
   padding: 20px 24px;
   border: none;
-  background: #282828d0;
-  border: 1px solid #34343b;
+  background: var(--nm-sheet-bg);
+  border: 1px solid var(--nm-control-border);
   color: inherit;
   cursor: pointer;
   font-size: 1rem;
@@ -242,7 +253,7 @@
 }
 
 .configTrigger:focus-visible {
-  outline: 1px solid rgba(255, 255, 255, 0.35);
+  outline: 1px solid var(--nm-on-dark-35);
   outline-offset: 4px;
 }
 
@@ -303,7 +314,7 @@
     border-radius: 11px;
     
     overflow-x: hidden;
-    background-color: #181818 !important;
+    background-color: var(--nm-ink-900) !important;
     
   }
 
@@ -319,7 +330,7 @@
   .configSheet {
   inline-size: min(100%, 86%);
   margin-inline: auto;
-  background: #282828d0;
+  background: var(--nm-sheet-bg);
   border: 1px solid var(--cfg-border);
   border-radius: 5px;
   box-shadow: var(--cfg-shadow);
@@ -368,30 +379,32 @@
 
 .inputText {
   width: 100%;
-  margin: 0;                 
-  box-sizing: border-box; 
+  margin: 0;
+  box-sizing: border-box;
   display: block;
   inline-size: 100%;
-  min-block-size: 40px;
-  padding: 14px 12px;
-  border-radius: 11px;
-  background: #181818ab;
-  color: #fff;
-  font-size: 16px;
-  letter-spacing: 5%;
-  border: solid 1px #74747475;
-  font-family: Poppins;
+  min-block-size: calc(var(--space-12) + var(--space-0));
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--input-background);
+  color: var(--foreground);
+  font-size: var(--fs-base);
+  letter-spacing: -0.01em;
+  border: calc(var(--space-1) / 4) solid var(--border-default);
+  font-family: var(--font-family);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
 
 .inputText::placeholder {
-  color: var(--cfg-text-soft);
-  opacity: 0.85;
+  color: var(--foreground-muted);
+  opacity: 1;
 }
 
 .inputText:focus-visible {
-  outline: 1px solid #8a8a8a66;
+  outline: calc(var(--space-1) / 2) solid var(--border-focus);
   outline-offset: 0px;
-  border-color: var(--cfg-border-strong);
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--border-focus) 55%, transparent);
 }
 
 .inputText:disabled {
@@ -399,16 +412,23 @@
   cursor: not-allowed;
 }
 
+.inputTextError {
+  border-color: var(--error);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--error) 55%, transparent);
+}
+
 .errorMessage {
-  margin-top: 8px;
-  color: #ffb4a6;
+  margin: 0;
+  max-width: 520px;
+  border-radius: 14px;
+  color: var(--error);
   font-size: 14px;
 }
 
 .infoMessage {
   margin-top: 8px;
-  color: #d4f1ff;
-  font-size: 14px;
+  color: var(--info);
+  font-size: var(--fs-sm);
 }
 
 
@@ -430,9 +450,9 @@
   width: 52px;
   height: 52px;
   border-radius: 16px;
-  border: 1px solid rgba(63, 63, 77, 0.65);
-  background: rgba(20, 20, 26, 0.92);
-  color: #f6f7fb;
+  border: 1px solid var(--nm-panel-border-strong);
+  background: var(--nm-panel-bg);
+  color: var(--nm-text-primary-dark);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -443,15 +463,15 @@
 .topActionButton:disabled {
   opacity: 0.45;
   cursor: not-allowed;
-  border-color: rgba(63, 63, 77, 0.4);
-  background: rgba(18, 18, 24, 0.6);
+  border-color: var(--nm-panel-border-soft);
+  background: var(--nm-panel-bg-disabled);
 }
 
 @media (hover: hover) {
   .topActionButton:not(:disabled):hover {
     transform: translateY(-2px);
-    border-color: rgba(170, 170, 190, 0.9);
-    box-shadow: 0 18px 36px rgba(0, 0, 0, 0.45);
+    border-color: var(--nm-panel-border-hover);
+    box-shadow: var(--nm-shadow-panel);
   }
 }
 
@@ -460,20 +480,20 @@
 }
 
 .topActionButton:focus-visible {
-  outline: 2px solid rgba(255, 255, 255, 0.35);
+  outline: 2px solid var(--nm-on-dark-35);
   outline-offset: 3px;
 }
 
 .deleteActionButton {
-  border-color: rgba(239, 68, 68, 0.7);
-  color: #fca5a5;
-  background: rgba(56, 18, 24, 0.8);
+  border-color: var(--nm-danger-border);
+  color: var(--nm-danger-soft);
+  background: var(--nm-danger-bg);
 }
 
 @media (hover: hover) {
   .deleteActionButton:not(:disabled):hover {
-    border-color: rgba(239, 68, 68, 0.85);
-    box-shadow: 0 18px 36px rgba(239, 68, 68, 0.25);
+    border-color: var(--nm-danger-border-strong);
+    box-shadow: var(--nm-shadow-danger);
   }
 }
 
@@ -490,8 +510,8 @@
   --canvas-continue-height: clamp(48px, 6vw, 52px);
   display: flex;
   flex-direction: column;
-  background: #181818;
-  border: 1px solid rgba(63, 63, 77, 0.55);
+  background: var(--nm-ink-900);
+  border: 1px solid var(--nm-panel-border);
   border-radius: 12px;
 
   min-height: 320px;
@@ -516,8 +536,8 @@
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  color: #f6f7fb;
-  font-family: 'Poppins', sans-serif;
+  color: var(--nm-text-primary-dark);
+  font-family: var(--font-family);
   letter-spacing: 0.01em;
   pointer-events: auto;
 }
@@ -532,7 +552,7 @@
   
   font-size: 15px;
   font-weight: 400;
-  color: #f8fafc;
+  color: var(--nm-text-strong);
 }
 
 .canvasPriceLine {
@@ -545,13 +565,13 @@
 .canvasPriceLabel {
   font-size: 15px;
   font-weight: 500;
-  color: rgba(246, 247, 251, 0.82);
+  color: var(--nm-canvas-price-label);
 }
 
 .canvasPriceAmount {
   font-size: 18px;
   font-weight: 600;
-  color: #f8fafc;
+  color: var(--nm-text-strong);
 }
 
 .canvasPriceTagDisabled {
@@ -560,8 +580,8 @@
 
 .canvasStageEmpty {
   border-color: transparent;
-  background: #181818;
-  border: 1px solid rgba(63, 63, 77, 0.55);
+  background: var(--nm-ink-900);
+  border: 1px solid var(--nm-panel-border);
 }
 
 .canvasViewport {
@@ -597,14 +617,14 @@
   justify-content: space-between;
   padding: 0 24px;
 
-  /* — Look premium — */
+  /* Look premium */
   position: relative;                 /* para el fill */
   overflow: hidden;
   border-radius: 16px;
-  border: 1px solid #34343b;
-  background: #305d2693;
-  color: rgba(235, 236, 245, 0.95);
-  font-family: 'Poppins', sans-serif;
+  border: 1px solid var(--nm-control-border);
+  background: var(--nm-upload-button-bg);
+  color: var(--nm-upload-button-text);
+  font-family: var(--font-family);
   font-size: 15px;
   font-weight: 400;
   letter-spacing: 5%;
@@ -616,12 +636,12 @@
   text-transform: none;
 }
 
-/* Capa de “pintado” de izquierda a derecha (#282828 70%) */
+/* Capa de pintado de izquierda a derecha */
 .uploadButton::before {
   content: "";
   position: absolute;
   inset: 0;
-  background: rgba(161, 161, 161, 0.205);
+  background: var(--nm-upload-button-fill);
   transform: scaleX(0);
   transform-origin: left center;
   transition: transform .32s ease;
@@ -632,14 +652,14 @@
 /* Asegura que el contenido quede encima del fill */
 .uploadButton > * { position: relative; z-index: 1; }
 
-/* Hover/focus: no cambio distribución, solo colores/sombras */
+/* Hover/focus: no cambia la distribucion, solo colores */
 @media (hover: hover) {
   .uploadButton:not(:disabled):hover::before {
     transform: scaleX(1);
   }
 
   .uploadButton:not(:disabled):hover {
-    border-color: rgba(170, 170, 190, 0.75);
+    border-color: var(--nm-panel-border-hover-soft);
   }
 }
 
@@ -649,7 +669,7 @@
 
 /* Focus accesible */
 .uploadButton:focus-visible {
-  outline: 2px solid rgba(121,192,255,.6);
+  outline: 2px solid var(--nm-upload-focus-outline);
   outline-offset: 3px;
 }
 
@@ -660,7 +680,7 @@
   box-shadow: none;
 }
 
-/* Hijos: mantengo tu distribución */
+/* Hijos: mantiene la distribucion */
 .uploadButtonIcon {
   order: 2;
   display: inline-flex;
@@ -685,7 +705,7 @@
   white-space: nowrap;
 }
 
-/* (Opcional) si usás <img>/SVG dentro del icono, fijá tamaño sin afectar layout */
+/* Opcional: fija el tamano de iconos sin afectar layout */
 .uploadButtonIcon svg,
 .uploadButtonIcon img { width: 20px; height: 20px; display: block; }
 
@@ -703,7 +723,7 @@
   background: none;
   border: none;
   box-shadow: none;
-  color: rgba(235, 236, 245, 0.78);
+  color: var(--nm-ack-text);
   font-size: 13px;
   font-weight: 400;
   letter-spacing: 0;
@@ -717,12 +737,12 @@
 
 @media (hover: hover) {
   .ackLabel:hover {
-    color: rgba(235, 236, 245, 0.88);
+    color: var(--nm-ack-text-hover);
   }
 }
 
 .ackLabel:focus-within {
-  outline: 2px solid rgba(235, 236, 245, 0.45);
+  outline: 2px solid var(--nm-ack-outline);
   outline-offset: 2px;
 }
 
@@ -732,7 +752,7 @@
   }
 
   .ackLabel:has(.ackCheckbox:focus-visible) {
-    outline: 2px solid rgba(235, 236, 245, 0.5);
+    outline: 2px solid var(--nm-ack-outline-strong);
     outline-offset: 2px;
   }
 }
@@ -748,7 +768,7 @@
 }
 
 .ackLabelTextError {
-  color: var(--danger-400, #FF5C5C);
+  color: var(--danger-400, var(--nm-danger-strong));
 }
 
 .ackCheckbox {
@@ -773,11 +793,11 @@
   width: var(--ack-indicator-size);
   height: var(--ack-indicator-size);
   border-radius: 999px;
-  border: 1px solid rgba(235, 236, 245, 0.45);
+  border: 1px solid var(--nm-ack-indicator-border);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: rgba(235, 236, 245, 0.88);
+  color: var(--nm-ack-text-hover);
   position: relative;
   pointer-events: none;
   transition: border-color 0.18s ease, color 0.18s ease;
@@ -795,7 +815,7 @@
 }
 
 .ackCheckbox:checked + .ackIndicator {
-  border-color: rgba(235, 236, 245, 0.85);
+  border-color: var(--nm-ack-indicator-checked);
 }
 
 .ackCheckbox:checked + .ackIndicator::after {
@@ -813,14 +833,14 @@
 }
 
 .ackLabelInvalid {
-  color: rgba(252, 165, 165, 0.92);
-  background: rgba(64, 18, 24, 0.35);
-  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.45);
+  color: var(--nm-ack-invalid-text);
+  background: var(--nm-danger-bg-soft);
+  box-shadow: 0 0 0 1px var(--nm-danger-border-soft);
 }
 
 .ackLabelInvalid .ackIndicator {
-  border-color: rgba(239, 68, 68, 0.65);
-  color: rgba(239, 68, 68, 0.85);
+  border-color: var(--nm-ack-invalid-border);
+  color: var(--nm-danger-border-strong);
 }
 
 .canvasFeedback {
@@ -842,24 +862,13 @@
   max-width: min(320px, calc(100% - var(--canvas-floating-right)));
 }
 
-.errorMessage {
-  margin: 0;
-  
-  border-radius: 14px;
-
-  
-  color: #e24545;
-  font-size: 14px;
-  max-width: 520px;
-}
-
 .continueButton {
   width: clamp(220px, 26vw, 320px);
   min-height: var(--canvas-continue-height, 48px);
   height: var(--canvas-continue-height, 48px);
   border-radius: 11px;
-  border: 1px solid #34343b;
-  background: #305d26c0;
+  border: 1px solid var(--nm-control-border);
+  background: var(--nm-upload-button-bg-strong);
   color: inherit;
   font-size: 1rem;
   font-weight: 600;
@@ -883,20 +892,20 @@
 }
 
 .continueButtonPublishing {
-  background: #6f6f76;
-  border-color: #7f7f86;
+  background: var(--nm-upload-button-publishing-bg);
+  border-color: var(--nm-upload-button-publishing-border);
   opacity: 0.7;
   cursor: not-allowed;
 }
 
 .continueButton:not(:disabled):hover {
-  background: #529b417c;
-  border-color: #ffffff88;
-  color: #ffffff;
+  background: var(--nm-upload-button-hover-bg);
+  border-color: var(--nm-upload-button-hover-border);
+  color: var(--nm-white);
 }
 
 .continueButton:focus-visible {
-  outline: 2px solid rgba(255, 255, 255, 0.575);
+  outline: 2px solid var(--nm-upload-button-focus-outline);
   outline-offset: 3px;
 }
 @media (prefers-reduced-motion: reduce) {
@@ -1046,3 +1055,4047 @@
     margin-top: 16px;
   }
 }
+
+.pageStepUpload {
+  min-block-size: 100dvh;
+  justify-content: center;
+  gap: 0;
+  padding: 0 var(--spacing-container-padding) var(--space-4);
+  margin-top: var(--space-0);
+  background: var(--background);
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.pageStepEdit {
+  min-block-size: 100vh;
+  overflow-x: hidden;
+  /* Sin padding horizontal: workspace/footer usan 100vw − gutter como el navbar; si no, quedan más adentro que la barra inferior */
+  padding-inline: 0;
+}
+
+.pageStepReview {
+  min-block-size: 100dvh;
+  max-block-size: 100dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  /* Mismo criterio que paso 2 / navbar: sin padding horizontal extra del .page */
+  padding-inline: 0;
+}
+
+.sectionOneStepReview {
+  flex: 1;
+  min-block-size: 0;
+  justify-content: center;
+  align-items: stretch;
+}
+
+.sectionOneInner.sectionOneInnerStepReview {
+  flex: 0 0 auto;
+  justify-content: center;
+  align-items: stretch;
+  width: 100%;
+  padding: 0;
+  box-sizing: border-box;
+  gap: 0;
+  /* Paso 3: ~40% más estrecho que el shell del navbar (60% del ancho disponible) */
+  max-width: min(
+    calc(var(--nm-shell-max-width, 72rem) * 0.6),
+    calc((100vw - 2 * var(--space-4)) * 0.6)
+  ) !important;
+  margin-inline: auto;
+}
+
+@media (min-width: 768px) {
+  .sectionOneInner.sectionOneInnerStepReview {
+    max-width: min(
+      calc(var(--nm-shell-max-width, 72rem) * 0.6),
+      calc((100vw - 2 * var(--space-12)) * 0.6)
+    ) !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .sectionOneInner.sectionOneInnerStepReview {
+    max-width: calc(100vw - 2 * var(--space-4)) !important;
+  }
+}
+
+.sectionOneStepUpload {
+  justify-content: center;
+  align-items: center;
+  min-block-size: 100%;
+  padding-block: 0;
+}
+
+.sectionOneStepEdit {
+  min-block-size: 100%;
+}
+
+.sectionOneInnerStepUpload {
+  justify-content: center;
+  align-items: center;
+  gap: var(--step-one-heading-gap, var(--space-4));
+  max-width: min(100%, var(--step-one-layout-max-width, calc(var(--space-24) * 11))) !important;
+  min-block-size: max(var(--step-one-layout-min-height, 720px), calc(100dvh - var(--space-4)));
+  margin-block: auto;
+  transform: translateY(var(--step-one-block-shift-y, 0px));
+  transition: gap 0.22s ease, min-block-size 0.22s ease, max-width 0.22s ease, transform 0.3s ease;
+}
+
+.sectionOneInnerStepEdit {
+  min-block-size: auto;
+}
+
+.pageHeadingStepUpload {
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: var(--step-one-heading-gap, var(--space-2));
+  padding-block-start: 0 !important;
+  margin: 0 !important;
+  margin-block-start: 0 !important;
+  transition: all 0.3s ease-out;
+}
+
+.stepHero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--step-one-hero-gap, var(--space-2));
+  width: min(100%, calc(var(--space-24) * 6));
+  margin: 0 !important;
+  text-align: center;
+  transition: all 0.3s ease-out;
+}
+
+.stepEyebrow {
+  margin: 0;
+  color: var(--foreground-secondary);
+  font-size: var(--fs-sm);
+}
+
+.stepHeroTitle {
+  margin: 0 !important;
+  color: var(--foreground);
+  font-family: var(--font-family);
+  font-size: var(--fs-4xl);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.2;
+}
+
+.stepOneLayout {
+  --step-one-controls-width: min(100%, calc(var(--space-24) * 7.4));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  flex: 0 0 auto;
+  min-block-size: auto;
+  gap: var(--step-one-layout-gap, var(--space-5));
+  width: min(100%, var(--step-one-layout-max-width, calc(var(--space-24) * 8)));
+  margin: 0 auto;
+  transition: gap 0.22s ease, width 0.22s ease;
+}
+
+.stepOneLayoutCustom {
+  transition: gap 0.22s ease, width 0.22s ease, transform 0.22s ease;
+}
+
+.stepOneSizeSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--step-one-size-gap, var(--space-2));
+  width: var(--step-one-controls-width);
+  margin: 0;
+}
+
+.stepOneSelectorsRow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  inline-size: 100%;
+}
+
+.stepOneSelectorGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+
+.stepOneSizeLabel {
+  margin: 0;
+  color: var(--foreground-secondary);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.stepOneSizeDropdown {
+  position: relative;
+  inline-size: 100%;
+}
+
+.stepOneSizeTrigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  inline-size: 100%;
+  min-block-size: var(--space-10);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  border: calc(var(--space-1) / 4) solid var(--border-default);
+  background: transparent;
+  color: var(--foreground);
+  font-size: var(--fs-base);
+  font-weight: 500;
+  line-height: 1.5;
+  text-align: left;
+  box-shadow: none;
+}
+
+.stepOneSizeTriggerOpen {
+  border-color: var(--border-hover);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--border-hover) 55%, transparent);
+}
+
+.stepOneSizeTriggerBody {
+  display: flex;
+  align-items: center;
+  inline-size: 100%;
+  min-inline-size: 0;
+}
+
+.stepOneSizeTriggerBodyGlasspad {
+  padding-inline-end: 40px;
+}
+
+.stepOneDropdownValueRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+
+.stepOneDropdownValue {
+  display: block;
+  min-inline-size: 0;
+  color: var(--foreground);
+  font-size: var(--fs-base);
+  font-weight: 500;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stepOneDropdownBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: 24px;
+  padding-inline: 10px;
+  border-radius: 999px;
+  border: 1px solid var(--brand-primary);
+  background: var(--brand-primary);
+  color: #0e1520;
+  font-family: Inter, var(--font-family), sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  box-shadow: var(--nm-shadow-soft);
+  white-space: nowrap;
+}
+
+.stepOneSizeTriggerText,
+.stepOneSizeOptionText {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+
+.stepOneSizeTriggerTitle,
+.stepOneSizeOptionTitle {
+  color: var(--foreground);
+  font-size: var(--fs-base);
+  font-weight: 500;
+  line-height: 1.25;
+}
+
+.stepOneSizeTriggerDescription,
+.stepOneSizeOptionDescription {
+  color: var(--foreground-secondary);
+  font-size: var(--fs-xs);
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+.stepOneSizeArrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--space-5);
+  block-size: var(--space-5);
+  color: var(--foreground-secondary);
+  flex: 0 0 auto;
+  transition: transform 0.2s ease;
+}
+
+.stepOneSizeTriggerOpen .stepOneSizeArrow {
+  transform: rotate(180deg);
+}
+
+.stepOneSizeMenu {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: calc(100% + var(--space-1));
+  z-index: 12;
+  display: flex;
+  flex-direction: column;
+  border: calc(var(--space-1) / 4) solid var(--border-default);
+  border-radius: var(--radius-card);
+  background: color-mix(in srgb, var(--background) 96%, transparent);
+  box-shadow: 0 var(--space-4) var(--space-8) color-mix(in srgb, var(--background) 70%, transparent);
+  overflow: hidden;
+}
+
+.stepOneSizeOption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  inline-size: 100%;
+  padding: var(--space-4);
+  border: none;
+  border-top: calc(var(--space-1) / 4) solid var(--border-default);
+  background: transparent;
+  color: var(--foreground);
+  text-align: left;
+}
+
+.stepOneSizeOption:first-child {
+  border-top: none;
+}
+
+.stepOneSizeOption:hover {
+  background: color-mix(in srgb, var(--foreground) 5%, transparent);
+}
+
+.stepOneSizeOptionSelected {
+  background: color-mix(in srgb, var(--brand-primary) 10%, transparent);
+}
+
+.stepOneSizeOptionLead,
+.stepOneSizeOptionTail {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.stepOneSizeOptionLead {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
+.stepOneSizeOptionIcon {
+  inline-size: var(--space-4);
+  block-size: var(--space-4);
+  flex: 0 0 auto;
+  color: var(--foreground-secondary);
+}
+
+.stepOneSizeOptionPrice {
+  color: var(--foreground-secondary);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.stepOneSizeOptionCheck {
+  inline-size: var(--space-5);
+  block-size: var(--space-5);
+  color: var(--brand-primary);
+}
+
+.stepOnePreviewStack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--step-one-preview-stack-gap, 24px);
+  inline-size: 100%;
+  min-block-size: 0;
+  transition: transform 0.22s ease, gap 0.22s ease;
+}
+
+.stepOnePreviewBody {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  inline-size: 100%;
+  min-block-size: 0;
+}
+
+.stepOneCustomSizeFields {
+  transition: margin 0.22s ease, transform 0.22s ease;
+}
+
+.stepOneCustomSizeFields.stepOneCustomSizeFields {
+  background: transparent;
+}
+
+.stepOneCustomSizeFields.stepOneCustomSizeFields label > span:last-child {
+  min-block-size: calc(var(--space-12) - 10px);
+  padding-inline: var(--space-3);
+  background: transparent;
+}
+
+.stepOneCustomSizeFields.stepOneCustomSizeFields input {
+  padding-block: var(--space-2);
+  background: transparent;
+  font-size: var(--fs-lg);
+  line-height: 1.15;
+}
+
+.stepOneCustomSizeFields.stepOneCustomSizeFields label > span:last-child > span:last-child {
+  background: transparent;
+}
+
+.stepOneCustomSizePanel {
+  inline-size: 100%;
+  max-height: 320px;
+  overflow: hidden;
+  opacity: 1;
+  transform: translateY(0);
+  transition: max-height 0.24s ease, opacity 0.2s ease, transform 0.22s ease;
+}
+
+.stepOneCustomSizePanelOpen {
+  max-height: 320px;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.stepOneCustomSizePanelClosed {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-8px);
+  pointer-events: none;
+}
+
+.stepOneCustomSizeEditButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  align-self: flex-start;
+  min-block-size: calc(var(--space-8) + var(--space-1));
+  padding: 0 var(--space-3);
+  border: calc(var(--space-1) / 4) solid var(--border-default);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-secondary) 84%, transparent);
+  color: var(--foreground-secondary);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.stepOneCustomSizeEditButton:hover {
+  background: color-mix(in srgb, var(--surface-secondary) 96%, transparent);
+  border-color: var(--border-hover);
+  color: var(--foreground);
+}
+
+.stepOneCustomSizeEditButton:focus-visible {
+  outline: calc(var(--space-1) / 2) solid var(--border-focus);
+  outline-offset: calc(var(--space-1) / 2);
+}
+
+.stepOneCustomSizeEditIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--space-4);
+  block-size: var(--space-4);
+  flex: 0 0 auto;
+}
+
+.stepOnePreviewStackCustom {
+  transition: transform 0.22s ease, gap 0.22s ease;
+}
+
+.stepOneCanvasFrame {
+  display: flex;
+  justify-content: center;
+  inline-size: 100%;
+  padding: 0;
+  box-sizing: border-box;
+  margin: var(--step-one-preview-frame-margin-top, 0px) 0 var(--step-one-preview-frame-margin-bottom, 0px);
+}
+
+.stepOneCanvasStage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  inline-size: 100%;
+  max-inline-size: 100%;
+}
+
+.stepOneCanvasViewport {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: min(100%, var(--step-one-preview-figure-width-px, 551px));
+  max-inline-size: min(100%, var(--step-one-preview-max-width-px, 551px));
+  block-size: var(--step-one-preview-figure-height-px, 434px);
+  min-block-size: var(--step-one-preview-figure-height-px, 434px);
+  max-block-size: none;
+  margin-inline: auto;
+  padding: var(--space-2) 0 0;
+  box-sizing: border-box;
+  overflow: visible;
+}
+
+.stepOneCanvasFigure {
+  position: relative;
+  flex: 0 0 auto;
+  inline-size: min(100%, var(--step-one-preview-figure-width-px, 551px));
+  block-size: var(--step-one-preview-figure-height-px, 434px);
+  margin: auto;
+  overflow: visible;
+  transition: inline-size 0.22s ease, block-size 0.22s ease;
+}
+
+.stepOneCanvasShell {
+  position: relative;
+  overflow: visible;
+  --step-one-measure-line-color: var(--nm-canvas-measure-line-dark);
+  --step-one-measure-label-color: var(--nm-canvas-measure-label-dark);
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--step-one-shell-width-px, 100px);
+  max-inline-size: 100%;
+  block-size: var(--step-one-shell-height-px, 100px);
+  max-block-size: none;
+  margin: 0;
+  box-sizing: border-box;
+  aspect-ratio: var(--step-one-selected-ratio, 1 / 1);
+  border-radius: var(--radius-card);
+  border: calc(var(--space-1) / 4) solid var(--border-default);
+  background-color: var(--step-one-canvas-background-color, var(--nm-canvas-bg-dark));
+  box-shadow:
+    0 var(--space-2) var(--space-8) color-mix(in srgb, var(--overlay) 46%, transparent),
+    0 var(--space-1) var(--space-3) color-mix(in srgb, var(--border-default) 78%, transparent);
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.stepOneCanvasShellActive {
+  border-color: var(--brand-primary);
+  background-color: var(--step-one-canvas-background-color, var(--nm-canvas-bg-dark));
+}
+
+.stepOneCanvasGrid {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: block;
+  pointer-events: none;
+  border-radius: inherit;
+  background-color: var(--step-one-canvas-background-color, var(--nm-canvas-bg-dark));
+  background-image: var(--nm-canvas-grid-dark);
+  background-size: 40px 40px;
+  background-position: center center;
+}
+
+.stepOneCanvasShellLight .stepOneCanvasGrid {
+  background-color: var(--nm-white);
+  background-image: var(--nm-canvas-grid-light);
+}
+
+.stepOneCanvasShellLight {
+  --step-one-measure-line-color: var(--nm-canvas-measure-line-light);
+  --step-one-measure-label-color: var(--nm-canvas-measure-label-light);
+}
+
+.stepOneCanvasShellLight .stepOneCanvasIcon {
+  border-color: color-mix(in srgb, var(--nm-canvas-bg-dark) 12%, transparent);
+  background: color-mix(in srgb, var(--nm-canvas-bg-dark) 4%, transparent);
+  color: var(--nm-slate-600);
+}
+
+.stepOneCanvasShellLight .stepOneCanvasTitle {
+  color: var(--nm-slate-600);
+}
+
+.stepOneCanvasShellLight .stepOneCanvasText {
+  color: var(--nm-slate-600);
+}
+
+.stepOneCanvasContent {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  inline-size: min(82%, calc(var(--space-24) * 2));
+  max-inline-size: 100%;
+  block-size: 100%;
+  max-block-size: 100%;
+  margin: auto;
+  padding: clamp(var(--space-3), 3vw, var(--space-4));
+  box-sizing: border-box;
+  text-align: center;
+  object-fit: contain;
+}
+
+.stepOneCanvasContent > * {
+  max-inline-size: 100%;
+}
+
+.stepOneCanvasIcon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  inline-size: calc(var(--space-12) - 5px);
+  block-size: calc(var(--space-12) - 5px);
+  border-radius: var(--radius-lg);
+  border: calc(var(--space-1) / 4) solid var(--border-default);
+  background: var(--surface-secondary);
+  color: var(--foreground-secondary);
+}
+
+.stepOneCanvasMedia,
+.stepOneCanvasMedia .stepOneIconSvg {
+  object-fit: contain;
+}
+
+.stepOneCanvasIconImage {
+  inline-size: 100%;
+  block-size: 100%;
+  display: block;
+  object-fit: contain;
+}
+
+.stepOneCanvasIconImageLight {
+  filter: grayscale(1) brightness(0.62);
+}
+
+.stepOneIconSvg {
+  inline-size: 100%;
+  block-size: 100%;
+  display: block;
+}
+
+.stepOneCanvasTitle {
+  margin: 0;
+  color: var(--foreground-secondary);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.stepOneCanvasText {
+  margin: 0;
+  color: var(--foreground-muted);
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+}
+
+.stepOneCanvasMeasureRow {
+  position: absolute;
+  inset-inline-start: 0;
+  inset-block-start: calc(100% + var(--step-one-measure-row-offset-px, 12px));
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  inline-size: 100%;
+  z-index: 10;
+  pointer-events: none;
+  overflow: visible;
+  transition: inset-block-start 0.22s ease, inline-size 0.22s ease;
+}
+
+.stepOneCanvasMeasureLine {
+  flex: 1;
+  block-size: 1px;
+  min-block-size: 1px;
+  background-color: var(--step-one-measure-line-color, var(--nm-canvas-measure-line-dark));
+  opacity: 1;
+  z-index: 10;
+}
+
+.stepOneCanvasMeasureLabel,
+.stepOneCanvasMeasureLabelVertical {
+  color: var(--step-one-measure-label-color, var(--foreground-tertiary));
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  z-index: 11;
+}
+
+.stepOneCanvasMeasureColumn {
+  position: absolute;
+  inset-inline-end: calc(-1 * var(--step-one-measure-column-space-px, 32px));
+  inset-block-start: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  block-size: 100%;
+  z-index: 10;
+  pointer-events: none;
+  overflow: visible;
+  transition: inset-inline-end 0.22s ease, block-size 0.22s ease;
+}
+
+.stepOneCanvasMeasureLineVertical {
+  flex: 1;
+  inline-size: 1px;
+  min-inline-size: 1px;
+  background-color: var(--step-one-measure-line-color, var(--nm-canvas-measure-line-dark));
+  opacity: 1;
+  z-index: 10;
+}
+
+.stepOneCanvasMeasureLabelVertical {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+
+.stepOneActions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  inline-size: var(--step-one-controls-width);
+  margin: 0;
+}
+
+.stepOneHiddenInput {
+  display: none;
+}
+
+.stepOneFooterBar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  inline-size: 100%;
+  padding: 18px 20px;
+  border-radius: 24px;
+  background: var(--nm-footer-bg);
+  border: 1px solid var(--nm-on-dark-08);
+  box-shadow: var(--nm-shadow-footer);
+}
+
+.stepOneFooterBarLight {
+  background: #f4f4f4;
+  border-color: color-mix(in srgb, var(--nm-guide-primary) 8%, transparent);
+  box-shadow: var(--nm-shadow-footer-light);
+}
+
+/* Si por alguna razón no se aplica la clase *Light*, en light igual forzamos el fondo */
+html.light .stepOneFooterBar,
+body.light .stepOneFooterBar {
+  background: #f4f4f4 !important;
+}
+
+.stepOneFooterPriceBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-inline-size: 0;
+}
+
+.stepOneFooterPrice {
+  color: var(--nm-accent-blue);
+  font-family: Inter, var(--font-family), sans-serif;
+  font-size: 28px;
+  font-weight: 400;
+  line-height: 30.8px;
+  letter-spacing: -0.84px;
+}
+
+.stepOneFooterPriceLight {
+  color: var(--nm-black);
+}
+
+.stepOneFooterPriceCaption {
+  color: var(--nm-on-dark-60);
+  font-family: Inter, var(--font-family), sans-serif;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 16.5px;
+}
+
+.stepOneFooterPriceCaptionLight {
+  color: color-mix(in srgb, var(--nm-black) 72%, transparent);
+}
+
+.stepOneFooterAction {
+  inline-size: auto;
+  min-inline-size: 220px;
+}
+
+.stepPrimaryAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  inline-size: min(100%, calc(var(--space-24) * 4));
+  min-block-size: calc(var(--space-12) + var(--space-1));
+  padding-inline: var(--space-4);
+  border-radius: var(--radius-xl);
+  border: calc(var(--space-1) / 4) solid transparent;
+  background: var(--foreground);
+  color: var(--surface);
+  font-size: var(--fs-base);
+  font-weight: 500;
+  line-height: 1.5;
+  letter-spacing: -0.01em;
+}
+
+.stepPrimaryActionIcon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--space-6);
+  block-size: var(--space-6);
+}
+
+.stepPrimaryAction:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--foreground) 92%, transparent);
+}
+
+.stepPrimaryAction:active:not(:disabled) {
+  background: color-mix(in srgb, var(--foreground) 84%, transparent);
+}
+
+.stepPrimaryAction:disabled {
+  background: var(--interactive-disabled);
+  color: var(--foreground-muted);
+}
+
+.stepPrimaryAction:focus-visible,
+.stepOneSizeTrigger:focus-visible {
+  outline: calc(var(--space-1) / 2) solid var(--border-focus);
+  outline-offset: calc(var(--space-1) / 2);
+}
+
+.stepOneSecondaryAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  align-self: center;
+  padding: var(--space-0);
+  border: none;
+  background: transparent;
+  color: var(--nm-accent-blue);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.stepOneSecondaryAction:hover:not(:disabled) {
+  color: var(--nm-accent-cyan);
+}
+
+/* En modo light, el texto del paso 1 (Recomendado) debe verse negro. */
+html.light .stepOneSecondaryAction,
+body.light .stepOneSecondaryAction {
+  color: #000000 !important;
+}
+
+html.light .stepOneSecondaryAction:hover:not(:disabled),
+body.light .stepOneSecondaryAction:hover:not(:disabled) {
+  color: #000000 !important;
+}
+
+html.light .stepOneSecondaryAction svg,
+body.light .stepOneSecondaryAction svg {
+  color: #000000 !important; /* porque el SVG usa stroke="currentColor" */
+  stroke: #000000 !important;
+}
+
+html.light .stepOneSecondaryAction svg *,
+body.light .stepOneSecondaryAction svg * {
+  stroke: #000000 !important;
+  fill: none !important;
+}
+
+/* Fallback robusto: CSS Modules puede hashear el nombre de clase.
+   Forzamos el color buscando la subcadena del nombre. */
+html.light [class*='stepOneSecondaryAction'] {
+  color: #000000 !important;
+}
+body.light [class*='stepOneSecondaryAction'] {
+  color: #000000 !important;
+}
+html.light [class*='stepOneSecondaryAction'] svg,
+body.light [class*='stepOneSecondaryAction'] svg {
+  color: #000000 !important;
+  stroke: #000000 !important;
+}
+
+.stepOneSecondaryAction:focus-visible {
+  outline: calc(var(--space-1) / 2) solid var(--border-focus);
+  outline-offset: calc(var(--space-1) / 2);
+  border-radius: var(--radius-sm);
+}
+
+.stepOneSecondaryActionIcon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--space-4);
+  block-size: var(--space-4);
+}
+
+.stepOneGalleryOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: clamp(var(--space-6), 5vw, var(--space-10));
+  background: var(--background);
+  animation: stepOneGalleryOverlayFade 0.28s ease-out both;
+}
+
+.stepOneGalleryContent {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(var(--space-5), 3vw, var(--space-7));
+  inline-size: min(100%, calc(var(--space-24) * 7));
+  margin: 0 auto;
+  padding-block: clamp(var(--space-8), 10vh, calc(var(--space-24) * 0.9)) var(--space-8);
+  animation: stepOneGalleryContentEnter 0.34s ease-out both;
+}
+
+.stepOneGalleryBackButton {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: var(--space-9);
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--foreground-secondary);
+  font-size: var(--fs-base);
+  font-weight: 500;
+}
+
+.stepOneGalleryBackButton:hover:not(:disabled) {
+  color: var(--foreground);
+}
+
+.stepOneGalleryBackButton:focus-visible,
+.stepOneGalleryCard:focus-visible {
+  outline: calc(var(--space-1) / 2) solid var(--border-focus);
+  outline-offset: calc(var(--space-1) / 2);
+}
+
+.stepOneGalleryHeader {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.stepOneGalleryTitle {
+  margin: 0;
+  color: var(--foreground);
+  font-size: clamp(var(--fs-3xl), 4vw, var(--fs-4xl));
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.1;
+}
+
+.stepOneGallerySubtitle {
+  margin: 0;
+  color: var(--foreground-secondary);
+  font-size: var(--fs-lg);
+  line-height: 1.5;
+}
+
+.stepOneGalleryGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.stepOneGalleryCard {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-start;
+  min-block-size: 0;
+  aspect-ratio: 1.45 / 1;
+  padding: var(--space-4);
+  border: calc(var(--space-1) / 4) solid var(--border-default);
+  border-radius: var(--radius-card);
+  background: var(--nm-gallery-card-bg);
+  overflow: hidden;
+  text-align: left;
+  isolation: isolate;
+  box-shadow: 0 var(--space-2) var(--space-8) color-mix(in srgb, var(--overlay) 24%, transparent);
+  transition: transform 0.24s ease, box-shadow 0.24s ease, border-color 0.24s ease, filter 0.24s ease;
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.stepOneGalleryCard:hover {
+  transform: translateY(calc(var(--space-1) * -0.5)) scale(1.02);
+  border-color: var(--border-hover);
+  filter: brightness(1.06);
+  box-shadow: 0 var(--space-4) var(--space-10) color-mix(in srgb, var(--overlay) 34%, transparent);
+}
+
+.stepOneGalleryCardMedia,
+.stepOneGalleryCardShade {
+  position: absolute;
+  inset: 0;
+}
+
+.stepOneGalleryCardMedia {
+  display: block;
+  background: var(--nm-gallery-card-media);
+}
+
+.stepOneGalleryCardShade {
+  z-index: 1;
+  background: var(--nm-gallery-card-shade);
+}
+
+.stepOneGalleryCardLabel {
+  position: relative;
+  z-index: 2;
+  color: var(--nm-text-strong);
+  font-size: var(--fs-lg);
+  font-weight: 500;
+}
+
+.stepInlineError {
+  margin: 0;
+  color: var(--error);
+  font-size: var(--fs-sm);
+  text-align: center;
+}
+
+@keyframes stepOneGalleryOverlayFade {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes stepOneGalleryContentEnter {
+  from {
+    opacity: 0;
+    transform: translateY(var(--space-5));
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.stepTwoTopBar {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: clamp(var(--space-2), 2vw, var(--space-4));
+  inline-size: min(100%, var(--step-two-shell-width, 880px));
+  flex: 0 0 auto;
+  margin: 0 auto;
+  min-block-size: clamp(42px, 5vw, 52px);
+  box-sizing: border-box;
+}
+
+.stepTwoBackButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: var(--space-10);
+  padding-inline: var(--space-1);
+  border: none;
+  background: transparent;
+  color: var(--foreground-secondary);
+  font-size: var(--fs-lg);
+  font-weight: 600;
+}
+
+.stepTwoTopBarTitle {
+  margin: 0;
+  min-inline-size: 0;
+  text-align: center;
+  color: var(--nm-step-two-caption);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stepTwoTopBarBalance {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.stepTwoBackButton:hover {
+  color: var(--foreground);
+}
+
+.stepTwoBackButton:focus-visible {
+  outline: calc(var(--space-1) / 2) solid var(--border-focus);
+  outline-offset: calc(var(--space-1) / 2);
+  border-radius: var(--radius-md);
+}
+
+.stepTwoBackIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--space-5);
+  block-size: var(--space-5);
+}
+
+.stepTwoLayout {
+  --step-two-viewport-gutter: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: var(--step-two-layout-min-block, 500px);
+  min-block-size: var(--step-two-layout-min-block, 500px);
+  gap: var(--step-two-layout-gap, clamp(var(--space-4), 2.2vw, var(--space-6)));
+  inline-size: 100%;
+  padding-block-start: var(--step-two-layout-padding-top, clamp(10px, 2vw, 24px));
+  overflow: visible;
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+  position: relative;
+  z-index: 50;
+}
+
+@media (min-width: 768px) {
+  .stepTwoLayout {
+    --step-two-viewport-gutter: var(--space-12);
+  }
+}
+
+.stepTwoWorkspace {
+  /* Igual que navbar .desktopInner: min(shell max, viewport − 2×padding header); gutter en .stepTwoLayout */
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: var(--step-two-workspace-justify, center);
+  flex: var(--step-two-workspace-flex, 1 1 auto);
+  box-sizing: border-box;
+  min-height: var(--step-two-workspace-min-block, 500px);
+  min-block-size: var(--step-two-workspace-min-block, 500px);
+  gap: var(--step-two-workspace-gap, clamp(18px, 2.2vw, 28px));
+  inline-size: min(var(--nm-shell-max-width, 70rem), calc(100vw - 2 * var(--step-two-viewport-gutter)));
+  width: min(var(--nm-shell-max-width, 70rem), calc(100vw - 2 * var(--step-two-viewport-gutter)));
+  max-inline-size: min(var(--nm-shell-max-width, 70rem), calc(100vw - 2 * var(--step-two-viewport-gutter)));
+  margin-inline: auto;
+  overflow: visible;
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+  position: relative;
+  z-index: 50;
+}
+
+.stepTwoPreviewColumn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  flex: 1;
+  min-block-size: 0;
+  gap: var(--space-2);
+  min-inline-size: 0;
+  overflow: visible;
+}
+
+.stepTwoPreviewFrame {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  align-items: center;
+  justify-content: center;
+  flex: var(--step-two-preview-frame-flex, 1 1 auto);
+  width: 100%;
+  margin-top: var(--step-two-preview-frame-margin-top, 0px);
+  min-height: auto;
+  min-block-size: var(--step-two-preview-frame-min-block, auto);
+  gap: 0;
+  inline-size: 100%;
+  max-inline-size: 100%;
+  min-inline-size: 0;
+  padding: 0;
+  padding-block-start: var(--step-two-preview-frame-padding-block-start, 0);
+  box-sizing: border-box;
+  overflow: visible;
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+  position: relative;
+  z-index: 50;
+  transition: margin-top 0.3s ease;
+}
+
+.stepTwoPreviewTitle {
+  margin: 0 0 var(--step-two-title-gap, 15px);
+  /* Solo columna del lienzo: centrado respecto al mousepad, no al ancho lienzo+toolbar */
+  grid-column: 1;
+  grid-row: 1;
+  align-self: end;
+  justify-self: stretch;
+  inline-size: 100%;
+  max-inline-size: 100%;
+  text-align: center;
+  color: var(--foreground-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.stepTwoPreviewBundle {
+  --step-two-stage-reserve: calc(var(--step-two-measure-offset, 12px) + var(--step-two-stage-reserve-tail, 44px));
+  display: grid;
+  /* Solo lienzo + toolbar: sin columna vacía a la izquierda (evita bloque corrido a la derecha) */
+  grid-template-columns:
+    minmax(0, var(--step-two-stage-width, 760px))
+    var(--step-two-toolbar-width, 48px);
+  /* Fila del título en auto: evita ~56px de aire vacío bajo "Volver" (todas las medidas). */
+  grid-template-rows:
+    auto
+    var(--step-two-stage-height, 420px)
+    var(--step-two-stage-reserve);
+  align-items: stretch;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: auto;
+  min-height: auto;
+  min-block-size: auto;
+  min-inline-size: 0;
+  gap: var(--step-two-shell-gap, 18px);
+  inline-size: auto;
+  max-inline-size: 100%;
+  margin-inline: auto;
+  margin-top: var(--step-two-preview-bundle-margin-top, 0px);
+  position: relative;
+  isolation: isolate;
+  align-self: center;
+  transition: margin-top 0.3s ease;
+}
+
+.stepTwoPreviewCanvasColumn {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  grid-column: 1;
+  grid-row: 2;
+  inline-size: var(--step-two-stage-width, 760px);
+  max-inline-size: 100%;
+  min-inline-size: 0;
+}
+
+.stepTwoPreviewBackRail {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  grid-row: 1;
+  inline-size: 100%;
+  max-inline-size: 100%;
+  min-inline-size: 0;
+  margin-block-start: var(--step-two-back-rail-margin-block-start, 0);
+  margin-inline: 0;
+  margin-block-end: var(--step-two-back-rail-margin-block-end, 6px);
+}
+
+.stepTwoPreviewBackRail .stepTwoBackButton {
+  inline-size: auto;
+  max-inline-size: 100%;
+  justify-content: flex-start;
+  margin-inline: 0;
+  /* Anula padding de .stepTwoBackButton: alineado al borde izq. del workspace como la barra inferior */
+  padding: 0;
+  min-block-size: var(--space-10);
+}
+
+.stepTwoPreviewViewport {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-block-size: var(--step-two-stage-height, 420px);
+  min-inline-size: 0;
+  inline-size: var(--step-two-stage-width, min(100%, 760px));
+  block-size: var(--step-two-stage-height, auto);
+  max-inline-size: 100%;
+  overflow: visible;
+  border-radius: 0;
+  background: transparent;
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+  z-index: 1;
+}
+
+.stepTwoPreviewShell {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  inline-size: 100%;
+  block-size: 100%;
+  min-block-size: 100%;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  max-block-size: 100%;
+  margin: auto;
+  overflow: visible;
+  border-radius: 0;
+  border: none;
+  background: transparent;
+  isolation: isolate;
+  z-index: 1;
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+  box-shadow: none;
+}
+
+.stepTwoCanvasRoot {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  width: 100%;
+  inline-size: 100%;
+  height: 100%;
+  block-size: 100%;
+  min-height: 0;
+  min-block-size: 0;
+  min-inline-size: 0;
+  gap: 0;
+  position: relative;
+  z-index: 3;
+  overflow: hidden;
+  background: transparent;
+}
+
+.stepTwoCanvasLienzo {
+  flex: 1 1 auto;
+  width: 100%;
+  inline-size: 100%;
+  min-height: 0 !important;
+  min-block-size: 0 !important;
+  height: 100% !important;
+  block-size: 100% !important;
+  min-inline-size: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden !important;
+  border-radius: inherit !important;
+  background: transparent !important;
+  position: relative;
+  z-index: 4;
+}
+
+.stepTwoCanvasWrapper {
+  flex: 1 1 auto;
+  width: 100%;
+  inline-size: 100%;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  block-size: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: inherit !important;
+  overflow: hidden !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  position: relative;
+  z-index: 5;
+}
+
+.stepTwoCanvasWrapper :global(.konvajs-content),
+.stepTwoCanvasWrapper :global(canvas) {
+  display: block;
+  inline-size: 100% !important;
+  block-size: 100% !important;
+  max-inline-size: none !important;
+  max-block-size: none !important;
+}
+
+.stepTwoCanvasWrapper :global(canvas) {
+  object-fit: cover;
+}
+
+.stepTwoPreviewHint {
+  position: absolute;
+  inset-inline-start: 50%;
+  inset-block-end: 14px;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  min-block-size: 34px;
+  border-radius: var(--radius-full);
+  background: var(--nm-step-two-hint-bg);
+  border: 1px solid var(--nm-step-two-hint-border);
+  color: var(--nm-step-two-hint-text);
+  font-size: 12px;
+  font-weight: 500;
+  box-shadow: var(--nm-shadow-hint);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  z-index: 50;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.stepTwoPreviewHint * {
+  pointer-events: none;
+}
+
+.stepTwoPreviewHintIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 16px;
+  block-size: 16px;
+  color: var(--nm-step-two-hint-icon);
+}
+
+.stepTwoPreviewMeasureRow {
+  position: absolute;
+  inset-inline-start: 0;
+  inset-block-start: calc(100% + var(--step-two-measure-offset, 12px));
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  inline-size: 100%;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.stepTwoPreviewMeasureRow * {
+  pointer-events: none;
+}
+
+.stepTwoPreviewMeasureLine {
+  flex: 1;
+  block-size: var(--step-two-measure-line-thickness, 1px);
+  min-block-size: var(--step-two-measure-line-thickness, 1px);
+  background: var(--nm-step-two-measure-line);
+}
+
+.stepTwoPreviewMeasureColumn {
+  position: absolute;
+  inset-inline-start: calc(100% + var(--step-two-measure-offset, 12px));
+  inset-block-start: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  block-size: 100%;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.stepTwoPreviewMeasureColumn * {
+  pointer-events: none;
+}
+
+.stepTwoPreviewMeasureLineVertical {
+  flex: 1;
+  inline-size: var(--step-two-measure-line-thickness, 1px);
+  min-inline-size: var(--step-two-measure-line-thickness, 1px);
+  background: var(--nm-step-two-measure-line);
+}
+
+.stepTwoPreviewMeasureLabel,
+.stepTwoPreviewMeasureLabelVertical {
+  color: var(--nm-step-two-measure-label);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.stepTwoPreviewMeasureLabelVertical {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+
+.stepTwoPreviewCaption {
+  margin: 0;
+  grid-column: 1;
+  inline-size: 100%;
+  max-inline-size: 100%;
+  text-align: center;
+  color: var(--nm-step-two-caption);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  transform: none;
+  pointer-events: none;
+}
+
+.stepOnePreviewCaption {
+  inline-size: 100%;
+  max-inline-size: none;
+  margin-inline: auto;
+  transform: none;
+}
+
+.stepTwoPreviewCaptionTop {
+  margin-block-end: var(--step-two-caption-top-gap, 14px);
+}
+
+.stepTwoPreviewCaptionBottom {
+  grid-column: 1;
+  grid-row: 3;
+  align-self: start;
+  margin-block-start: calc(var(--step-two-measure-offset, 12px) + var(--step-two-caption-bottom-bonus, 25px));
+}
+
+.stepTwoActionsRail {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  grid-column: 2;
+  grid-row: 2;
+  align-self: center;
+  flex: 0 0 auto;
+  margin-block-start: 0;
+  margin-inline-start: var(--step-two-toolbar-offset, 20px);
+  gap: 0;
+  inline-size: var(--step-two-toolbar-width, 48px);
+  max-inline-size: var(--step-two-toolbar-width, 48px);
+  block-size: auto;
+  min-block-size: auto;
+  padding: 8px 0;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--nm-accent-blue) 14%, transparent);
+  background: var(--nm-step-two-action-rail-bg);
+  box-shadow: var(--nm-shadow-action-rail);
+  overflow: hidden;
+  position: relative;
+  z-index: 100;
+  pointer-events: auto;
+  isolation: isolate;
+}
+
+.stepTwoActionButton {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  inline-size: 100%;
+  min-inline-size: 100%;
+  gap: 6px;
+  min-block-size: 72px;
+  padding: 10px 8px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--nm-step-two-action-text);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.25;
+  text-align: center;
+  appearance: none;
+  cursor: pointer;
+  touch-action: manipulation;
+  position: relative;
+  z-index: 101;
+  pointer-events: auto !important;
+}
+
+.stepTwoActionButton > span:last-child {
+  inline-size: 100%;
+  overflow-wrap: anywhere;
+}
+
+.stepTwoActionButton * {
+  pointer-events: none;
+}
+
+.stepTwoActionButton:not(:last-of-type) {
+  border-block-end: none;
+}
+
+.stepTwoActionButton:hover {
+  background: var(--nm-step-two-action-hover);
+  color: var(--nm-step-two-action-text-hover);
+}
+
+.stepTwoActionButton:active {
+  background: var(--nm-step-two-action-active);
+  color: var(--nm-step-two-action-text-hover);
+}
+
+.stepTwoActionButton:focus-visible {
+  outline: calc(var(--space-1) / 2) solid var(--border-focus);
+  outline-offset: calc(var(--space-1) / 2);
+}
+
+.stepTwoActionIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 18px;
+  block-size: 18px;
+  color: inherit;
+}
+
+.stepTwoActionIconImage {
+  inline-size: 100%;
+  block-size: 100%;
+  display: block;
+  object-fit: contain;
+}
+
+.stepTwoActionsDivider {
+  display: block;
+  flex: 0 0 auto;
+  inline-size: calc(100% - 24px);
+  block-size: 1px;
+  margin: 4px auto;
+  background: var(--nm-step-two-action-rail-divider);
+  border-radius: 999px;
+}
+
+.stepTwoFooterStack {
+  --step-two-footer-control-height: 44px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  flex: 0 0 auto;
+  inline-size: min(var(--nm-shell-max-width, 70rem), calc(100vw - 2 * var(--step-two-viewport-gutter, var(--space-4))));
+  margin-block-start: var(--step-two-footer-stack-margin-start, 0);
+  margin-inline: auto;
+  margin-block-end: var(--step-two-footer-bottom-space, 110px);
+  transform: translateY(calc(-1 * var(--step-two-footer-stack-lift-px, 0px)));
+}
+
+.stepTwoLowAck {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  inline-size: 100%;
+  margin: 0;
+  margin-block-start: var(--space-3);
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.stepTwoLowAckLabel {
+  justify-content: flex-start;
+  align-items: center;
+  min-block-size: 0;
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  border-radius: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  color: var(--foreground);
+  font-family: var(--font-family);
+  font-size: var(--fs-sm);
+  font-weight: var(--font-weight-normal);
+  line-height: 1.5;
+  letter-spacing: normal;
+  text-align: left;
+  box-sizing: border-box;
+  z-index: 2 !important;
+  gap: 10px;
+}
+
+.stepTwoLowAckLabel:hover {
+  color: var(--foreground);
+  border-color: transparent;
+  background: transparent;
+}
+
+.stepTwoLowAckLabel.ackLabelInvalid {
+  background: transparent;
+  box-shadow: none;
+}
+
+.stepTwoLowAckHint {
+  margin: 0;
+  color: var(--foreground-secondary);
+  font-size: var(--fs-xs);
+  line-height: 1.45;
+  font-family: var(--font-family);
+}
+
+.stepTwoLowAckHintError {
+  color: var(--nm-danger-soft);
+}
+
+.stepTwoFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  gap: clamp(12px, 2vw, 20px);
+  flex: 0 0 auto;
+  inline-size: 100%;
+  min-inline-size: 0;
+  margin: 0;
+  padding: 16px 18px calc(16px + var(--safe-area-bottom));
+  border-radius: 20px;
+  border: 1px solid color-mix(in srgb, var(--nm-accent-blue) 12%, transparent);
+  background: var(--nm-step-two-footer-bg);
+  box-shadow: var(--nm-shadow-footer-secondary);
+  box-sizing: border-box;
+}
+
+/* Paso 2 - barra de precios: lightmode debe ser #f4f4f4 */
+html.light .stepTwoFooter,
+body.light .stepTwoFooter {
+  background: #f4f4f4 !important;
+}
+
+.stepTwoFooterTopRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: 1 1 auto;
+  gap: clamp(12px, 2vw, 20px);
+  min-inline-size: 0;
+}
+
+.stepTwoFooterPriceBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex: 0 1 auto;
+  min-inline-size: 0;
+}
+
+.stepTwoFooterPrice {
+  color: var(--nm-accent-blue);
+  font-size: 28px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+
+.stepTwoFooterPriceCaption {
+  color: var(--nm-text-subtle-dark);
+  font-size: 14px;
+}
+
+/* Solo móvil: medida + material (ver @media max-width 767px) */
+.stepTwoFooterSizeMaterialLine {
+  display: none;
+}
+
+.stepTwoFooterMeta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 0 0 auto;
+  gap: 12px;
+  min-inline-size: 0;
+}
+
+.stepTwoStatusBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-block-size: var(--step-two-footer-control-height);
+  block-size: var(--step-two-footer-control-height);
+  padding-inline: 14px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+.stepTwoStatusBadgeWarning {
+  background: var(--nm-status-warning-bg);
+  border-color: var(--nm-status-warning-border);
+  color: var(--nm-warning-soft);
+}
+
+.stepTwoStatusBadgeMedium {
+  background: color-mix(in srgb, var(--nm-accent-cyan) 14%, var(--nm-step-two-footer-bg, #0a0a0a));
+  border-color: color-mix(in srgb, var(--nm-accent-cyan) 38%, transparent);
+  color: var(--nm-accent-cyan);
+}
+
+.stepTwoStatusBadgeSuccess {
+  background: var(--nm-status-success-bg);
+  border-color: var(--nm-status-success-border);
+  color: var(--nm-success-soft);
+}
+
+.stepTwoStatusBadgeIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 14px;
+  block-size: 14px;
+  flex: 0 0 auto;
+}
+
+.stepTwoFooterLinks {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.stepTwoFooterLink {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--foreground-secondary);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+
+.stepTwoFooterLink:hover:not(:disabled) {
+  color: var(--foreground);
+}
+
+.stepTwoFooterLink:focus-visible {
+  outline: calc(var(--space-1) / 2) solid var(--border-focus);
+  outline-offset: calc(var(--space-1) / 2);
+  border-radius: var(--radius-sm);
+}
+
+.stepTwoFooterLink:disabled {
+  color: var(--foreground-muted);
+}
+
+.stepTwoFooterPrimary,
+.stepTwoPrimaryButton,
+.stepTwoSecondaryButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-block-size: calc(var(--space-10) + var(--space-1));
+  padding-inline: var(--space-4);
+  border-radius: var(--radius-lg);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.stepTwoFooterPrimary,
+.stepTwoSecondaryButton {
+  border: calc(var(--space-1) / 4) solid var(--border-default);
+}
+
+.stepTwoFooterPrimary {
+  min-inline-size: var(--step-two-footer-action-min-width, 214px);
+  min-block-size: var(--step-two-footer-control-height);
+  block-size: var(--step-two-footer-control-height);
+  padding-inline: 18px;
+  gap: var(--space-2);
+  flex: 0 1 auto;
+  border-radius: 10px;
+  border: 1px solid var(--nm-on-dark-24);
+  background: transparent;
+  color: var(--nm-text-primary-dark);
+  justify-content: center;
+  text-align: center;
+  line-height: 1.2;
+  box-shadow: none;
+  position: relative;
+  z-index: 100;
+  pointer-events: auto !important;
+}
+
+.stepTwoFooterPrimary > * {
+  pointer-events: none;
+}
+
+.stepTwoFooterPrimaryLabel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 0;
+  white-space: normal;
+}
+
+.stepTwoFooterPrimaryArrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-inline-start: 8px;
+  font-size: 1.35em;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+
+.stepTwoPrimaryButton {
+  border: calc(var(--space-1) / 4) solid transparent;
+  background: var(--brand-primary);
+  color: var(--surface);
+}
+
+.stepTwoSecondaryButton {
+  background: transparent;
+  color: var(--foreground-secondary);
+}
+
+.stepTwoFooterPrimary:hover:not(:disabled),
+.stepTwoSecondaryButton:hover:not(:disabled) {
+  background: var(--interactive-hover);
+  border-color: var(--border-hover);
+}
+
+.stepTwoFooterPrimary:hover:not(:disabled) {
+  background: transparent;
+  border-color: var(--nm-on-dark-40);
+  color: var(--nm-on-dark-95);
+}
+
+/* Paso 2 (Elegí tamaño y material): lightmode borde y texto negros */
+html.light .stepTwoFooterPrimary,
+body.light .stepTwoFooterPrimary {
+  border-color: #000000 !important;
+  color: #000000 !important;
+}
+
+html.light .stepTwoFooterPrimary:hover:not(:disabled),
+body.light .stepTwoFooterPrimary:hover:not(:disabled) {
+  background: transparent !important;
+  border-color: #000000 !important;
+  color: #000000 !important;
+}
+
+html.light .stepTwoFooterPrimaryArrow,
+body.light .stepTwoFooterPrimaryArrow {
+  color: #000000 !important;
+}
+
+/* =========================
+   FIX directo con clases hasheadadas (CSS Modules)
+   =========================
+   Si algo de lightmode no aplica con selectores por clase "no-hasheada",
+   forzamos usando las clases hasheadas provistas:
+   - Botón: _stepTwoFooterPrimary_xcge5_2932
+   - Drawer Herramientas: _stepTwoToolsDrawer_xcge5_3257.dark
+   - Drawer Elegi tamaño y material: _stepTwoConfigDrawer_xcge5_3258.dark
+*/
+
+html.light :global(._stepTwoFooterPrimary_xcge5_2932),
+body.light :global(._stepTwoFooterPrimary_xcge5_2932) {
+  border: 1px solid #000000 !important;
+  color: #000000 !important;
+}
+
+html.light :global(._stepTwoFooterPrimary_lxvum_2932),
+body.light :global(._stepTwoFooterPrimary_lxvum_2932) {
+  border: 1px solid #000000 !important;
+  color: #000000 !important;
+  background: transparent !important;
+}
+
+html.light :global(._stepTwoFooterPrimary_xcge5_2932):hover:not(:disabled),
+body.light :global(._stepTwoFooterPrimary_xcge5_2932):hover:not(:disabled) {
+  background: transparent !important;
+  border: 1px solid #000000 !important;
+  color: #000000 !important;
+}
+
+html.light :global(._stepTwoFooterPrimary_lxvum_2932):hover:not(:disabled),
+body.light :global(._stepTwoFooterPrimary_lxvum_2932):hover:not(:disabled) {
+  background: transparent !important;
+  border: 1px solid #000000 !important;
+  color: #000000 !important;
+}
+
+html.light :global(._stepTwoFooterPrimary_xcge5_2932) *,
+body.light :global(._stepTwoFooterPrimary_xcge5_2932) * {
+  color: #000000 !important;
+}
+
+html.light :global(._stepTwoFooterPrimary_lxvum_2932) *,
+body.light :global(._stepTwoFooterPrimary_lxvum_2932) * {
+  color: #000000 !important;
+}
+
+html.light :global(._stepTwoToolsDrawer_xcge5_3257.dark),
+body.light :global(._stepTwoToolsDrawer_xcge5_3257.dark) {
+  background: #ffffff !important;
+  color: #000000 !important;
+}
+
+html.light :global(._stepTwoConfigDrawer_xcge5_3258.dark),
+body.light :global(._stepTwoConfigDrawer_xcge5_3258.dark) {
+  background: #ffffff !important;
+  color: #000000 !important;
+}
+
+html.light :global(._stepTwoToolsDrawer_xcge5_3257.dark) *,
+body.light :global(._stepTwoToolsDrawer_xcge5_3257.dark) * {
+  color: #000000 !important;
+}
+
+html.light :global(._stepTwoConfigDrawer_xcge5_3258.dark) *,
+body.light :global(._stepTwoConfigDrawer_xcge5_3258.dark) * {
+  color: #000000 !important;
+}
+
+/* Los íconos se cargan como <img> desde SVG con stroke blanco.
+   Recoloreamos forzando filtros en lightmode. */
+html.light :global(._stepTwoToolsDrawer_xcge5_3257.dark) img,
+body.light :global(._stepTwoToolsDrawer_xcge5_3257.dark) img,
+html.light :global(._stepTwoConfigDrawer_xcge5_3258.dark) img,
+body.light :global(._stepTwoConfigDrawer_xcge5_3258.dark) img {
+  filter: invert(1) brightness(0.2) !important;
+}
+
+.stepTwoPrimaryButton:hover:not(:disabled) {
+  background: var(--brand-primary-hover);
+}
+
+.stepTwoFooterPrimary:focus-visible,
+.stepTwoPrimaryButton:focus-visible,
+.stepTwoSecondaryButton:focus-visible,
+.stepTwoDrawerClose:focus-visible,
+.stepTwoDrawerAction:focus-visible {
+  outline: calc(var(--space-1) / 2) solid var(--border-focus);
+  outline-offset: calc(var(--space-1) / 2);
+}
+
+.stepTwoFooterPrimary:disabled,
+.stepTwoPrimaryButton:disabled,
+.stepTwoSecondaryButton:disabled {
+  background: var(--interactive-disabled);
+  color: var(--foreground-muted);
+}
+
+.stepTwoFooterPrimary:disabled {
+  background: transparent;
+  border-color: var(--nm-on-dark-12);
+  color: var(--nm-on-dark-45);
+}
+
+/* Lightmode: forzamos el estado :disabled del botón (clase hasheada real) */
+html.light :global(._stepTwoFooterPrimary_lxvum_2932:disabled),
+body.light :global(._stepTwoFooterPrimary_lxvum_2932:disabled) {
+  background: transparent !important;
+  border-color: #000000 !important;
+  color: #000000 !important;
+}
+
+html.light :global(._stepTwoFooterPrimary_lxvum_2932:disabled:hover),
+body.light :global(._stepTwoFooterPrimary_lxvum_2932:disabled:hover) {
+  background: transparent !important;
+  border-color: #000000 !important;
+  color: #000000 !important;
+}
+
+.stepTwoStatusText {
+  margin: 0;
+  color: currentColor;
+  font-size: inherit;
+}
+
+.stepTwoFeedback {
+  inline-size: 100%;
+  flex: 0 0 auto;
+}
+
+/* Paso 2, modo contener: bajo la barra derecha (Ver en AR / Herramientas) */
+.stepTwoContainColorDock {
+  position: relative;
+  z-index: 400;
+  grid-column: 2;
+  grid-row: 3;
+  align-self: start;
+  justify-self: start;
+  margin-block-start: 10px;
+  margin-inline-start: var(--step-two-toolbar-offset, 20px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+  border: 1px solid color-mix(in srgb, var(--nm-accent-blue) 18%, var(--nm-on-dark-20));
+  background: color-mix(in srgb, var(--nm-step-two-footer-bg) 92%, rgba(255, 255, 255, 0.04));
+  box-shadow: var(--nm-shadow-footer-secondary);
+  pointer-events: auto;
+  inline-size: var(--step-two-toolbar-width, 48px);
+  max-inline-size: var(--step-two-toolbar-width, 48px);
+  min-inline-size: 0;
+  box-sizing: border-box;
+}
+
+.stepTwoContainColorDockMain {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  inline-size: 100%;
+  min-inline-size: 0;
+}
+
+@media (max-width: 767px) {
+  /* Misma anchura que el menú Ver en AR / Herramientas: fila, texto izq., muestra a der. */
+  .stepTwoContainColorDock {
+    grid-column: auto;
+    grid-row: auto;
+    align-self: center;
+    justify-self: center;
+    /* Pega al bloque de Herramientas / Eliminar (compensa parte del gap del bundle) */
+    margin-block-start: -6px;
+    margin-inline-start: 0;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    inline-size: min(100%, 360px);
+    max-inline-size: 360px;
+    width: min(100%, 360px);
+    padding: 6px 14px;
+    border-radius: 12px;
+    border: 1px solid color-mix(in srgb, var(--nm-accent-blue) 12%, var(--nm-on-dark-20));
+    background: color-mix(in srgb, var(--nm-step-two-footer-bg) 92%, rgba(255, 255, 255, 0.03));
+    box-shadow: var(--nm-shadow-footer-secondary);
+    overflow: visible;
+  }
+
+  .stepTwoContainColorDockMain {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-block-size: 46px;
+  }
+
+  .stepTwoContainColorLabel {
+    flex: 1 1 auto;
+    min-inline-size: 0;
+    text-align: start;
+    align-self: center;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    line-height: 1.25;
+  }
+
+  .stepTwoContainColorTriggerWrap {
+    flex: 0 0 auto;
+  }
+
+  .stepTwoContainColorTrigger {
+    padding: 2px 3px;
+    min-block-size: 0;
+  }
+
+  .stepTwoContainColorSwatch {
+    inline-size: 34px;
+    block-size: 20px;
+    border-radius: 4px;
+  }
+
+  /* Picker arriba de la fila; ancho del dock → centrado horizontal (evita salida por la derecha) */
+  .stepTwoContainColorPopoverWrap {
+    inset-block-end: 100%;
+    inset-block-start: auto;
+    inset-inline-start: 0;
+    inset-inline-end: 0;
+    margin-block-end: 4px;
+    margin-block-start: 0;
+    transform: none;
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    inline-size: auto;
+    max-inline-size: none;
+    pointer-events: none;
+  }
+
+  .stepTwoContainColorPopoverWrap > * {
+    pointer-events: auto;
+    max-inline-size: 100%;
+  }
+}
+
+.stepTwoContainColorLabel {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--nm-on-dark-70);
+  margin: 0;
+}
+
+.stepTwoContainColorTriggerWrap {
+  position: relative;
+  display: inline-flex;
+  isolation: isolate;
+  z-index: 1;
+}
+
+/* Popover pegado al trigger; z-index por encima de la barra lateral (rail ~101) */
+.stepTwoContainColorPopoverWrap {
+  position: absolute;
+  inset-block-end: 100%;
+  inset-inline-start: 0;
+  margin-block-end: 0;
+  z-index: 2;
+}
+
+/* Fondo opaco del panel (evita ver el rail / lienzo a través) */
+.stepTwoContainColorPopoverSurface {
+  background-color: var(--nm-picker-surface, var(--card, #2f2f35)) !important;
+  opacity: 1;
+}
+
+.stepTwoContainColorTrigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  margin: 0;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--surface-secondary);
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.stepTwoContainColorSwatch {
+  display: block;
+  inline-size: 40px;
+  block-size: 32px;
+  border-radius: calc(var(--radius-sm) - 2px);
+  border: 1px solid color-mix(in srgb, var(--nm-on-dark-50) 35%, transparent);
+  box-sizing: border-box;
+}
+
+.stepTwoContainColorTrigger:focus-visible {
+  outline: calc(var(--space-1) / 2) solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+.stepTwoDrawerBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-end;
+  padding: var(--space-3) var(--space-3) calc(var(--space-3) + var(--safe-area-bottom));
+  background: var(--overlay);
+}
+
+.stepTwoToolsDrawerBackdrop,
+.stepTwoConfigDrawerBackdrop {
+  padding: 0;
+  margin: 0;
+  justify-content: flex-end;
+}
+
+.stepTwoConfigDrawer,
+.stepTwoToolsDrawer {
+  display: flex;
+  flex-direction: column;
+  inline-size: min(100%, calc(var(--space-24) * 3.5));
+  min-block-size: 0;
+  block-size: 100%;
+  max-block-size: 100%;
+  background: var(--surface);
+  border: calc(var(--space-1) / 4) solid var(--border-default);
+  border-radius: var(--radius-card);
+  box-shadow: 0 var(--space-4) var(--space-10) color-mix(in srgb, var(--overlay) 36%, transparent);
+  overflow: hidden;
+  position: relative;
+  z-index: 201;
+  pointer-events: auto;
+}
+
+/* Light mode: los drawers traen la clase `.dark` (ver Home.jsx).
+   Forzamos la paleta light dentro del drawer para tener fondo blanco + texto negro,
+   y ajustamos los íconos SVG cargados como <img> (herramientas/cerrar/acciones). */
+html.light .stepTwoConfigDrawer.dark,
+body.light .stepTwoConfigDrawer.dark,
+html.light .stepTwoToolsDrawer.dark,
+body.light .stepTwoToolsDrawer.dark {
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  --surface: #ffffff;
+  --surface-secondary: #ffffff;
+  --surface-tertiary: #ffffff;
+  --foreground: #000000;
+  --foreground-secondary: rgba(0, 0, 0, 0.78);
+  --foreground-muted: rgba(0, 0, 0, 0.6);
+  --foreground-tertiary: rgba(0, 0, 0, 0.55);
+  --border-default: rgba(0, 0, 0, 0.08);
+  --border-hover: rgba(0, 0, 0, 0.12);
+  color: #000000 !important;
+}
+
+html.light .stepTwoConfigDrawer.dark *,
+body.light .stepTwoConfigDrawer.dark *,
+html.light .stepTwoToolsDrawer.dark *,
+body.light .stepTwoToolsDrawer.dark * {
+  color: #000000 !important;
+}
+
+html.light .stepTwoConfigDrawer.dark .stepTwoDrawerCloseIcon,
+body.light .stepTwoConfigDrawer.dark .stepTwoDrawerCloseIcon,
+html.light .stepTwoToolsDrawer.dark .stepTwoDrawerCloseIcon,
+body.light .stepTwoToolsDrawer.dark .stepTwoDrawerCloseIcon {
+  filter: invert(1) brightness(0.2);
+}
+
+html.light .stepTwoToolsDrawer.dark .stepTwoToolsDrawerHeadingIcon img,
+body.light .stepTwoToolsDrawer.dark .stepTwoToolsDrawerHeadingIcon img {
+  filter: invert(1) brightness(0.2);
+}
+
+html.light .stepTwoToolsDrawer.dark .stepTwoDrawerActionIconImage,
+body.light .stepTwoToolsDrawer.dark .stepTwoDrawerActionIconImage,
+html.light .stepTwoConfigDrawer.dark .stepTwoDrawerActionIconImage,
+body.light .stepTwoConfigDrawer.dark .stepTwoDrawerActionIconImage {
+  filter: invert(1) brightness(0.2);
+}
+
+/* Fondos y textos explícitos en header (en mobile hay background: var(--surface)). */
+html.light .stepTwoConfigDrawer.dark .stepTwoDrawerHeader,
+body.light .stepTwoConfigDrawer.dark .stepTwoDrawerHeader,
+html.light .stepTwoToolsDrawer.dark .stepTwoDrawerHeader,
+body.light .stepTwoToolsDrawer.dark .stepTwoDrawerHeader {
+  background: #ffffff !important;
+  border-bottom-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+html.light .stepTwoConfigDrawer.dark .stepTwoDrawerTitle,
+body.light .stepTwoConfigDrawer.dark .stepTwoDrawerTitle,
+html.light .stepTwoToolsDrawer.dark .stepTwoDrawerTitle,
+body.light .stepTwoToolsDrawer.dark .stepTwoDrawerTitle {
+  color: #000000 !important;
+}
+
+html.light .stepTwoConfigDrawer.dark .stepTwoDrawerEyebrow,
+body.light .stepTwoConfigDrawer.dark .stepTwoDrawerEyebrow,
+html.light .stepTwoToolsDrawer.dark .stepTwoDrawerEyebrow,
+body.light .stepTwoToolsDrawer.dark .stepTwoDrawerEyebrow {
+  color: rgba(0, 0, 0, 0.78) !important;
+}
+
+/* Botón de cerrar */
+html.light .stepTwoConfigDrawer.dark .stepTwoDrawerClose,
+body.light .stepTwoConfigDrawer.dark .stepTwoDrawerClose,
+html.light .stepTwoToolsDrawer.dark .stepTwoDrawerClose,
+body.light .stepTwoToolsDrawer.dark .stepTwoDrawerClose {
+  background: #ffffff !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+  color: rgba(0, 0, 0, 0.78) !important;
+}
+
+.stepTwoToolsDrawer {
+  inline-size: min(100%, calc((var(--space-24) * 2.75) + 60px));
+  border-radius: 0;
+  margin: 0;
+  align-self: stretch;
+  min-block-size: 100%;
+  max-block-size: none;
+}
+
+.stepTwoConfigDrawer {
+  border-radius: 0;
+  margin: 0;
+  align-self: stretch;
+  min-block-size: 100%;
+  max-block-size: none;
+  border-inline-start: calc(var(--space-1) / 4) solid var(--border-default);
+  border-inline-end: none;
+  border-block-start: none;
+  border-block-end: none;
+}
+
+/* Drawer "Elegí tamaño y material" — tipografía alineada al diseño */
+.stepTwoConfigDrawer .stepTwoDrawerHeader {
+  align-items: center;
+  padding: 20px 56px 20px 24px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--surface);
+}
+
+.stepTwoConfigDrawer .stepTwoDrawerHeading {
+  gap: 4px;
+}
+
+.stepTwoConfigDrawer .stepTwoDrawerTitle {
+  margin: 0;
+  color: var(--foreground);
+  font-family: Inter, var(--font-family), sans-serif;
+  font-size: 18px;
+  font-style: normal;
+  font-weight: 500;
+  line-height: 22.5px;
+  letter-spacing: -0.18px;
+}
+
+.stepTwoConfigDrawer .stepTwoDrawerEyebrow {
+  margin: 0;
+  color: var(--foreground-secondary);
+  font-family: Inter, var(--font-family), sans-serif;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 16.5px;
+  letter-spacing: 0.33px;
+}
+
+.stepTwoConfigDrawer .stepTwoDrawerClose {
+  inset-block-start: 50%;
+  transform: translateY(-50%);
+}
+
+.stepTwoConfigDrawer .stepTwoAccordionTitle {
+  color: var(--foreground);
+  font-family: Inter, var(--font-family), sans-serif;
+  font-size: 16px;
+  font-style: normal;
+  font-weight: 500;
+  line-height: 24px;
+  letter-spacing: -0.16px;
+}
+
+.stepTwoConfigDrawer .stepTwoOptionTitle {
+  color: var(--foreground);
+  font-family: Inter, var(--font-family), sans-serif;
+  font-size: 16px;
+  font-style: normal;
+  font-weight: 500;
+  line-height: 24px;
+  letter-spacing: -0.16px;
+}
+
+.stepTwoConfigDrawer .stepTwoConfigForm {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  overflow: hidden;
+}
+
+.stepTwoConfigDrawer .stepTwoAccordion {
+  flex: 1 1 auto;
+  min-block-size: 0;
+}
+
+.stepTwoToolsDrawerScroll {
+  display: flex;
+  flex-direction: column;
+  min-block-size: 0;
+}
+
+.stepTwoConfigDrawer::before,
+.stepTwoToolsDrawer::before {
+  content: none;
+}
+
+.stepTwoDrawerHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: var(--space-3);
+  padding: 16px 56px 16px 16px;
+  border-bottom: calc(var(--space-1) / 4) solid var(--border-default);
+  flex: 0 0 auto;
+  position: relative;
+}
+
+.stepTwoToolsDrawer .stepTwoDrawerHeader {
+  align-items: center;
+}
+
+.stepTwoToolsDrawerHeading {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+
+.stepTwoToolsDrawerHeadingIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  inline-size: 22px;
+  block-size: 22px;
+  color: inherit;
+}
+
+.stepTwoToolsDrawerHeadingIcon img {
+  inline-size: 100%;
+  block-size: 100%;
+  display: block;
+  object-fit: contain;
+}
+
+.stepTwoDrawerHeading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.stepTwoDrawerEyebrow {
+  margin: 0;
+  color: var(--foreground-secondary);
+  font-size: var(--fs-sm);
+}
+
+.stepTwoDrawerTitle {
+  margin: 0;
+  color: var(--foreground);
+  font-size: var(--fs-xl);
+}
+
+.stepTwoDrawerClose {
+  position: absolute;
+  inset-block-start: 16px;
+  inset-inline-end: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 40px;
+  block-size: 40px;
+  padding: 8px;
+  border-radius: var(--radius-md);
+  border: calc(var(--space-1) / 4) solid var(--border-default);
+  background: var(--surface-secondary);
+  color: var(--foreground-secondary);
+  cursor: pointer;
+  transition: opacity 0.18s ease, background-color 0.18s ease, border-color 0.18s ease;
+}
+
+.stepTwoDrawerCloseIcon {
+  inline-size: 24px;
+  block-size: 24px;
+  display: block;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+@media (hover: hover) {
+  .stepTwoDrawerClose:hover {
+    background: color-mix(in srgb, var(--surface-secondary) 88%, white);
+  }
+}
+
+.stepTwoDrawerClose:active {
+  opacity: 0.72;
+}
+
+/* Solo móvil (≤767px): drawers paso 2 — animación referenciada ahí */
+@keyframes stepTwoConfigDrawerSlideInFromRight {
+  from {
+    transform: translateX(100%);
+  }
+
+  to {
+    transform: translateX(0);
+  }
+}
+
+.stepTwoConfigForm {
+  display: flex;
+  flex-direction: column;
+  min-block-size: 0;
+  block-size: 100%;
+}
+
+.stepTwoConfigField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5) var(--space-5);
+}
+
+.stepTwoConfigLabel {
+  margin: 0;
+  color: var(--foreground-secondary);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.stepTwoConfigHelpText {
+  margin: 0;
+  color: var(--foreground-secondary);
+  font-size: var(--fs-xs);
+}
+
+/* Nombre del proyecto (drawer paso 2): fondo fijo + texto acento (theme --accent) */
+.stepTwoProjectInput {
+  min-block-size: 44px;
+  padding: var(--spacing-input-padding-y) var(--spacing-input-padding-x);
+  font-family: var(--font-family);
+  font-size: var(--fs-sm);
+  font-weight: var(--font-weight-normal);
+  line-height: 1.5;
+  letter-spacing: normal;
+  color: var(--accent);
+  background: #0a0a0a;
+  border-radius: var(--radius-input);
+  border: calc(var(--space-1) / 4) solid var(--border-default);
+}
+
+.stepTwoAccordion {
+  display: flex;
+  flex-direction: column;
+  min-block-size: 0;
+  overflow-y: auto;
+}
+
+.stepTwoAccordionSection {
+  border-top: calc(var(--space-1) / 4) solid var(--border-default);
+}
+
+.stepTwoAccordionSection:first-child {
+  border-top: none;
+}
+
+.stepTwoAccordionTrigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  inline-size: 100%;
+  min-block-size: calc(var(--space-12) + var(--space-1));
+  padding: var(--space-4) var(--space-5);
+  border: none;
+  background: var(--surface);
+  color: var(--foreground);
+  text-align: left;
+}
+
+.stepTwoAccordionTrigger:hover {
+  background: var(--interactive-hover);
+}
+
+.stepTwoAccordionHeaderContent {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+
+.stepTwoAccordionTitle {
+  color: var(--foreground);
+  font-size: var(--fs-base);
+  font-weight: 500;
+}
+
+.stepTwoAccordionSummary {
+  min-inline-size: 0;
+  color: var(--brand-primary);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stepTwoAccordionChevron {
+  flex: 0 0 auto;
+  inline-size: var(--space-6);
+  block-size: var(--space-6);
+  color: var(--foreground-secondary);
+  transition: transform 0.2s ease;
+}
+
+.stepTwoAccordionChevronOpen {
+  transform: rotate(180deg);
+}
+
+.stepTwoAccordionContent {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: var(--space-2);
+}
+
+.stepTwoAccordionHint {
+  margin: 0;
+  padding: 0 var(--space-4) var(--space-3) calc(var(--space-5) + var(--space-4) + var(--space-3));
+  color: var(--foreground-secondary);
+  font-size: var(--fs-xs);
+}
+
+.stepTwoCustomSizePanel {
+  padding: 0 var(--space-4) var(--space-4) calc(var(--space-5) + var(--space-4) + var(--space-3));
+}
+
+.stepTwoOptionCard {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  inline-size: 100%;
+  min-inline-size: 100%;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-top: calc(var(--space-1) / 4) solid var(--border-default);
+  background: transparent;
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.stepTwoOptionCard * {
+  pointer-events: none;
+}
+
+.stepTwoOptionCard:hover {
+  background: color-mix(in srgb, var(--surface-secondary) 72%, transparent);
+}
+
+.stepTwoOptionCard:active {
+  background: color-mix(in srgb, var(--surface-secondary) 92%, transparent);
+}
+
+.stepTwoOptionCardSelected {
+  background: color-mix(in srgb, var(--surface-secondary) 88%, transparent);
+}
+
+.stepTwoOptionCardDisabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.stepTwoOptionInput {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.stepTwoOptionControl {
+  inline-size: var(--space-6);
+  block-size: var(--space-6);
+  border-radius: 999px;
+  border: calc(var(--space-1) / 4) solid var(--border-default);
+  background: transparent;
+}
+
+.stepTwoOptionCardSelected .stepTwoOptionControl {
+  border-color: var(--brand-primary);
+  background:
+    radial-gradient(circle, var(--brand-primary) 0 45%, transparent 46%);
+}
+
+.stepTwoOptionPrice:empty {
+  min-inline-size: 4.5rem;
+}
+
+.stepTwoOptionBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+
+.stepTwoOptionTitleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.stepTwoOptionIcon {
+  inline-size: var(--space-4);
+  block-size: var(--space-4);
+  color: var(--foreground-secondary);
+  flex: 0 0 auto;
+}
+
+.stepTwoOptionTitle {
+  color: var(--foreground);
+  font-size: var(--fs-lg);
+  font-weight: 600;
+}
+
+.stepTwoOptionDescription {
+  color: var(--foreground-secondary);
+  font-size: var(--fs-sm);
+}
+
+.stepTwoOptionPrice {
+  color: var(--foreground);
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.stepTwoOptionBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: var(--space-7);
+  padding-inline: var(--space-3);
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--brand-primary) 18%, transparent);
+  border: calc(var(--space-1) / 4) solid color-mix(in srgb, var(--brand-primary) 50%, transparent);
+  color: var(--brand-primary);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.stepTwoConfigActions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.stepTwoConfigActions > * {
+  flex: 1 1 0;
+}
+
+.stepTwoConfigFooter {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5) calc(var(--space-4) + var(--safe-area-bottom));
+  border-top: calc(var(--space-1) / 4) solid var(--border-default);
+  background: var(--surface);
+  flex: 0 0 auto;
+}
+
+.stepTwoConfigFooterPriceBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  inline-size: 100%;
+}
+
+.stepTwoConfigFooterLabel,
+.stepTwoConfigFooterAmount {
+  margin: 0;
+}
+
+.stepTwoConfigFooterLabel {
+  color: var(--foreground-secondary);
+  font-size: var(--fs-xs);
+}
+
+.stepTwoConfigFooterAmount {
+  color: var(--foreground);
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.stepTwoConfigSubmitButton {
+  inline-size: 100%;
+}
+
+.stepTwoDrawerSection {
+  display: flex;
+  flex-direction: column;
+}
+
+.stepTwoDrawerSection + .stepTwoDrawerSection {
+  border-top: calc(var(--space-1) / 4) solid var(--border-default);
+}
+
+.stepTwoDrawerSectionTitle {
+  margin: 0;
+  padding: var(--space-4);
+  color: var(--foreground-secondary);
+  font-size: var(--fs-2xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.stepTwoDrawerAction {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  inline-size: 100%;
+  min-inline-size: 100%;
+  min-block-size: var(--space-12);
+  padding-block: var(--space-4);
+  padding-inline: var(--space-5);
+  border: none;
+  border-top: calc(var(--space-1) / 4) solid var(--border-default);
+  background: transparent;
+  color: var(--foreground);
+  font-size: var(--fs-sm);
+  text-align: left;
+  appearance: none;
+  cursor: pointer;
+  touch-action: manipulation;
+  position: relative;
+  z-index: 202;
+  pointer-events: auto !important;
+}
+
+.stepTwoDrawerAction:hover {
+  background: var(--interactive-hover);
+}
+
+.stepTwoDrawerActionActive {
+  background: color-mix(in srgb, var(--brand-primary) 16%, transparent);
+  color: var(--foreground);
+}
+
+.stepTwoDrawerAction:active {
+  background: color-mix(in srgb, var(--interactive-hover) 78%, var(--foreground) 8%);
+}
+
+.stepTwoDrawerAction:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+  background: transparent;
+}
+
+.stepTwoDrawerAction:disabled:hover,
+.stepTwoDrawerAction:disabled:active {
+  background: transparent;
+}
+
+.stepTwoDrawerAction * {
+  pointer-events: none;
+}
+
+.stepTwoDrawerActionIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--space-5);
+  block-size: var(--space-5);
+  color: var(--foreground-secondary);
+}
+
+.stepTwoDrawerActionIconImage {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: contain;
+}
+
+.stepThreeLayout {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  min-block-size: 0;
+  gap: 0;
+  inline-size: 100%;
+  max-inline-size: 100%;
+  margin: 0;
+  overflow: visible;
+  box-sizing: border-box;
+}
+
+.stepThreeDetailsCard {
+  margin-block-end: 15px;
+}
+
+.stepThreeLayout .stepTwoFeedback {
+  margin-block-end: var(--space-2);
+}
+
+.stepThreeHeader {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex: 0 0 auto;
+}
+
+.stepThreeEyebrow {
+  color: var(--brand-primary);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.stepThreeTitle {
+  margin: 0;
+  color: var(--foreground);
+  font-size: var(--fs-3xl);
+}
+
+.stepThreeProjectName {
+  margin: 0;
+  color: var(--foreground-secondary);
+  font-size: var(--fs-base);
+}
+
+.stepThreePreviewCard {
+  flex: 0 0 auto;
+  min-block-size: auto;
+  margin-block-end: var(--space-2);
+  padding: 0;
+  border-radius: var(--radius-card);
+  background: transparent;
+}
+
+.stepThreePreviewFrame {
+  overflow: hidden;
+  /* Un poco más chico que el ancho útil; la imagen sigue escalando con la misma relación de aspecto */
+  inline-size: 88%;
+  max-inline-size: 100%;
+  margin-inline: auto;
+  border-radius: var(--radius-card);
+  border: calc(var(--space-1) / 4) solid var(--border-default);
+  background: var(--surface);
+  box-shadow:
+    0 var(--space-2) var(--space-8) color-mix(in srgb, var(--overlay) 28%, transparent),
+    0 var(--space-1) var(--space-3) color-mix(in srgb, var(--border-default) 75%, transparent);
+}
+
+.stepThreePreviewImage {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+  max-inline-size: 100%;
+  object-fit: contain;
+  object-position: center;
+  background: var(--surface);
+}
+
+.stepThreePreviewFallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 100%;
+  aspect-ratio: var(--step-one-selected-ratio);
+  min-block-size: calc(var(--space-24) * 1.5);
+  color: var(--foreground-secondary);
+  background: var(--surface);
+}
+
+.stepThreeDetailsCard {
+  overflow: hidden;
+  flex: 0 0 auto;
+  border-radius: var(--radius-card);
+  border: calc(var(--space-1) / 4) solid var(--border-default);
+  background: var(--surface);
+}
+
+.stepThreeDetailRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-3) var(--space-4);
+  border-top: calc(var(--space-1) / 4) solid var(--border-default);
+}
+
+.stepThreeDetailRow:first-child {
+  border-top: none;
+}
+
+.stepThreeDetailLabel {
+  color: var(--foreground-secondary);
+  font-family: Inter, var(--font-family), sans-serif;
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 19.5px;
+}
+
+.stepThreeDetailValue {
+  color: var(--foreground);
+  font-family: Inter, var(--font-family), sans-serif;
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 19.5px;
+  text-align: right;
+}
+
+.stepThreeDetailRowTotal {
+  align-items: end;
+}
+
+.stepThreeDetailValueTotal {
+  color: var(--foreground);
+  font-family: Inter, var(--font-family), sans-serif;
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 19.5px;
+  text-align: right;
+}
+
+.stepThreeSafetyNote {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  margin-block-start: 0;
+  margin-block-end: var(--space-2);
+}
+
+.stepThreeSafetyNoteText {
+  color: var(--foreground-secondary);
+  font-family: Inter, var(--font-family), sans-serif;
+  font-size: 14px;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 19.5px;
+}
+
+.stepThreeSafetyIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--space-5);
+  block-size: var(--space-5);
+  flex-shrink: 0;
+  color: var(--foreground-secondary);
+}
+
+.stepThreeActionsRow {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: var(--space-3);
+  inline-size: 100%;
+  margin-block-end: var(--space-2);
+  box-sizing: border-box;
+}
+
+.stepThreeSecondaryButton,
+.stepThreePrimaryButton {
+  flex: 1 1 0;
+  min-inline-size: 0;
+  min-block-size: var(--space-10);
+  padding-inline: var(--space-4);
+  border-radius: var(--radius-button);
+  color: var(--foreground);
+  font-family: Inter, var(--font-family), sans-serif;
+  font-size: 16px;
+  font-style: normal;
+  font-weight: 500;
+  line-height: 24px;
+  letter-spacing: -0.16px;
+  text-align: center;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.stepThreeSecondaryButton {
+  border: 1px solid var(--border-default);
+  background: transparent;
+}
+
+.stepThreeSecondaryButton:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+}
+
+.stepThreePrimaryButton {
+  border: none;
+  background: #cccccc;
+  color: #000000;
+}
+
+.stepThreePrimaryButton:hover:not(:disabled) {
+  background: #f5f5f5;
+}
+
+.stepThreeSecondaryButton:disabled,
+.stepThreePrimaryButton:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.stepThreeSecondaryButton:focus-visible,
+.stepThreePrimaryButton:focus-visible,
+.stepThreeBackLink:focus-visible {
+  outline: calc(var(--space-1) / 2) solid var(--border-focus);
+  outline-offset: calc(var(--space-1) / 2);
+}
+
+.stepThreeBackLink {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  border: none;
+  background: transparent;
+  color: var(--foreground-secondary);
+  font-family: Inter, var(--font-family), sans-serif;
+  font-size: 16px;
+  font-style: normal;
+  font-weight: 500;
+  line-height: 19.5px;
+  text-align: center;
+}
+
+.stepThreeBackLink:hover {
+  color: var(--foreground);
+}
+@media (max-width: 960px) {
+  .pageStepUpload {
+    padding: 0 var(--space-5) var(--space-4);
+  }
+
+  .stepOneLayout {
+    width: 100%;
+  }
+
+  .stepOneGalleryGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767px) {
+  .pageStepUpload {
+    justify-content: flex-start;
+    padding: 0 var(--space-4);
+    gap: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .pageStepEdit {
+    min-block-size: 100vh;
+    height: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
+    touch-action: pan-y;
+    padding-inline: 0;
+  }
+
+  .sectionOneStepUpload {
+    justify-content: flex-start;
+    align-items: stretch;
+    flex: 1 1 auto;
+    min-block-size: 100%;
+  }
+
+  .sectionOneStepEdit {
+    align-items: stretch;
+    min-block-size: auto;
+  }
+
+  .sectionOneInnerStepUpload {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    justify-content: flex-start;
+    align-items: stretch;
+    gap: var(--space-2);
+    min-block-size: 100%;
+    margin-block: 0;
+    transform: none;
+  }
+
+  .sectionOneInnerStepEdit {
+    flex: 0 0 auto;
+    min-block-size: auto;
+  }
+
+  .pageHeading,
+  .pageHeadingStepUpload {
+    margin: 0 !important;
+    padding-block-start: min(32px, max(20px, 5svh)) !important;
+    margin-block-start: 0 !important;
+  }
+
+  .stepHero {
+    width: 100%;
+  }
+
+  .stepHeroTitle {
+    font-size: clamp(var(--fs-2xl), 6.5vw, var(--fs-3xl));
+    line-height: 1.1;
+    margin-block-end: 10px;
+  }
+
+  .stepOneSizeSection {
+    width: 100%;
+    flex: 0 0 auto;
+  }
+
+  .stepOneSelectorsRow {
+    grid-template-columns: 1fr;
+    gap: var(--space-2);
+  }
+
+  .stepOneLayout {
+    flex: 1 1 auto;
+    min-block-size: 0;
+    width: 100%;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: clamp(var(--space-1), 3vw, var(--space-2));
+  }
+
+  .stepOneLayoutCustom {
+    gap: var(--space-1);
+  }
+
+  .stepOneLayoutCustom .stepOneSizeSection {
+    gap: var(--space-1);
+  }
+
+  .stepOneSizeTriggerTitle,
+  .stepOneSizeOptionTitle {
+    font-size: var(--fs-base);
+  }
+
+  .stepOneSizeTriggerDescription,
+  .stepOneSizeOptionDescription,
+  .stepOneSizeOptionPrice {
+    font-size: var(--fs-xs);
+  }
+
+  .stepOneCanvasFrame {
+    flex: 1 1 auto;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-block-size: 100%;
+    width: 100%;
+    padding: 0;
+    margin: 0;
+  }
+
+  .stepOneCanvasStage {
+    flex: 1 1 auto;
+    width: 100%;
+    min-block-size: 100%;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .stepOnePreviewStack {
+    flex: 1 1 auto;
+    width: 100%;
+    min-block-size: clamp(320px, 48svh, 620px);
+    gap: 0;
+    justify-content: flex-start;
+  }
+
+  .stepOnePreviewStackCustom {
+    transform: translateY(var(--space-2));
+  }
+
+  .stepOnePreviewBody {
+    flex: 1 1 auto;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: var(--space-3);
+    min-block-size: clamp(320px, 48svh, 620px);
+    overflow: visible;
+    padding-block: var(--space-1) calc(var(--space-2) + 156px);
+  }
+
+  .stepOneCanvasViewport {
+    flex: 1 1 auto;
+    inline-size: 100%;
+    max-inline-size: 100%;
+    block-size: auto;
+    min-block-size: clamp(260px, 36svh, 420px);
+    max-block-size: none;
+    align-items: center;
+    justify-content: center;
+    padding: 0 16px 0 8px;
+  }
+
+  .stepOneCanvasFigure {
+    --step-one-mobile-measure-column-offset: clamp(12px, 4vw, 15px);
+    inline-size: min(calc(100% - 12px), 85vw);
+    max-inline-size: calc(100% - 12px);
+    block-size: auto;
+    margin: 0 auto;
+    padding-block-end: var(--step-one-measure-row-space-px, 32px);
+    box-sizing: border-box;
+  }
+
+  .stepOneCanvasShell {
+    inline-size: 100% !important;
+    block-size: auto;
+  }
+
+  .stepOneCanvasMeasureColumn {
+    display: flex;
+    gap: var(--space-1);
+    inset-inline-end: calc(-1 * var(--step-one-mobile-measure-column-offset));
+  }
+
+  .stepOneCanvasMeasureRow {
+    inset-block-start: calc(100% + max(14px, var(--step-one-measure-row-offset-px, 12px)));
+    gap: var(--space-1);
+  }
+
+  .stepOneCanvasMeasureLabel,
+  .stepOneCanvasMeasureLabelVertical {
+    font-size: var(--fs-2xs);
+  }
+
+  .stepOneCanvasContent {
+    inline-size: auto;
+    gap: 0;
+  }
+
+  .stepOneCanvasTitle,
+  .stepOneCanvasText {
+    display: none;
+  }
+
+  .stepOneCustomSizeFields {
+    margin-block: 0;
+  }
+
+  .stepOneCustomSizePanel,
+  .stepOneCustomSizePanelOpen {
+    max-height: 240px;
+  }
+
+  .stepOneCustomSizeEditButton {
+    min-block-size: var(--space-8);
+  }
+
+  .stepOneActions {
+    position: sticky;
+    inset-block-end: 68px;
+    z-index: 10;
+    inline-size: 100%;
+    margin: 0 auto;
+    gap: 10px;
+    padding: var(--space-2) 0 calc(20px + env(safe-area-inset-bottom));
+    background:
+      linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--background) 0%, transparent) 0%,
+        color-mix(in srgb, var(--background) 82%, transparent) 28%,
+        var(--background) 100%
+      );
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+
+  .stepOneFooterBar {
+    grid-template-columns: 1fr;
+    gap: 14px;
+    padding: 16px;
+    border-radius: 22px;
+    position: relative;
+    z-index: 11;
+    background: var(--nm-step-two-footer-bg);
+  }
+
+  .stepOneFooterBarLight {
+    background: var(--nm-white);
+  }
+
+  .stepPrimaryAction {
+    width: 100%;
+    font-size: var(--fs-base);
+    margin-inline: auto;
+  }
+
+  .stepOneFooterAction {
+    min-inline-size: 0;
+  }
+
+  .stepOneSecondaryAction {
+    font-size: var(--fs-sm);
+    margin-inline: auto;
+  }
+
+  .stepOneGalleryOverlay {
+    padding: var(--space-3);
+  }
+
+  .stepOneGalleryContent {
+    gap: var(--space-3);
+    padding-block: var(--space-6) var(--space-5);
+    inline-size: 100%;
+    max-inline-size: 100%;
+  }
+
+  .stepOneGalleryTitle {
+    font-size: var(--fs-2xl);
+    line-height: 1.15;
+  }
+
+  .stepOneGallerySubtitle {
+    font-size: var(--fs-sm);
+    line-height: 1.4;
+  }
+
+  .stepOneGalleryGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
+  }
+
+  .stepOneGalleryCard {
+    padding: var(--space-2) var(--space-3);
+    aspect-ratio: 1.25 / 1;
+    border-radius: var(--radius-md);
+    box-shadow: 0 var(--space-1) var(--space-4) color-mix(in srgb, var(--overlay) 22%, transparent);
+  }
+
+  .stepOneGalleryCard:hover {
+    transform: translateY(calc(var(--space-1) * -0.25)) scale(1.01);
+    box-shadow: 0 var(--space-2) var(--space-6) color-mix(in srgb, var(--overlay) 30%, transparent);
+  }
+
+  .stepOneGalleryCardLabel {
+    font-size: var(--fs-sm);
+    font-weight: 600;
+    line-height: 1.2;
+  }
+}
+
+
+@media (max-width: 960px) {
+  .stepTwoLayout {
+    gap: var(--step-two-layout-gap, var(--space-3));
+    padding-block-start: var(--step-two-layout-padding-top, var(--space-2));
+    min-height: var(--step-two-layout-min-block, 420px);
+    min-block-size: var(--step-two-layout-min-block, 420px);
+  }
+
+  .stepTwoWorkspace {
+    gap: var(--step-two-workspace-gap, var(--space-3));
+    justify-content: var(--step-two-workspace-justify, center);
+    flex: var(--step-two-workspace-flex, 1 1 auto);
+    min-height: var(--step-two-workspace-min-block, 420px);
+    min-block-size: var(--step-two-workspace-min-block, 420px);
+  }
+
+  .stepTwoPreviewFrame {
+    max-inline-size: 100%;
+    flex: var(--step-two-preview-frame-flex, 1 1 auto);
+    min-height: var(--step-two-preview-frame-min-block, 420px);
+    min-block-size: var(--step-two-preview-frame-min-block, 420px);
+  }
+
+  .stepTwoPreviewBundle {
+    grid-template-columns:
+      minmax(0, var(--step-two-stage-width, 640px))
+      var(--step-two-toolbar-width, 45px);
+    inline-size: auto;
+    gap: var(--step-two-shell-gap, 14px);
+    min-height: var(--step-two-preview-bundle-min-block, 420px);
+    min-block-size: var(--step-two-preview-bundle-min-block, 420px);
+  }
+
+  .stepTwoPreviewViewport {
+    max-inline-size: min(100%, var(--step-two-stage-width, 640px));
+    min-block-size: var(--step-two-stage-height, 420px);
+  }
+
+  .stepTwoActionsRail {
+    inline-size: var(--step-two-toolbar-width, 42px);
+    display: flex;
+    margin-block-start: 0;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .stepTwoActionsDivider {
+    display: block;
+  }
+
+  .stepTwoFooterStack {
+    inline-size: min(var(--nm-shell-max-width, 70rem), calc(100vw - 2 * var(--step-two-viewport-gutter, var(--space-4))));
+  }
+
+  .stepTwoFooterMeta {
+    justify-content: flex-end;
+    flex-direction: row;
+    align-items: center;
+    inline-size: auto;
+  }
+}
+
+@media (max-width: 767px) {
+  .stepTwoLayout {
+    display: flex;
+    flex-direction: column;
+    flex: 0 0 auto;
+    min-height: auto;
+    min-block-size: auto;
+    height: auto;
+    overflow-y: visible;
+    overflow-x: hidden;
+    gap: var(--space-2);
+    padding-block-start: 6px;
+    padding-block-end: 0;
+  }
+
+  .stepTwoWorkspace {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    flex: 0 0 auto;
+    min-height: auto;
+    min-block-size: auto;
+    gap: 8px;
+    padding-block-end: calc(120px + var(--safe-area-bottom));
+    box-sizing: border-box;
+  }
+
+  .stepTwoTopBar {
+    padding-inline: 0;
+  }
+
+  .stepTwoBackButton {
+    font-size: var(--fs-lg);
+  }
+
+  .stepTwoPreviewFrame {
+    flex: 0 0 auto;
+    inline-size: 100%;
+    max-inline-size: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    padding-inline: 0;
+    min-height: auto;
+    min-block-size: auto;
+  }
+
+  .stepTwoPreviewTitle,
+  .stepTwoPreviewCaption {
+    inline-size: 100%;
+    white-space: normal;
+  }
+
+  .stepTwoPreviewTitle {
+    margin: 0;
+    grid-column: auto;
+    grid-row: auto;
+    align-self: auto;
+  }
+
+  .stepTwoPreviewBundle {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    align-self: center;
+    justify-content: flex-start;
+    inline-size: 100%;
+    max-inline-size: 100%;
+    gap: 8px;
+    min-height: auto;
+    min-block-size: auto;
+  }
+
+  .stepTwoPreviewBackRail {
+    inline-size: 100%;
+    margin-block-end: 22px;
+  }
+
+  .stepTwoPreviewCanvasColumn {
+    grid-column: auto;
+    grid-row: auto;
+    align-items: center;
+    inline-size: min(100%, var(--step-two-stage-width, 100%));
+    margin-block-start: 10px;
+  }
+
+  .stepTwoPreviewViewport {
+    inline-size: min(100%, var(--step-two-stage-width, 100%));
+    max-inline-size: 100%;
+    /* La fila de medida (p. ej. «100 CM») es absolute bajo el lienzo: reservar hueco para no superponer el caption */
+    padding-block-end: calc(var(--step-two-measure-offset, 12px) + 22px);
+  }
+
+  .stepTwoActionsRail {
+    grid-column: auto;
+    grid-row: auto;
+    align-self: stretch;
+    justify-self: stretch;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    column-gap: 4px;
+    row-gap: 6px;
+    inline-size: 100%;
+    max-inline-size: 100%;
+    margin-inline-start: 0;
+    margin-inline-end: 0;
+    padding: 6px 8px;
+    border: 1px solid color-mix(in srgb, var(--nm-accent-blue) 12%, var(--nm-on-dark-20));
+    border-radius: 12px;
+    background: var(--nm-step-two-action-rail-bg-mobile);
+    box-shadow: var(--nm-shadow-footer-secondary);
+    overflow: hidden;
+    box-sizing: border-box;
+    margin-block-start: 30px;
+  }
+
+  .stepTwoPreviewHint {
+    z-index: 50;
+    inline-size: calc(100% - var(--space-6));
+    justify-content: center;
+    padding-inline: var(--space-3);
+    font-size: var(--fs-sm);
+  }
+
+  .stepTwoActionButton {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    inline-size: 100%;
+    min-inline-size: 0;
+    min-block-size: 48px;
+    padding: 4px 2px;
+    gap: 2px;
+    font-size: 10px;
+    line-height: 1.1;
+    text-align: center;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    box-sizing: border-box;
+    margin: 0;
+  }
+
+  .stepTwoActionButton > span:last-child {
+    inline-size: 100%;
+    line-height: 1.1;
+    overflow-wrap: anywhere;
+  }
+
+  .stepTwoActionIcon {
+    inline-size: 16px;
+    block-size: 16px;
+  }
+
+  .stepTwoActionsDivider {
+    display: none !important;
+  }
+
+  .stepTwoFooterPrice {
+    font-size: 20px;
+    line-height: 1.1;
+    letter-spacing: -0.03em;
+  }
+
+  .stepTwoFooterSizeMaterialLine {
+    display: block;
+    margin: 0;
+    color: rgba(255, 255, 255, 0.6);
+    font-family: Inter, var(--font-family), sans-serif;
+    font-size: 12px;
+    font-style: normal;
+    font-weight: 400;
+    line-height: 18px;
+  }
+
+  .stepTwoFooterStack {
+    position: fixed;
+    inset-inline-start: 50%;
+    inset-block-end: calc(clamp(20px, 4vw, 32px) + var(--safe-area-bottom));
+    transform: translateX(-50%);
+    inline-size: min(var(--nm-shell-max-width, 70rem), calc(100vw - 2 * var(--step-two-viewport-gutter, var(--space-4))));
+    max-inline-size: calc(100vw - 2 * var(--step-two-viewport-gutter, var(--space-4)));
+    margin: 0;
+    z-index: 140;
+  }
+
+  .stepTwoFooter {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 15px;
+    padding: 16px;
+  }
+
+  .stepTwoFooterTopRow {
+    inline-size: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .stepTwoFooterMeta {
+    flex: 0 0 auto;
+    margin-inline-start: auto;
+    justify-content: flex-end;
+  }
+
+  .stepTwoFooterPriceCaption {
+    display: none;
+  }
+
+  .stepTwoStatusBadge {
+    min-block-size: var(--step-two-footer-control-height);
+    block-size: var(--step-two-footer-control-height);
+    padding-inline: 10px;
+    font-size: 12px;
+  }
+
+  .stepTwoFooterPrimary {
+    inline-size: 100%;
+    min-inline-size: 100%;
+    padding-inline: 12px;
+    font-size: 12px;
+  }
+
+  .stepTwoPreviewCaptionBottom {
+    grid-row: auto;
+    align-self: auto;
+    margin-block-start: 20px;
+  }
+
+  .stepTwoAccordionTitle,
+  .stepTwoOptionTitle,
+  .stepTwoOptionPrice {
+    font-size: var(--fs-base);
+  }
+
+  .stepTwoAccordionSummary,
+  .stepTwoOptionDescription {
+    font-size: var(--fs-sm);
+  }
+
+  .stepTwoConfigActions {
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .stepTwoDrawerBackdrop {
+    padding: 0;
+    align-items: stretch;
+    justify-content: flex-start;
+  }
+
+  .stepTwoDrawerBackdrop.stepTwoConfigDrawerBackdrop {
+    align-items: stretch;
+  }
+
+  .stepTwoToolsDrawerBackdrop {
+    justify-content: flex-end;
+  }
+
+  .stepTwoConfigDrawer {
+    position: fixed;
+    inset-block-start: 0;
+    inset-block-end: 0;
+    inset-inline-start: 0;
+    inset-inline-end: 0;
+    margin: 0;
+    inline-size: 100%;
+    max-inline-size: 100%;
+    min-inline-size: 0;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    block-size: 100vh;
+    min-block-size: 100vh;
+    max-block-size: 100vh;
+    border-radius: 0;
+    border-inline-start: none;
+    border-inline-end: none;
+    border-block-start: none;
+    border-block-end: none;
+    animation: stepTwoConfigDrawerSlideInFromRight 0.24s ease-out;
+  }
+
+  .stepTwoToolsDrawer {
+    position: fixed;
+    inset-block-start: 0;
+    inset-block-end: 0;
+    inset-inline-start: 0;
+    inset-inline-end: 0;
+    margin: 0;
+    inline-size: 100%;
+    max-inline-size: 100%;
+    min-inline-size: 0;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    block-size: 100vh;
+    min-block-size: 100vh;
+    max-block-size: 100vh;
+    border-radius: 0;
+    border-inline-start: none;
+    border-inline-end: none;
+    border-block-start: none;
+    border-block-end: none;
+    animation: stepTwoConfigDrawerSlideInFromRight 0.24s ease-out;
+  }
+
+  .stepTwoToolsDrawer .stepTwoDrawerHeader {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--surface);
+  }
+
+  .stepTwoToolsDrawerScroll {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+    padding-bottom: calc(48px + var(--safe-area-bottom));
+  }
+
+  .stepTwoConfigDrawer::before {
+    content: none;
+    display: none;
+  }
+
+  .stepTwoToolsDrawer::before {
+    content: none;
+    display: none;
+  }
+
+  .stepThreeTitle {
+    font-size: var(--fs-2xl);
+  }
+
+  .stepThreeProjectName {
+    font-size: var(--fs-base);
+  }
+
+  .stepThreeDetailRow {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-3);
+    align-items: center;
+  }
+
+  .stepThreeDetailValue,
+  .stepThreeDetailValueTotal {
+    text-align: right;
+  }
+
+}
+
+/* Paso 2 rail: si el ancho es muy chico, 2 columnas × 2 filas en lugar de 4 en una fila */
+@media (max-width: 360px) {
+  .stepTwoActionsRail {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767px) {
+  .stepThreeLayout {
+    align-items: stretch;
+  }
+
+  .stepThreePreviewFrame {
+    inline-size: 84%;
+  }
+
+  .stepThreeSafetyNote {
+    display: flex;
+    justify-content: center;
+    inline-size: 100%;
+  }
+
+  .stepThreeSafetyIcon {
+    display: none;
+  }
+
+  .stepThreeSafetyNoteText {
+    text-align: center;
+    font-size: var(--fs-2xs);
+    line-height: 14px;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+  }
+
+  .stepThreeActionsRow {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: var(--space-3);
+  }
+
+  .stepThreeSecondaryButton,
+  .stepThreePrimaryButton {
+    flex: 0 0 auto;
+    inline-size: 100%;
+    min-inline-size: 0;
+    border-radius: var(--radius-full);
+  }
+
+  .stepThreePrimaryButton {
+    order: -1;
+  }
+
+  .stepThreeSecondaryButton {
+    border: 1px solid var(--border-strong);
+  }
+
+  .stepThreeDetailValueTotal {
+    color: var(--foreground);
+    font-size: var(--fs-xl);
+    font-weight: 600;
+    line-height: 1.25;
+  }
+
+  .stepThreeDetailRowTotal .stepThreeDetailLabel {
+    align-self: end;
+  }
+}
+

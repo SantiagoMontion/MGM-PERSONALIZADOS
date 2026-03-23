@@ -1,10 +1,17 @@
 export const GLASSPAD_SIZE_CM = { w: 49, h: 42 };
 
+/** Misma medida fija 49×42 cm y mismas reglas de tamaño que Glasspad (sin personalizar). */
+export function isFixedPad49x42Material(material) {
+  const m = String(material ?? '').trim();
+  return m === 'Glasspad' || m === 'Ultra';
+}
+
 export const DEFAULT_SIZE_CM = {
   Classic: { w: 90, h: 40 },
   PRO: { w: 90, h: 40 },
   Alfombra: { w: 90, h: 40 },
   Glasspad: { ...GLASSPAD_SIZE_CM },
+  Ultra: { ...GLASSPAD_SIZE_CM },
 };
 
 export const MIN_DIMENSION_CM_BY_MATERIAL = {
@@ -12,6 +19,7 @@ export const MIN_DIMENSION_CM_BY_MATERIAL = {
   PRO: { w: 20, h: 20 },
   Alfombra: { w: 20, h: 20 },
   Glasspad: { ...GLASSPAD_SIZE_CM },
+  Ultra: { ...GLASSPAD_SIZE_CM },
 };
 
 export const LIMITS = {
@@ -19,6 +27,7 @@ export const LIMITS = {
   PRO: { maxW: 120, maxH: 60 },
   Alfombra: { maxW: 140, maxH: 100 },
   Glasspad: { maxW: GLASSPAD_SIZE_CM.w, maxH: GLASSPAD_SIZE_CM.h },
+  Ultra: { maxW: GLASSPAD_SIZE_CM.w, maxH: GLASSPAD_SIZE_CM.h },
 };
 
 export const STANDARD = {
@@ -44,11 +53,13 @@ export const STANDARD = {
     { w: 140, h: 100 },
   ],
   Glasspad: [GLASSPAD_SIZE_CM],
+  Ultra: [GLASSPAD_SIZE_CM],
 };
 
 export function normalizeMaterialLabel(value) {
   const text = String(value ?? '').toLowerCase();
   if (text.includes('glass')) return 'Glasspad';
+  if (text.includes('ultra')) return 'Ultra';
   if (text.includes('alfombr')) return 'Alfombra';
   if (text.includes('pro')) return 'PRO';
   if (text.includes('classic')) return 'Classic';

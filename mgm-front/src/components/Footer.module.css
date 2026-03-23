@@ -1,12 +1,12 @@
 .footer {
-  background: #181818;
+  background: var(--surface);
   padding: clamp(32px, 6vw, 60px) clamp(24px, 8vw, 80px);
-  color: rgba(242, 243, 245, 0.92);
+  color: var(--foreground);
   display: flex;
   flex-direction: column;
   gap: clamp(24px, 4vw, 40px);
-  font-family: 'Poppins', sans-serif;
-  
+  font-family: var(--font-family);
+  border-top: 1px solid var(--border-default);
 }
 
 .topRow {
@@ -31,8 +31,8 @@
 
 .columnTitle {
   margin: 0;
-  font-size: 16px;
-  font-weight: 600;
+  font-size: var(--fs-base);
+  font-weight: var(--font-weight-semibold);
   letter-spacing: 0.05em;
 }
 
@@ -46,15 +46,15 @@
 }
 
 .link {
-  color: rgba(242, 243, 245, 0.7);
-  font-size: 14px;
+  color: var(--foreground-secondary);
+  font-size: var(--fs-sm);
   text-decoration: none;
   transition: color 0.2s ease-in-out;
 }
 
 .link:hover,
 .link:focus-visible {
-  color: rgba(242, 243, 245, 1);
+  color: var(--foreground);
   outline: none;
 }
 
@@ -65,21 +65,21 @@
 }
 
 .location {
-  font-size: 18px;
-  font-weight: 600;
-  color: rgba(242, 243, 245, 1);
+  font-size: var(--fs-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--foreground);
 }
 
 .bottomRow {
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid var(--border-default);
   padding-top: clamp(16px, 3vw, 24px);
   display: flex;
   justify-content: flex-end;
 }
 
 .copyright {
-  font-size: 12px;
-  color: rgba(242, 243, 245, 0.6);
+  font-size: var(--fs-xs);
+  color: var(--foreground-tertiary);
 }
 
 @media (max-width: 768px) {
@@ -107,10 +107,10 @@
   }
 
   .location {
-    font-size: 16px;
+    font-size: var(--fs-base);
   }
 
   .copyright {
-    font-size: 11px;
+    font-size: var(--fs-2xs);
   }
 }

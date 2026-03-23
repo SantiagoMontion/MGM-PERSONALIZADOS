@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { HexColorPicker, HexColorInput } from "react-colorful";
-import { resolveIconAsset } from "@/lib/iconRegistry.js";
+import { DEFAULT_ICON_FALLBACK, resolveIconAsset } from "@/lib/iconRegistry.js";
 import { isTouchDevice } from "@/lib/device.ts";
 import styles from "./EditorCanvas.module.css";
 
@@ -31,6 +31,10 @@ export default function ColorPopover({
   onClose,
   onPickFromCanvas,
   anchorRef,
+  /** Sin width/height fijos en el wrapper: el panel queda pegado al ancla (p. ej. dock paso 2). */
+  intrinsicWrapper = false,
+  wrapperClassName = '',
+  popoverClassName = '',
 }) {
   const wrapperRef = useRef(null);
   const contentRef = useRef(null);
@@ -91,12 +95,15 @@ export default function ColorPopover({
 
   useEffect(() => {
     if (!open) {
-      setWrapperSize({
-        width: PICKER_BASE_WIDTH * PICKER_SCALE,
-        height: PICKER_BASE_HEIGHT * PICKER_SCALE,
-      });
+      if (!intrinsicWrapper) {
+        setWrapperSize({
+          width: PICKER_BASE_WIDTH * PICKER_SCALE,
+          height: PICKER_BASE_HEIGHT * PICKER_SCALE,
+        });
+      }
       return;
     }
+    if (intrinsicWrapper) return;
     const contentEl = contentRef.current;
     if (!contentEl || !wrapperRef.current) return;
 
@@ -125,7 +132,7 @@ export default function ColorPopover({
       ro.disconnect();
       window.removeEventListener("resize", updateSize);
     };
-  }, [open]);
+  }, [open, intrinsicWrapper]);
 
   useEffect(() => {
     if (!open || isTouch) return;
@@ -235,19 +242,32 @@ export default function ColorPopover({
 
   const showEyedropperIcon = EYEDROPPER_ICON_SRC && !iconError;
 
-  const wrapperStyle = {
-    "--picker-scale": PICKER_SCALE,
-    width: `${wrapperSize.width}px`,
-    height: `${wrapperSize.height}px`,
-  };
+  const wrapperStyle = intrinsicWrapper
+    ? { "--picker-scale": PICKER_SCALE }
+    : {
+        "--picker-scale": PICKER_SCALE,
+        width: `${wrapperSize.width}px`,
+        height: `${wrapperSize.height}px`,
+      };
+
+  const mergedWrapperClass = [
+    styles.colorPickerWrapper,
+    intrinsicWrapper ? styles.colorPickerWrapperIntrinsic : "",
+    wrapperClassName,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <div
       ref={wrapperRef}
-      className={styles.colorPickerWrapper}
+      className={mergedWrapperClass}
       style={wrapperStyle}
     >
-      <div ref={contentRef} className={styles.colorPopover}>
+      <div
+        ref={contentRef}
+        className={[styles.colorPopover, popoverClassName].filter(Boolean).join(" ")}
+      >
         <div className={styles.pickerArea}>
           <HexColorPicker
             color={hex}
@@ -277,7 +297,9 @@ export default function ColorPopover({
                   draggable="false"
                 />
               ) : (
-                <span className={styles.eyedropperFallback} aria-hidden="true" />
+                <span className={styles.eyedropperFallback} aria-hidden="true">
+                  {DEFAULT_ICON_FALLBACK}
+                </span>
               )}
             </button>
             <HexColorInput

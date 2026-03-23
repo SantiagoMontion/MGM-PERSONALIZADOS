@@ -87,6 +87,9 @@ type StorageSearchItem = {
   updatedAt: string | null;
   measure: string | null;
   material: string | null;
+  // Añadimos campos para que el front pueda paginar por cursor (cuando cae al modo "storage").
+  createdAt?: string | null;
+  slug?: string | null;
   widthCm?: number | null;
   heightCm?: number | null;
   previewTried?: string[];
@@ -209,6 +212,35 @@ function parseOffset(value: unknown): number {
   return Math.floor(num);
 }
 
+type Cursor = { createdAt: string; slug: string };
+
+function encodeCursor(cursor: Cursor): string {
+  // base64url (sin padding) para que el cursor sea seguro en querystring.
+  const json = JSON.stringify({ createdAt: cursor.createdAt, slug: cursor.slug });
+  return Buffer.from(json, 'utf8')
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/g, '');
+}
+
+function decodeCursor(raw: unknown): Cursor | null {
+  if (typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  try {
+    const normalized = trimmed.replace(/-/g, '+').replace(/_/g, '/');
+    const withPadding = normalized + '==='.slice((normalized.length + 3) % 4);
+    const json = Buffer.from(withPadding, 'base64').toString('utf8');
+    const parsed = JSON.parse(json) as Partial<Cursor>;
+    if (!parsed?.createdAt || typeof parsed.createdAt !== 'string') return null;
+    if (typeof parsed.slug !== 'string') return null;
+    return { createdAt: parsed.createdAt, slug: parsed.slug };
+  } catch {
+    return null;
+  }
+}
+
 function normalizeQuery(value: unknown): string {
   if (Array.isArray(value)) {
     value = value[0];
@@ -236,6 +268,15 @@ function parseDebug(value: unknown): boolean {
 
 function escapeForIlike(term: string): string {
   return term.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+}
+
+function quotePostgrestFilterValue(value: string): string {
+  return `"${String(value || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+}
+
+function buildLiteralIlikeOrFilter(columns: string[], query: string): string {
+  const pattern = quotePostgrestFilterValue(`%${escapeForIlike(query)}%`);
+  return columns.map((column) => `${column}.ilike.${pattern}`).join(',');
 }
 
 function isAbortError(error: unknown): boolean {
@@ -284,18 +325,37 @@ async function searchPrints(
   limit: number,
   offset: number,
   sortBy: 'created_at' | 'file_name',
-): Promise<{ items: SearchResultItem[]; total: number }> {
-  const pattern = `%${escapeForIlike(query)}%`;
+  cursor: Cursor | null,
+): Promise<{ items: SearchResultItem[]; total: number; hasMore: boolean; nextCursor: string | null }> {
+  const filter = buildLiteralIlikeOrFilter(['file_name', 'slug', 'file_path'], query);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), SUPABASE_TIMEOUT_MS);
+
+  const fetchLimit = limit + 1; // +1 para detectar `hasMore` sin contar filas.
   try {
-    const { data, error, count } = await client
+    let builder = client
       .from(PRINTS_TABLE)
-      .select('id, created_at, file_name, file_path, slug, preview_url, width_cm, height_cm, material, file_size_bytes', { count: 'estimated' })
-      .or(`file_name.ilike.${pattern},slug.ilike.${pattern},file_path.ilike.${pattern}`)
-      .order(sortBy, { ascending: false, nullsFirst: false })
-      .range(offset, offset + limit - 1)
+      .select('id, created_at, file_name, file_path, slug, preview_url, width_cm, height_cm, material, file_size_bytes')
+      .or(filter)
       .abortSignal(controller.signal);
+
+    // Siempre ordenamos por "más nuevo" primero (cursor keyset consistente).
+    builder = builder
+      .order('created_at', { ascending: false, nullsFirst: false })
+      .order('slug', { ascending: false, nullsFirst: false });
+
+    if (cursor) {
+      const cursorFilter = `created_at.lt.${cursor.createdAt},and(created_at.eq.${cursor.createdAt},slug.lt.${cursor.slug})`;
+      builder = builder.or(cursorFilter).range(0, fetchLimit - 1);
+    } else {
+      // Modo compatibilidad: paginación por offset.
+      builder = builder.range(offset, offset + fetchLimit - 1);
+      // Si el caller quiere otro orden, lo ignoramos para que el "cursor next" siga siendo consistente.
+      // (En el front actual siempre pedimos created_at.)
+      void sortBy;
+    }
+
+    const { data, error } = await builder;
 
     if (error) {
       const err = new Error(error.message);
@@ -306,9 +366,26 @@ async function searchPrints(
 
     const rows = Array.isArray(data) ? data : [];
     const storage = client.storage.from(process.env.SEARCH_STORAGE_BUCKET || DEFAULT_BUCKET);
-    const items = await Promise.all(rows.map((row) => mapRowToItem(storage, row as PrintRow)));
-    const total = typeof count === 'number' && Number.isFinite(count) ? count : items.length;
-    return { items, total };
+    const hasMore = rows.length > limit;
+    const pageRows = hasMore ? rows.slice(0, limit) : rows;
+    const items = await Promise.all(pageRows.map((row) => mapRowToItem(storage, row as PrintRow)));
+
+    let nextCursor: string | null = null;
+    if (hasMore) {
+      const last = pageRows[pageRows.length - 1];
+      const createdAt = (last?.created_at ?? null) as string | null;
+      const slug = (typeof last?.slug === 'string' ? last.slug : null) as string | null;
+      if (createdAt && slug) {
+        nextCursor = encodeCursor({ createdAt, slug });
+      }
+    }
+
+    return {
+      items,
+      total: items.length, // evitamos contar filas (mejora 4). UI nueva usa `hasMore/nextCursor`.
+      hasMore,
+      nextCursor,
+    };
   } finally {
     clearTimeout(timeout);
   }
@@ -905,6 +982,8 @@ async function searchStorage(
         sizeBytes,
         sizeMB: computeSizeMb(sizeBytes),
         updatedAt: file.updated_at ?? null,
+        createdAt: file.updated_at ?? null,
+        slug: getFileBaseName(file.name) || null,
         measure,
         material,
       };
@@ -950,6 +1029,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const limit = parseLimit(req.query?.limit);
   const offset = parseOffset(req.query?.offset);
   const sortBy = parseSortColumn(req.query?.sortBy ?? req.query?.sort ?? req.query?.orderBy);
+  const cursor = decodeCursor(req.query?.cursor);
   const debug = parseDebug(req.query?.debug);
   const searchTerms = buildSearchTerms(rawQuery);
 
@@ -973,20 +1053,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (client) {
     try {
-      const { items, total } = await searchPrints(client, rawQuery, limit, offset, sortBy);
-      if (total > 0) {
-        sendJsonResponse(req, res, 200, {
-          ok: true,
-          items,
-          total,
-          limit,
-          offset,
-          diagId,
-          mode: 'db',
-          sortBy,
-        });
-        return;
-      }
+      const { items, total, hasMore, nextCursor } = await searchPrints(client, rawQuery, limit, offset, sortBy, cursor);
+      sendJsonResponse(req, res, 200, {
+        ok: true,
+        items,
+        total,
+        limit,
+        offset,
+        diagId,
+        mode: 'db',
+        sortBy,
+        hasMore,
+        nextCursor,
+      });
+      return;
     } catch (err) {
       if (isAbortError(err)) {
         logApiError('prints-search', { diagId, step: 'timeout', error: err });
@@ -1037,6 +1117,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { items, total, scannedDirs, scannedFiles, errors } = storageResult;
   const bucket = process.env.SEARCH_STORAGE_BUCKET || DEFAULT_BUCKET;
   const root = normalizeStorageRoot(process.env.SEARCH_STORAGE_ROOT ?? DEFAULT_ROOT);
+
+  const computedHasMore = offset + limit < total;
+  const last = Array.isArray(items) && items.length ? items[items.length - 1] : null;
+  const lastCreatedAt = (last as any)?.createdAt ?? (last as any)?.updatedAt ?? null;
+  const lastSlug = (last as any)?.slug ?? null;
+  const computedNextCursor = (typeof lastCreatedAt === 'string' && typeof lastSlug === 'string' && lastSlug)
+    ? encodeCursor({ createdAt: lastCreatedAt, slug: lastSlug })
+    : null;
   const payload: Record<string, unknown> = {
     ok: true,
     items,
@@ -1046,6 +1134,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     diagId,
     mode: 'storage',
     sortBy,
+    hasMore: computedHasMore,
+    nextCursor: computedNextCursor,
   };
 
   if (debug) {

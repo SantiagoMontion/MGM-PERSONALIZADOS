@@ -2,8 +2,9 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 
 const FLOW_STORAGE_KEY = 'mgm_flow_v1';
 const PERSIST_KEYS = [
-  'designName',
   'material',
+  'isCircular',
+  'shape',
   'widthCm',
   'heightCm',
   'options',
@@ -19,9 +20,10 @@ const safeStr = (value: unknown, fallback = ''): string => {
   const str = asStr(value, fallback).trim();
   return str || fallback;
 };
-const normalizeMaterial = (value: unknown): 'Glasspad' | 'PRO' | 'Alfombra' | 'Classic' | '' => {
+const normalizeMaterial = (value: unknown): 'Glasspad' | 'Ultra' | 'PRO' | 'Alfombra' | 'Classic' | '' => {
   const normalized = safeStr(value).toLowerCase();
   if (normalized.includes('glass')) return 'Glasspad';
+  if (normalized.includes('ultra')) return 'Ultra';
   if (normalized.includes('pro')) return 'PRO';
   if (normalized.includes('alfombr')) return 'Alfombra';
   return normalized ? 'Classic' : '';
@@ -47,6 +49,8 @@ export type FlowState = {
   jobId?: string | null;
   designName?: string;
   material?: string;
+  isCircular?: boolean;
+  shape?: 'circle' | 'rounded_rect' | string;
   options?: Record<string, unknown> | null;
   widthCm?: number | null;
   heightCm?: number | null;
@@ -97,6 +101,8 @@ const defaultState: Omit<FlowState, 'set' | 'reset'> = {
   jobId: undefined,
   designName: '',
   material: 'Classic',
+  isCircular: false,
+  shape: 'rounded_rect',
   options: {},
   widthCm: null,
   heightCm: null,
@@ -158,7 +164,7 @@ export function FlowProvider({ children }: { children: ReactNode }) {
           (next as any)[key] = parsed[key];
         });
       }
-      if (next.material === 'Glasspad') {
+      if (next.material === 'Glasspad' || next.material === 'Ultra') {
         next.widthCm = 49;
         next.heightCm = 42;
       }
@@ -220,7 +226,6 @@ export function FlowProvider({ children }: { children: ReactNode }) {
       console.warn('[flow] persist_failed', error);
     }
   }, [
-    state.designName,
     state.material,
     state.widthCm,
     state.heightCm,

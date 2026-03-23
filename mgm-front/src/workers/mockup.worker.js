@@ -13,6 +13,7 @@ const GLASS_FIXED_LONG_PX = Number(env?.VITE_MOCKUP_GLASSPAD_FIXED_LONG_PX) || 7
 function materialLabelFromOpts(opts) {
   const raw = String((opts?.material || opts?.materialLabel || opts?.options?.material || '')).toLowerCase();
   if (raw.includes('glass')) return 'Glasspad';
+  if (raw.includes('ultra')) return 'Ultra';
   if (raw.includes('pro')) return 'PRO';
   return 'Classic';
 }

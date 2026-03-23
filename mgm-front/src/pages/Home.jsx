@@ -5,26 +5,37 @@ import {
   useEffect,
   useLayoutEffect,
   useMemo,
+  useReducer,
   useRef,
   useState,
   useId,
 } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useOutletContext } from 'react-router-dom';
 import SeoJsonLd from '../components/SeoJsonLd';
 
 import UploadStep from '../components/UploadStep';
 import Calculadora from '../components/Calculadora.jsx';
+import CustomSizeFields from '../components/CustomSizeFields.jsx';
 import EditorCanvas from '../components/EditorCanvas';
-import SizeControls from '../components/SizeControls';
+import ColorPopover from '../components/ColorPopover';
 import LoadingOverlay from '../components/LoadingOverlay';
+import PrintAreaHelpCaption from '../components/PrintAreaHelpCaption.jsx';
+import deleteActionIconSrc from '@/assets/icons/eliminar.svg';
+import toolsActionIconSrc from '@/assets/icons/herramientas.svg';
+import uploadAreaIconSrc from '@/assets/icons/imagen.svg';
+import uploadAreaLightIconSrc from '@/assets/icons/imagen2.svg';
+import replaceActionIconSrc from '@/assets/icons/remplazar.svg';
+import vrActionIconSrc from '@/assets/icons/vr.svg';
+import closeXIconSrc from '../icons/closeX.svg';
 
 import {
   LIMITS,
-  STANDARD,
   GLASSPAD_SIZE_CM,
   DEFAULT_SIZE_CM,
   MIN_DIMENSION_CM_BY_MATERIAL,
+  isFixedPad49x42Material,
 } from '../lib/material.js';
+import { calculateTransferPricing, formatARS } from '../lib/pricing.js';
 
 import {
   DPI_WARN_THRESHOLD,
@@ -41,8 +52,10 @@ import { useFlow } from '@/state/flow.js';
 import { isTouchDevice } from '@/lib/device.ts';
 import { getMaxImageMb, bytesToMB, formatHeavyImageToastMessage } from '@/lib/imageLimits.js';
 import { MAX_IMAGE_MB as MAX_IMAGE_MB_BASE } from '../lib/imageSizeLimit.js';
+import { createJobAndProduct, pickCommerceTarget } from '@/lib/shopify.ts';
+import { parseSupabasePublicStorageUrl } from '@/lib/supabaseUrl.ts';
 
-const MAX_IMAGE_MB = MAX_IMAGE_MB_BASE; // ajustar fácilmente; hoy 40MB
+const MAX_IMAGE_MB = MAX_IMAGE_MB_BASE; // ajustar facilmente; hoy 40MB
 const MAX_IMAGE_BYTES = MAX_IMAGE_MB * 1024 * 1024;
 
 const asStr = (value) => (typeof value === 'string' ? value : value == null ? '' : String(value));
@@ -69,12 +82,57 @@ const sanitizeFileName = (value, fallback = 'design') => {
 const normalizeMaterialLabelSafe = (value) => {
   const label = safeStr(value);
   if (label === 'Alfombra') return 'Alfombra';
+  if (label === 'Ultra') return 'Ultra';
   const normalized = label.toLowerCase();
   if (normalized.includes('glass')) return 'Glasspad';
+  if (normalized.includes('ultra')) return 'Ultra';
   if (normalized.includes('pro')) return 'PRO';
   if (normalized.includes('alfombra')) return 'Alfombra';
   return 'Classic';
 };
+const normalizeShapeSafe = (value) => {
+  const normalized = safeStr(value).toLowerCase();
+  if (normalized === 'circle' || normalized === 'circular' || normalized === 'form') {
+    return 'circle';
+  }
+  return 'rounded_rect';
+};
+const resolveCircularShapeFromSource = (source, materialLabel) => {
+  if (isFixedPad49x42Material(normalizeMaterialLabelSafe(materialLabel))) return false;
+  if (source?.isCircular === true || source?.options?.isCircular === true) return true;
+  return [
+    source?.shape,
+    source?.options?.shape,
+    source?.editorState?.shape,
+  ].some((candidate) => normalizeShapeSafe(candidate) === 'circle');
+};
+const formatMaterialLabelWithShape = (value, isCircular = false) => {
+  const materialLabel = normalizeMaterialLabelSafe(value);
+  if (isCircular && !isFixedPad49x42Material(materialLabel)) {
+    return `${materialLabel} Form`;
+  }
+  return materialLabel;
+};
+const PROJECT_NAME_ALLOWED_CHARACTERS_REGEX = /^[\p{L}\p{N}.,\-@ ]+$/u;
+const PROJECT_NAME_HAS_LETTER_REGEX = /\p{L}/u;
+const PROJECT_NAME_EMOJI_REGEX = /[\p{Extended_Pictographic}\uFE0F\u200D]/u;
+const stripProjectNameEmojis = (value) => asStr(value).replace(/[\p{Extended_Pictographic}\uFE0F\u200D]/gu, '');
+
+function validateProjectName(value) {
+  const raw = asStr(value);
+  const trimmed = raw.trim();
+  if (!trimmed) return PROJECT_NAME_ERROR_MESSAGE;
+  if (PROJECT_NAME_EMOJI_REGEX.test(raw)) {
+    return 'No uses emojis en el nombre del proyecto.';
+  }
+  if (!PROJECT_NAME_ALLOWED_CHARACTERS_REGEX.test(raw)) {
+    return 'Usá solo letras, números, espacios y los símbolos . , - @';
+  }
+  if (!PROJECT_NAME_HAS_LETTER_REGEX.test(raw)) {
+    return 'El nombre del proyecto debe incluir al menos una letra.';
+  }
+  return '';
+}
 
 const withTimeout = (promise, ms, onTimeout) => new Promise((resolve, reject) => {
   let finished = false;
@@ -103,24 +161,105 @@ import { resolveIconAsset } from '@/lib/iconRegistry.js';
 import { sha256Hex } from '@/lib/hash.js';
 import { trackEvent } from '@/lib/tracking';
 
-const CONFIG_ICON_SRC = resolveIconAsset('wheel.svg');
-const CONFIG_ARROW_ICON_SRC = resolveIconAsset('down.svg');
-const TUTORIAL_ICON_SRC = resolveIconAsset('play.svg');
+const STEP_TWO_TOOL_ICON_SOURCES = {
+  centerHorizontal: resolveIconAsset('centrado_V.svg'),
+  centerVertical: resolveIconAsset('centrado_h.svg'),
+  alignLeft: resolveIconAsset('izquierda.svg'),
+  alignRight: resolveIconAsset('derecha.svg'),
+  alignTop: resolveIconAsset('arriba.svg'),
+  alignBottom: resolveIconAsset('abajo.svg'),
+  flipHorizontal: resolveIconAsset('espejo_h.svg'),
+  flipVertical: resolveIconAsset('espejo_v.svg'),
+  rotate90: resolveIconAsset('rotar.svg'),
+  cover: resolveIconAsset('cubrir.svg'),
+  contain: resolveIconAsset('contener.svg'),
+  stretch: resolveIconAsset('estirar.svg'),
+  circular: resolveIconAsset('shape-circle.svg'),
+  rectangular: resolveIconAsset('shape-square.svg'),
+};
+const STEP_TWO_DRAWER_SECTIONS = {
+  size: 'size',
+  material: 'material',
+  project: 'project',
+};
+const STEP_TWO_SIZE_OPTIONS = [
+  { id: 'mini', label: '', w: 25, h: 25 },
+  { id: 'Classic', label: '', w: 82, h: 32 },
+  { id: 'large', label: '', w: 90, h: 40 },
+  { id: 'xl', label: '', w: 100, h: 60 },
+  { id: 'xxl', label: '', w: 140, h: 100 },
+];
+const STEP_TWO_CUSTOM_SIZE_OPTION = {
+  id: 'custom',
+  value: 'custom',
+  label: 'Personalizada',
+  description: '',
+};
+const STEP_TWO_MATERIAL_OPTIONS = [
+  {
+    value: 'Classic',
+    label: 'Classic',
+    description: 'Diario, gaming casual y trabajo.',
+  },
+  {
+    value: 'PRO',
+    label: 'Pro',
+    description: 'Juegos competitivos / shooters.',
+    recommended: true,
+  },
+  {
+    value: 'Alfombra',
+    label: 'Alfombra para piso',
+    description: 'Decoración del setup.',
+  },
+  {
+    value: 'Glasspad',
+    label: 'Glasspad',
+    description: 'Movimientos rápidos y flicks.',
+  },
+  {
+    value: 'Ultra',
+    label: 'Ultra',
+    description: 'FPS ultra preciso y tracking.',
+  },
+];
+/** Resumen paso 3 — fila "Material". */
+const STEP_THREE_MATERIAL_SUMMARY = {
+  Classic: 'Híbrido (Base goma)',
+  PRO: 'Control (Base caucho)',
+  Glasspad: 'Speed (Vidrio templado)',
+  Alfombra: 'Suave (Base ecocuero)',
+  Ultra: 'Control (Base Poron)',
+};
+/** Resumen paso 3 — fila "Uso ideal". */
+const STEP_THREE_IDEAL_USE_SUMMARY = {
+  Classic: 'Diario, gaming casual y trabajo.',
+  PRO: 'Juegos competitivos / shooters.',
+  Glasspad: 'Movimientos rápidos y flicks.',
+  Alfombra: 'Decoración del setup.',
+  Ultra: 'FPS ultra preciso y tracking.',
+};
+const PROJECT_NAME_ERROR_MESSAGE = 'Ingresá un nombre para tu proyecto antes de continuar.';
 
 
 const DISABLE_UPLOAD_ORIGINAL = (import.meta.env?.VITE_DISABLE_UPLOAD_ORIGINAL ?? '1') === '1';
+/**
+ * Pruebas: en `true` al confirmar paso 2 se salta `handleContinue` y se abre el paso 3 sin re-subir.
+ * Producción: `false` (Confirmar en «Elegir tamaño y material» ejecuta la subida completa).
+ */
+const SKIP_STEP2_CONTINUE_UPLOAD = false;
 const KEEP_MASTER = (import.meta.env?.VITE_KEEP_MASTER ?? '0') === '1';
 const DELETE_MASTER_AFTER_PDF = (import.meta.env?.VITE_DELETE_MASTER_AFTER_PDF ?? '1') === '1';
 const CANVAS_MAX_WIDTH = 1280;
 const DEFAULT_SIZE = { w: 90, h: 40 };
 const ACK_LOW_ERROR_MESSAGE = 'Confirmá que aceptás imprimir en baja calidad.';
 const MODERATION_REASON_MESSAGES = {
-  real_nudity: 'Bloqueado por moderación: contenido adulto explícito detectado.',
-  extremism_nazi: 'Bloqueado por moderación: contenido extremista nazi detectado.',
-  extremism_nazi_text: 'Bloqueado por moderación: texto extremista nazi detectado.',
-  invalid_body: 'No se pudo analizar la imagen enviada. Probá de nuevo.',
-  server_error: 'Error del servidor de moderación. Intentá nuevamente más tarde.',
-  blocked: 'Bloqueado por moderación.',
+  real_nudity: 'Bloqueado por moderaci\u00F3n: contenido adulto expl\u00EDcito detectado.',
+  extremism_nazi: 'Bloqueado por moderaci\u00F3n: contenido extremista nazi detectado.',
+  extremism_nazi_text: 'Bloqueado por moderaci\u00F3n: texto extremista nazi detectado.',
+  invalid_body: 'No se pudo analizar la imagen enviada. Prob\u00E1 de nuevo.',
+  server_error: 'Error del servidor de moderaci\u00F3n. Intent\u00E1 nuevamente m\u00E1s tarde.',
+  blocked: 'Bloqueado por moderaci\u00F3n.',
 };
 
 const MOD_PREVIEW_LIMIT_BYTES = 800_000;
@@ -131,13 +270,339 @@ const MOD_PREVIEW_FALLBACK_FORMATS = ['image/jpeg'];
 const MOD_PREVIEW_RETRY_QUALITIES = [0.8, 0.7, 0.6];
 const MOD_PREVIEW_RETRY_DIMENSIONS = [1024, 896, 768, 640];
 
-const LOADING_MESSAGES = [
-  '¡Un Mishi ya está trabajando en tu pedido!',
-  'Haciendo magia… no toques nada.',
-  'Ya casi… el gato aprobó tu diseño.', // este queda fijo
-];
+const STEP_TWO_UPLOAD_MESSAGE = 'Guardando tu diseño en alta resolución...';
+const STEP_TWO_UPLOAD_SUBTITLE = 'No cierres nada, esto puede demorar varios segundos.';
+const STEP_THREE_COMMERCE_PENDING_LABEL = 'Enviando...';
+const STEP_THREE_ADD_TO_CART_LABEL = 'Agregar al carrito';
+const STEP_THREE_CHECKOUT_BUTTON_LABEL = 'Finalizar compra';
+const STEP_ONE_PREVIEW_MAX_WIDTH_PX = 551;
 const SKIP_MASTER_UPLOAD = String(import.meta.env?.VITE_SKIP_MASTER_UPLOAD || '0') === '1';
 const MOCKUP_BUCKET = String(import.meta.env?.VITE_MOCKUP_UPLOAD_BUCKET || 'preview');
+/** PDF / master / mockup generados en `handleContinue` (paso 2 → Supabase). No incluye `uploads` del paso 1. */
+const STEP_TWO_REMOTE_STORAGE_BUCKETS = new Set(['outputs', 'preview']);
+const HOME_STEP = {
+  upload: 1,
+  edit: 2,
+  review: 3,
+};
+const STEP_ONE_ACCEPTED_MIME_TYPES = ['image/png', 'image/jpeg'];
+const STEP_ONE_MOBILE_QUERY = '(max-width: 768px)';
+const STEP_ONE_PREVIEW_REFERENCE_CM = { w: 140, h: 100 };
+const CUSTOM_SIZE_BASE_LIMITS_CM = { minW: 25, minH: 25, maxW: 140, maxH: 100 };
+const STEP_ONE_PREVIEW_MEDIUM_BOOST_LIMIT_CM = { w: 100, h: 60 };
+const STEP_ONE_PREVIEW_SMALL_BOOST_LIMIT_CM = { w: 82, h: 32 };
+const STEP_ONE_PREVIEW_FOCUSED_BOOST_LIMIT_CM = { w: 90, h: 40 };
+const STEP_ONE_PREVIEW_SPECIAL_BOOST_SIZE_CM = { w: 25, h: 25 };
+const STEP_ONE_PREVIEW_MEDIUM_BOOST_RATIO = 0.15;
+const STEP_ONE_PREVIEW_MEDIUM_EXTRA_SCALE_RATIO = 0.1;
+const STEP_ONE_PREVIEW_MEDIUM_RANGE_EXTRA_SCALE_RATIO = 0.1;
+const STEP_ONE_PREVIEW_SMALL_RANGE_EXTRA_SCALE_RATIO = 0.15;
+const STEP_ONE_PREVIEW_FOCUSED_RANGE_EXTRA_SCALE_RATIO = 0.1;
+const STEP_ONE_PREVIEW_SPECIAL_SIZE_EXTRA_SCALE_RATIO = 0.25;
+const STEP_ONE_DESKTOP_SPACING_MAX_SIZE_CM = { w: 100, h: 60 };
+const STEP_ONE_DESKTOP_SPACING_MIN_SIZE_CM = { w: 25, h: 25 };
+const STEP_ONE_DESKTOP_SPACING_PX = { min: 40, max: 90 };
+const STEP_TWO_FOOTER_BOTTOM_SPACING_PX = { tight: 40, min: 100, max: 120 };
+const STEP_TWO_100CM_HEIGHT_LAYOUT_CM = 100;
+const STEP_TWO_PREVIEW_FRAME_LIFT_100CM_HEIGHT_DESKTOP_PX = 0;
+const STEP_TWO_100CM_DESKTOP_STAGE_TIGHTEN_PX = 96;
+const STEP_TWO_SMALL_STAGE_MAX_SIDE_CM = 35;
+const STEP_TWO_SMALL_STAGE_VISUAL_SCALE = 0.8;
+const STEP_TWO_DESKTOP_TOOLBAR_EXTRA_WIDTH_PX = 20;
+const STEP_TWO_TOOLBAR_EXTRA_GAP_PX = 20;
+/** Misma imagen de fondo por posición que las categorías anteriores; ahora enlaces a sitios de wallpapers. */
+const STEP_ONE_RECOMMENDED_CATEGORIES = [
+  {
+    id: 'wallhaven',
+    label: 'Wallhaven',
+    href: 'https://wallhaven.cc/',
+    background: 'var(--nm-preview-gradient-minimalistas)',
+  },
+  {
+    id: 'wallhere',
+    label: 'Wallhere',
+    href: 'https://wallhere.com/',
+    background: 'var(--nm-preview-gradient-anime)',
+  },
+  {
+    id: 'alphacoders',
+    label: 'Alphacoders',
+    href: 'https://wall.alphacoders.com/',
+    background: 'var(--nm-preview-gradient-gaming)',
+  },
+  {
+    id: 'unsplash',
+    label: 'Unsplash',
+    href: 'https://unsplash.com/es',
+    background: 'var(--nm-preview-gradient-naturaleza)',
+  },
+  {
+    id: 'pexels',
+    label: 'Pexels',
+    href: 'https://www.pexels.com/es-es/',
+    background: 'var(--nm-preview-gradient-abstractos)',
+  },
+  {
+    id: 'artvee',
+    label: 'Artvee',
+    href: 'https://artvee.com/',
+    background: 'var(--nm-preview-gradient-setups-oscuros)',
+  },
+];
+const sameCmSize = (left, right) => (
+  Number(left?.w) === Number(right?.w) && Number(left?.h) === Number(right?.h)
+);
+const formatSizeLabel = (size) => `${Number(size?.w) || 0}×${Number(size?.h) || 0} cm`;
+const formatStepOneSizeDropdownLabel = (size) => `${Number(size?.w) || 0}x${Number(size?.h) || 0} cm`;
+const STEP_ONE_CUSTOM_SIZE_TRIGGER_LABEL = '';
+const GLASSPAD_FIXED_SIZE_OPTION_ID = 'glasspad-fixed';
+
+const buildGlasspadFixedSizeOption = () => ({
+  id: GLASSPAD_FIXED_SIZE_OPTION_ID,
+  value: `${Number(GLASSPAD_SIZE_CM.w)}x${Number(GLASSPAD_SIZE_CM.h)}`,
+  w: Number(GLASSPAD_SIZE_CM.w),
+  h: Number(GLASSPAD_SIZE_CM.h),
+  label: 'Fijo',
+  measurementLabel: formatSizeLabel(GLASSPAD_SIZE_CM),
+  menuLabel: formatStepOneSizeDropdownLabel(GLASSPAD_SIZE_CM),
+});
+
+const getDropdownStandardSizeOptionsForMaterial = (targetMaterial) => {
+  if (isFixedPad49x42Material(targetMaterial)) {
+    return [buildGlasspadFixedSizeOption()];
+  }
+
+  return STEP_TWO_SIZE_OPTIONS.filter((option) => {
+    if (targetMaterial === 'PRO' && sameCmSize(option, { w: 140, h: 100 })) {
+      return false;
+    }
+    return true;
+  });
+};
+
+const isSizeAllowedForMaterial = (candidate, targetMaterial) => {
+  if (isFixedPad49x42Material(targetMaterial)) {
+    return sameCmSize(candidate, GLASSPAD_SIZE_CM);
+  }
+
+  const min = MIN_DIMENSION_CM_BY_MATERIAL[targetMaterial] || { w: 1, h: 1 };
+  const limits = LIMITS[targetMaterial] || {};
+  const w = Number(candidate?.w);
+  const h = Number(candidate?.h);
+
+  if (!Number.isFinite(w) || !Number.isFinite(h)) return false;
+  if (w < (Number(min.w) || 1) || h < (Number(min.h) || 1)) return false;
+  if (Number.isFinite(Number(limits.maxW)) && w > Number(limits.maxW)) return false;
+  if (Number.isFinite(Number(limits.maxH)) && h > Number(limits.maxH)) return false;
+
+  return true;
+};
+
+const isDropdownStandardSizeForMaterial = (candidate, targetMaterial) => (
+  getDropdownStandardSizeOptionsForMaterial(targetMaterial).some((option) => sameCmSize(option, candidate))
+);
+
+const getDefaultDropdownSizeForMaterial = (targetMaterial) => {
+  if (isFixedPad49x42Material(targetMaterial)) {
+    return { ...GLASSPAD_SIZE_CM };
+  }
+
+  const fallback = DEFAULT_SIZE_CM[targetMaterial] || DEFAULT_SIZE_CM.Classic || DEFAULT_SIZE;
+  return {
+    w: Number(fallback.w) || DEFAULT_SIZE.w,
+    h: Number(fallback.h) || DEFAULT_SIZE.h,
+  };
+};
+
+const resolveSelectedSizeOptionId = ({
+  targetMaterial,
+  targetMode,
+  candidateSize,
+  standardOptions,
+}) => {
+  if (isFixedPad49x42Material(targetMaterial)) {
+    return standardOptions[0]?.id || GLASSPAD_FIXED_SIZE_OPTION_ID;
+  }
+  if (targetMode === 'custom') {
+    return STEP_TWO_CUSTOM_SIZE_OPTION.id;
+  }
+  return (
+    standardOptions.find((option) => sameCmSize(option, candidateSize))?.id
+    || STEP_TWO_CUSTOM_SIZE_OPTION.id
+  );
+};
+
+const resolveEditorSelectionFromFlow = (flowState) => {
+  const source = flowState && typeof flowState === 'object' ? flowState : {};
+  const rawMaterial = source.material ?? source.options?.material;
+  const material = normalizeMaterialLabelSafe(rawMaterial);
+  const isCircular = resolveCircularShapeFromSource(source, material);
+  const widthCm = Number(source.widthCm);
+  const heightCm = Number(source.heightCm);
+  const hasPresetSize =
+    Number.isFinite(widthCm) && widthCm > 0
+    && Number.isFinite(heightCm) && heightCm > 0;
+  const hasPresetMaterial = safeStr(rawMaterial).length > 0;
+  const hasPreset = hasPresetMaterial || hasPresetSize;
+
+  if (material === 'Glasspad' || material === 'Ultra') {
+    return {
+      hasPreset,
+      material,
+      mode: 'standard',
+      size: { ...GLASSPAD_SIZE_CM },
+      isCircular: false,
+    };
+  }
+
+  if (hasPresetSize) {
+    const candidateSize = { w: Math.round(widthCm), h: Math.round(heightCm) };
+    if (isSizeAllowedForMaterial(candidateSize, material)) {
+      return {
+        hasPreset,
+        material,
+        mode: isDropdownStandardSizeForMaterial(candidateSize, material) ? 'standard' : 'custom',
+        size: candidateSize,
+        isCircular,
+      };
+    }
+  }
+
+  return {
+    hasPreset,
+    material,
+    mode: 'standard',
+    size: getDefaultDropdownSizeForMaterial(material),
+    isCircular,
+  };
+};
+
+function getStepOnePreviewScale(widthCm, heightCm) {
+  const baseScale = STEP_ONE_PREVIEW_MAX_WIDTH_PX / STEP_ONE_PREVIEW_REFERENCE_CM.w;
+  const safeWidth = Number.isFinite(Number(widthCm)) && Number(widthCm) > 0 ? Number(widthCm) : 1;
+  const safeHeight = Number.isFinite(Number(heightCm)) && Number(heightCm) > 0 ? Number(heightCm) : 1;
+  const qualifiesForMediumBoost =
+    safeWidth <= STEP_ONE_PREVIEW_MEDIUM_BOOST_LIMIT_CM.w
+    && safeHeight <= STEP_ONE_PREVIEW_MEDIUM_BOOST_LIMIT_CM.h;
+  const qualifiesForSmallBoost =
+    safeWidth <= STEP_ONE_PREVIEW_SMALL_BOOST_LIMIT_CM.w
+    && safeHeight <= STEP_ONE_PREVIEW_SMALL_BOOST_LIMIT_CM.h;
+  const qualifiesForFocusedBoost =
+    safeWidth <= STEP_ONE_PREVIEW_FOCUSED_BOOST_LIMIT_CM.w
+    && safeHeight <= STEP_ONE_PREVIEW_FOCUSED_BOOST_LIMIT_CM.h;
+  const qualifiesForSpecialBoost =
+    safeWidth === STEP_ONE_PREVIEW_SPECIAL_BOOST_SIZE_CM.w
+    && safeHeight === STEP_ONE_PREVIEW_SPECIAL_BOOST_SIZE_CM.h;
+  let currentVisualScale = baseScale
+    * (qualifiesForMediumBoost ? (1 + STEP_ONE_PREVIEW_MEDIUM_BOOST_RATIO) : 1)
+    * (qualifiesForMediumBoost ? (1 + STEP_ONE_PREVIEW_MEDIUM_EXTRA_SCALE_RATIO) : 1);
+
+  if (qualifiesForSmallBoost) {
+    currentVisualScale *= 1 + STEP_ONE_PREVIEW_SMALL_RANGE_EXTRA_SCALE_RATIO;
+  } else if (qualifiesForMediumBoost) {
+    currentVisualScale *= 1 + STEP_ONE_PREVIEW_MEDIUM_RANGE_EXTRA_SCALE_RATIO;
+  }
+
+  if (qualifiesForSpecialBoost) {
+    return currentVisualScale * (1 + STEP_ONE_PREVIEW_SPECIAL_SIZE_EXTRA_SCALE_RATIO);
+  }
+
+  if (qualifiesForFocusedBoost) {
+    return currentVisualScale * (1 + STEP_ONE_PREVIEW_FOCUSED_RANGE_EXTRA_SCALE_RATIO);
+  }
+
+  return currentVisualScale;
+}
+
+function fitStageWithinBounds(widthCm, heightCm, maxWidthPx, maxHeightPx) {
+  const safeWidth = Number.isFinite(Number(widthCm)) && Number(widthCm) > 0 ? Number(widthCm) : 1;
+  const safeHeight = Number.isFinite(Number(heightCm)) && Number(heightCm) > 0 ? Number(heightCm) : 1;
+  const boundedWidth = Number.isFinite(Number(maxWidthPx)) && Number(maxWidthPx) > 0 ? Number(maxWidthPx) : safeWidth;
+  const boundedHeight = Number.isFinite(Number(maxHeightPx)) && Number(maxHeightPx) > 0 ? Number(maxHeightPx) : safeHeight;
+  const scale = Math.min(boundedWidth / safeWidth, boundedHeight / safeHeight);
+
+  return {
+    width: Math.max(1, Math.round(safeWidth * scale)),
+    height: Math.max(1, Math.round(safeHeight * scale)),
+  };
+}
+
+function getStepOneDesktopPreviewSpacingPx(widthCm, heightCm) {
+  const safeWidth = Number.isFinite(Number(widthCm)) && Number(widthCm) > 0 ? Number(widthCm) : 1;
+  const safeHeight = Number.isFinite(Number(heightCm)) && Number(heightCm) > 0 ? Number(heightCm) : 1;
+  if (
+    safeWidth > STEP_ONE_DESKTOP_SPACING_MAX_SIZE_CM.w
+    || safeHeight > STEP_ONE_DESKTOP_SPACING_MAX_SIZE_CM.h
+  ) {
+    return STEP_ONE_DESKTOP_SPACING_PX.min;
+  }
+
+  const minArea =
+    STEP_ONE_DESKTOP_SPACING_MIN_SIZE_CM.w * STEP_ONE_DESKTOP_SPACING_MIN_SIZE_CM.h;
+  const maxArea =
+    STEP_ONE_DESKTOP_SPACING_MAX_SIZE_CM.w * STEP_ONE_DESKTOP_SPACING_MAX_SIZE_CM.h;
+  const clampedArea = Math.min(Math.max(safeWidth * safeHeight, minArea), maxArea);
+  const areaRange = Math.max(1, maxArea - minArea);
+  const progress = (maxArea - clampedArea) / areaRange;
+
+  return Math.round(
+    STEP_ONE_DESKTOP_SPACING_PX.min
+    + (STEP_ONE_DESKTOP_SPACING_PX.max - STEP_ONE_DESKTOP_SPACING_PX.min) * progress,
+  );
+}
+
+function getStepTwoFooterBottomSpacingPx(widthCm, heightCm) {
+  const safeWidth = Number.isFinite(Number(widthCm)) && Number(widthCm) > 0 ? Number(widthCm) : 1;
+  const safeHeight = Number.isFinite(Number(heightCm)) && Number(heightCm) > 0 ? Number(heightCm) : 1;
+  const currentSize = { w: safeWidth, h: safeHeight };
+
+  if (sameCmSize(currentSize, STEP_ONE_PREVIEW_REFERENCE_CM)) {
+    return STEP_TWO_FOOTER_BOTTOM_SPACING_PX.tight;
+  }
+
+  const minArea = CUSTOM_SIZE_BASE_LIMITS_CM.minW * CUSTOM_SIZE_BASE_LIMITS_CM.minH;
+  const maxArea = STEP_ONE_PREVIEW_REFERENCE_CM.w * STEP_ONE_PREVIEW_REFERENCE_CM.h;
+  const clampedArea = Math.min(Math.max(safeWidth * safeHeight, minArea), maxArea);
+  const progress = (clampedArea - minArea) / Math.max(1, maxArea - minArea);
+
+  return Math.round(
+    STEP_TWO_FOOTER_BOTTOM_SPACING_PX.max
+    - ((STEP_TWO_FOOTER_BOTTOM_SPACING_PX.max - STEP_TWO_FOOTER_BOTTOM_SPACING_PX.min) * progress),
+  );
+}
+
+function RulerIcon({ className }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+      <path
+        d="M5 16.5 16.5 5a2.12 2.12 0 1 1 3 3L8 19.5a2.12 2.12 0 0 1-3-3Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="m12 9 3 3" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+      <path d="m9 12 3 3" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+      <path d="m6 15 3 3" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function homeStepReducer(state, action) {
+  switch (action?.type) {
+    case 'RESET':
+      return HOME_STEP.upload;
+    case 'EDIT':
+      return action?.hasImage ? HOME_STEP.edit : HOME_STEP.upload;
+    case 'REVIEW':
+      return state === HOME_STEP.edit ? HOME_STEP.review : state;
+    case 'RESTORE_EDIT':
+      return action?.hasImage ? HOME_STEP.edit : HOME_STEP.upload;
+    default:
+      return state;
+  }
+}
 
 async function nextPaint(hops = 2) {
   const raf = typeof requestAnimationFrame === 'function'
@@ -301,9 +766,9 @@ function moderationReasonMessage(reason) {
     return MODERATION_REASON_MESSAGES[reason];
   }
   if (typeof reason === 'string' && reason) {
-    return `Bloqueado por moderación (código: ${reason}).`;
+    return `Bloqueado por moderaci\u00F3n (c\u00F3digo: ${reason}).`;
   }
-  return 'Bloqueado por moderación.';
+  return 'Bloqueado por moderaci\u00F3n.';
 }
 
 async function blobToDataUrl(blob) {
@@ -327,7 +792,7 @@ async function createPreviewFromImage(image, options = {}) {
   const width = image?.naturalWidth || image?.width || 0;
   const height = image?.naturalHeight || image?.height || 0;
   if (!width || !height) {
-    throw new Error('La imagen no tiene dimensiones válidas.');
+    throw new Error('La imagen no tiene dimensiones v\u00E1lidas.');
   }
   const {
     maxDimension = MOD_PREVIEW_DEFAULT_MAX_DIMENSION,
@@ -350,7 +815,7 @@ async function createPreviewFromImage(image, options = {}) {
   if (!ctx) {
     canvas.width = 0;
     canvas.height = 0;
-    throw new Error('No se pudo crear el contexto para la previsualización.');
+    throw new Error('No se pudo crear el contexto para la previsualizaci\u00F3n.');
   }
   ctx.drawImage(image, 0, 0, targetWidth, targetHeight);
 
@@ -382,7 +847,7 @@ async function createPreviewFromImage(image, options = {}) {
   if (!blob) {
     canvas.width = 0;
     canvas.height = 0;
-    throw new Error('No se pudo generar la previsualización.');
+    throw new Error('No se pudo generar la previsualizaci\u00F3n.');
   }
   const dataUrl = await blobToDataUrl(blob);
   canvas.width = 0;
@@ -404,36 +869,110 @@ async function createPreviewFromImage(image, options = {}) {
   };
 }
 
+const resolveCheckoutTargetUrl = (result) => {
+  const directCandidates = [
+    result?.checkoutUrl,
+    result?.url,
+    result?.productUrl,
+    result?.cartUrl,
+    result?.privateCheckoutUrl,
+    result?.raw?.checkoutUrl,
+    result?.raw?.url,
+    result?.raw?.productUrl,
+    result?.meta?.productUrl,
+  ];
+  for (const candidate of directCandidates) {
+    const value = safeStr(candidate);
+    if (value) return value;
+  }
+  return pickCommerceTarget(result) || pickCommerceTarget(result?.raw) || null;
+};
+
+const resolveCheckoutErrorMessage = (checkoutError) => {
+  const friendlyMessage = safeStr(checkoutError?.friendlyMessage);
+  if (friendlyMessage) return friendlyMessage;
+  const rawMessage = safeStr(checkoutError?.message);
+  if (rawMessage && /[\sáéíóúüñ]/i.test(rawMessage)) {
+    return rawMessage;
+  }
+  return 'No se pudo abrir el checkout. Intentá nuevamente.';
+};
+
 
 export default function Home() {
+  const outletContext = useOutletContext() || {};
+  const { setHeaderStepOverride, isDarkMode = true } = outletContext;
+  const [currentStep, dispatchStep] = useReducer(homeStepReducer, HOME_STEP.upload);
+  const currentStepRef = useRef(currentStep);
+  currentStepRef.current = currentStep;
+  const flow = useFlow();
+  const initialEditorSelection = useMemo(
+    () => resolveEditorSelectionFromFlow((typeof flow?.get === 'function' ? flow.get() : flow) || {}),
+    [flow],
+  );
 
   // archivo subido
-  const [uploaded, setUploaded] = useState(null);
-  // crear ObjectURL una sola vez
-  const [imageUrl, setImageUrl] = useState(null);
-  const [configOpen, setConfigOpen] = useState(false);
-  useEffect(() => {
-    if (uploaded?.localUrl) {
-      setImageUrl(uploaded.localUrl);
-      return () => URL.revokeObjectURL(uploaded.localUrl);
-    } else {
-      setImageUrl(null);
+  const uploaded = flow?.uploadedAsset || null;
+  const imageUrl =
+    typeof flow?.imageSourceUrl === 'string' && flow.imageSourceUrl.trim()
+      ? flow.imageSourceUrl.trim()
+      : null;
+  const setUploaded = useCallback((nextUploaded) => {
+    if (typeof flow?.setImageAsset === 'function') {
+      flow.setImageAsset(nextUploaded);
+      return;
     }
-  }, [uploaded?.localUrl]);
 
-  // No se ejecutan filtros rápidos al subir imagen
+    const currentFlowState = (typeof flow?.get === 'function' ? flow.get() : flow) || {};
+    const currentUploaded = currentFlowState.uploadedAsset || null;
+    const resolvedUploaded =
+      typeof nextUploaded === 'function' ? nextUploaded(currentUploaded) : nextUploaded;
+    const resolvedImageUrl =
+      resolvedUploaded?.localUrl
+      || resolvedUploaded?.canonical_url
+      || resolvedUploaded?.file_original_url
+      || null;
+
+    flow?.set?.({
+      uploadedAsset: resolvedUploaded || null,
+      masterFile: resolvedUploaded?.file || null,
+      imageLocalUrl: resolvedUploaded?.localUrl || null,
+      imageSourceUrl: resolvedImageUrl,
+      fileOriginalUrl: resolvedUploaded?.file_original_url || resolvedUploaded?.canonical_url || null,
+    });
+  }, [flow]);
+  const [configOpen, setConfigOpen] = useState(false);
+  const [toolsDrawerOpen, setToolsDrawerOpen] = useState(false);
+  const [stepTwoContainColorOpen, setStepTwoContainColorOpen] = useState(false);
+  const stepTwoContainColorAnchorRef = useRef(null);
+  const [openConfigSection, setOpenConfigSection] = useState(STEP_TWO_DRAWER_SECTIONS.project);
+
+  // No se ejecutan filtros rapidos al subir imagen
 
   // medidas y material (source of truth)
-  const [material, setMaterial] = useState('Classic');
-  const [mode, setMode] = useState('standard');
+  const [material, setMaterial] = useState(initialEditorSelection.material);
+  const [mode, setMode] = useState(initialEditorSelection.mode);
+  const [size, setSize] = useState(() => ({ ...initialEditorSelection.size }));
+  const [isCircular, setIsCircular] = useState(Boolean(initialEditorSelection.isCircular));
+  const didHydrateEditorSelectionRef = useRef(initialEditorSelection.hasPreset);
+  const sizeCm = useMemo(
+    () => ({ w: Math.round(Number(size.w)) || 90, h: Math.round(Number(size.h)) || 40 }),
+    [size.w, size.h],
+  );
+  const customSizeLimits = useMemo(() => {
+    const materialMin = MIN_DIMENSION_CM_BY_MATERIAL[material] || {};
+    const materialMax = LIMITS[material] || {};
+    const minW = Math.max(CUSTOM_SIZE_BASE_LIMITS_CM.minW, Number(materialMin.w) || CUSTOM_SIZE_BASE_LIMITS_CM.minW);
+    const minH = Math.max(CUSTOM_SIZE_BASE_LIMITS_CM.minH, Number(materialMin.h) || CUSTOM_SIZE_BASE_LIMITS_CM.minH);
+    const maxW = Math.max(minW, Math.min(CUSTOM_SIZE_BASE_LIMITS_CM.maxW, Number(materialMax.maxW) || CUSTOM_SIZE_BASE_LIMITS_CM.maxW));
+    const maxH = Math.max(minH, Math.min(CUSTOM_SIZE_BASE_LIMITS_CM.maxH, Number(materialMax.maxH) || CUSTOM_SIZE_BASE_LIMITS_CM.maxH));
 
-  const [size, setSize] = useState(() => ({ ...DEFAULT_SIZE_CM.Classic }));
-  const [isCircular, setIsCircular] = useState(false);
-  const sizeCm = useMemo(() => ({ w: Number(size.w) || 90, h: Number(size.h) || 40 }), [size.w, size.h]);
+    return { minW, minH, maxW, maxH };
+  }, [material]);
 
-  const isGlasspad = material === 'Glasspad';
-  const activeWcm = isGlasspad ? GLASSPAD_SIZE_CM.w : sizeCm.w;
-  const activeHcm = isGlasspad ? GLASSPAD_SIZE_CM.h : sizeCm.h;
+  const useFixedPadDimensions = isFixedPad49x42Material(material);
+  const activeWcm = useFixedPadDimensions ? GLASSPAD_SIZE_CM.w : sizeCm.w;
+  const activeHcm = useFixedPadDimensions ? GLASSPAD_SIZE_CM.h : sizeCm.h;
   const activeSizeCm = useMemo(() => ({ w: activeWcm, h: activeHcm }), [activeWcm, activeHcm]);
   const lastSize = useRef({});
   const lastRectSizeRef = useRef({});
@@ -444,11 +983,12 @@ export default function Home() {
       const lim = LIMITS[targetMaterial] || {};
       const clamp = (value, minVal, maxVal) => {
         const numeric = Number(value);
-        const lower = typeof minVal === 'number' ? minVal : 1;
-        const upper = typeof maxVal === 'number' ? maxVal : numeric;
+        const lower = Math.round(typeof minVal === 'number' ? minVal : 1);
+        const rounded = Number.isFinite(numeric) ? Math.round(numeric) : NaN;
+        const upper = typeof maxVal === 'number' ? Math.round(maxVal) : rounded;
         if (!Number.isFinite(numeric)) return lower;
-        if (Number.isFinite(upper)) return Math.max(lower, Math.min(upper, numeric));
-        return Math.max(lower, numeric);
+        if (Number.isFinite(upper)) return Math.max(lower, Math.min(upper, rounded));
+        return Math.max(lower, rounded);
       };
       return {
         w: clamp(candidate?.w, min.w, lim.maxW),
@@ -476,7 +1016,7 @@ export default function Home() {
 
   const applyCircularConstraint = useCallback(
     (candidate, targetMaterial = material) => {
-      if (!isCircular || targetMaterial === 'Glasspad') {
+      if (!isCircular || isFixedPad49x42Material(targetMaterial)) {
         return clampSizeForMaterial(candidate, targetMaterial);
       }
       return normalizeCircularSizeForMaterial(candidate, targetMaterial);
@@ -485,20 +1025,20 @@ export default function Home() {
   );
 
   useEffect(() => {
-    if (material === 'Glasspad' && isCircular) {
+    if (isFixedPad49x42Material(material) && isCircular) {
       setIsCircular(false);
     }
   }, [material, isCircular]);
 
-  const glasspadInitRef = useRef(false);
+  const fixedPadSizeInitRef = useRef(false);
   useEffect(() => {
-    if (material !== 'Glasspad') {
-      glasspadInitRef.current = false;
+    if (!isFixedPad49x42Material(material)) {
+      fixedPadSizeInitRef.current = false;
       return;
     }
-    if (glasspadInitRef.current) return;
+    if (fixedPadSizeInitRef.current) return;
     setSize({ w: GLASSPAD_SIZE_CM.w, h: GLASSPAD_SIZE_CM.h });
-    glasspadInitRef.current = true;
+    fixedPadSizeInitRef.current = true;
   }, [material]);
 
   const [priceAmount, setPriceAmount] = useState(0);
@@ -515,21 +1055,33 @@ export default function Home() {
   const ackLowErrorDescriptionId = useId();
   const [mockupUrl, setMockupUrl] = useState(null);
   const [mockupBlob, setMockupBlob] = useState(null);
+  const [reviewPreviewUrl, setReviewPreviewUrl] = useState(null);
   const mockupUrlRef = useRef(null);
   const isMobileDevice = useMemo(() => isTouchDevice(), []);
   const [err, setErr] = useState('');
   const [moderationNotice, setModerationNotice] = useState('');
   const [busy, setBusy] = useState(false);
-  const [msgIndex, setMsgIndex] = useState(0);
+  /** Paso 3: null | 'cart' | 'checkout' mientras corre createJobAndProduct */
+  const [stepThreeCommerceAction, setStepThreeCommerceAction] = useState(null);
+  const [reviewExitBusy, setReviewExitBusy] = useState(false);
+  const [isReplacing, setIsReplacing] = useState(false);
   const [masterPublicUrl, setMasterPublicUrl] = useState(null);
   const [masterWidthPx, setMasterWidthPx] = useState(null);
   const [masterHeightPx, setMasterHeightPx] = useState(null);
   const [designHashState, setDesignHashState] = useState(null);
   const [pdfPublicUrl, setPdfPublicUrl] = useState(null);
-  const navigate = useNavigate();
   const canvasRef = useRef(null);
   const designNameInputRef = useRef(null);
+  const didHydrateDesignNameRef = useRef(false);
   const pageRef = useRef(null);
+  const stepOneFileInputRef = useRef(null);
+  const stepOneSizeDropdownRef = useRef(null);
+  const stepOneMaterialDropdownRef = useRef(null);
+  const stepOneCustomSizePanelRef = useRef(null);
+  const stepTwoFileInputRef = useRef(null);
+  const stepTwoFooterRef = useRef(null);
+  const stepTwoWorkspaceRef = useRef(null);
+  const stepOneDragDepthRef = useRef(0);
   const sectionOneRef = useRef(null);
   const sectionOneInnerRef = useRef(null);
   const headingRef = useRef(null);
@@ -537,14 +1089,354 @@ export default function Home() {
   const configDropdownRef = useRef(null);
   const configTriggerButtonRef = useRef(null);
   const configPanelRef = useRef(null);
+  const toolsDrawerRef = useRef(null);
   const [configPanelStyle, setConfigPanelStyle] = useState({});
   const wasConfigOpenRef = useRef(false);
   const [canvasFit, setCanvasFit] = useState({ height: null, maxWidth: null, sectionOneMinHeight: null });
-  const flow = useFlow();
+  const [stepOneDragActive, setStepOneDragActive] = useState(false);
+  const [isStepOneSizeMenuOpen, setStepOneSizeMenuOpen] = useState(false);
+  const [isStepOneMaterialMenuOpen, setStepOneMaterialMenuOpen] = useState(false);
+  const [isStepOneMobileViewport, setStepOneMobileViewport] = useState(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return false;
+    }
+    return window.matchMedia(STEP_ONE_MOBILE_QUERY).matches;
+  });
+  const [stepTwoViewportMetrics, setStepTwoViewportMetrics] = useState(() => {
+    if (typeof window === 'undefined') {
+      return {
+        viewportWidth: 0,
+        viewportHeight: 0,
+        frameWidth: 0,
+        frameTop: 0,
+        footerHeight: 0,
+      };
+    }
+
+    return {
+      viewportWidth: window.innerWidth || 0,
+      viewportHeight: window.innerHeight || 0,
+      frameWidth: 0,
+      frameTop: 0,
+      footerHeight: 0,
+    };
+  });
+  const [isStepOneCustomSizePanelOpen, setStepOneCustomSizePanelOpen] = useState(false);
+  const [isGalleryOpen, setGalleryOpen] = useState(false);
+  const flowSetRef = useRef(flow?.set);
   const heavyToastShownRef = useRef(false);
+  const hasImage = Boolean(
+    uploaded
+    || imageUrl
+    || flow?.imageLocalUrl
+    || flow?.imageSourceUrl
+    || flow?.fileOriginalUrl
+    || flow?.masterFile,
+  );
+  const isStepUpload = currentStep === HOME_STEP.upload;
+  const isStepEdit = currentStep === HOME_STEP.edit;
+  const isStepReview = currentStep === HOME_STEP.review;
+  const [showStepTwoRepositionHint, setShowStepTwoRepositionHint] = useState(true);
+  const isStepOneCustomSizeMode = mode === 'custom' && !isFixedPad49x42Material(material);
+  const isStepOneCustomSizePanelCollapsible = isStepOneMobileViewport && isStepOneCustomSizeMode;
+  const isStepOneCustomSizePanelVisible = !isStepOneCustomSizePanelCollapsible || isStepOneCustomSizePanelOpen;
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return undefined;
+    }
+
+    const mediaQueryList = window.matchMedia(STEP_ONE_MOBILE_QUERY);
+    const handleChange = (event) => {
+      setStepOneMobileViewport(event.matches);
+    };
+
+    setStepOneMobileViewport(mediaQueryList.matches);
+
+    if (typeof mediaQueryList.addEventListener === 'function') {
+      mediaQueryList.addEventListener('change', handleChange);
+    } else if (typeof mediaQueryList.addListener === 'function') {
+      mediaQueryList.addListener(handleChange);
+    }
+
+    return () => {
+      if (typeof mediaQueryList.removeEventListener === 'function') {
+        mediaQueryList.removeEventListener('change', handleChange);
+      } else if (typeof mediaQueryList.removeListener === 'function') {
+        mediaQueryList.removeListener(handleChange);
+      }
+    };
+  }, []);
+
+  const recomputeStepTwoViewportMetrics = useCallback(() => {
+    if (typeof window === 'undefined' || !isStepEdit) return;
+
+    const parsePx = (value) => {
+      const parsed = Number.parseFloat(value);
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+
+    const pageEl = pageRef.current;
+    const workspaceEl = stepTwoWorkspaceRef.current;
+    const frameEl = lienzoCardRef.current;
+    const footerEl = stepTwoFooterRef.current;
+    const pageStyles = pageEl ? window.getComputedStyle(pageEl) : null;
+    const pagePaddingInline = parsePx(pageStyles?.paddingLeft) + parsePx(pageStyles?.paddingRight);
+    const viewportWidth = window.innerWidth || 0;
+    const viewportHeight = window.innerHeight || 0;
+    const workspaceRect = workspaceEl?.getBoundingClientRect?.();
+    const frameRect = frameEl?.getBoundingClientRect?.();
+    const footerRect = footerEl?.getBoundingClientRect?.();
+    const frameWidth = workspaceRect?.width || Math.max(0, viewportWidth - pagePaddingInline);
+    const frameTop = frameRect?.top || 0;
+    const footerHeight = footerRect?.height || 0;
+
+    setStepTwoViewportMetrics((prev) => {
+      const next = {
+        viewportWidth,
+        viewportHeight,
+        frameWidth,
+        frameTop,
+        footerHeight,
+      };
+
+      return prev.viewportWidth === next.viewportWidth
+        && prev.viewportHeight === next.viewportHeight
+        && prev.frameWidth === next.frameWidth
+        && prev.frameTop === next.frameTop
+        && prev.footerHeight === next.footerHeight
+        ? prev
+        : next;
+    });
+  }, [isStepEdit]);
+
+  useLayoutEffect(() => {
+    if (!isStepEdit || typeof window === 'undefined') return undefined;
+
+    recomputeStepTwoViewportMetrics();
+
+    const handleResize = () => {
+      recomputeStepTwoViewportMetrics();
+    };
+
+    window.addEventListener('resize', handleResize);
+
+    let observer;
+    if (typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver(() => {
+        recomputeStepTwoViewportMetrics();
+      });
+
+      [
+        pageRef.current,
+        headingRef.current,
+        stepTwoWorkspaceRef.current,
+        lienzoCardRef.current,
+        stepTwoFooterRef.current,
+      ]
+        .filter(Boolean)
+        .forEach((node) => observer.observe(node));
+    }
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      observer?.disconnect();
+    };
+  }, [isStepEdit, recomputeStepTwoViewportMetrics]);
+
+  useEffect(() => {
+    setHeaderStepOverride?.(currentStep);
+  }, [currentStep, setHeaderStepOverride]);
+
+  useEffect(() => {
+    flowSetRef.current = flow?.set;
+  }, [flow?.set]);
+
+  useEffect(() => () => {
+    setHeaderStepOverride?.(null);
+  }, [setHeaderStepOverride]);
+
+  useEffect(() => () => {
+    flowSetRef.current?.({ designName: '' });
+  }, []);
+
+  useEffect(() => {
+    if (!hasImage && currentStep !== HOME_STEP.upload) {
+      dispatchStep({ type: 'RESET' });
+    }
+  }, [currentStep, hasImage]);
+
+  useEffect(() => {
+    if (isStepUpload || isStepReview || !hasImage) {
+      setConfigOpen(false);
+      setToolsDrawerOpen(false);
+    }
+  }, [hasImage, isStepReview, isStepUpload]);
+
+  useEffect(() => {
+    if (!isStepUpload) {
+      stepOneDragDepthRef.current = 0;
+      setStepOneDragActive(false);
+    }
+  }, [isStepUpload]);
+
+  useEffect(() => {
+    if (!isStepUpload) {
+      setStepOneSizeMenuOpen(false);
+    }
+  }, [isStepUpload]);
+
+  useEffect(() => {
+    if (!isStepUpload) {
+      setStepOneMaterialMenuOpen(false);
+    }
+  }, [isStepUpload]);
+
+  useEffect(() => {
+    if (!isStepUpload) {
+      setGalleryOpen(false);
+    }
+  }, [isStepUpload]);
+
+  useEffect(() => {
+    if (!isStepEdit || typeof window === 'undefined') return undefined;
+    if ((window.innerWidth || 0) >= 768) return undefined;
+
+    let frameId = 0;
+    const resetScrollTop = () => {
+      window.scrollTo(0, 0);
+      if (pageRef.current) {
+        pageRef.current.scrollTop = 0;
+      }
+      if (sectionOneRef.current) {
+        sectionOneRef.current.scrollTop = 0;
+      }
+    };
+
+    resetScrollTop();
+    frameId = window.requestAnimationFrame(resetScrollTop);
+
+    return () => {
+      if (frameId) {
+        window.cancelAnimationFrame(frameId);
+      }
+    };
+  }, [isStepEdit]);
+
+  useEffect(() => {
+    if (!isStepUpload || !isStepOneCustomSizeMode) {
+      setStepOneCustomSizePanelOpen(false);
+      return;
+    }
+
+    if (!isStepOneMobileViewport) {
+      setStepOneCustomSizePanelOpen(true);
+      return;
+    }
+
+    setStepOneCustomSizePanelOpen(true);
+  }, [isStepOneCustomSizeMode, isStepOneMobileViewport, isStepUpload]);
+
+  useEffect(() => {
+    if (!isGalleryOpen) return undefined;
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setGalleryOpen(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isGalleryOpen]);
+
+  useEffect(() => {
+    if (!isStepOneSizeMenuOpen && !isStepOneMaterialMenuOpen) return undefined;
+
+    const handlePointerDown = (event) => {
+      if (stepOneSizeDropdownRef.current?.contains(event.target)) return;
+      if (stepOneMaterialDropdownRef.current?.contains(event.target)) return;
+      setStepOneSizeMenuOpen(false);
+      setStepOneMaterialMenuOpen(false);
+    };
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setStepOneSizeMenuOpen(false);
+        setStepOneMaterialMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isStepOneMaterialMenuOpen, isStepOneSizeMenuOpen]);
+
+  useEffect(() => {
+    if (!isStepUpload || !isStepOneMobileViewport || !isStepOneCustomSizeMode || !isStepOneCustomSizePanelOpen) {
+      return undefined;
+    }
+
+    const handlePointerDown = (event) => {
+      const panelEl = stepOneCustomSizePanelRef.current;
+      if (!panelEl) return;
+      if (panelEl.contains(event.target)) return;
+      if (stepOneSizeDropdownRef.current?.contains(event.target)) return;
+      setStepOneCustomSizePanelOpen(false);
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+    };
+  }, [
+    isStepOneCustomSizeMode,
+    isStepOneCustomSizePanelOpen,
+    isStepOneMobileViewport,
+    isStepUpload,
+  ]);
+
+  useLayoutEffect(() => {
+    if (!isStepUpload || !isStepOneMobileViewport) return undefined;
+
+    let rafOne = 0;
+    let rafTwo = 0;
+
+    const forceMobileLayout = () => {
+      const previewNode = lienzoCardRef.current;
+      if (previewNode) {
+        previewNode.getBoundingClientRect();
+      }
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('resize'));
+      }
+    };
+
+    rafOne = window.requestAnimationFrame(() => {
+      forceMobileLayout();
+      rafTwo = window.requestAnimationFrame(forceMobileLayout);
+    });
+
+    return () => {
+      if (rafOne) window.cancelAnimationFrame(rafOne);
+      if (rafTwo) window.cancelAnimationFrame(rafTwo);
+    };
+  }, [
+    isStepOneCustomSizePanelVisible,
+    isStepOneMaterialMenuOpen,
+    isStepOneMobileViewport,
+    isStepOneSizeMenuOpen,
+    isStepUpload,
+  ]);
 
   const showHeavyImageToast = useCallback((actualMb, maxMb) => {
-    console.warn('[guard:file_too_heavy]', { maxMB: maxMb, actualMB: actualMb });
     if (heavyToastShownRef.current) {
       return;
     }
@@ -553,19 +1445,48 @@ export default function Home() {
     toast?.error?.(formatHeavyImageToastMessage(actualMb, maxMb), { duration: 6000 });
   }, []);
 
-  useEffect(() => {
-    if (!busy) {
-      setMsgIndex(0);
-      return undefined;
+  const handleUploaded = useCallback((info) => {
+    const file = info?.file;
+    if (!file) return;
+
+    heavyToastShownRef.current = false;
+    setReviewPreviewUrl(null);
+    if (file.size > MAX_IMAGE_BYTES) {
+      try {
+        if (info?.localUrl) URL.revokeObjectURL(info.localUrl);
+      } catch {}
+      setUploaded(null);
+      flow?.set?.({
+        mockupUrl: null,
+        mockupPublicUrl: null,
+        masterBytes: null,
+        masterPublicUrl: null,
+        fileOriginalUrl: null,
+      });
+      const toast = window?.toast;
+      const tooHeavyMessage = formatHeavyImageToastMessage(
+        bytesToMB(file.size),
+        MAX_IMAGE_MB,
+      );
+      toast?.error?.(tooHeavyMessage, { duration: 6000 });
+      if (info?.isReplacing) {
+        setIsReplacing(false);
+      }
+      return;
     }
-    setMsgIndex(0);
-    const t1 = setTimeout(() => setMsgIndex(1), 12000);
-    const t2 = setTimeout(() => setMsgIndex(2), 24000);
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-    };
-  }, [busy]);
+
+    flow?.set?.({ masterBytes: file.size });
+    setErr('');
+    setUploaded(info);
+    setAckLow(false);
+    setAckLowError(false);
+    if (info?.openConfig) {
+      setOpenConfigSection(STEP_TWO_DRAWER_SECTIONS.project);
+    }
+    setConfigOpen(Boolean(info?.openConfig));
+    setToolsDrawerOpen(false);
+    dispatchStep({ type: 'EDIT', hasImage: true });
+  }, [flow, setUploaded]);
 
   useEffect(() => () => {
     if (mockupUrlRef.current && mockupUrlRef.current.startsWith('blob:')) {
@@ -576,17 +1497,27 @@ export default function Home() {
     mockupUrlRef.current = null;
   }, []);
 
+  const clearProjectNameState = useCallback(() => {
+    didHydrateDesignNameRef.current = true;
+    setDesignName('');
+    setDesignNameError('');
+    flow?.set?.({ designName: '' });
+  }, [flow]);
+
   const handleClearImage = useCallback(() => {
     heavyToastShownRef.current = false;
     setUploaded(null);
+    setReviewPreviewUrl(null);
     setLayout(null);
     setAckLowError(false);
-    setDesignName('');
-    setDesignNameError('');
+    clearProjectNameState();
     setAckLow(false);
     setErr('');
     setModerationNotice('');
+    setIsReplacing(false);
     setPriceAmount(0);
+    setConfigOpen(false);
+    setToolsDrawerOpen(false);
     latestTransferPriceRef.current = 0;
     if (mockupUrlRef.current && mockupUrlRef.current.startsWith('blob:')) {
       try {
@@ -596,8 +1527,14 @@ export default function Home() {
     mockupUrlRef.current = null;
     setMockupUrl(null);
     setMockupBlob(null);
-    flow?.set?.({ mockupUrl: null, mockupPublicUrl: null, masterBytes: null });
-  }, [flow]);
+    flow?.set?.({
+      mockupUrl: null,
+      mockupPublicUrl: null,
+      masterBytes: null,
+      masterPublicUrl: null,
+      fileOriginalUrl: null,
+    });
+  }, [clearProjectNameState, flow, setUploaded]);
 
   const handleCalculatedPrice = useCallback((nextPrice) => {
     const parsed = Number(nextPrice);
@@ -626,43 +1563,87 @@ export default function Home() {
     });
   }, [effDpi, layout]);
   const trimmedDesignName = useMemo(() => (designName || '').trim(), [designName]);
+  const designNameValidationMessage = useMemo(
+    () => validateProjectName(designName),
+    [designName],
+  );
+  const liveDesignNameError = trimmedDesignName ? designNameValidationMessage : '';
+  const resolvedDesignNameError = designNameError || liveDesignNameError;
 
-  function handleSizeChange(next) {
+  useEffect(() => {
+    if (didHydrateEditorSelectionRef.current) return;
+    const nextSelection = resolveEditorSelectionFromFlow(
+      (typeof flow?.get === 'function' ? flow.get() : flow) || {},
+    );
+    if (!nextSelection.hasPreset) return;
+    didHydrateEditorSelectionRef.current = true;
+    setMaterial(nextSelection.material);
+    setMode(nextSelection.mode);
+    setSize({ ...nextSelection.size });
+    setIsCircular(Boolean(nextSelection.isCircular));
+    setStepOneCustomSizePanelOpen(
+      nextSelection.mode === 'custom' && !isFixedPad49x42Material(nextSelection.material),
+    );
+  }, [flow, flow?.heightCm, flow?.material, flow?.options?.material, flow?.options?.shape, flow?.shape, flow?.widthCm]);
+
+  const handleSizeChange = useCallback((next) => {
+    didHydrateEditorSelectionRef.current = true;
     if (next.material && next.material !== material) {
-      if (material !== 'Glasspad') {
+      const nextMaterial = next.material;
+      if (!isFixedPad49x42Material(material)) {
         lastSize.current[material] = { ...size };
       }
-      if (next.material === 'Glasspad') {
+      if (nextMaterial === 'Glasspad' || nextMaterial === 'Ultra') {
         setIsCircular(false);
-        setMaterial('Glasspad');
+        setMaterial(nextMaterial);
         setMode('standard');
         setSize({ w: GLASSPAD_SIZE_CM.w, h: GLASSPAD_SIZE_CM.h });
         return;
       }
-      const stored = lastSize.current[next.material];
+      const stored = lastSize.current[nextMaterial];
+      const currentSizeIsValid = isSizeAllowedForMaterial(size, nextMaterial);
+      const shouldUseDefaultSize = !currentSizeIsValid || (isFixedPad49x42Material(material) && !stored);
+      let finalSize;
+      let nextModeValue;
 
-      const shouldUseDefaultSize = !stored && material === 'Glasspad';
-      const defaultSize = DEFAULT_SIZE_CM[next.material];
-      const prev = shouldUseDefaultSize
-        ? defaultSize || size
-        : (mode === 'custom' || !stored ? size : stored);
-
-      setMaterial(next.material);
-      const finalSize = applyCircularConstraint(prev, next.material);
-      setSize(finalSize);
-
-      let nextModeValue = 'custom';
-      if (!preservedCustom) {
-        const isStd = (STANDARD[next.material] || []).some(
-          opt => Number(opt.w) === Number(finalSize.w) && Number(opt.h) === Number(finalSize.h)
-        );
-        nextModeValue = isStd ? 'standard' : 'custom';
+      if (shouldUseDefaultSize) {
+        finalSize = getDefaultDropdownSizeForMaterial(nextMaterial);
+        nextModeValue = 'standard';
+      } else if (mode === 'custom') {
+        finalSize = applyCircularConstraint(size, nextMaterial);
+        nextModeValue = 'custom';
+      } else {
+        const candidateSize = stored && isSizeAllowedForMaterial(stored, nextMaterial)
+          ? stored
+          : size;
+        finalSize = applyCircularConstraint(candidateSize, nextMaterial);
+        nextModeValue = isDropdownStandardSizeForMaterial(finalSize, nextMaterial)
+          ? 'standard'
+          : 'custom';
       }
 
+      setMaterial(nextMaterial);
       setMode(nextModeValue);
+      setSize(finalSize);
 
       if (!stored || stored.w !== finalSize.w || stored.h !== finalSize.h) {
-        lastSize.current[next.material] = finalSize;
+        lastSize.current[nextMaterial] = finalSize;
+      }
+      return;
+    }
+    const isFixedSizeSelection =
+      next.mode === 'standard'
+      && typeof next.w === 'number'
+      && typeof next.h === 'number';
+    if (isFixedSizeSelection) {
+      const normalized = clampSizeForMaterial({ w: next.w, h: next.h });
+      setIsCircular(false);
+      setMode('standard');
+      setSize(normalized);
+      setStepOneCustomSizePanelOpen(false);
+      if (!isFixedPad49x42Material(material)) {
+        lastRectSizeRef.current[material] = normalized;
+        lastSize.current[material] = normalized;
       }
       return;
     }
@@ -671,7 +1652,7 @@ export default function Home() {
       if (next.mode === 'standard' && typeof next.w === 'number' && typeof next.h === 'number') {
         const normalized = applyCircularConstraint({ w: next.w, h: next.h });
         setSize(normalized);
-        if (material !== 'Glasspad') {
+        if (!isFixedPad49x42Material(material)) {
           lastSize.current[material] = normalized;
         }
       }
@@ -681,7 +1662,7 @@ export default function Home() {
         w: typeof next.w === 'number' ? next.w : size.w,
         h: typeof next.h === 'number' ? next.h : size.h,
       };
-      if (isCircular && material !== 'Glasspad') {
+      if (isCircular && !isFixedPad49x42Material(material)) {
         if (typeof next.w === 'number' && typeof next.h !== 'number') {
           nextSize.h = next.w;
         } else if (typeof next.h === 'number' && typeof next.w !== 'number') {
@@ -690,23 +1671,27 @@ export default function Home() {
       }
       const normalized = applyCircularConstraint(nextSize);
       setSize(normalized);
-      if (material !== 'Glasspad') {
+      if (!isFixedPad49x42Material(material)) {
         lastSize.current[material] = normalized;
       }
     }
-  }
+  }, [applyCircularConstraint, clampSizeForMaterial, isCircular, material, mode, size]);
+
+  const handleCustomSizeChange = useCallback((nextSize) => {
+    handleSizeChange({ mode: 'custom', ...nextSize });
+  }, [handleSizeChange]);
 
 
   const handleToggleCircular = useCallback(() => {
-    if (material === 'Glasspad') return;
+    if (isFixedPad49x42Material(material)) return;
     setIsCircular((prev) => {
       if (!prev) {
-        if (material !== 'Glasspad') {
+        if (!isFixedPad49x42Material(material)) {
           lastRectSizeRef.current[material] = { ...size };
         }
         const squared = normalizeCircularSizeForMaterial(size);
         setSize(squared);
-        if (material !== 'Glasspad') {
+        if (!isFixedPad49x42Material(material)) {
           lastSize.current[material] = squared;
         }
         return true;
@@ -715,21 +1700,21 @@ export default function Home() {
       if (restore) {
         const clamped = clampSizeForMaterial(restore);
         setSize(clamped);
-        if (material !== 'Glasspad') {
+        if (!isFixedPad49x42Material(material)) {
           lastSize.current[material] = clamped;
         }
       }
       return false;
     });
-  }, [material, normalizeCircularSizeForMaterial, size]);
+  }, [clampSizeForMaterial, material, normalizeCircularSizeForMaterial, size]);
 
 
   useEffect(() => {
-    if (!isCircular || material === 'Glasspad') return;
+    if (!isCircular || isFixedPad49x42Material(material)) return;
     const squared = normalizeCircularSizeForMaterial(size);
     if (squared.w !== size.w || squared.h !== size.h) {
       setSize(squared);
-      if (material !== 'Glasspad') {
+      if (!isFixedPad49x42Material(material)) {
         lastSize.current[material] = squared;
       }
     }
@@ -738,11 +1723,98 @@ export default function Home() {
 
   function handleDesignNameChange(event) {
     const { value } = event.target;
-    setDesignName(value);
-    if (designNameError && value.trim().length >= 2) {
-      setDesignNameError('');
+    const sanitizedValue = stripProjectNameEmojis(value);
+    didHydrateDesignNameRef.current = true;
+    setDesignName(sanitizedValue);
+    if (sanitizedValue !== value) {
+      setDesignNameError('No uses emojis en el nombre del proyecto.');
+      return;
     }
+    setDesignNameError(sanitizedValue.trim().length > 0 ? validateProjectName(sanitizedValue) : '');
   }
+
+  useEffect(() => {
+    if (didHydrateDesignNameRef.current) return;
+    const externalName = safeStr(flow?.designName);
+    if (!designName && externalName) {
+      didHydrateDesignNameRef.current = true;
+      setDesignName(externalName);
+      return;
+    }
+    if (designName) {
+      didHydrateDesignNameRef.current = true;
+    }
+  }, [designName, flow?.designName]);
+
+  const handleStepTwoEditorUnmount = useCallback(() => {
+    if (currentStepRef.current !== HOME_STEP.upload) return;
+    setIsCircular(false);
+    setStepOneCustomSizePanelOpen(false);
+  }, []);
+
+  useEffect(() => {
+    if (typeof flow?.set !== 'function') return;
+
+    const nextWidthCm = Math.round(Number(activeSizeCm?.w) || 0);
+    const nextHeightCm = Math.round(Number(activeSizeCm?.h) || 0);
+    const nextShape = isCircular && !isFixedPad49x42Material(material) ? 'circle' : 'rounded_rect';
+    const nextIsCircular = nextShape === 'circle';
+    const nextOptions = {
+      ...((flow?.options && typeof flow.options === 'object') ? flow.options : {}),
+      material,
+      productType: material === 'Glasspad' ? 'glasspad' : material === 'Alfombra' ? 'alfombra' : 'mousepad',
+      shape: nextShape,
+      isCircular: nextIsCircular,
+    };
+
+    const shouldSync =
+      flow?.designName !== designName
+      || flow?.material !== material
+      || Boolean(flow?.isCircular) !== nextIsCircular
+      || flow?.shape !== nextShape
+      || Number(flow?.widthCm || 0) !== nextWidthCm
+      || Number(flow?.heightCm || 0) !== nextHeightCm
+      || Number(flow?.priceTransfer || 0) !== Number(priceAmount || 0)
+      || flow?.priceCurrency !== PRICE_CURRENCY
+      || flow?.options?.material !== nextOptions.material
+      || flow?.options?.productType !== nextOptions.productType
+      || flow?.options?.shape !== nextOptions.shape
+      || Boolean(flow?.options?.isCircular) !== nextOptions.isCircular;
+
+    if (!shouldSync) return;
+
+    flow.set({
+      designName,
+      material,
+      isCircular: nextIsCircular,
+      shape: nextShape,
+      widthCm: nextWidthCm || null,
+      heightCm: nextHeightCm || null,
+      priceTransfer: Number(priceAmount || 0),
+      priceCurrency: PRICE_CURRENCY,
+      options: nextOptions,
+    });
+  }, [
+    activeSizeCm?.h,
+    activeSizeCm?.w,
+    designName,
+    flow,
+    flow?.designName,
+    flow?.heightCm,
+    flow?.isCircular,
+    flow?.material,
+    flow?.options?.material,
+    flow?.options?.productType,
+    flow?.options?.shape,
+    flow?.options?.isCircular,
+    flow?.priceCurrency,
+    flow?.priceTransfer,
+    flow?.shape,
+    flow?.widthCm,
+    isCircular,
+    material,
+    priceAmount,
+  ]);
 
   async function uploadOriginal(payload) {
     const { file, ...rest } = payload || {};
@@ -798,10 +1870,11 @@ export default function Home() {
     return { publicUrl, json: json ?? {} };
   }
 
-  async function handleContinue() {
+  async function handleContinue(options = {}) {
     if (busy) {
-      return;
+      return false;
     }
+    const acceptedLowQuality = Boolean(options?.acceptLowQuality) || ackLow;
     const ridCandidate =
       uploaded?.upload_diag_id
       || flow?.uploadDiagId
@@ -834,20 +1907,28 @@ export default function Home() {
     setErr('');
     if (!layout?.image || !canvasRef.current) {
       setErr('Falta imagen o layout');
-      return;
+      return false;
     }
     if (trimmedDesignName.length < 2) {
       setDesignNameError('Ingresa un nombre para tu modelo antes de continuar');
+      setOpenConfigSection(STEP_TWO_DRAWER_SECTIONS.project);
       setConfigOpen(true);
       designNameInputRef.current?.focus?.();
-      return;
+      return false;
     }
     setDesignNameError('');
-    if (requiresLowAck && !ackLow) {
+    if (requiresLowAck && !acceptedLowQuality) {
       setAckLowError(true);
       setErr(ACK_LOW_ERROR_MESSAGE);
+      setOpenConfigSection(STEP_TWO_DRAWER_SECTIONS.project);
+      setConfigOpen(true);
       ackCheckboxRef.current?.focus?.({ preventScroll: true });
-      return;
+      if (typeof window !== 'undefined') {
+        window.requestAnimationFrame(() => {
+          ackCheckboxRef.current?.focus?.({ preventScroll: true });
+        });
+      }
+      return false;
     }
     try {
       setModerationNotice('');
@@ -863,7 +1944,7 @@ export default function Home() {
         const masterSizeMb = bytesToMB(masterFile.size);
         if (masterSizeMb > maxImageMb) {
           notifyTooHeavy(masterSizeMb);
-          return;
+          return false;
         }
       } else {
         const remoteUrlCandidates = [
@@ -881,7 +1962,7 @@ export default function Home() {
         }
         if (remoteImageSizeMb != null && remoteImageSizeMb > maxImageMb) {
           notifyTooHeavy(remoteImageSizeMb);
-          return;
+          return false;
         }
       }
       await nextPaint(2);
@@ -890,7 +1971,7 @@ export default function Home() {
       });
       if (!designBlob || !designBlob.size) {
         setErr('No se pudo generar la imagen');
-        return;
+        return false;
       }
 
       const pdfSourceBlob = designBlob;
@@ -910,7 +1991,7 @@ export default function Home() {
       const metaForCheck = [uploaded?.file?.name, trimmedDesignName].filter(Boolean).join(' ');
       if (quickHateSymbolCheck(metaForCheck)) {
         setErr('Contenido no permitido (odio nazi detectado)');
-        return;
+        return false;
       }
 
       // client-side gate: NSFW scan in browser (no server TFJS)
@@ -923,12 +2004,12 @@ export default function Home() {
         if (!res?.timeout && res?.blocked) {
           let message = 'Contenido adulto detectado.';
           if (res.reason === 'client_real_nudity') {
-            message = 'Contenido adulto explícito con personas reales detectado.';
+            message = 'Contenido adulto expl\u00EDcito con personas reales detectado.';
           } else if (res.reason === 'client_real_sexual') {
-            message = 'Contenido sexual explícito con personas reales detectado.';
+            message = 'Contenido sexual expl\u00EDcito con personas reales detectado.';
           }
           setErr(message);
-          return;
+          return false;
         }
       } catch (scanErr) {
         warn('[continue] nudity scan failed; allowing flow', scanErr?.message || scanErr);
@@ -951,7 +2032,7 @@ export default function Home() {
       const baseModerationPayload = {
         filename: uploaded?.file?.name || 'image.png',
         designName: trimmedDesignName,
-        lowQualityAck: level === 'bad' ? Boolean(ackLow) : false,
+        lowQualityAck: level === 'bad' ? acceptedLowQuality : false,
         approxDpi: effDpi || undefined,
         rid: ridCandidate || undefined,
       };
@@ -1102,7 +2183,7 @@ export default function Home() {
         }
       } catch (moderationErr) {
         error('moderate-image failed', moderationErr);
-        const baseModerationError = 'No se pudo validar la imagen. Intentá nuevamente.';
+        const baseModerationError = 'No se pudo validar la imagen. Intent\u00E1 nuevamente.';
         const detailCandidates = [
           moderationErr?.json?.error,
           moderationErr?.json?.message,
@@ -1128,16 +2209,16 @@ export default function Home() {
         } else {
           setErr(baseModerationError);
         }
-        return;
+        return false;
       }
       if (!moderationResponse?.ok) {
         const message = moderationReasonMessage(moderationResponse?.reason);
         setErr(message);
-        return;
+        return false;
       }
 
       await nextPaint(1);
-      const img = await masterImagePromise;
+      await masterImagePromise;
       const pxPerCm = layout?.dpi ? layout.dpi / 2.54 : (effDpi || 300) / 2.54;
       const masterWidthExact = Math.max(1, Math.round(activeWcm * pxPerCm));
       const masterHeightExact = Math.max(1, Math.round(activeHcm * pxPerCm));
@@ -1155,9 +2236,11 @@ export default function Home() {
       };
       let materialLabel = String(material || '').trim();
       if (/pro/i.test(materialLabel)) materialLabel = 'PRO';
+      else if (/ultra/i.test(materialLabel)) materialLabel = 'Ultra';
       else if (/glass/i.test(materialLabel)) materialLabel = 'Glasspad';
       else if (/alfombr/i.test(materialLabel)) materialLabel = 'Alfombra';
       else if (!materialLabel || /classic/i.test(materialLabel)) materialLabel = 'Classic';
+      materialLabel = formatMaterialLabelWithShape(materialLabel, isCircular);
       const namePart = sanitizeFileName(trimmedDesignName, 'design');
       const widthLabel = formatDimensionCm(activeWcm ?? (masterWidthMm ? masterWidthMm / 10 : undefined));
       const heightLabel = formatDimensionCm(activeHcm ?? (masterHeightMm ? masterHeightMm / 10 : undefined));
@@ -1173,7 +2256,7 @@ export default function Home() {
       const mockupPromise = (async () => {
         let newMockupBlob = null;
         try {
-          newMockupBlob = await generateMockupOffthread(mockupSourceBlob, {
+          newMockupBlob = await generateMockupOffthread(pdfSourceBlob, {
             composition: {
               widthPx: flowState?.masterWidthPx || masterWidthExact,
               heightPx: flowState?.masterHeightPx || masterHeightExact,
@@ -1316,21 +2399,21 @@ export default function Home() {
 
       if (!pdfBytes) {
         setErr('No se pudo generar el PDF.');
-        return;
+        return false;
       }
       if (!pdfSign?.uploadUrl || !pdfSign?.publicUrl) {
         setErr('No se pudo firmar la subida del PDF.');
-        return;
+        return false;
       }
       if (shouldUploadMaster && masterSign && (!masterSign?.uploadUrl || !masterSign?.publicUrl)) {
         setErr('No se pudo firmar la subida de la imagen.');
-        return;
+        return false;
       }
 
       const { mockupBlob: generatedMockupBlob, mockupUrl: generatedMockupUrl, mockupPublicUrl } = mockupResult || {};
       if (!generatedMockupBlob || !generatedMockupUrl) {
         setErr('No se pudo generar el mockup.');
-        return;
+        return false;
       }
 
       if (mockupUrlRef.current && mockupUrlRef.current.startsWith('blob:')) {
@@ -1369,12 +2452,12 @@ export default function Home() {
       if (pdfUploadResult.status === 'rejected') {
         error('[pdf-upload] failed', pdfUploadResult.reason);
         setErr('No se pudo subir el PDF.');
-        return;
+        return false;
       }
       if (masterUploadResult.status === 'rejected') {
         error('[master-upload] failed', masterUploadResult.reason);
         setErr('No se pudo subir la imagen.');
-        return;
+        return false;
       }
 
       const pdfUploadRes = pdfUploadResult.value;
@@ -1384,12 +2467,12 @@ export default function Home() {
       if (!pdfUploadRes?.ok) {
         error('[pdf-upload] failed', pdfUploadRes?.statusText || pdfUploadRes?.status || 'upload_failed');
         setErr('No se pudo subir el PDF.');
-        return;
+        return false;
       }
       if (shouldUploadMaster && !masterUploadRes?.ok) {
         error('[master-upload] failed', masterUploadRes?.statusText || masterUploadRes?.status || 'upload_failed');
         setErr('No se pudo subir la imagen.');
-        return;
+        return false;
       }
 
       const nextPdfUrl = String(pdfSign.publicUrl || '');
@@ -1471,10 +2554,10 @@ export default function Home() {
         ?? (Number.isFinite(existingWidth) && existingWidth > 0 ? Math.round(existingWidth) : null);
       const heightToStore = chosenHeightCm
         ?? (Number.isFinite(existingHeight) && existingHeight > 0 ? Math.round(existingHeight) : null);
-      const finalMaterial = selectedMaterial === 'Glasspad' ? 'Glasspad' : selectedMaterial || 'Classic';
+      const finalMaterial = selectedMaterial || 'Classic';
       let finalWidthCm = widthToStore;
       let finalHeightCm = heightToStore;
-      if (finalMaterial === 'Glasspad') {
+      if (isFixedPad49x42Material(finalMaterial)) {
         finalWidthCm = 49;
         finalHeightCm = 42;
       }
@@ -1502,7 +2585,7 @@ export default function Home() {
         masterWidthPx: masterWidthExact,
         masterHeightPx: masterHeightExact,
         designHash,
-        fileOriginalUrl: null,
+        fileOriginalUrl: uploadCanonical || null,
         uploadObjectKey,
         uploadBucket: uploadBucket,
         uploadDiagId: null,
@@ -1511,8 +2594,16 @@ export default function Home() {
         uploadSha256: designSha,
         designName: nameClean,
         material: finalMaterial,
-        options: { ...(flowState?.options || {}), material: finalMaterial, productType: nextProductType },
-        lowQualityAck: level === 'bad' ? Boolean(ackLow) : false,
+        isCircular: isCircular && !isFixedPad49x42Material(finalMaterial),
+        shape: isCircular && !isFixedPad49x42Material(finalMaterial) ? 'circle' : 'rounded_rect',
+        options: {
+          ...(flowState?.options || {}),
+          material: finalMaterial,
+          productType: nextProductType,
+          shape: isCircular && !isFixedPad49x42Material(finalMaterial) ? 'circle' : 'rounded_rect',
+          isCircular: isCircular && !isFixedPad49x42Material(finalMaterial),
+        },
+        lowQualityAck: level === 'bad' ? acceptedLowQuality : false,
         approxDpi: effDpi || null,
         priceTransfer: transferPrice,
         priceNormal: normalPrice,
@@ -1525,6 +2616,7 @@ export default function Home() {
           material: finalMaterial,
           widthCm: finalWidthCm,
           heightCm: finalHeightCm,
+          shape: isCircular && !isFixedPad49x42Material(finalMaterial) ? 'circle' : 'rounded_rect',
         });
       } catch (_) {
         // noop
@@ -1557,36 +2649,42 @@ export default function Home() {
       } catch (mockupEnsureError) {
         warn('[diag] ensure mockup url failed during continue', mockupEnsureError);
       }
-      const qs = new URLSearchParams();
-      if (finalMaterial) {
-        qs.set('mat', finalMaterial);
-      }
-      if (Number.isFinite(finalWidthCm) && finalWidthCm > 0) {
-        qs.set('w', String(finalWidthCm));
-      }
-      if (Number.isFinite(finalHeightCm) && finalHeightCm > 0) {
-        qs.set('h', String(finalHeightCm));
-      }
-      if (nameClean) {
-        qs.set('name', nameClean);
-      }
-      const query = qs.toString();
-      navigate(`/mockup${query ? `?${query}` : ''}`);
+      return true;
     } catch (e) {
       error(e);
       setErr(String(e?.message || e));
+      return false;
     } finally {
       setBusy(false);
     }
   }
 
 
-  const title = 'Tu Mousepad Personalizado — MGMGAMERS';
-  const description = 'Mousepad Profesionales Personalizados, Gamers, diseño y medida que quieras. Perfectos para gaming control y speed.';
-  const url = 'https://www.mgmgamers.store/';
-  const hasImage = Boolean(uploaded);
+  const title = 'Mousepad Personalizado a Medida | Calidad Gamer y Profesional | NOTMID';
+  const description = 'Dise\u00F1\u00E1 tu mousepad personalizado a medida con calidad profesional. Ideal para gaming, trabajo o setup creativo. Env\u00EDos a todo el pa\u00EDs \u2013 NOTMID.';
+  const url = 'https://personalizados.notmid.ar/';
   const isPublishing = busy;
-  const isCanvasReady = Boolean(hasImage && imageUrl);
+  const editorImageUrl = useMemo(
+    () => flow?.imageLocalUrl || imageUrl || uploaded?.localUrl || null,
+    [flow?.imageLocalUrl, imageUrl, uploaded?.localUrl],
+  );
+  const editorExternalImageUrl = useMemo(
+    () => flow?.fileOriginalUrl || uploaded?.canonical_url || uploaded?.file_original_url || null,
+    [flow?.fileOriginalUrl, uploaded?.canonical_url, uploaded?.file_original_url],
+  );
+  const isCanvasReady = Boolean(
+    editorImageUrl
+    || editorExternalImageUrl
+    || uploaded?.file
+    || flow?.masterFile,
+  );
+  useEffect(() => {
+    if (!isStepEdit) return;
+    setShowStepTwoRepositionHint(true);
+  }, [editorImageUrl, isStepEdit]);
+  const handleStepTwoImageDragStart = useCallback(() => {
+    setShowStepTwoRepositionHint(false);
+  }, []);
   const requiresLowAck = hasImage && level === 'bad';
   const ackLowMissing = requiresLowAck && !ackLow;
   const shouldShowAckError = ackLowError && ackLowMissing;
@@ -1744,7 +2842,8 @@ export default function Home() {
 
   const designNameInputClasses = [
     styles.inputText,
-    designNameError ? styles.inputTextError : '',
+    styles.stepTwoProjectInput,
+    resolvedDesignNameError ? styles.inputTextError : '',
   ]
     .filter(Boolean)
     .join(' ');
@@ -1891,6 +2990,20 @@ export default function Home() {
     return () => document.removeEventListener('pointerdown', handlePointerDown);
   }, [configOpen]);
 
+  useEffect(() => {
+    if (typeof document === 'undefined') return undefined;
+    if (!toolsDrawerOpen) return undefined;
+
+    const handlePointerDown = (event) => {
+      if (!toolsDrawerRef.current) return;
+      if (toolsDrawerRef.current.contains(event.target)) return;
+      setToolsDrawerOpen(false);
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, [toolsDrawerOpen]);
+
   useLayoutEffect(() => {
     if (!configOpen) return undefined;
     if (typeof window === 'undefined') return undefined;
@@ -1984,86 +3097,976 @@ export default function Home() {
     () => `${styles.editor} ${styles.editorFullHeight}`,
     [],
   );
+  const stepOneBaseSizeOptions = useMemo(
+    () => getDropdownStandardSizeOptionsForMaterial(material),
+    [material],
+  );
+  const stepOneSizeOptions = useMemo(() => (
+    stepOneBaseSizeOptions.map((option) => ({
+      id: option.id || `${Number(option.w)}x${Number(option.h)}`,
+      value: option.value || `${Number(option.w)}x${Number(option.h)}`,
+      w: Number(option.w),
+      h: Number(option.h),
+      label: option.label,
+      measurementLabel: option.measurementLabel || formatStepOneSizeDropdownLabel(option),
+      menuLabel: option.menuLabel || `${formatStepOneSizeDropdownLabel(option)} ${option.label || ''}`.trim(),
+    }))
+  ), [stepOneBaseSizeOptions]);
+  const stepOneCustomSizeOption = useMemo(() => ({
+    ...STEP_TWO_CUSTOM_SIZE_OPTION,
+    isCustom: true,
+    menuLabel: STEP_ONE_CUSTOM_SIZE_TRIGGER_LABEL,
+    triggerLabel: STEP_ONE_CUSTOM_SIZE_TRIGGER_LABEL,
+  }), []);
+  const stepOneSelectedSizeId = useMemo(
+    () => resolveSelectedSizeOptionId({
+      targetMaterial: material,
+      targetMode: mode,
+      candidateSize: activeSizeCm,
+      standardOptions: stepOneSizeOptions,
+    }),
+    [activeSizeCm, material, mode, stepOneSizeOptions],
+  );
+  const isStepOneCustomSizeSelected = stepOneSelectedSizeId === STEP_TWO_CUSTOM_SIZE_OPTION.id;
+  const stepOneSelectedSizeMeta = useMemo(() => {
+    if (isStepOneCustomSizeSelected) {
+      return stepOneCustomSizeOption;
+    }
+    return (
+      stepOneSizeOptions.find((option) => option.id === stepOneSelectedSizeId)
+      || stepOneSizeOptions[0]
+      || (isFixedPad49x42Material(material) ? buildGlasspadFixedSizeOption() : stepOneCustomSizeOption)
+    );
+  }, [
+    isStepOneCustomSizeSelected,
+    material,
+    stepOneCustomSizeOption,
+    stepOneSelectedSizeId,
+    stepOneSizeOptions,
+  ]);
+  const stepOneDropdownOptions = useMemo(
+    () => (isFixedPad49x42Material(material) ? stepOneSizeOptions : [...stepOneSizeOptions, stepOneCustomSizeOption]),
+    [material, stepOneCustomSizeOption, stepOneSizeOptions],
+  );
+  const stepOneMaterialOptions = useMemo(
+    () => STEP_TWO_MATERIAL_OPTIONS.map((option) => ({ ...option })),
+    [],
+  );
+  const selectedStepOneMaterialOption = useMemo(
+    () => stepOneMaterialOptions.find((option) => option.value === material) || stepOneMaterialOptions[0] || null,
+    [material, stepOneMaterialOptions],
+  );
+  const stepOneSelectedSizeTriggerLabel = useMemo(() => {
+    if (isStepOneCustomSizeSelected) {
+      return (
+        stepOneCustomSizeOption.triggerLabel
+        || stepOneCustomSizeOption.menuLabel
+        || stepOneCustomSizeOption.label
+      );
+    }
+    if (!stepOneSelectedSizeMeta) return formatStepOneSizeDropdownLabel(activeSizeCm);
+    return stepOneSelectedSizeMeta.menuLabel || formatStepOneSizeDropdownLabel(stepOneSelectedSizeMeta);
+  }, [activeSizeCm, isStepOneCustomSizeSelected, stepOneCustomSizeOption, stepOneSelectedSizeMeta]);
+  const stepOneTransferPricing = useMemo(
+    () => calculateTransferPricing({
+      width: activeSizeCm.w,
+      height: activeSizeCm.h,
+      material,
+    }),
+    [activeSizeCm.h, activeSizeCm.w, material],
+  );
+  const stepOneFormattedPriceAmount = useMemo(
+    () => formatARS(stepOneTransferPricing.valid ? stepOneTransferPricing.transfer : 0),
+    [stepOneTransferPricing.transfer, stepOneTransferPricing.valid],
+  );
+  const formatStepOneDimension = useCallback((value) => {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric <= 0) {
+      return '--';
+    }
+    const hasDecimals = Math.abs(numeric - Math.trunc(numeric)) > 0.0001;
+    return numeric.toLocaleString('es-AR', {
+      minimumFractionDigits: hasDecimals ? 1 : 0,
+      maximumFractionDigits: hasDecimals ? 1 : 1,
+    });
+  }, []);
+  const stepOneCanvasWidthLabel = useMemo(
+    () => `${formatStepOneDimension(activeSizeCm?.w)} cm`,
+    [activeSizeCm?.w, formatStepOneDimension],
+  );
+  const stepOneCanvasHeightLabel = useMemo(
+    () => `${formatStepOneDimension(activeSizeCm?.h)} cm`,
+    [activeSizeCm?.h, formatStepOneDimension],
+  );
+  const stepOneCanvasBackgroundColor = useMemo(
+    () => (isDarkMode ? 'var(--nm-canvas-bg-dark)' : 'var(--nm-canvas-bg-light)'),
+    [isDarkMode],
+  );
+  const isStepOneCanvasLightTheme = !isDarkMode;
+  const stepOneUploadIconSrc = isDarkMode ? uploadAreaIconSrc : uploadAreaLightIconSrc;
+  const stepOneCanvasStyle = useMemo(() => {
+    const widthValue = Number(activeSizeCm?.w);
+    const heightValue = Number(activeSizeCm?.h);
+    const safeWidth = Number.isFinite(widthValue) && widthValue > 0 ? widthValue : 1;
+    const safeHeight = Number.isFinite(heightValue) && heightValue > 0 ? heightValue : 1;
+    const referenceScale = STEP_ONE_PREVIEW_MAX_WIDTH_PX / STEP_ONE_PREVIEW_REFERENCE_CM.w;
+    const scale = getStepOnePreviewScale(safeWidth, safeHeight);
+    const scaledWidthPx = safeWidth * scale;
+    const scaledHeightPx = safeHeight * scale;
+    const selectedWidthProgress = Math.min(safeWidth / STEP_ONE_PREVIEW_REFERENCE_CM.w, 1);
+    const selectedHeightProgress = Math.min(safeHeight / STEP_ONE_PREVIEW_REFERENCE_CM.h, 1);
+    const heroOffsetPx = Math.round((1 - selectedHeightProgress) * 56);
+    const blockShiftYPx = Math.round(selectedHeightProgress * -16);
+    const measureOffsetMinPx = 12;
+    const measureOffsetMaxPx = 20;
+    const measureTrackReservePx = 20;
+    const measureRowOffsetPx = Math.round(
+      measureOffsetMinPx + ((measureOffsetMaxPx - measureOffsetMinPx) * selectedHeightProgress),
+    );
+    const measureColumnOffsetPx = Math.round(
+      measureOffsetMinPx + ((measureOffsetMaxPx - measureOffsetMinPx) * selectedWidthProgress),
+    );
+    const measureRowSpacePx = measureRowOffsetPx + measureTrackReservePx;
+    const measureColumnSpacePx = measureColumnOffsetPx + measureTrackReservePx;
+    const figureWidthPx = scaledWidthPx;
+    const figureHeightPx = scaledHeightPx + measureRowSpacePx;
+    const previewWrapperMaxHeightPx = Math.round(STEP_ONE_PREVIEW_REFERENCE_CM.h * referenceScale) + (measureOffsetMaxPx + measureTrackReservePx);
+    const previewWrapperMaxWidthPx = STEP_ONE_PREVIEW_MAX_WIDTH_PX;
+    const layoutMinHeightPx = previewWrapperMaxHeightPx + 220;
+    const layoutGapPx = Math.max(10, Math.round(16 - (selectedHeightProgress * 6)));
+    const headingGapPx = Math.max(4, Math.round(10 - (selectedHeightProgress * 6)));
+    const heroGapPx = Math.max(0, Math.round(4 - (selectedHeightProgress * 3)));
+    const sizeSectionGapPx = 8;
+    const previewStackGapPx = 20;
+    const layoutMaxWidthPx = Math.max(previewWrapperMaxWidthPx + 140, 760);
+    const previewBodyGapPx = 12;
+    const captionEstimatedHeightPx = 12;
+    const desiredPreviewSpacingPx = isStepOneMobileViewport
+      ? 0
+      : getStepOneDesktopPreviewSpacingPx(safeWidth, safeHeight);
+    const previewTopSpacingPx = isStepOneMobileViewport
+      ? 0
+      : Math.max(0, desiredPreviewSpacingPx - layoutGapPx - previewBodyGapPx - captionEstimatedHeightPx);
+    const previewBottomSpacingPx = isStepOneMobileViewport
+      ? 0
+      : Math.max(0, desiredPreviewSpacingPx - previewStackGapPx);
 
-  const configDropdown = (
-    <div className={styles.configDropdown} ref={configDropdownRef}>
-      <button
-        type="button"
-        className={configTriggerClasses}
-        onClick={() => setConfigOpen((open) => !open)}
-        disabled={!hasImage}
-        ref={configTriggerButtonRef}
-        aria-expanded={configOpen}
-        aria-controls="configuracion-editor"
-        aria-haspopup="menu"
-        aria-label="Configura tu mousepad"
-      >
-        <span className={styles.configTriggerIcon} aria-hidden="true">
-          <img src={CONFIG_ICON_SRC} alt="" />
-        </span>
-        <span className={styles.configTriggerLabel}>Configura tu mousepad</span>
-        <span className={styles.configTriggerArrow} aria-hidden="true">
-          <img
-            src={CONFIG_ARROW_ICON_SRC}
-            alt=""
-            className={configOpen ? styles.configTriggerArrowOpen : ''}
-          />
-        </span>
-      </button>
-      {configOpen && (
-        <div
-          id="configuracion-editor"
-          className={configPanelClasses}
-          aria-disabled={!hasImage}
-          ref={configPanelRef}
-          style={configPanelStyle}
-          role="menu"
-        >
-          <div className={styles.configSheet}>
-            <div className={styles.configForm}>
-              <div className={`${styles.field} ${styles.formRow}`}>
-                <label className={styles.configSectionTitle} htmlFor="design-name">
-                  Nombre de tu diseño
-                </label>
-                <input
-                  type="text"
-                  id="design-name"
-                  ref={designNameInputRef}
-                  className={designNameInputClasses}
-                  placeholder="Ej: Nubes y cielo rosa"
-                  value={designName}
-                  onChange={handleDesignNameChange}
-                  disabled={!hasImage}
-                  aria-invalid={designNameError ? 'true' : 'false'}
-                  aria-describedby={
-                    designNameError ? 'design-name-error' : undefined
-                  }
-                />
-                {designNameError && (
-                  <p className={styles.errorMessage} id="design-name-error">
-                    {designNameError}
-                  </p>
-                )}
-              </div>
-              <div className={styles.fieldBlock}>
-                <SizeControls
-                  material={material}
-                  size={size}
-                  mode={mode}
-                  onChange={handleSizeChange}
-                  locked={material === 'Glasspad'}
-                  disabled={!hasImage}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+    return {
+      '--step-one-preview-max-width-px': `${previewWrapperMaxWidthPx}px`,
+      '--step-one-preview-figure-width-px': `${figureWidthPx}px`,
+      '--step-one-preview-figure-height-px': `${figureHeightPx}px`,
+      '--step-one-canvas-background-color': stepOneCanvasBackgroundColor,
+      '--step-one-shell-width-px': `${scaledWidthPx}px`,
+      '--step-one-shell-height-px': `${scaledHeightPx}px`,
+      '--step-one-preview-wrapper-max-height': `${previewWrapperMaxHeightPx}px`,
+      '--step-one-measure-row-offset-px': `${measureRowOffsetPx}px`,
+      '--step-one-measure-column-offset-px': `${measureColumnOffsetPx}px`,
+      '--step-one-measure-row-space-px': `${measureRowSpacePx}px`,
+      '--step-one-measure-column-space-px': `${measureColumnSpacePx}px`,
+      '--step-one-layout-min-height': `${layoutMinHeightPx}px`,
+      '--step-one-layout-gap': `${layoutGapPx}px`,
+      '--step-one-heading-gap': `${headingGapPx}px`,
+      '--step-one-hero-gap': `${heroGapPx}px`,
+      '--step-one-hero-offset-top': `${heroOffsetPx}px`,
+      '--step-one-block-shift-y': `${blockShiftYPx}px`,
+      '--step-one-size-gap': `${sizeSectionGapPx}px`,
+      '--step-one-preview-stack-gap': `${previewStackGapPx}px`,
+      '--step-one-preview-frame-margin-top': `${previewTopSpacingPx}px`,
+      '--step-one-preview-frame-margin-bottom': `${previewBottomSpacingPx}px`,
+      '--step-one-layout-max-width': `${layoutMaxWidthPx}px`,
+      '--step-one-preview-reference-ratio': `${STEP_ONE_PREVIEW_REFERENCE_CM.w} / ${STEP_ONE_PREVIEW_REFERENCE_CM.h}`,
+      '--step-one-selected-ratio': `${safeWidth} / ${safeHeight}`,
+    };
+  }, [activeSizeCm?.h, activeSizeCm?.w, isStepOneMobileViewport, stepOneCanvasBackgroundColor]);
+  const stepTwoCanvasStyle = useMemo(() => {
+    const widthValue = Number(activeSizeCm?.w);
+    const heightValue = Number(activeSizeCm?.h);
+    const safeWidth = Number.isFinite(widthValue) && widthValue > 0 ? widthValue : 1;
+    const safeHeight = Number.isFinite(heightValue) && heightValue > 0 ? heightValue : 1;
+    const viewportWidth = stepTwoViewportMetrics.viewportWidth
+      || (typeof window !== 'undefined' ? window.innerWidth || 0 : 0);
+    const viewportHeight = stepTwoViewportMetrics.viewportHeight
+      || (typeof window !== 'undefined' ? window.innerHeight || 0 : 0);
+    const isCompactViewport = viewportWidth <= 960;
+    const isMobileViewport = viewportWidth < 768;
+    const desktopToolbarExtraPx =
+      !isMobileViewport && !isCompactViewport ? STEP_TWO_DESKTOP_TOOLBAR_EXTRA_WIDTH_PX : 0;
+    const toolbarWidthPx =
+      (isMobileViewport ? 82 : isCompactViewport ? 90 : 80) + desktopToolbarExtraPx;
+    const shellGapPx = isMobileViewport ? 12 : isCompactViewport ? 14 : 18;
+    const toolbarExtraGapPx = isMobileViewport ? 0 : STEP_TWO_TOOLBAR_EXTRA_GAP_PX;
+    const shellOuterGutterPx = isMobileViewport ? 0 : isCompactViewport ? 24 : 40;
+    const measureOffsetPx = isMobileViewport ? 8 : 10;
+    const measureTrackPx = isMobileViewport ? 12 : 16;
+    const measureSpacePx = measureOffsetPx + measureTrackPx;
+    const minStageWidthPx = isMobileViewport ? 150 : isCompactViewport ? 200 : 220;
+    const frameWidthFallback = Math.max(
+      240,
+      viewportWidth - (isMobileViewport ? 24 : 64),
+    );
+    const frameWidthPx = Math.max(
+      240,
+      stepTwoViewportMetrics.frameWidth || frameWidthFallback,
+    );
+    const availableShellWidthPx = Math.max(240, frameWidthPx - shellOuterGutterPx);
+    const horizontalChromePx = isMobileViewport
+      ? (measureSpacePx + shellGapPx)
+      : (
+        toolbarWidthPx
+        + measureSpacePx
+        + (shellGapPx * 2)
+        + toolbarExtraGapPx
+      );
+    const absoluteStageWidthCapPx = isMobileViewport
+      ? Math.max(420, viewportWidth - 40)
+      : isCompactViewport ? 640 : 1120;
+    const maxStageWidthPx = Math.max(
+      minStageWidthPx,
+      Math.min(absoluteStageWidthCapPx, availableShellWidthPx - horizontalChromePx),
+    );
+    const frameTopPx = stepTwoViewportMetrics.frameTop || (isMobileViewport ? 132 : 176);
+    const footerHeightPx = stepTwoViewportMetrics.footerHeight || (isMobileViewport ? 156 : 108);
+    const verticalChromePx = isMobileViewport ? 102 : isCompactViewport ? 112 : 124;
+    const viewportBottomReservePx = isMobileViewport ? 26 : 36;
+    const is100cmHeightLayout = safeHeight >= STEP_TWO_100CM_HEIGHT_LAYOUT_CM;
+    const hundredCmDesktopStageTightenPx = (
+      !isMobileViewport && is100cmHeightLayout ? STEP_TWO_100CM_DESKTOP_STAGE_TIGHTEN_PX : 0
+    );
+    const absoluteStageHeightCapPx = Math.round((viewportHeight || 0) * (isMobileViewport ? 0.42 : 0.58));
+    const maxStageHeightPx = Math.max(
+      isMobileViewport ? 132 : 180,
+      Math.min(
+        absoluteStageHeightCapPx || Number.POSITIVE_INFINITY,
+        (viewportHeight || 0)
+          - frameTopPx
+          - footerHeightPx
+          - viewportBottomReservePx
+          - verticalChromePx
+          - hundredCmDesktopStageTightenPx,
+      ),
+    );
+    let fittedStage = fitStageWithinBounds(
+      safeWidth,
+      safeHeight,
+      maxStageWidthPx,
+      maxStageHeightPx,
+    );
+    if (Math.max(safeWidth, safeHeight) <= STEP_TWO_SMALL_STAGE_MAX_SIDE_CM) {
+      fittedStage = {
+        width: Math.max(1, Math.round(fittedStage.width * STEP_TWO_SMALL_STAGE_VISUAL_SCALE)),
+        height: Math.max(1, Math.round(fittedStage.height * STEP_TWO_SMALL_STAGE_VISUAL_SCALE)),
+      };
+    }
+    const shellWidthPx = Math.max(
+      320,
+      Math.min(
+        frameWidthPx,
+        isMobileViewport
+          ? fittedStage.width + measureSpacePx + shellGapPx
+          : (
+            fittedStage.width
+            + measureSpacePx
+            + toolbarWidthPx
+            + (shellGapPx * 2)
+            + toolbarExtraGapPx
+          ),
+      ),
+    );
+    const footerActionMinWidthPx = isMobileViewport ? 0 : isCompactViewport ? 220 : 248;
+    const is100cmHeightDesktop = (
+      !isMobileViewport && safeHeight >= STEP_TWO_100CM_HEIGHT_LAYOUT_CM
+    );
+    const rawFooterBottomSpacePx = getStepTwoFooterBottomSpacingPx(safeWidth, safeHeight);
+    const footerBottomSpacePx = is100cmHeightDesktop
+      ? null
+      : rawFooterBottomSpacePx;
+    /* 100cm desktop: quitamos el margen superior extra del bundle (antes 80px) para subir el preview ~80px */
+    const previewFrameLiftPx = 0;
+    const previewFrameMarginTopPx = (
+      is100cmHeightDesktop ? STEP_TWO_PREVIEW_FRAME_LIFT_100CM_HEIGHT_DESKTOP_PX : 0
+    );
+
+    return {
+      '--step-one-preview-reference-ratio': `${STEP_ONE_PREVIEW_REFERENCE_CM.w} / ${STEP_ONE_PREVIEW_REFERENCE_CM.h}`,
+      '--step-one-selected-ratio': `${safeWidth} / ${safeHeight}`,
+      '--step-two-stage-width': `${fittedStage.width}px`,
+      '--step-two-stage-height': `${fittedStage.height}px`,
+      '--step-two-toolbar-width': `${toolbarWidthPx}px`,
+      '--step-two-toolbar-offset': `${toolbarExtraGapPx}px`,
+      '--step-two-shell-gap': `${shellGapPx}px`,
+      '--step-two-measure-offset': `${measureOffsetPx}px`,
+      '--step-two-measure-track-size': `${measureTrackPx}px`,
+      '--step-two-measure-space': `${measureSpacePx}px`,
+      '--step-two-measure-line-thickness': `${isMobileViewport ? 0.75 : 1}px`,
+      '--step-two-title-gap': is100cmHeightDesktop ? '4px' : '15px',
+      '--step-two-shell-width': `${shellWidthPx}px`,
+      '--step-two-footer-action-min-width': `${footerActionMinWidthPx}px`,
+      '--step-two-footer-bottom-space': (
+        footerBottomSpacePx == null
+          ? 'calc(50px + env(safe-area-inset-bottom, 0px))'
+          : `${footerBottomSpacePx}px`
+      ),
+      '--step-two-preview-bundle-margin-top': `${previewFrameLiftPx}px`,
+      '--step-two-preview-frame-margin-top': `${previewFrameMarginTopPx}px`,
+      ...(is100cmHeightDesktop
+        ? {
+          '--step-two-back-rail-margin-block-start': '20px',
+          '--step-two-back-rail-margin-block-end': '0px',
+          '--step-two-caption-bottom-bonus': '4px',
+          '--step-two-footer-stack-margin-start': 'auto',
+          '--step-two-preview-frame-padding-block-start': '8px',
+          '--step-two-layout-padding-top': '0',
+          '--step-two-layout-gap': '14px',
+          '--step-two-layout-min-block': 'calc(100dvh - 260px)',
+          '--step-two-workspace-justify': 'flex-start',
+          '--step-two-workspace-flex': '0 1 auto',
+          '--step-two-workspace-min-block': '0',
+          '--step-two-workspace-gap': '6px',
+          '--step-two-preview-frame-flex': '0 1 auto',
+          '--step-two-preview-frame-min-block': '0',
+          '--step-two-preview-bundle-min-block': '0',
+          '--step-two-stage-reserve-tail': '28px',
+          /* Solo la barra de precio/CTA: translateY hacia arriba para evitar corte en el borde */
+          '--step-two-footer-stack-lift-px': '60px',
+        }
+        : {}),
+    };
+  }, [
+    activeSizeCm?.h,
+    activeSizeCm?.w,
+    stepTwoViewportMetrics.footerHeight,
+    stepTwoViewportMetrics.frameTop,
+    stepTwoViewportMetrics.frameWidth,
+    stepTwoViewportMetrics.viewportHeight,
+    stepTwoViewportMetrics.viewportWidth,
+  ]);
+  const stepTwoPreviewShellStyle = useMemo(
+    () => ({
+      display: 'flex',
+      flex: '1 1 auto',
+      height: '100%',
+      minHeight: '100%',
+      width: '100%',
+    }),
+    [],
   );
 
+  const handleStepOneSizeOptionSelect = useCallback((option) => {
+    if (!option) return;
+    if (option.isCustom) {
+      setStepOneCustomSizePanelOpen(true);
+      handleSizeChange({ mode: 'custom' });
+      setStepOneSizeMenuOpen(false);
+      return;
+    }
+
+    setStepOneCustomSizePanelOpen(false);
+    handleSizeChange({ mode: 'standard', w: option.w, h: option.h });
+    setStepOneSizeMenuOpen(false);
+  }, [handleSizeChange]);
+
+  const handleStepOneMaterialSelect = useCallback((nextMaterial) => {
+    if (!nextMaterial) return;
+    handleSizeChange({ material: nextMaterial });
+    setStepOneMaterialMenuOpen(false);
+  }, [handleSizeChange]);
+
+  const handleStepOnePickedFile = useCallback((file, options = {}) => {
+    if (!file) return;
+    const normalizedName = String(file.name || '').toLowerCase();
+    const isAcceptedType =
+      STEP_ONE_ACCEPTED_MIME_TYPES.includes(file.type)
+      || /\.(png|jpe?g)$/.test(normalizedName);
+    if (!isAcceptedType) {
+      if (options?.isReplacing) {
+        setIsReplacing(false);
+      }
+      setErr('Solo se permiten imágenes PNG o JPG.');
+      return;
+    }
+    const localUrl = URL.createObjectURL(file);
+    handleUploaded({
+      file,
+      localUrl,
+      openConfig: Boolean(options?.openConfig),
+      isReplacing: Boolean(options?.isReplacing),
+    });
+  }, [handleUploaded]);
+
+  const handleStepOneOpenPicker = useCallback(() => {
+    setErr('');
+    stepOneFileInputRef.current?.click();
+  }, []);
+
+  const handleStepOneOpenRecommended = useCallback(() => {
+    setErr('');
+    setStepOneSizeMenuOpen(false);
+    setStepOneMaterialMenuOpen(false);
+    setGalleryOpen(true);
+  }, []);
+
+  const handleStepOneOpenCustomSizePanel = useCallback(() => {
+    setStepOneSizeMenuOpen(false);
+    setStepOneMaterialMenuOpen(false);
+    setStepOneCustomSizePanelOpen(true);
+  }, []);
+
+  const handleStepOneCloseRecommended = useCallback(() => {
+    setGalleryOpen(false);
+  }, []);
+
+  const handleStepOneInputChange = useCallback((event) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      handleStepOnePickedFile(file);
+    }
+    event.target.value = '';
+  }, [handleStepOnePickedFile]);
+
+  const handleStepOneDragEnter = useCallback((event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    stepOneDragDepthRef.current += 1;
+    setStepOneDragActive(true);
+  }, []);
+
+  const handleStepOneDragOver = useCallback((event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = 'copy';
+    }
+    setStepOneDragActive(true);
+  }, []);
+
+  const handleStepOneDragLeave = useCallback((event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    stepOneDragDepthRef.current = Math.max(0, stepOneDragDepthRef.current - 1);
+    if (stepOneDragDepthRef.current === 0) {
+      setStepOneDragActive(false);
+    }
+  }, []);
+
+  const handleStepOneDrop = useCallback((event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    stepOneDragDepthRef.current = 0;
+    setStepOneDragActive(false);
+    const file = event.dataTransfer?.files?.[0];
+    if (!file) return;
+    handleStepOnePickedFile(file);
+  }, [handleStepOnePickedFile]);
+
+  const captureReviewPreview = useCallback(() => {
+    const editor = canvasRef.current;
+    if (!editor) return null;
+    const previewDataUrl = editor.exportPadDataURL?.(1) || editor.exportPreviewDataURL?.() || null;
+    if (previewDataUrl) {
+      setReviewPreviewUrl(previewDataUrl);
+    }
+    return previewDataUrl;
+  }, []);
+  const formattedPriceAmount = useMemo(() => {
+    const amount = Number(priceAmount);
+    const safeAmount = Number.isFinite(amount) && amount > 0 ? amount : 0;
+    return safeAmount.toLocaleString('es-AR', {
+      maximumFractionDigits: 0,
+      minimumFractionDigits: 0,
+    });
+  }, [priceAmount]);
+
+  const stepTwoQualityState = useMemo(() => {
+    if (!hasImage) return null;
+    if (level === 'bad') {
+      return {
+        label: 'Calidad baja',
+        icon: 'warning',
+        toneClassName: styles.stepTwoStatusBadgeWarning,
+      };
+    }
+    if (level === 'warn') {
+      return {
+        label: 'Calidad Media',
+        icon: 'warning',
+        toneClassName: styles.stepTwoStatusBadgeMedium,
+      };
+    }
+    return {
+      label: 'Calidad óptima',
+      icon: 'success',
+      toneClassName: styles.stepTwoStatusBadgeSuccess,
+    };
+  }, [hasImage, level]);
+
+  const stepTwoStatusBadgeClasses = [
+    styles.stepTwoStatusBadge,
+    stepTwoQualityState?.toneClassName || '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+  const stepTwoBaseSizeOptions = useMemo(
+    () => getDropdownStandardSizeOptionsForMaterial(material),
+    [material],
+  );
+  const selectedStepTwoSizeOptionId = useMemo(
+    () => resolveSelectedSizeOptionId({
+      targetMaterial: material,
+      targetMode: mode,
+      candidateSize: activeSizeCm,
+      standardOptions: stepTwoBaseSizeOptions,
+    }),
+    [activeSizeCm, material, mode, stepTwoBaseSizeOptions],
+  );
+  const selectedStepTwoSizeOption = useMemo(() => {
+    if (selectedStepTwoSizeOptionId === STEP_TWO_CUSTOM_SIZE_OPTION.id) {
+      return STEP_TWO_CUSTOM_SIZE_OPTION;
+    }
+    return (
+      stepTwoBaseSizeOptions.find((option) => option.id === selectedStepTwoSizeOptionId)
+      || stepTwoBaseSizeOptions[0]
+      || (isFixedPad49x42Material(material) ? buildGlasspadFixedSizeOption() : STEP_TWO_CUSTOM_SIZE_OPTION)
+    );
+  }, [material, selectedStepTwoSizeOptionId, stepTwoBaseSizeOptions]);
+  const stepTwoDrawerSizeOptions = useMemo(() => (
+    stepTwoBaseSizeOptions.map((option) => {
+      const w = Number(option.w) || 0;
+      const h = Number(option.h) || 0;
+      const pricing = calculateTransferPricing({
+        width: w,
+        height: h,
+        material,
+      });
+      const transfer = pricing.valid ? Number(pricing.transfer) || 0 : 0;
+      const priceLabel = transfer > 0 ? `$${formatARS(transfer)}` : '—';
+      return {
+        ...option,
+        price: transfer,
+        priceLabel,
+        measurementLabel: option.measurementLabel || formatSizeLabel(option),
+      };
+    })
+  ), [stepTwoBaseSizeOptions, material]);
+
+  const stepTwoDrawerMaterialOptions = useMemo(() => (
+    STEP_TWO_MATERIAL_OPTIONS.map((option) => {
+      const pricing = calculateTransferPricing({
+        width: activeSizeCm.w,
+        height: activeSizeCm.h,
+        material: option.value,
+      });
+      const transfer = pricing.valid ? Number(pricing.transfer) || 0 : 0;
+      const priceLabel = transfer > 0 ? `$${formatARS(transfer)}` : '—';
+      return {
+        ...option,
+        totalPrice: transfer,
+        priceLabel,
+      };
+    })
+  ), [activeSizeCm.h, activeSizeCm.w]);
+  const selectedStepTwoMaterialOption = useMemo(
+    () => stepTwoDrawerMaterialOptions.find((option) => option.value === material) || stepTwoDrawerMaterialOptions[0] || null,
+    [material, stepTwoDrawerMaterialOptions],
+  );
+  const stepTwoSizeSummary = useMemo(() => {
+    if (isFixedPad49x42Material(material)) {
+      return `Fijo · ${formatSizeLabel(activeSizeCm)}`;
+    }
+    if (!selectedStepTwoSizeOption) return 'Sin tamaño';
+    if (selectedStepTwoSizeOption.id === STEP_TWO_CUSTOM_SIZE_OPTION.id) {
+      return `${selectedStepTwoSizeOption.label} · ${formatSizeLabel(activeSizeCm)}`;
+    }
+    return `${selectedStepTwoSizeOption.label} · ${selectedStepTwoSizeOption.measurementLabel || formatSizeLabel(selectedStepTwoSizeOption)}`;
+  }, [activeSizeCm, material, selectedStepTwoSizeOption]);
+  const stepTwoMaterialSummary = useMemo(
+    () => selectedStepTwoMaterialOption?.label || 'Sin material',
+    [selectedStepTwoMaterialOption],
+  );
+  const stepTwoFooterMobileSizeMaterialLine = useMemo(() => {
+    const w = Math.round(Number(activeSizeCm?.w) || 0);
+    const h = Math.round(Number(activeSizeCm?.h) || 0);
+    const matVal = String(selectedStepTwoMaterialOption?.value ?? material ?? '').trim();
+    const matPart = matVal ? matVal.toUpperCase() : '—';
+    return `${w}x${h} - ${matPart}`;
+  }, [activeSizeCm?.w, activeSizeCm?.h, material, selectedStepTwoMaterialOption?.value]);
+  const showStepTwoCustomSizeInputs = Boolean(
+    !isFixedPad49x42Material(material)
+    && selectedStepTwoSizeOptionId === STEP_TWO_CUSTOM_SIZE_OPTION.id,
+  );
+  const stepTwoProjectSummary = useMemo(() => trimmedDesignName, [trimmedDesignName]);
+  const stepThreePreviewSrc =
+    reviewPreviewUrl
+    || mockupUrl
+    || editorImageUrl
+    || uploaded?.canonical_url
+    || uploaded?.file_original_url
+    || null;
+  /** Resumen paso 3: medida sin prefijo. */
+  const stepThreeSizeDetail = useMemo(
+    () => formatSizeLabel(activeSizeCm),
+    [activeSizeCm],
+  );
+  const stepThreeMaterialDetail = useMemo(
+    () => STEP_THREE_MATERIAL_SUMMARY[material]
+      || selectedStepTwoMaterialOption?.label
+      || material,
+    [material, selectedStepTwoMaterialOption],
+  );
+  const stepThreeIdealUseDetail = useMemo(
+    () => STEP_THREE_IDEAL_USE_SUMMARY[material] || '',
+    [material],
+  );
+  const canConfirmStepTwoConfig = Boolean(
+    hasImage
+    && selectedStepTwoSizeOption
+    && selectedStepTwoMaterialOption
+    && !designNameValidationMessage
+    && !isPublishing
+    && !isStepReview,
+  );
+
+  const toggleConfigSection = useCallback((section) => {
+    setOpenConfigSection((current) => (current === section ? null : section));
+  }, []);
+
+  const handleStepTwoSizeOptionSelect = useCallback((optionId) => {
+    if (optionId === STEP_TWO_CUSTOM_SIZE_OPTION.id) {
+      handleSizeChange({ mode: 'custom' });
+      setOpenConfigSection(STEP_TWO_DRAWER_SECTIONS.size);
+      return;
+    }
+
+    const selectedOption = STEP_TWO_SIZE_OPTIONS.find((option) => option.id === optionId);
+    if (!selectedOption) return;
+    handleSizeChange({
+      mode: 'standard',
+      w: selectedOption.w,
+      h: selectedOption.h,
+    });
+    const hasMaterialSelected = Boolean(
+      selectedStepTwoMaterialOption?.value
+      || material,
+    );
+    const nextOpenSection = hasMaterialSelected
+      ? STEP_TWO_DRAWER_SECTIONS.project
+      : STEP_TWO_DRAWER_SECTIONS.material;
+    setOpenConfigSection(
+      nextOpenSection,
+    );
+  }, [handleSizeChange, material, selectedStepTwoMaterialOption?.value]);
+
+  const handleStepTwoMaterialSelect = useCallback((nextMaterial) => {
+    handleSizeChange({ material: nextMaterial });
+    setOpenConfigSection(STEP_TWO_DRAWER_SECTIONS.project);
+  }, [handleSizeChange]);
+
+  const handleReturnToUpload = useCallback(() => {
+    handleClearImage();
+    dispatchStep({ type: 'RESET' });
+  }, [handleClearImage]);
+
+  const handleStepTwoOpenReplace = useCallback(() => {
+    setErr('');
+    stepTwoFileInputRef.current?.click();
+  }, []);
+
+  const handleStepTwoReplaceChange = useCallback((event) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setIsReplacing(true);
+      handleStepOnePickedFile(file, { openConfig: false, isReplacing: true });
+    }
+    event.target.value = '';
+  }, [handleStepOnePickedFile]);
+
+  const handleStepTwoOpenTools = useCallback(() => {
+    setConfigOpen(false);
+    setToolsDrawerOpen(true);
+  }, []);
+
+  const handleStepTwoCloseTools = useCallback(() => {
+    setToolsDrawerOpen(false);
+  }, []);
+
+  const handleStepTwoOpenConfig = useCallback(() => {
+    setToolsDrawerOpen(false);
+    setOpenConfigSection(STEP_TWO_DRAWER_SECTIONS.project);
+    setConfigOpen(true);
+  }, []);
+
+  const handleStepTwoCloseConfig = useCallback(() => {
+    setConfigOpen(false);
+  }, []);
+
+  const validateStepTwoSelection = useCallback(() => {
+    if (!hasImage) {
+      setErr('Subí una imagen antes de continuar.');
+      return false;
+    }
+
+    if (!selectedStepTwoSizeOption) {
+      setErr('Seleccioná un tamaño antes de continuar.');
+      setConfigOpen(true);
+      setOpenConfigSection(STEP_TWO_DRAWER_SECTIONS.size);
+      return false;
+    }
+
+    if (!selectedStepTwoMaterialOption) {
+      setErr('Seleccioná un material antes de continuar.');
+      setConfigOpen(true);
+      setOpenConfigSection(STEP_TWO_DRAWER_SECTIONS.material);
+      return false;
+    }
+
+    const projectNameError = validateProjectName(designName);
+    if (projectNameError) {
+      setDesignNameError(projectNameError);
+      setConfigOpen(true);
+      setOpenConfigSection(STEP_TWO_DRAWER_SECTIONS.project);
+      setTimeout(() => {
+        designNameInputRef.current?.focus?.();
+      }, 0);
+      return false;
+    }
+
+    setErr('');
+    setDesignNameError('');
+    return true;
+  }, [designName, hasImage, selectedStepTwoMaterialOption, selectedStepTwoSizeOption]);
+
+  const openStepThreeReview = useCallback(() => {
+    captureReviewPreview();
+    setConfigOpen(false);
+    setToolsDrawerOpen(false);
+    dispatchStep({ type: 'REVIEW' });
+  }, [captureReviewPreview]);
+
+  const handleReturnToEditor = useCallback(() => {
+    if (reviewExitBusy || stepThreeCommerceAction) return;
+    setErr('');
+    setConfigOpen(false);
+    setToolsDrawerOpen(false);
+
+    const run = async () => {
+      setReviewExitBusy(true);
+      try {
+        const flowState = (typeof flow?.get === 'function' ? flow.get() : flow) || {};
+        const targets = new Map();
+
+        const addTarget = (bucketRaw, pathRaw) => {
+          const bucket = typeof bucketRaw === 'string' ? bucketRaw.trim() : '';
+          const path = typeof pathRaw === 'string' ? pathRaw.trim() : '';
+          if (!bucket || !path || !STEP_TWO_REMOTE_STORAGE_BUCKETS.has(bucket)) return;
+          targets.set(`${bucket}::${path}`, { bucket, path });
+        };
+
+        addTarget(flowState.uploadBucket, flowState.uploadObjectKey);
+        addTarget(uploaded?.bucket, uploaded?.object_key);
+
+        const addFromUrl = (url) => {
+          const parsed = parseSupabasePublicStorageUrl(url);
+          if (parsed) addTarget(parsed.bucket, parsed.path);
+        };
+        addFromUrl(flowState.mockupPublicUrl);
+        addFromUrl(flowState.masterPublicUrl);
+        addFromUrl(flowState.pdfPublicUrl);
+
+        const deleteEndpoint = getResolvedApiUrl('/api/storage/delete');
+        for (const { bucket, path } of targets.values()) {
+          try {
+            await postJSON(deleteEndpoint, { bucket, path }, 20000);
+          } catch (delErr) {
+            warn('[home:return-to-editor] storage delete failed', { bucket, path, delErr });
+          }
+        }
+
+        flow?.set?.({
+          pdfPublicUrl: null,
+          masterPublicUrl: null,
+          mockupPublicUrl: null,
+          mockupHash: null,
+          uploadObjectKey: null,
+          uploadBucket: null,
+          uploadSha256: null,
+          uploadSizeBytes: null,
+          uploadContentType: null,
+          fileOriginalUrl: null,
+        });
+
+        setUploaded((prev) => {
+          if (!prev || typeof prev !== 'object') return prev;
+          return {
+            ...prev,
+            object_key: null,
+            bucket: null,
+            canonical_url: null,
+            file_original_url: null,
+            file_hash: null,
+          };
+        });
+
+        setMasterPublicUrl(null);
+        setPdfPublicUrl(null);
+        setDesignHashState(null);
+
+        dispatchStep({ type: 'RESTORE_EDIT', hasImage: Boolean(uploaded) });
+      } finally {
+        setReviewExitBusy(false);
+      }
+    };
+
+    void run();
+  }, [
+    dispatchStep,
+    flow,
+    reviewExitBusy,
+    setUploaded,
+    stepThreeCommerceAction,
+    uploaded,
+  ]);
+
+  const handleReviewAddToCart = useCallback(async () => {
+    if (busy || stepThreeCommerceAction) return;
+    setErr('');
+    setStepThreeCommerceAction('cart');
+    try {
+      const result = await createJobAndProduct('cart', flow, {});
+      const targetUrl = safeStr(result?.cartUrl)
+        || safeStr(result?.checkoutUrl)
+        || resolveCheckoutTargetUrl(result);
+      if (!targetUrl) {
+        setErr('No se pudo agregar al carrito. Intentá nuevamente.');
+        return;
+      }
+      window.location.assign(targetUrl);
+    } catch (cartError) {
+      error('[home-step-three-cart] failed', cartError);
+      setErr(resolveCheckoutErrorMessage(cartError));
+    } finally {
+      setStepThreeCommerceAction(null);
+    }
+  }, [busy, flow, stepThreeCommerceAction]);
+
+  const handleReviewContinueToPayment = useCallback(async () => {
+    if (busy || stepThreeCommerceAction) return;
+
+    setErr('');
+    setStepThreeCommerceAction('checkout');
+
+    try {
+      const result = await createJobAndProduct('checkout', flow, {});
+      const checkoutUrl = resolveCheckoutTargetUrl(result);
+      if (!checkoutUrl) {
+        setErr('No se pudo abrir el checkout. Intentá nuevamente.');
+        return;
+      }
+      window.location.assign(checkoutUrl);
+    } catch (checkoutError) {
+      error('[home-step-three-checkout] failed', checkoutError);
+      setErr(resolveCheckoutErrorMessage(checkoutError));
+    } finally {
+      setStepThreeCommerceAction(null);
+    }
+  }, [busy, flow, stepThreeCommerceAction]);
+
+  const stepTwoEditorFitMode = safeStr(layout?.mode, 'cover');
+  const stepTwoCircularToggleLabel = isCircular ? 'Volver a rectangular' : 'Lienzo circular';
+  const stepTwoCircularToggleIcon = isCircular
+    ? STEP_TWO_TOOL_ICON_SOURCES.rectangular
+    : STEP_TWO_TOOL_ICON_SOURCES.circular;
+  const stepTwoCircularToggleDisabled = isFixedPad49x42Material(material);
+  const getStepTwoDrawerActionClassName = (isActive = false) => [
+    styles.stepTwoDrawerAction,
+    isActive ? styles.stepTwoDrawerActionActive : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  const handleStepTwoToolAction = useCallback((action) => {
+    const editor = canvasRef.current;
+    if (!editor) return;
+
+    const actionMap = {
+      centerHorizontal: () => editor.centerHoriz?.(),
+      centerVertical: () => editor.centerVert?.(),
+      alignLeft: () => editor.alignLeft?.(),
+      alignRight: () => editor.alignRight?.(),
+      alignTop: () => editor.alignTop?.(),
+      alignBottom: () => editor.alignBottom?.(),
+      flipHorizontal: () => editor.flipHorizontal?.(),
+      flipVertical: () => editor.flipVertical?.(),
+      rotate90: () => editor.rotate90?.(),
+      cover: () => editor.fitCover?.(),
+      contain: () => editor.fitContain?.(),
+      stretch: () => editor.fitStretchCentered?.(),
+    };
+
+    actionMap[action]?.();
+
+    const isStepTwoToolsMobileViewport =
+      typeof window !== 'undefined' && window.matchMedia(STEP_ONE_MOBILE_QUERY).matches;
+    const closeAfterFit = action === 'cover' || action === 'contain' || action === 'stretch';
+    if (closeAfterFit || isStepTwoToolsMobileViewport) {
+      setToolsDrawerOpen(false);
+    }
+  }, []);
+
+  const handleStepTwoDrawerToggleCircular = useCallback(() => {
+    if (isFixedPad49x42Material(material)) return;
+    handleToggleCircular();
+    setToolsDrawerOpen(false);
+  }, [handleToggleCircular, material]);
+
+  const stepTwoContainColorValue = useMemo(() => {
+    const raw = layout?.background;
+    if (typeof raw !== 'string' || !raw.startsWith('#')) return '#ffffff';
+    if (raw.length === 4) {
+      return `#${raw[1]}${raw[1]}${raw[2]}${raw[2]}${raw[3]}${raw[3]}`.toLowerCase();
+    }
+    return raw.length === 7 ? raw.toLowerCase() : '#ffffff';
+  }, [layout?.background]);
+
+  useEffect(() => {
+    if (safeStr(layout?.mode, 'cover') !== 'contain') {
+      setStepTwoContainColorOpen(false);
+    }
+  }, [layout?.mode]);
+
+  const handleStepTwoContainColorPreview = useCallback((hex) => {
+    canvasRef.current?.previewBackgroundColor?.(hex);
+  }, []);
+
+  const handleStepTwoContainColorCommit = useCallback((hex) => {
+    canvasRef.current?.commitBackgroundColor?.(hex);
+  }, []);
+
+  const handleStepTwoContainPickFromCanvas = useCallback(() => {
+    canvasRef.current?.startPickColor?.((hex) => {
+      canvasRef.current?.commitBackgroundColor?.(hex);
+    });
+  }, []);
+
+  const handleStepTwoOpenAr = useCallback(() => {
+    canvasRef.current?.openArMeasure?.();
+  }, []);
+
+  const handleConfigDrawerSubmit = async (event) => {
+    event.preventDefault();
+    if (!validateStepTwoSelection()) return;
+    if (SKIP_STEP2_CONTINUE_UPLOAD) {
+      openStepThreeReview();
+      return;
+    }
+    const uploadOk = await handleContinue();
+    if (!uploadOk) return;
+    openStepThreeReview();
+  };
+
   return (
-    <div className={styles.page} ref={pageRef}>
+    <div
+      className={`${styles.page} ${isStepUpload ? styles.pageStepUpload : ''} ${isStepEdit ? styles.pageStepEdit : ''} ${isStepReview ? styles.pageStepReview : ''}`.trim()}
+      ref={pageRef}
+    >
       <SeoJsonLd
         title={title}
         description={description}
@@ -2071,207 +4074,1501 @@ export default function Home() {
         jsonLd={{
           '@context': 'https://schema.org',
           '@type': 'Organization',
-          name: 'MGMGAMERS',
-          url: 'https://www.mgmgamers.store',
-          sameAs: ['https://www.instagram.com/mgmgamers.store']
+          name: 'NOTMID',
+          url: 'https://personalizados.notmid.ar/'
         }}
       />
 
       <section
-        className={styles.sectionOne}
+        className={`${styles.sectionOne} ${isStepUpload ? styles.sectionOneStepUpload : ''} ${isStepEdit ? styles.sectionOneStepEdit : ''} ${isStepReview ? styles.sectionOneStepReview : ''}`.trim()}
         ref={sectionOneRef}
-        style={sectionOneStyle}
+        style={isStepUpload || isStepReview ? undefined : sectionOneStyle}
       >
         <div
-          className={styles.sectionOneInner}
+          className={`${styles.sectionOneInner} ${isStepUpload ? styles.sectionOneInnerStepUpload : ''} ${isStepEdit ? styles.sectionOneInnerStepEdit : ''} ${isStepReview ? styles.sectionOneInnerStepReview : ''}`.trim()}
           ref={sectionOneInnerRef}
-          style={editorMaxWidthStyle}
+          style={isStepUpload ? stepOneCanvasStyle : isStepReview ? undefined : editorMaxWidthStyle}
         >
-          <div
-            className={styles.pageHeading}
-            ref={headingRef}
-          >
-            {/* <Link target="_blank" rel="noopener" to="/tutorial" className={styles.tutorialButton}>
-              <span>Ver tutorial</span>
-              <img
-                src={TUTORIAL_ICON_SRC}
-                alt=""
-                className={styles.tutorialButtonIcon}
-              />
-            </Link> */}
-          </div>
+          {isStepUpload ? (
+            <div
+              className={`${styles.pageHeading} ${styles.pageHeadingStepUpload}`.trim()}
+              ref={headingRef}
+            >
+              <div className={styles.stepHero}>
+                <h1 className={styles.stepHeroTitle}>Personalizá tu mousepad</h1>
+              </div>
+            </div>
+          ) : null}
 
-          <div className={editorContainerClasses}>
-            <div className={canvasStageClasses} ref={lienzoCardRef}>
-              {hasImage && (
-                <div className={styles.canvasPriceWrapper}>
-                  <Calculadora
-                    width={activeSizeCm.w}
-                    height={activeSizeCm.h}
-                    material={material}
-                    setPrice={handleCalculatedPrice}
-                    render={({ transfer, valid, format }) => {
-                      const amount = typeof transfer === 'number' ? Math.max(0, transfer) : 0;
-                      const formattedAmount = `$${format(amount)}`;
-                      const priceClasses = [styles.canvasPriceTag];
-                      const widthValue = Number(activeSizeCm?.w);
-                      const heightValue = Number(activeSizeCm?.h);
-                      const hasDimensions =
-                        Number.isFinite(widthValue) && Number.isFinite(heightValue) && widthValue > 0 && heightValue > 0;
-                      const formatDimension = value => {
-                        if (!Number.isFinite(value)) return '';
-                        const hasDecimals = Math.abs(value - Math.trunc(value)) > 0.0001;
-                        return value.toLocaleString('es-AR', {
-                          minimumFractionDigits: hasDecimals ? 1 : 0,
-                          maximumFractionDigits: hasDecimals ? 1 : 1,
-                        });
-                      };
-                      const summaryLabel = hasDimensions
-                        ? `${material} / ${formatDimension(widthValue)}x${formatDimension(heightValue)}`
-                        : material;
-                      if (!valid) {
-                        priceClasses.push(styles.canvasPriceTagDisabled);
-                      }
-                      return (
-                        <div className={priceClasses.join(' ')}>
-                          <span className={styles.canvasPriceSummary}>{summaryLabel}</span>
-                          <div className={styles.canvasPriceLine}>
-                            <span className={styles.canvasPriceAmount}>{formattedAmount}</span>
-                            <span className={styles.canvasPriceLabel}>Con transferencia</span>
-                          </div>
-                        </div>
-                      );
-                    }}
-                  />
-                </div>
-              )}
-              <div className={styles.canvasViewport}>
-
-                <EditorCanvas
-                  ref={canvasRef}
-                  imageUrl={imageUrl}
-                  imageFile={uploaded?.file}
-                  sizeCm={activeSizeCm}
-                  bleedMm={3}
-                  dpi={300}
-                  material={material}
-                  isCircular={isCircular}
-                  onToggleCircular={handleToggleCircular}
-                  onLayoutChange={setLayout}
-                  onClearImage={handleClearImage}
-                  showCanvas={isCanvasReady}
-                  topLeftOverlay={configDropdown}
-                  lienzoHeight={canvasFit.height}
-                />
-                {!hasImage && (
-                  <div className={styles.uploadOverlay}>
-                    <UploadStep
-                      className={styles.uploadControl}
-                      onUploaded={info => {
-                        const file = info?.file;
-                        if (!file) return;
-
-                        heavyToastShownRef.current = false;
-                        if (file.size > MAX_IMAGE_BYTES) {
-                          try {
-                            if (info?.localUrl) URL.revokeObjectURL(info.localUrl);
-                          } catch {}
-                          setUploaded(null);
-                          setImageUrl(null);
-                          flow?.set?.({ mockupUrl: null, mockupPublicUrl: null, masterBytes: null });
-                          const toast = window?.toast;
-                          const tooHeavyMessage = formatHeavyImageToastMessage(
-                            bytesToMB(file.size),
-                            MAX_IMAGE_MB,
-                          );
-                          toast?.error?.(tooHeavyMessage, { duration: 6000 });
-                          return;
-                        }
-
-                        flow?.set?.({ masterBytes: file.size });
-                        setUploaded(info);
-                        setAckLow(false);
-                        setAckLowError(false);
-                        setConfigOpen(true);
-                      }}
-                      renderTrigger={({ openPicker, busy }) => (
+          {isStepUpload ? (
+            <>
+              <div className={`${styles.stepOneLayout} ${isStepOneCustomSizeSelected ? styles.stepOneLayoutCustom : ''}`.trim()}>
+                <div className={styles.stepOneSizeSection}>
+                  <div className={styles.stepOneSelectorsRow}>
+                    <div className={styles.stepOneSelectorGroup}>
+                      <span className={styles.stepOneSizeLabel} id="step-one-size-label">
+                        TAMAÑO
+                      </span>
+                      <div className={styles.stepOneSizeDropdown} ref={stepOneSizeDropdownRef}>
                         <button
+                          id="step-one-size-select"
                           type="button"
-                          className={styles.uploadButton}
-                          onClick={openPicker}
-                          disabled={busy}
-                          aria-label="Agregar imagen"
-                          role="button"
+                          className={`${styles.stepOneSizeTrigger} ${isStepOneSizeMenuOpen ? styles.stepOneSizeTriggerOpen : ''}`.trim()}
+                          aria-haspopup="listbox"
+                          aria-expanded={isStepOneSizeMenuOpen}
+                          aria-controls="step-one-size-menu"
+                          aria-labelledby="step-one-size-label step-one-size-trigger-title"
+                          onClick={() => {
+                            setStepOneMaterialMenuOpen(false);
+                            setStepOneSizeMenuOpen((prev) => !prev);
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault();
+                              setStepOneMaterialMenuOpen(false);
+                              setStepOneSizeMenuOpen(true);
+                            } else if (event.key === 'Escape') {
+                              setStepOneSizeMenuOpen(false);
+                            }
+                          }}
                         >
-                          <span className={styles.uploadButtonIcon} aria-hidden="true">
-                            +
+                          <span
+                            className={`${styles.stepOneSizeTriggerBody} ${isFixedPad49x42Material(material) ? styles.stepOneSizeTriggerBodyGlasspad : ''}`.trim()}
+                          >
+                            <span className={styles.stepOneDropdownValue} id="step-one-size-trigger-title">
+                              {stepOneSelectedSizeTriggerLabel}
+                            </span>
                           </span>
-                          <span className={styles.uploadButtonText}>
-                            {busy ? 'Subiendo…' : 'Agregar imagen'}
+                          <span className={styles.stepOneSizeArrow} aria-hidden="true">
+                            <svg viewBox="0 0 24 24" className={styles.stepOneIconSvg}>
+                              <path
+                                d="M7 10l5 5 5-5"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
                           </span>
                         </button>
+
+                        {isStepOneSizeMenuOpen && (
+                          <div
+                            id="step-one-size-menu"
+                            className={styles.stepOneSizeMenu}
+                            role="listbox"
+                            aria-labelledby="step-one-size-label"
+                          >
+                            {stepOneDropdownOptions.map((option) => {
+                              const isSelected = option.id === stepOneSelectedSizeId;
+
+                              return (
+                                <button
+                                  key={option.value}
+                                  type="button"
+                                  role="option"
+                                  aria-selected={isSelected}
+                                  className={`${styles.stepOneSizeOption} ${isSelected ? styles.stepOneSizeOptionSelected : ''}`.trim()}
+                                  onClick={() => handleStepOneSizeOptionSelect(option)}
+                                >
+                                  <span className={styles.stepOneSizeOptionLead}>
+                                    <span className={styles.stepOneDropdownValue}>
+                                      {option.isCustom ? option.menuLabel || option.label : option.menuLabel}
+                                    </span>
+                                  </span>
+                                  <span className={styles.stepOneSizeOptionTail}>
+                                    {isSelected ? (
+                                      <span className={styles.stepOneSizeOptionCheck} aria-hidden="true">
+                                        <svg viewBox="0 0 24 24" className={styles.stepOneIconSvg}>
+                                          <path
+                                            d="m6.5 12.5 3.5 3.5 7.5-8"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            strokeWidth="2"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                          />
+                                        </svg>
+                                      </span>
+                                    ) : null}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                      {isStepOneCustomSizeSelected && isStepOneMobileViewport && !isStepOneCustomSizePanelVisible && (
+                        <button
+                          type="button"
+                          className={styles.stepOneCustomSizeEditButton}
+                          onClick={handleStepOneOpenCustomSizePanel}
+                        >
+                          <span className={styles.stepOneCustomSizeEditIcon} aria-hidden="true">
+                            <svg viewBox="0 0 24 24" className={styles.stepOneIconSvg}>
+                              <path
+                                d="M4 20h4l10-10-4-4L4 16v4Z"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.75"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                              <path
+                                d="m12 6 4 4"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.75"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                          </span>
+                          <span>Editar medida</span>
+                        </button>
                       )}
-                    />
+                    </div>
+
+                    <div className={styles.stepOneSelectorGroup}>
+                      <span className={styles.stepOneSizeLabel} id="step-one-material-label">
+                        MATERIAL
+                      </span>
+                      <div className={styles.stepOneSizeDropdown} ref={stepOneMaterialDropdownRef}>
+                        <button
+                          id="step-one-material-select"
+                          type="button"
+                          className={`${styles.stepOneSizeTrigger} ${isStepOneMaterialMenuOpen ? styles.stepOneSizeTriggerOpen : ''}`.trim()}
+                          aria-haspopup="listbox"
+                          aria-expanded={isStepOneMaterialMenuOpen}
+                          aria-controls="step-one-material-menu"
+                          aria-labelledby="step-one-material-label step-one-material-trigger-title"
+                          onClick={() => {
+                            setStepOneSizeMenuOpen(false);
+                            setStepOneMaterialMenuOpen((prev) => !prev);
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault();
+                              setStepOneSizeMenuOpen(false);
+                              setStepOneMaterialMenuOpen(true);
+                            } else if (event.key === 'Escape') {
+                              setStepOneMaterialMenuOpen(false);
+                            }
+                          }}
+                        >
+                          <span className={styles.stepOneSizeTriggerBody}>
+                            <span className={styles.stepOneDropdownValueRow}>
+                              <span className={styles.stepOneDropdownValue} id="step-one-material-trigger-title">
+                                {selectedStepOneMaterialOption?.label || material}
+                              </span>
+                              {selectedStepOneMaterialOption?.recommended ? (
+                                <span className={styles.stepOneDropdownBadge}>Recomendado</span>
+                              ) : null}
+                            </span>
+                          </span>
+                          <span className={styles.stepOneSizeArrow} aria-hidden="true">
+                            <svg viewBox="0 0 24 24" className={styles.stepOneIconSvg}>
+                              <path
+                                d="M7 10l5 5 5-5"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                          </span>
+                        </button>
+
+                        {isStepOneMaterialMenuOpen && (
+                          <div
+                            id="step-one-material-menu"
+                            className={styles.stepOneSizeMenu}
+                            role="listbox"
+                            aria-labelledby="step-one-material-label"
+                          >
+                            {stepOneMaterialOptions.map((option) => {
+                              const isSelected = selectedStepOneMaterialOption?.value === option.value;
+
+                              return (
+                                <button
+                                  key={option.value}
+                                  type="button"
+                                  role="option"
+                                  aria-selected={isSelected}
+                                  className={`${styles.stepOneSizeOption} ${isSelected ? styles.stepOneSizeOptionSelected : ''}`.trim()}
+                                  onClick={() => handleStepOneMaterialSelect(option.value)}
+                                >
+                                  <span className={styles.stepOneSizeOptionLead}>
+                                    <span className={styles.stepOneDropdownValueRow}>
+                                      <span className={styles.stepOneDropdownValue}>{option.label}</span>
+                                      {option.recommended ? (
+                                        <span className={styles.stepOneDropdownBadge}>Recomendado</span>
+                                      ) : null}
+                                    </span>
+                                  </span>
+                                  <span className={styles.stepOneSizeOptionTail}>
+                                    {isSelected ? (
+                                      <span className={styles.stepOneSizeOptionCheck} aria-hidden="true">
+                                        <svg viewBox="0 0 24 24" className={styles.stepOneIconSvg}>
+                                          <path
+                                            d="m6.5 12.5 3.5 3.5 7.5-8"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            strokeWidth="2"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                          />
+                                        </svg>
+                                      </span>
+                                    ) : null}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                )}
+                  {isStepOneCustomSizeSelected && !isFixedPad49x42Material(material) && (
+                    <div
+                      ref={stepOneCustomSizePanelRef}
+                      className={[
+                        styles.stepOneCustomSizePanel,
+                        isStepOneCustomSizePanelVisible
+                          ? styles.stepOneCustomSizePanelOpen
+                          : styles.stepOneCustomSizePanelClosed,
+                      ].filter(Boolean).join(' ')}
+                      aria-hidden={isStepOneCustomSizePanelVisible ? undefined : 'true'}
+                    >
+                      <CustomSizeFields
+                        size={activeSizeCm}
+                        limits={customSizeLimits}
+                        onChange={handleCustomSizeChange}
+                        disabled={isStepOneCustomSizePanelCollapsible && !isStepOneCustomSizePanelVisible}
+                        className={styles.stepOneCustomSizeFields}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className={`${styles.stepOnePreviewStack} ${isStepOneCustomSizeSelected ? styles.stepOnePreviewStackCustom : ''}`.trim()}>
+                  <div className={styles.stepOnePreviewBody}>
+                    <PrintAreaHelpCaption
+                      labelClassName={`${styles.stepTwoPreviewCaption} ${styles.stepOnePreviewCaption}`.trim()}
+                    />
+                    <div className={styles.stepOneCanvasFrame} ref={lienzoCardRef}>
+                      <div className={styles.stepOneCanvasStage}>
+                        <div
+                          className={styles.stepOneCanvasViewport}
+                          onDragEnter={handleStepOneDragEnter}
+                          onDragOver={handleStepOneDragOver}
+                          onDragLeave={handleStepOneDragLeave}
+                          onDrop={handleStepOneDrop}
+                          aria-label="Área de carga de imagen"
+                        >
+                          <div className={styles.stepOneCanvasFigure}>
+                            <div
+                              className={`${styles.stepOneCanvasShell} ${stepOneDragActive ? styles.stepOneCanvasShellActive : ''} ${isStepOneCanvasLightTheme ? styles.stepOneCanvasShellLight : ''}`.trim()}
+                            >
+                            <div className={styles.stepOneCanvasGrid} />
+                            <div className={styles.stepOneCanvasContent}>
+                              <span className={`${styles.stepOneCanvasIcon} ${styles.stepOneCanvasMedia}`.trim()} aria-hidden="true">
+                                <img
+                                  src={stepOneUploadIconSrc}
+                                  alt=""
+                                  className={`${styles.stepOneCanvasIconImage} ${isStepOneCanvasLightTheme ? styles.stepOneCanvasIconImageLight : ''}`.trim()}
+                                />
+                              </span>
+                                <h2 className={styles.stepOneCanvasTitle}>
+                                  Arrastrá tu imagen aquí
+                                </h2>
+                                <p className={styles.stepOneCanvasText}>
+                                  o subí tu diseño para comenzar
+                                </p>
+                              </div>
+                              <div className={styles.stepOneCanvasMeasureColumn} aria-hidden="true">
+                                <span className={styles.stepOneCanvasMeasureLineVertical} />
+                                <span className={styles.stepOneCanvasMeasureLabelVertical}>{stepOneCanvasHeightLabel}</span>
+                                <span className={styles.stepOneCanvasMeasureLineVertical} />
+                              </div>
+                              <div className={styles.stepOneCanvasMeasureRow} aria-hidden="true">
+                                <span className={styles.stepOneCanvasMeasureLine} />
+                                <span className={styles.stepOneCanvasMeasureLabel}>{stepOneCanvasWidthLabel}</span>
+                                <span className={styles.stepOneCanvasMeasureLine} />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className={styles.stepOneActions}>
+                    <input
+                      ref={stepOneFileInputRef}
+                      type="file"
+                      accept="image/png, image/jpeg"
+                      className={styles.stepOneHiddenInput}
+                      onChange={handleStepOneInputChange}
+                    />
+                    <div className={`${styles.stepOneFooterBar} ${!isDarkMode ? styles.stepOneFooterBarLight : ''}`.trim()}>
+                      <div className={styles.stepOneFooterPriceBlock}>
+                        <span className={`${styles.stepOneFooterPrice} ${!isDarkMode ? styles.stepOneFooterPriceLight : ''}`.trim()}>$ {stepOneFormattedPriceAmount}</span>
+                        <span className={`${styles.stepOneFooterPriceCaption} ${!isDarkMode ? styles.stepOneFooterPriceCaptionLight : ''}`.trim()}>Total según configuración</span>
+                      </div>
+                      <button
+                        type="button"
+                        className={`${styles.stepPrimaryAction} ${styles.stepOneFooterAction}`.trim()}
+                        onClick={handleStepOneOpenPicker}
+                        aria-label="Subir mi imagen"
+                      >
+                        <span className={styles.stepPrimaryActionIcon} aria-hidden="true">
+                          <svg viewBox="0 0 24 24" className={styles.stepOneIconSvg}>
+                            <path
+                              d="M12 16V4"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="1.75"
+                              strokeLinecap="round"
+                            />
+                            <path
+                              d="M8 8l4-4 4 4"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="1.75"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                            <path
+                              d="M5 20h14"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="1.75"
+                              strokeLinecap="round"
+                            />
+                          </svg>
+                        </span>
+                        <span>Subir mi imagen</span>
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      className={styles.stepOneSecondaryAction}
+                      onClick={handleStepOneOpenRecommended}
+                    >
+                      <span className={styles.stepOneSecondaryActionIcon} aria-hidden="true">
+                        <svg viewBox="0 0 24 24" className={styles.stepOneIconSvg}>
+                          <path
+                            d="m12 3 1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3Z"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.75"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                          <path
+                            d="m18.5 14 0.8 2.2 2.2 0.8-2.2 0.8-0.8 2.2-0.8-2.2-2.2-0.8 2.2-0.8 0.8-2.2Z"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.75"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </span>
+                      <span>Páginas con imágenes 4k</span>
+                    </button>
+
+                    {err && (
+                      <p className={styles.stepInlineError} role="alert">
+                        {err}
+                      </p>
+                    )}
+                  </div>
+                </div>
               </div>
-              {requiresLowAck && (
-                <label
-                  className={`${styles.ackLabel} ${styles.canvasAck}`.trim()}
+
+              {isGalleryOpen && (
+                <div
+                  className={styles.stepOneGalleryOverlay}
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="step-one-gallery-title"
                 >
-                  <input
-                    ref={ackCheckboxRef}
-                    className={styles.ackCheckbox}
-                    type="checkbox"
-                    checked={ackLow}
-                    onChange={e => {
-                      const { checked } = e.target;
-                      setAckLow(checked);
-                      if (checked) {
-                        setAckLowError(false);
-                        if (err === ACK_LOW_ERROR_MESSAGE) {
-                          setErr('');
-                        }
-                      }
-                    }}
-                    required={requiresLowAck}
-                    aria-required={requiresLowAck}
-                    aria-invalid={shouldShowAckError ? 'true' : undefined}
-                    aria-describedby={shouldShowAckError ? ackLowErrorDescriptionId : undefined}
-                  />
-                  <span className={styles.ackIndicator} aria-hidden="true" />
-                  <span className={`${styles.ackLabelText} ${shouldShowAckError ? `${styles.ackLabelTextError} is-error` : ''}`.trim()}>
-                    Acepto imprimir en baja calidad ({effDpi} DPI)
-                  </span>
-                </label>
-              )}
-              {hasImage && (
-                <button
-                  className={`${styles.continueButton} ${styles.canvasContinue} ${isPublishing ? styles.continueButtonPublishing : ''}`.trim()}
-                  disabled={isPublishing || ackLowMissing}
-                  onClick={handleContinue}
-                >
-                  {isPublishing ? 'Procesando diseño…' : 'Continuar'}
-                </button>
-              )}
-              {moderationNotice && (
-                <div className={styles.canvasFeedback}>
-                  <p className={styles.infoMessage} role="status">{moderationNotice}</p>
+                  <div className={styles.stepOneGalleryContent}>
+                    <button
+                      type="button"
+                      className={styles.stepOneGalleryBackButton}
+                      onClick={handleStepOneCloseRecommended}
+                    >
+                      <span aria-hidden="true">←</span>
+                      <span>Volver</span>
+                    </button>
+
+                    <div className={styles.stepOneGalleryHeader}>
+                      <h2 className={styles.stepOneGalleryTitle} id="step-one-gallery-title">
+                        Páginas con imágenes 4k
+                      </h2>
+                      <p className={styles.stepOneGallerySubtitle}>
+                        Busca tu diseño ideal.
+                      </p>
+                    </div>
+
+                    <div className={styles.stepOneGalleryGrid}>
+                      {STEP_ONE_RECOMMENDED_CATEGORIES.map((category) => (
+                        <a
+                          key={category.id}
+                          href={category.href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={styles.stepOneGalleryCard}
+                          aria-label={`Abrir ${category.label} en una pestaña nueva`}
+                        >
+                          <span
+                            className={styles.stepOneGalleryCardMedia}
+                            style={{ background: category.background }}
+                            aria-hidden="true"
+                          />
+                          <span className={styles.stepOneGalleryCardShade} aria-hidden="true" />
+                          <span className={styles.stepOneGalleryCardLabel}>{category.label}</span>
+                        </a>
+                      ))}
+                    </div>
+
+                  </div>
                 </div>
               )}
+            </>
+          ) : isStepReview ? (
+            <div className={styles.stepThreeLayout}>
+              <div className={styles.stepThreePreviewCard} ref={headingRef}>
+                <div className={styles.stepThreePreviewFrame}>
+                  {stepThreePreviewSrc ? (
+                    <img
+                      src={stepThreePreviewSrc}
+                      alt={`Vista previa de ${trimmedDesignName || 'tu diseño'}`}
+                      className={styles.stepThreePreviewImage}
+                    />
+                  ) : (
+                    <div className={styles.stepThreePreviewFallback}>
+                      Vista previa no disponible
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className={styles.stepThreeDetailsCard}>
+                <div className={styles.stepThreeDetailRow}>
+                  <span className={styles.stepThreeDetailLabel}>Tamaño</span>
+                  <span className={styles.stepThreeDetailValue}>{stepThreeSizeDetail}</span>
+                </div>
+                <div className={styles.stepThreeDetailRow}>
+                  <span className={styles.stepThreeDetailLabel}>Material</span>
+                  <span className={styles.stepThreeDetailValue}>{stepThreeMaterialDetail}</span>
+                </div>
+                <div className={styles.stepThreeDetailRow}>
+                  <span className={styles.stepThreeDetailLabel}>Uso ideal</span>
+                  <span className={styles.stepThreeDetailValue}>{stepThreeIdealUseDetail}</span>
+                </div>
+                <div className={`${styles.stepThreeDetailRow} ${styles.stepThreeDetailRowTotal}`.trim()}>
+                  <span className={styles.stepThreeDetailLabel}>Total</span>
+                  <span className={styles.stepThreeDetailValueTotal}>$ {formattedPriceAmount}</span>
+                </div>
+              </div>
+
+              <div className={styles.stepThreeSafetyNote}>
+                <span className={styles.stepThreeSafetyIcon} aria-hidden="true">
+                  <svg viewBox="0 0 24 24" className={styles.stepOneIconSvg}>
+                    <path
+                      d="M12 3 6 5.5v5.9c0 4.2 2.5 8 6 9.6 3.5-1.6 6-5.4 6-9.6V5.5L12 3Z"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.75"
+                      strokeLinejoin="round"
+                    />
+                    <path
+                      d="m9.5 12 1.8 1.8 3.7-4"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.75"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </span>
+                <span className={styles.stepThreeSafetyNoteText}>
+                  Esto es exactamente lo que enviaremos a imprimir
+                </span>
+              </div>
+
               {err && (
-                <div className={styles.canvasFeedback}>
-                  <p
-                    id={err === ACK_LOW_ERROR_MESSAGE ? ackLowErrorDescriptionId : undefined}
-                    className={`errorText ${styles.errorMessage}`}
-                    role="alert"
-                  >
+                <div className={styles.stepTwoFeedback}>
+                  <p className={`errorText ${styles.errorMessage}`} role="alert">
                     {err}
                   </p>
                 </div>
               )}
+
+              <div className={styles.stepThreeActionsRow}>
+                <button
+                  type="button"
+                  className={styles.stepThreeSecondaryButton}
+                  onClick={handleReviewAddToCart}
+                  disabled={busy || Boolean(stepThreeCommerceAction)}
+                >
+                  {stepThreeCommerceAction === 'cart'
+                    ? STEP_THREE_COMMERCE_PENDING_LABEL
+                    : STEP_THREE_ADD_TO_CART_LABEL}
+                </button>
+                <button
+                  type="button"
+                  className={styles.stepThreePrimaryButton}
+                  onClick={handleReviewContinueToPayment}
+                  disabled={busy || Boolean(stepThreeCommerceAction)}
+                >
+                  {stepThreeCommerceAction === 'checkout'
+                    ? STEP_THREE_COMMERCE_PENDING_LABEL
+                    : STEP_THREE_CHECKOUT_BUTTON_LABEL}
+                </button>
+              </div>
+
+              <button
+                type="button"
+                className={styles.stepThreeBackLink}
+                onClick={handleReturnToEditor}
+                disabled={Boolean(stepThreeCommerceAction) || reviewExitBusy}
+              >
+                <span className={styles.stepTwoBackIcon} aria-hidden="true">
+                  <svg viewBox="0 0 24 24" className={styles.stepOneIconSvg}>
+                    <path
+                      d="M15 6l-6 6 6 6"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.75"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </span>
+                <span>Volver al editor</span>
+              </button>
             </div>
-          </div>
+          ) : (
+            <div className={styles.stepTwoLayout} style={stepTwoCanvasStyle}>
+              <Calculadora
+                width={activeSizeCm.w}
+                height={activeSizeCm.h}
+                material={material}
+                setPrice={handleCalculatedPrice}
+                render={() => null}
+              />
+
+              <div className={styles.stepTwoWorkspace} ref={stepTwoWorkspaceRef}>
+                <div className={styles.stepTwoPreviewFrame} ref={lienzoCardRef}>
+                  <div className={styles.stepTwoPreviewBackRail}>
+                    <button
+                      type="button"
+                      className={styles.stepTwoBackButton}
+                      onClick={handleReturnToUpload}
+                      aria-label="Volver al paso de carga"
+                    >
+                      <span className={styles.stepTwoBackIcon} aria-hidden="true">
+                        <svg viewBox="0 0 24 24" className={styles.stepOneIconSvg}>
+                          <path
+                            d="M15 6l-6 6 6 6"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.75"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </span>
+                      <span>Volver</span>
+                    </button>
+                  </div>
+                  <div className={styles.stepTwoPreviewBundle}>
+                    <p className={styles.stepTwoPreviewTitle} ref={headingRef}>VISTA PREVIA DEL DISEÑO</p>
+                    <div className={styles.stepTwoPreviewCanvasColumn}>
+                      <div className={styles.stepTwoPreviewViewport}>
+                        <div className={styles.stepTwoPreviewShell} style={stepTwoPreviewShellStyle}>
+                          <EditorCanvas
+                            ref={canvasRef}
+                            imageUrl={editorImageUrl}
+                            externalImageUrl={editorExternalImageUrl}
+                            imageFile={uploaded?.file}
+                            sizeCm={activeSizeCm}
+                            bleedMm={3}
+                            dpi={300}
+                            material={material}
+                            isCircular={isCircular}
+                            onToggleCircular={handleToggleCircular}
+                            onLayoutChange={setLayout}
+                            onClearImage={handleClearImage}
+                            showCanvas={isCanvasReady}
+                            showHistoryControls={false}
+                            showToolbar={false}
+                            isReplacing={isReplacing}
+                            onReplaceSettled={() => setIsReplacing(false)}
+                            editorRootClassName={styles.stepTwoCanvasRoot}
+                            lienzoClassName={styles.stepTwoCanvasLienzo}
+                            canvasWrapperClassName={styles.stepTwoCanvasWrapper}
+                            allowCanvasPan={false}
+                            onUnmountCleanup={handleStepTwoEditorUnmount}
+                            onImageDragStart={handleStepTwoImageDragStart}
+                          />
+                          {isCanvasReady && showStepTwoRepositionHint && (
+                            <div className={styles.stepTwoPreviewHint} aria-hidden="true">
+                              <span className={styles.stepTwoPreviewHintIcon}>
+                                <svg viewBox="0 0 24 24" className={styles.stepOneIconSvg}>
+                                  <path
+                                    d="M12 4v16"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="1.7"
+                                    strokeLinecap="round"
+                                  />
+                                  <path
+                                    d="M4 12h16"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="1.7"
+                                    strokeLinecap="round"
+                                  />
+                                  <path
+                                    d="m12 4 2.5 2.5"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="1.7"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                  <path
+                                    d="M12 4 9.5 6.5"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="1.7"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                  <path
+                                    d="m12 20 2.5-2.5"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="1.7"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                  <path
+                                    d="M12 20 9.5 17.5"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="1.7"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                  <path
+                                    d="m4 12 2.5-2.5"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="1.7"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                  <path
+                                    d="m4 12 2.5 2.5"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="1.7"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                  <path
+                                    d="m20 12-2.5-2.5"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="1.7"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                  <path
+                                    d="m20 12-2.5 2.5"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="1.7"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                </svg>
+                              </span>
+                              <span>Arrastrá para reposicionar</span>
+                            </div>
+                          )}
+                        </div>
+                        <div className={styles.stepTwoPreviewMeasureColumn} aria-hidden="true">
+                          <span className={styles.stepTwoPreviewMeasureLineVertical} />
+                          <span className={styles.stepTwoPreviewMeasureLabelVertical}>{stepOneCanvasHeightLabel}</span>
+                          <span className={styles.stepTwoPreviewMeasureLineVertical} />
+                        </div>
+                        <div className={styles.stepTwoPreviewMeasureRow} aria-hidden="true">
+                          <span className={styles.stepTwoPreviewMeasureLine} />
+                          <span className={styles.stepTwoPreviewMeasureLabel}>{stepOneCanvasWidthLabel}</span>
+                          <span className={styles.stepTwoPreviewMeasureLine} />
+                        </div>
+                      </div>
+                    </div>
+                    <PrintAreaHelpCaption
+                      showHelp
+                      rowClassName={styles.stepTwoPreviewCaptionBottom}
+                      labelClassName={styles.stepTwoPreviewCaption}
+                    />
+
+                    <aside className={styles.stepTwoActionsRail} aria-label="Acciones del editor">
+                      <input
+                        ref={stepTwoFileInputRef}
+                        type="file"
+                        accept="image/png, image/jpeg"
+                        className={styles.stepOneHiddenInput}
+                        onChange={handleStepTwoReplaceChange}
+                      />
+                      <button
+                        type="button"
+                        className={styles.stepTwoActionButton}
+                        onClick={handleStepTwoOpenReplace}
+                      >
+                        <span className={styles.stepTwoActionIcon} aria-hidden="true">
+                          <img
+                            src={replaceActionIconSrc}
+                            alt=""
+                            className={`${styles.stepTwoActionIconImage} step-two-action-rail-icon`.trim()}
+                          />
+                        </span>
+                        <span>Reemplazar</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.stepTwoActionButton}
+                        onClick={handleClearImage}
+                      >
+                        <span className={styles.stepTwoActionIcon} aria-hidden="true">
+                          <img
+                            src={deleteActionIconSrc}
+                            alt=""
+                            className={`${styles.stepTwoActionIconImage} step-two-action-rail-icon`.trim()}
+                          />
+                        </span>
+                        <span>Eliminar</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.stepTwoActionButton}
+                        onClick={handleStepTwoOpenAr}
+                      >
+                        <span className={styles.stepTwoActionIcon} aria-hidden="true">
+                          <img
+                            src={vrActionIconSrc}
+                            alt=""
+                            className={`${styles.stepTwoActionIconImage} step-two-action-rail-icon`.trim()}
+                          />
+                        </span>
+                        <span>Ver en AR</span>
+                      </button>
+                      <span className={styles.stepTwoActionsDivider} aria-hidden="true" />
+                      <button
+                        type="button"
+                        className={styles.stepTwoActionButton}
+                        onClick={handleStepTwoOpenTools}
+                        aria-expanded={toolsDrawerOpen}
+                        aria-controls="editor-tools-drawer"
+                      >
+                        <span className={styles.stepTwoActionIcon} aria-hidden="true">
+                          <img
+                            src={toolsActionIconSrc}
+                            alt=""
+                            className={`${styles.stepTwoActionIconImage} step-two-action-rail-icon`.trim()}
+                          />
+                        </span>
+                        <span>Herramientas</span>
+                      </button>
+                    </aside>
+
+                    {stepTwoEditorFitMode === 'contain' && (
+                      <div className={styles.stepTwoContainColorDock}>
+                        <div className={styles.stepTwoContainColorDockMain}>
+                          <span className={styles.stepTwoContainColorLabel}>Fondo</span>
+                          <div className={styles.stepTwoContainColorTriggerWrap}>
+                            <button
+                              ref={stepTwoContainColorAnchorRef}
+                              type="button"
+                              className={styles.stepTwoContainColorTrigger}
+                              aria-expanded={stepTwoContainColorOpen}
+                              aria-haspopup="dialog"
+                              aria-label="Elegir color de fondo"
+                              onClick={() => setStepTwoContainColorOpen((open) => !open)}
+                            >
+                              <span
+                                className={styles.stepTwoContainColorSwatch}
+                                style={{ backgroundColor: stepTwoContainColorValue }}
+                                aria-hidden="true"
+                              />
+                            </button>
+                          </div>
+                        </div>
+                        <div className={styles.stepTwoContainColorPopoverWrap}>
+                          <ColorPopover
+                            value={stepTwoContainColorValue}
+                            onChange={handleStepTwoContainColorPreview}
+                            onChangeComplete={handleStepTwoContainColorCommit}
+                            open={stepTwoContainColorOpen}
+                            onClose={() => setStepTwoContainColorOpen(false)}
+                            anchorRef={stepTwoContainColorAnchorRef}
+                            onPickFromCanvas={handleStepTwoContainPickFromCanvas}
+                            intrinsicWrapper
+                            popoverClassName={styles.stepTwoContainColorPopoverSurface}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className={styles.stepTwoFooterStack}>
+                <div className={styles.stepTwoFooter} ref={stepTwoFooterRef}>
+                  <div className={styles.stepTwoFooterTopRow}>
+                    <div className={styles.stepTwoFooterPriceBlock}>
+                      <span className={styles.stepTwoFooterPrice}>$ {formattedPriceAmount}</span>
+                      <span className={styles.stepTwoFooterPriceCaption}>Total según configuración</span>
+                      <span className={styles.stepTwoFooterSizeMaterialLine}>
+                        {stepTwoFooterMobileSizeMaterialLine}
+                      </span>
+                    </div>
+
+                    <div className={styles.stepTwoFooterMeta}>
+                      {stepTwoQualityState && (
+                        <span className={stepTwoStatusBadgeClasses}>
+                          <span className={styles.stepTwoStatusBadgeIcon} aria-hidden="true">
+                            {stepTwoQualityState.icon === 'success' ? (
+                              <svg viewBox="0 0 24 24" className={styles.stepOneIconSvg}>
+                                <path
+                                  d="m6.5 12.5 3.2 3.2L17.5 8"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                            ) : (
+                              <svg viewBox="0 0 24 24" className={styles.stepOneIconSvg}>
+                                <path
+                                  d="M12 7.5v5"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                />
+                                <circle cx="12" cy="16.5" r="1.1" fill="currentColor" />
+                                <path
+                                  d="M12 3.8 20 18a1.2 1.2 0 0 1-1.04 1.8H5.04A1.2 1.2 0 0 1 4 18L12 3.8Z"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="1.75"
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                            )}
+                          </span>
+                          <span className={styles.stepTwoStatusText}>{stepTwoQualityState.label}</span>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    className={styles.stepTwoFooterPrimary}
+                    onClick={handleStepTwoOpenConfig}
+                    disabled={isPublishing || isStepReview}
+                  >
+                    <span className={styles.stepTwoFooterPrimaryLabel}>Elegir tamaño y material</span>
+                    <span className={styles.stepTwoFooterPrimaryArrow} aria-hidden="true">→</span>
+                  </button>
+                </div>
+
+                {moderationNotice && (
+                  <div className={styles.stepTwoFeedback}>
+                    <p className={styles.infoMessage} role="status">{moderationNotice}</p>
+                  </div>
+                )}
+
+                {err && err !== ACK_LOW_ERROR_MESSAGE && (
+                  <div className={styles.stepTwoFeedback}>
+                    <p className={`errorText ${styles.errorMessage}`} role="alert">
+                      {err}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {configOpen && (
+                <div
+                  className={`${styles.stepTwoDrawerBackdrop} ${styles.stepTwoConfigDrawerBackdrop}`.trim()}
+                  onClick={handleStepTwoCloseConfig}
+                  role="presentation"
+                >
+                  <div
+                    className={`${styles.stepTwoConfigDrawer} dark`.trim()}
+                    id="configuracion-editor"
+                    ref={configDropdownRef}
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="configuracion-editor-titulo"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <div className={styles.stepTwoDrawerHeader}>
+                      <div className={styles.stepTwoDrawerHeading}>
+                        <h2 className={styles.stepTwoDrawerTitle} id="configuracion-editor-titulo">
+                          Elegí tamaño y material
+                        </h2>
+                        <p className={styles.stepTwoDrawerEyebrow}>Paso 2 de 3</p>
+                      </div>
+                      <button
+                        type="button"
+                        className={styles.stepTwoDrawerClose}
+                        onClick={handleStepTwoCloseConfig}
+                        aria-label="Cerrar configuración"
+                      >
+                        <img
+                          src={closeXIconSrc}
+                          alt=""
+                          className={styles.stepTwoDrawerCloseIcon}
+                        />
+                      </button>
+                    </div>
+
+                    <form className={styles.stepTwoConfigForm} onSubmit={handleConfigDrawerSubmit}>
+                      <div className={styles.stepTwoAccordion} ref={configPanelRef}>
+                        <section className={styles.stepTwoAccordionSection}>
+                          <button
+                            type="button"
+                            className={styles.stepTwoAccordionTrigger}
+                            aria-expanded={openConfigSection === STEP_TWO_DRAWER_SECTIONS.size}
+                            onClick={() => toggleConfigSection(STEP_TWO_DRAWER_SECTIONS.size)}
+                          >
+                            <span className={styles.stepTwoAccordionHeaderContent}>
+                              <span className={styles.stepTwoAccordionTitle}>Tamaño</span>
+                              {openConfigSection !== STEP_TWO_DRAWER_SECTIONS.size && (
+                                <span className={styles.stepTwoAccordionSummary}>{stepTwoSizeSummary}</span>
+                              )}
+                            </span>
+                            <span
+                              className={`${styles.stepTwoAccordionChevron} ${openConfigSection === STEP_TWO_DRAWER_SECTIONS.size ? styles.stepTwoAccordionChevronOpen : ''}`.trim()}
+                              aria-hidden="true"
+                            >
+                              <svg viewBox="0 0 24 24" className={styles.stepOneIconSvg}>
+                                <path
+                                  d="M7 10l5 5 5-5"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="1.75"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                            </span>
+                          </button>
+
+                          {openConfigSection === STEP_TWO_DRAWER_SECTIONS.size && (
+                            <div className={styles.stepTwoAccordionContent}>
+                              {stepTwoDrawerSizeOptions.map((option) => {
+                                const isSelected = selectedStepTwoSizeOptionId === option.id;
+                                const isFixedSize = option.id === GLASSPAD_FIXED_SIZE_OPTION_ID;
+                                return (
+                                  <label
+                                    key={option.id}
+                                    className={`${styles.stepTwoOptionCard} ${isSelected ? styles.stepTwoOptionCardSelected : ''} ${isFixedSize ? styles.stepTwoOptionCardDisabled : ''}`.trim()}
+                                  >
+                                    <input
+                                      type="radio"
+                                      name="step-two-size"
+                                      className={styles.stepTwoOptionInput}
+                                      checked={isSelected}
+                                      disabled={isFixedSize}
+                                      onChange={() => handleStepTwoSizeOptionSelect(option.id)}
+                                    />
+                                    <span className={styles.stepTwoOptionControl} aria-hidden="true" />
+                                    <span className={styles.stepTwoOptionBody}>
+                                      <span className={styles.stepTwoOptionTitle}>{option.label}</span>
+                                      <span className={styles.stepTwoOptionDescription}>{option.measurementLabel}</span>
+                                    </span>
+                                    <span className={styles.stepTwoOptionPrice}>{option.priceLabel}</span>
+                                  </label>
+                                );
+                              })}
+
+                              {!isFixedPad49x42Material(material) && (
+                                <label
+                                  className={`${styles.stepTwoOptionCard} ${selectedStepTwoSizeOptionId === STEP_TWO_CUSTOM_SIZE_OPTION.id ? styles.stepTwoOptionCardSelected : ''}`.trim()}
+                                >
+                                  <input
+                                    type="radio"
+                                    name="step-two-size"
+                                    className={styles.stepTwoOptionInput}
+                                    checked={selectedStepTwoSizeOptionId === STEP_TWO_CUSTOM_SIZE_OPTION.id}
+                                    onChange={() => handleStepTwoSizeOptionSelect(STEP_TWO_CUSTOM_SIZE_OPTION.id)}
+                                  />
+                                  <span className={styles.stepTwoOptionControl} aria-hidden="true" />
+                                  <span className={styles.stepTwoOptionBody}>
+                                    <span className={styles.stepTwoOptionTitleRow}>
+                                      <RulerIcon className={styles.stepTwoOptionIcon} />
+                                      <span className={styles.stepTwoOptionTitle}>{STEP_TWO_CUSTOM_SIZE_OPTION.label}</span>
+                                    </span>
+                                    <span className={styles.stepTwoOptionDescription}>{STEP_TWO_CUSTOM_SIZE_OPTION.description}</span>
+                                  </span>
+                                  <span className={styles.stepTwoOptionPrice} />
+                                </label>
+                              )}
+
+                              {isFixedPad49x42Material(material) && (
+                                <p className={styles.stepTwoAccordionHint}>
+                                  {material === 'Ultra'
+                                    ? `Ultra usa una medida fija de ${formatSizeLabel(GLASSPAD_SIZE_CM)}.`
+                                    : `Glasspad usa una medida fija de ${formatSizeLabel(GLASSPAD_SIZE_CM)}.`}
+                                </p>
+                              )}
+                            </div>
+                          )}
+
+                          {openConfigSection === STEP_TWO_DRAWER_SECTIONS.size
+                            && showStepTwoCustomSizeInputs && (
+                            <div className={styles.stepTwoCustomSizePanel}>
+                              <CustomSizeFields
+                                compact
+                                size={activeSizeCm}
+                                limits={customSizeLimits}
+                                onChange={handleCustomSizeChange}
+                                onEnterCommit={() => setOpenConfigSection(null)}
+                              />
+                            </div>
+                          )}
+                        </section>
+
+                        <section className={styles.stepTwoAccordionSection}>
+                          <button
+                            type="button"
+                            className={styles.stepTwoAccordionTrigger}
+                            aria-expanded={openConfigSection === STEP_TWO_DRAWER_SECTIONS.material}
+                            onClick={() => toggleConfigSection(STEP_TWO_DRAWER_SECTIONS.material)}
+                          >
+                            <span className={styles.stepTwoAccordionHeaderContent}>
+                              <span className={styles.stepTwoAccordionTitle}>Material</span>
+                              {openConfigSection !== STEP_TWO_DRAWER_SECTIONS.material && (
+                                <span className={styles.stepTwoAccordionSummary}>{stepTwoMaterialSummary}</span>
+                              )}
+                            </span>
+                            <span
+                              className={`${styles.stepTwoAccordionChevron} ${openConfigSection === STEP_TWO_DRAWER_SECTIONS.material ? styles.stepTwoAccordionChevronOpen : ''}`.trim()}
+                              aria-hidden="true"
+                            >
+                              <svg viewBox="0 0 24 24" className={styles.stepOneIconSvg}>
+                                <path
+                                  d="M7 10l5 5 5-5"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="1.75"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                            </span>
+                          </button>
+
+                          {openConfigSection === STEP_TWO_DRAWER_SECTIONS.material && (
+                            <div className={styles.stepTwoAccordionContent}>
+                              {stepTwoDrawerMaterialOptions.map((option) => {
+                                const isSelected = selectedStepTwoMaterialOption?.value === option.value;
+                                return (
+                                  <label
+                                    key={option.value}
+                                    className={`${styles.stepTwoOptionCard} ${isSelected ? styles.stepTwoOptionCardSelected : ''}`.trim()}
+                                  >
+                                    <input
+                                      type="radio"
+                                      name="step-two-material"
+                                      className={styles.stepTwoOptionInput}
+                                      checked={isSelected}
+                                      onChange={() => handleStepTwoMaterialSelect(option.value)}
+                                    />
+                                    <span className={styles.stepTwoOptionControl} aria-hidden="true" />
+                                    <span className={styles.stepTwoOptionBody}>
+                                      <span className={styles.stepTwoOptionTitleRow}>
+                                        <span className={styles.stepTwoOptionTitle}>{option.label}</span>
+                                        {option.recommended && (
+                                          <span className={styles.stepTwoOptionBadge}>Recomendado</span>
+                                        )}
+                                      </span>
+                                      <span className={styles.stepTwoOptionDescription}>{option.description}</span>
+                                    </span>
+                                    <span className={styles.stepTwoOptionPrice}>{option.priceLabel}</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </section>
+
+                        <section className={styles.stepTwoAccordionSection}>
+                          <button
+                            type="button"
+                            className={styles.stepTwoAccordionTrigger}
+                            aria-expanded={openConfigSection === STEP_TWO_DRAWER_SECTIONS.project}
+                            onClick={() => toggleConfigSection(STEP_TWO_DRAWER_SECTIONS.project)}
+                          >
+                            <span className={styles.stepTwoAccordionHeaderContent}>
+                              <span className={styles.stepTwoAccordionTitle}>Nombre del proyecto</span>
+                              {openConfigSection !== STEP_TWO_DRAWER_SECTIONS.project && stepTwoProjectSummary ? (
+                                <span className={styles.stepTwoAccordionSummary}>{stepTwoProjectSummary}</span>
+                              ) : null}
+                            </span>
+                            <span
+                              className={`${styles.stepTwoAccordionChevron} ${openConfigSection === STEP_TWO_DRAWER_SECTIONS.project ? styles.stepTwoAccordionChevronOpen : ''}`.trim()}
+                              aria-hidden="true"
+                            >
+                              <svg viewBox="0 0 24 24" className={styles.stepOneIconSvg}>
+                                <path
+                                  d="M7 10l5 5 5-5"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="1.75"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                            </span>
+                          </button>
+
+                          {openConfigSection === STEP_TWO_DRAWER_SECTIONS.project && (
+                            <div className={styles.stepTwoAccordionContent}>
+                              <div className={styles.stepTwoConfigField}>
+                                <label className={styles.stepTwoConfigLabel} htmlFor="design-name">
+                                  Nombre del proyecto
+                                </label>
+                                <input
+                                  type="text"
+                                  id="design-name"
+                                  ref={designNameInputRef}
+                                  className={designNameInputClasses}
+                                  placeholder="Ej: Nubes y cielo rosa"
+                                  value={designName}
+                                  onChange={handleDesignNameChange}
+                                  disabled={!hasImage}
+                                  aria-invalid={resolvedDesignNameError ? 'true' : 'false'}
+                                  aria-describedby={resolvedDesignNameError ? 'design-name-help design-name-error' : 'design-name-help'}
+                                />
+                                <p className={styles.stepTwoConfigHelpText} id="design-name-help">
+                                  Este nombre te ayudará a identificar tu pedido
+                                </p>
+                                {resolvedDesignNameError && (
+                                  <p className={styles.errorMessage} id="design-name-error">
+                                    {resolvedDesignNameError}
+                                  </p>
+                                )}
+                                {requiresLowAck && (
+                                  <div className={styles.stepTwoLowAck}>
+                                    <label
+                                      className={[
+                                        styles.ackLabel,
+                                        styles.stepTwoLowAckLabel,
+                                        shouldShowAckError ? styles.ackLabelInvalid : '',
+                                      ].filter(Boolean).join(' ')}
+                                    >
+                                      <input
+                                        ref={ackCheckboxRef}
+                                        type="checkbox"
+                                        className={styles.ackCheckbox}
+                                        checked={ackLow}
+                                        onChange={(event) => {
+                                          const nextChecked = event.target.checked;
+                                          setAckLow(nextChecked);
+                                          if (nextChecked) {
+                                            setAckLowError(false);
+                                            if (err === ACK_LOW_ERROR_MESSAGE) {
+                                              setErr('');
+                                            }
+                                          }
+                                        }}
+                                        aria-invalid={shouldShowAckError ? 'true' : 'false'}
+                                        aria-describedby={shouldShowAckError ? ackLowErrorDescriptionId : undefined}
+                                      />
+                                      <span className={styles.ackIndicator} aria-hidden="true" />
+                                      <span className={`${styles.ackLabelText} ${shouldShowAckError ? styles.ackLabelTextError : ''}`.trim()}>
+                                        Acepto imprimir en baja calidad.
+                                      </span>
+                                    </label>
+                                    {shouldShowAckError && (
+                                      <p
+                                        id={ackLowErrorDescriptionId}
+                                        className={`${styles.stepTwoLowAckHint} ${styles.stepTwoLowAckHintError}`.trim()}
+                                      >
+                                        {ACK_LOW_ERROR_MESSAGE}
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </section>
+                      </div>
+
+                      <div className={styles.stepTwoConfigFooter}>
+                        <div className={styles.stepTwoConfigFooterPriceBlock}>
+                          <p className={styles.stepTwoConfigFooterLabel}>Total</p>
+                          <p className={styles.stepTwoConfigFooterAmount}>$ {formattedPriceAmount}</p>
+                        </div>
+
+                        <div className={styles.stepTwoConfigActions}>
+                          <button
+                            type="submit"
+                            className={`${styles.stepTwoPrimaryButton} ${styles.stepTwoConfigSubmitButton}`.trim()}
+                            disabled={isPublishing || !canConfirmStepTwoConfig}
+                          >
+                            Confirmar selección
+                          </button>
+                        </div>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              )}
+
+              {toolsDrawerOpen && (
+                <div
+                  className={`${styles.stepTwoDrawerBackdrop} ${styles.stepTwoToolsDrawerBackdrop}`.trim()}
+                  onClick={handleStepTwoCloseTools}
+                  role="presentation"
+                >
+                  <div
+                    className={`${styles.stepTwoToolsDrawer} dark`.trim()}
+                    ref={toolsDrawerRef}
+                    id="editor-tools-drawer"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="editor-tools-title"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <div className={styles.stepTwoDrawerHeader}>
+                      <div className={styles.stepTwoToolsDrawerHeading}>
+                        <span className={styles.stepTwoToolsDrawerHeadingIcon} aria-hidden="true">
+                          <img src={toolsActionIconSrc} alt="" draggable="false" />
+                        </span>
+                        <h2 className={styles.stepTwoDrawerTitle} id="editor-tools-title">
+                          Herramientas
+                        </h2>
+                      </div>
+                      <button
+                        type="button"
+                        className={styles.stepTwoDrawerClose}
+                        onClick={handleStepTwoCloseTools}
+                        aria-label="Cerrar herramientas"
+                      >
+                        <img
+                          src={closeXIconSrc}
+                          alt=""
+                          className={styles.stepTwoDrawerCloseIcon}
+                        />
+                      </button>
+                    </div>
+
+                    <div className={styles.stepTwoToolsDrawerScroll}>
+                    <div className={styles.stepTwoDrawerSection}>
+                      <p className={styles.stepTwoDrawerSectionTitle}>ALINEACIÓN</p>
+                      <button type="button" className={styles.stepTwoDrawerAction} onClick={() => handleStepTwoToolAction('centerHorizontal')}>
+                        <span className={styles.stepTwoDrawerActionIcon} aria-hidden="true">
+                          <img
+                            src={STEP_TWO_TOOL_ICON_SOURCES.centerHorizontal}
+                            alt=""
+                            className={styles.stepTwoDrawerActionIconImage}
+                            draggable="false"
+                          />
+                        </span>
+                        <span>Centrar horizontalmente</span>
+                      </button>
+                      <button type="button" className={styles.stepTwoDrawerAction} onClick={() => handleStepTwoToolAction('centerVertical')}>
+                        <span className={styles.stepTwoDrawerActionIcon} aria-hidden="true">
+                          <img
+                            src={STEP_TWO_TOOL_ICON_SOURCES.centerVertical}
+                            alt=""
+                            className={styles.stepTwoDrawerActionIconImage}
+                            draggable="false"
+                          />
+                        </span>
+                        <span>Centrar verticalmente</span>
+                      </button>
+                      <button type="button" className={styles.stepTwoDrawerAction} onClick={() => handleStepTwoToolAction('alignLeft')}>
+                        <span className={styles.stepTwoDrawerActionIcon} aria-hidden="true">
+                          <img
+                            src={STEP_TWO_TOOL_ICON_SOURCES.alignLeft}
+                            alt=""
+                            className={styles.stepTwoDrawerActionIconImage}
+                            draggable="false"
+                          />
+                        </span>
+                        <span>Alinear izquierda</span>
+                      </button>
+                      <button type="button" className={styles.stepTwoDrawerAction} onClick={() => handleStepTwoToolAction('alignRight')}>
+                        <span className={styles.stepTwoDrawerActionIcon} aria-hidden="true">
+                          <img
+                            src={STEP_TWO_TOOL_ICON_SOURCES.alignRight}
+                            alt=""
+                            className={styles.stepTwoDrawerActionIconImage}
+                            draggable="false"
+                          />
+                        </span>
+                        <span>Alinear derecha</span>
+                      </button>
+                      <button type="button" className={styles.stepTwoDrawerAction} onClick={() => handleStepTwoToolAction('alignTop')}>
+                        <span className={styles.stepTwoDrawerActionIcon} aria-hidden="true">
+                          <img
+                            src={STEP_TWO_TOOL_ICON_SOURCES.alignTop}
+                            alt=""
+                            className={styles.stepTwoDrawerActionIconImage}
+                            draggable="false"
+                          />
+                        </span>
+                        <span>Alinear arriba</span>
+                      </button>
+                      <button type="button" className={styles.stepTwoDrawerAction} onClick={() => handleStepTwoToolAction('alignBottom')}>
+                        <span className={styles.stepTwoDrawerActionIcon} aria-hidden="true">
+                          <img
+                            src={STEP_TWO_TOOL_ICON_SOURCES.alignBottom}
+                            alt=""
+                            className={styles.stepTwoDrawerActionIconImage}
+                            draggable="false"
+                          />
+                        </span>
+                        <span>Alinear abajo</span>
+                      </button>
+                    </div>
+
+                    <div className={styles.stepTwoDrawerSection}>
+                      <p className={styles.stepTwoDrawerSectionTitle}>TRANSFORMACIÓN</p>
+                      <button type="button" className={styles.stepTwoDrawerAction} onClick={() => handleStepTwoToolAction('flipHorizontal')}>
+                        <span className={styles.stepTwoDrawerActionIcon} aria-hidden="true">
+                          <img
+                            src={STEP_TWO_TOOL_ICON_SOURCES.flipHorizontal}
+                            alt=""
+                            className={styles.stepTwoDrawerActionIconImage}
+                            draggable="false"
+                          />
+                        </span>
+                        <span>Espejo horizontal</span>
+                      </button>
+                      <button type="button" className={styles.stepTwoDrawerAction} onClick={() => handleStepTwoToolAction('flipVertical')}>
+                        <span className={styles.stepTwoDrawerActionIcon} aria-hidden="true">
+                          <img
+                            src={STEP_TWO_TOOL_ICON_SOURCES.flipVertical}
+                            alt=""
+                            className={styles.stepTwoDrawerActionIconImage}
+                            draggable="false"
+                          />
+                        </span>
+                        <span>Espejo vertical</span>
+                      </button>
+                      <button type="button" className={styles.stepTwoDrawerAction} onClick={() => handleStepTwoToolAction('rotate90')}>
+                        <span className={styles.stepTwoDrawerActionIcon} aria-hidden="true">
+                          <img
+                            src={STEP_TWO_TOOL_ICON_SOURCES.rotate90}
+                            alt=""
+                            className={styles.stepTwoDrawerActionIconImage}
+                            draggable="false"
+                          />
+                        </span>
+                        <span>Rotar 90°</span>
+                      </button>
+                    </div>
+                    <div className={styles.stepTwoDrawerSection}>
+                      <p className={styles.stepTwoDrawerSectionTitle}>AJUSTES</p>
+                      <button
+                        type="button"
+                        className={getStepTwoDrawerActionClassName(stepTwoEditorFitMode === 'cover')}
+                        onClick={() => handleStepTwoToolAction('cover')}
+                        aria-label="Cubrir"
+                        title="Cubrir superficie"
+                      >
+                        <span className={styles.stepTwoDrawerActionIcon} aria-hidden="true">
+                          <img
+                            src={STEP_TWO_TOOL_ICON_SOURCES.cover}
+                            alt=""
+                            className={styles.stepTwoDrawerActionIconImage}
+                            draggable="false"
+                          />
+                        </span>
+                        <span>Cubrir</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={getStepTwoDrawerActionClassName(stepTwoEditorFitMode === 'contain')}
+                        onClick={() => handleStepTwoToolAction('contain')}
+                        aria-label="Contener"
+                        title="Diseño completo"
+                      >
+                        <span className={styles.stepTwoDrawerActionIcon} aria-hidden="true">
+                          <img
+                            src={STEP_TWO_TOOL_ICON_SOURCES.contain}
+                            alt=""
+                            className={styles.stepTwoDrawerActionIconImage}
+                            draggable="false"
+                          />
+                        </span>
+                        <span>Contener</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={getStepTwoDrawerActionClassName(stepTwoEditorFitMode === 'stretch')}
+                        onClick={() => handleStepTwoToolAction('stretch')}
+                        aria-label="Estirar"
+                        title="Estirar imagen"
+                      >
+                        <span className={styles.stepTwoDrawerActionIcon} aria-hidden="true">
+                          <img
+                            src={STEP_TWO_TOOL_ICON_SOURCES.stretch}
+                            alt=""
+                            className={styles.stepTwoDrawerActionIconImage}
+                            draggable="false"
+                          />
+                        </span>
+                        <span>Estirar</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={getStepTwoDrawerActionClassName(isCircular)}
+                        onClick={handleStepTwoDrawerToggleCircular}
+                        disabled={stepTwoCircularToggleDisabled}
+                        aria-label={stepTwoCircularToggleLabel}
+                        aria-pressed={isCircular}
+                        title={stepTwoCircularToggleDisabled ? 'No disponible para medida fija (Glasspad / Ultra)' : stepTwoCircularToggleLabel}
+                      >
+                        <span className={styles.stepTwoDrawerActionIcon} aria-hidden="true">
+                          <img
+                            src={stepTwoCircularToggleIcon}
+                            alt=""
+                            className={styles.stepTwoDrawerActionIconImage}
+                            draggable="false"
+                          />
+                        </span>
+                        <span>{stepTwoCircularToggleLabel}</span>
+                      </button>
+                    </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </section>
 
@@ -2279,8 +5576,8 @@ export default function Home() {
         <LoadingOverlay
           visible
           steps={[]}
-          messages={[LOADING_MESSAGES[msgIndex]]}
-          subtitle="No cierres nada, esto puede demorar varios segundos."
+          messages={[STEP_TWO_UPLOAD_MESSAGE]}
+          subtitle={STEP_TWO_UPLOAD_SUBTITLE}
         />
       )}
     </div>

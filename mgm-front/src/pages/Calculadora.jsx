@@ -16,6 +16,7 @@ const CalculadoraPage = () => {
   const materialOptions = useMemo(
     () => [
       { label: 'Glasspad', value: 'Glasspad' },
+      { label: 'Ultra', value: 'Ultra' },
       { label: 'Pro', value: 'Pro' },
       { label: 'Classic', value: 'Classic' },
       { label: 'Alfombra', value: 'Alfombra' },
@@ -38,6 +39,10 @@ const CalculadoraPage = () => {
         height: { min: 20, max: 60 },
       },
       Glasspad: {
+        width: { min: 20, max: 49 },
+        height: { min: 20, max: 42 },
+      },
+      Ultra: {
         width: { min: 20, max: 49 },
         height: { min: 20, max: 42 },
       },

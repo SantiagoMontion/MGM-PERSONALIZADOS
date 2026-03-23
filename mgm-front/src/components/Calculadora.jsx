@@ -1,112 +1,27 @@
-import React, { useEffect, useMemo } from "react";
-
-const rolloData = {
-  Pro:    { width: 125, pricePerMeter: 36145, multiplier: 3.2, baselineArea: 0.26 },
-  Clasic: { width: 140, pricePerMeter: 23820, multiplier: 2.7, baselineArea: 0.36 },
-  Alfombra: { width: 140, pricePerMeter: 30000, multiplier: 2.5, baselineArea: 0.36 },
-};
-
-const STANDARD_SURCHARGE = 2000;
-const GLASSPAD_TRANSFER_PRICE = 130000; // con transferencia (fijo)
-
-function formatARS(n) {
-  return n.toLocaleString("es-AR", { maximumFractionDigits: 0, minimumFractionDigits: 0 });
-}
-
-// Mapea materiales del UI a los keys internos de la calculadora
-function mapMode(material) {
-  if (!material) return "";
-  const m = String(material).trim().toLowerCase();
-  if (m === "pro") return "Pro";
-  if (m === "classic" || m === "clasic") return "Clasic";
-  if (m === "glasspad") return "Glasspad";
-  if (m.includes("alfombr")) return "Alfombra";
-  return material; // fallback
-}
+import React, { useEffect, useMemo } from 'react';
+import { calculateTransferPricing, formatARS, mapPricingMaterial } from '../lib/pricing.js';
 
 const Calculadora = ({ width, height, material, setPrice, className, render }) => {
-  const mode = mapMode(material);
-
-  // Normalize sizes
+  const mode = mapPricingMaterial(material);
   const normalizedWidthCm = Number(width) || 0;
   const normalizedHeightCm = Number(height) || 0;
 
-  // Compute pricing memoized by inputs
-  const computed = useMemo(() => {
-    // Glasspad: fixed price
-    if (mode === "Glasspad") {
-      const transferPrice = GLASSPAD_TRANSFER_PRICE;
-      const precioConAumento = transferPrice * 1.12;
-      const transferPriceRounded = Math.round(precioConAumento / 500) * 500;
-      const normalFromTransfer = Math.round(transferPriceRounded * 1.25);
-      return { valid: true, transfer: transferPriceRounded, normal: normalFromTransfer };
-    }
+  const computed = useMemo(
+    () => calculateTransferPricing({
+      width: normalizedWidthCm,
+      height: normalizedHeightCm,
+      material: mode,
+    }),
+    [mode, normalizedHeightCm, normalizedWidthCm],
+  );
 
-    // Pro / Clasic
-    const rollo = rolloData[mode];
-    if (!rollo) return { valid: false, transfer: 0, normal: 0 };
-
-    const { width: rolloWidth, pricePerMeter, multiplier, baselineArea } = rollo;
-    const rolloWidthM = rolloWidth / 100;
-
-    const pieceWidthM = normalizedWidthCm / 100;
-    const pieceHeightM = normalizedHeightCm / 100;
-    if (pieceWidthM <= 0 || pieceHeightM <= 0) return { valid: true, transfer: 0, normal: 0 };
-
-    const unitsHorizontal = Math.floor(rolloWidthM / pieceWidthM) * Math.floor(1 / pieceHeightM);
-    const unitsRotated = Math.floor(rolloWidthM / pieceHeightM) * Math.max(Math.floor(1 / pieceWidthM), 1);
-    const unitsPerMeter = Math.max(unitsHorizontal, unitsRotated, 1);
-
-    const defaultPricePerUnit = pricePerMeter / unitsPerMeter;
-    const useRotatedModel = !(pieceWidthM === 1.4 && pieceHeightM === 1) && pieceWidthM > 1 && pieceWidthM < rolloWidthM;
-
-    const finalCostPerUnit = useRotatedModel
-      ? (() => {
-          const piecesPerRow = Math.floor(rolloWidthM / pieceHeightM);
-          const baseCostPerUnit = pricePerMeter / piecesPerRow;
-          const extraCost = ((pieceWidthM - 1) * pricePerMeter) / piecesPerRow;
-          return baseCostPerUnit + extraCost;
-        })()
-      : defaultPricePerUnit;
-
-    const yieldPrice = finalCostPerUnit * multiplier;
-    const costPerM2 = pricePerMeter / rolloWidthM;
-    const area = pieceWidthM * pieceHeightM;
-    const areaPrice = area * costPerM2 * multiplier;
-
-    let baseFinalPrice = Math.min(yieldPrice, areaPrice);
-
-    const surchargeFactor = 5000;
-    const extraArea = Math.max(0, area - baselineArea);
-    const areaSurcharge = surchargeFactor * extraArea;
-
-    if (normalizedWidthCm < 40 && normalizedHeightCm < 40) {
-      baseFinalPrice *= 1.3;
-    }
-
-    const roundTo500 = (p) => Math.ceil(p / 500) * 500;
-    const basePriceRounded = roundTo500(baseFinalPrice + areaSurcharge);
-
-    const clientFinalPrice = Math.round(basePriceRounded * 1.25);
-    const transferBase = Math.round(clientFinalPrice * 0.8);
-    const surcharge = STANDARD_SURCHARGE + (mode === "Clasic" ? STANDARD_SURCHARGE : 0);
-    const transferWithExtra = transferBase + surcharge;
-    const precioConAumento = transferWithExtra * 1.12;
-    const transferPriceRounded = Math.round(precioConAumento / 500) * 500;
-    const normalFromTransfer = Math.round(transferPriceRounded / 0.8);
-
-    return { valid: true, transfer: transferPriceRounded, normal: normalFromTransfer };
-  }, [mode, normalizedWidthCm, normalizedHeightCm]);
-
-  // Push price to parent AFTER render
   useEffect(() => {
-    if (typeof setPrice === "function") {
-      const v = computed.valid ? computed.transfer : 0;
-      setPrice(v);
+    if (typeof setPrice === 'function') {
+      setPrice(computed.valid ? computed.transfer : 0);
     }
-  }, [setPrice, computed]);
+  }, [computed, setPrice]);
 
-  if (!computed.valid && mode !== "Glasspad") {
+  if (!computed.valid && mode !== 'Glasspad' && mode !== 'Ultra') {
     return <p>Modo no válido</p>;
   }
 
@@ -118,7 +33,7 @@ const Calculadora = ({ width, height, material, setPrice, className, render }) =
     className,
   };
 
-  if (typeof render === "function") {
+  if (typeof render === 'function') {
     return render(payload);
   }
 

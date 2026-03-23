@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { PDFDocument } from 'pdf-lib';
 import Toast from '@/components/Toast.jsx';
@@ -17,6 +17,7 @@ import { diag, warn, error } from '@/lib/log';
 import { bytesToMB, formatHeavyImageToastMessage } from '@/lib/imageLimits.js';
 import { MAX_IMAGE_MB, MAX_IMAGE_BYTES } from '../lib/imageSizeLimit.js';
 import { isTouchDevice } from '@/lib/device.ts';
+import { isFixedPad49x42Material } from '@/lib/material.js';
 
 const safeStr = (v) => (typeof v === 'string' ? v : '').trim();
 
@@ -39,6 +40,7 @@ const normalizeMaterialLabel = (raw) => {
   if (label === 'Alfombra') return 'Alfombra';
   const s = label.toLowerCase();
   if (s.includes('glass')) return 'Glasspad';
+  if (s.includes('ultra')) return 'Ultra';
   if (s.includes('pro')) return 'PRO';
   if (s.includes('alfombra')) return 'Alfombra';
   if (s.includes('classic')) return 'Classic';
@@ -133,7 +135,7 @@ const extractFlowBasics = (flow) => {
     pxToCm(flow?.editorState?.composition?.heightPx),
   );
 
-  if (mat === 'Glasspad') {
+  if (isFixedPad49x42Material(mat)) {
     widthCm = 49;
     heightCm = 42;
   }
@@ -152,8 +154,11 @@ const extractFlowBasics = (flow) => {
 };
 
 const buildTitle = ({ productType, mat, widthCm, heightCm, designName }) => {
+  if (mat === 'Ultra') {
+    return `Ultra ${designName} 49x42 | Custom`;
+  }
   if (mat === 'Glasspad') {
-    return `Glasspad ${designName} 49x42 | MGM-EDITOR`;
+    return `Glasspad ${designName} 49x42 | Custom`;
   }
   if (mat === 'Alfombra') {
     const w = Number(widthCm);
@@ -162,7 +167,7 @@ const buildTitle = ({ productType, mat, widthCm, heightCm, designName }) => {
     if (Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0) {
       parts.push(`${w}x${h}`);
     }
-    parts.push('|', 'MGM-EDITOR');
+    parts.push('|', 'Custom');
     return parts.join(' ');
   }
   const prefix = productType.toLowerCase().includes('mouse') ? 'Mousepad' : 'Mousepad';
@@ -172,7 +177,7 @@ const buildTitle = ({ productType, mat, widthCm, heightCm, designName }) => {
   if (Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0) {
     parts.push(`${w}x${h}`);
   }
-  parts.push(mat, '|', 'MGM-EDITOR');
+  parts.push(mat, '|', 'Custom');
   return parts.join(' ');
 };
 
@@ -192,6 +197,7 @@ function parseQueryOverrides() {
   const matRaw = (sp.get('mat') || '').toLowerCase();
   let mat = null;
   if (matRaw.includes('glass')) mat = 'Glasspad';
+  else if (matRaw.includes('ultra')) mat = 'Ultra';
   else if (matRaw.includes('pro')) mat = 'PRO';
   else if (matRaw.includes('classic')) mat = 'Classic';
   else if (matRaw.includes('alfombra')) mat = 'Alfombra';
@@ -752,7 +758,7 @@ function buildShopifyPayload(flowState, mode) {
     widthCm = undefined;
     heightCm = undefined;
   }
-  if (mat === 'Glasspad') {
+  if (isFixedPad49x42Material(mat)) {
     widthCm = 49;
     heightCm = 42;
   }
@@ -1095,7 +1101,7 @@ export default function Mockup() {
 
     const finalWidth = Number.isFinite(Number(patch.widthCm)) ? Number(patch.widthCm) : Number(current.widthCm);
     const finalHeight = Number.isFinite(Number(patch.heightCm)) ? Number(patch.heightCm) : Number(current.heightCm);
-    if (resolvedMaterial === 'Glasspad') {
+    if (isFixedPad49x42Material(resolvedMaterial)) {
       if (!(Number.isFinite(finalWidth) && finalWidth > 0)) {
         patch.widthCm = 49;
       }
@@ -1163,7 +1169,7 @@ export default function Mockup() {
       queryPatch.heightCm = q.heightCm;
     }
     const finalMaterial = queryPatch.material || queryPatch.materialResolved || resolvedMaterial;
-    if (finalMaterial === 'Glasspad') {
+    if (isFixedPad49x42Material(finalMaterial)) {
       queryPatch.widthCm = 49;
       queryPatch.heightCm = 42;
     }
@@ -1270,13 +1276,13 @@ export default function Mockup() {
     const hasDims = widthCm != null && heightCm != null;
     if (isGlass) {
       return hasDims
-        ? `${baseCategory} ${designNameValue} ${widthCm}x${heightCm} | MGM-EDITOR`
-        : `${baseCategory} ${designNameValue} | MGM-EDITOR`;
+        ? `${baseCategory} ${designNameValue} ${widthCm}x${heightCm} | Custom`
+        : `${baseCategory} ${designNameValue} | Custom`;
     }
     const matPart = materialLabel ? ` ${materialLabel}` : '';
     return hasDims
-      ? `${baseCategory} ${designNameValue} ${widthCm}x${heightCm}${matPart} | MGM-EDITOR`
-      : `${baseCategory} ${designNameValue}${matPart} | MGM-EDITOR`;
+      ? `${baseCategory} ${designNameValue} ${widthCm}x${heightCm}${matPart} | Custom`
+      : `${baseCategory} ${designNameValue}${matPart} | Custom`;
   }, [flow]);
 
   useEffect(() => {
@@ -4124,7 +4130,7 @@ export default function Mockup() {
       flowState?.editorState?.size_cm?.h,
     );
 
-    if (mat === 'Glasspad') {
+    if (isFixedPad49x42Material(mat)) {
       width = 49;
       height = 42;
     }

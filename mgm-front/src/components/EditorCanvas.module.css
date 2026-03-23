@@ -9,6 +9,24 @@
   min-height: calc(416px * var(--picker-scale));
 }
 
+/* Dock paso 2 / anclas: sin caja 320×416 que separa el panel del botón */
+.colorPickerWrapperIntrinsic {
+  width: max-content !important;
+  max-width: min(calc(100vw - 24px), 280px);
+  height: auto !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  pointer-events: none;
+}
+
+.colorPickerWrapperIntrinsic .colorPopover {
+  position: relative;
+  top: auto;
+  left: auto;
+  transform: none;
+  pointer-events: auto;
+}
+
 .colorPopover {
   display: flex;
   flex-direction: column;
@@ -17,10 +35,10 @@
   width: 220px;
   max-width: calc(100vw - 48px);
   border-radius: 16px;
-  background: #2f2f35;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.55);
-  color: #f3f4f6;
+  background: var(--nm-picker-surface);
+  border: 1px solid var(--nm-on-dark-06);
+  box-shadow: var(--nm-shadow-panel-strong);
+  color: var(--nm-text-strong);
   position: absolute;
   top: 0;
   left: 0;
@@ -33,10 +51,10 @@
   flex-direction: column;
   flex: 1 1 auto;
   width: 100%;
-  border: 1px solid rgba(15, 15, 20, 0.7);
+  border: 1px solid color-mix(in srgb, var(--nm-ink-990) 70%, transparent);
   border-bottom: none;
   border-radius: 16px 16px 0 0;
-  background: #1f1f23;
+  background: var(--nm-picker-area-bg);
   overflow: hidden;
 }
 
@@ -68,9 +86,9 @@
   border-radius: 16px 16px 0 0;
   overflow: hidden;
   border: none;
-  background-color: #1f1f23;
-  background-image: linear-gradient(0deg, #000, transparent),
-    linear-gradient(90deg, #fff, rgba(255, 255, 255, 0));
+  background-color: var(--nm-picker-area-bg);
+  background-image: linear-gradient(0deg, var(--nm-black), transparent),
+    linear-gradient(90deg, var(--nm-white), var(--nm-white-transparent));
   box-shadow: none;
   min-height: 0;
   margin: 0;
@@ -81,9 +99,9 @@
   width: 22px;
   height: 22px;
   border-radius: 999px;
-  border: 2px solid #ffffff;
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
-  background: #ffffff;
+  border: 2px solid var(--nm-white);
+  box-shadow: var(--nm-shadow-pointer);
+  background: var(--nm-white);
 }
 
 .colorPicker :global(.react-colorful__hue) {
@@ -100,9 +118,9 @@
   width: 20px;
   height: 20px;
   border-radius: 999px;
-  border: 2px solid #ffffff;
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
-  background: #ffffff;
+  border: 2px solid var(--nm-white);
+  box-shadow: var(--nm-shadow-pointer);
+  background: var(--nm-white);
 }
 
 .colorPicker :global(.react-colorful__alpha),
@@ -120,10 +138,16 @@
 }
 
 .eyedropperFallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 20px;
   height: 20px;
   border-radius: 999px;
-  border: 2px dashed rgba(249, 250, 251, 0.55);
+  border: 2px dashed var(--nm-on-dark-55);
+  color: var(--nm-on-dark-75);
+  font-size: 0.875rem;
+  font-weight: 700;
 }
 
 .hexRow {
@@ -131,21 +155,21 @@
   align-items: center;
   width: 100%;
   min-height: 72px;
-  border: 1px solid rgba(15, 15, 20, 0.7);
+  border: 1px solid color-mix(in srgb, var(--nm-ink-990) 70%, transparent);
   border-top: none;
   border-radius: 0 0 16px 16px;
-  background: #25252c;
+  background: var(--nm-picker-row-bg);
   overflow: hidden;
   transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .hexRow:focus-within {
-  border-color: rgba(255, 255, 255, 0.24);
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
+  border-color: var(--nm-on-dark-24);
+  box-shadow: 0 0 0 1px var(--nm-on-dark-08);
 }
 
 .hexRow:focus-within .eyedropperButton {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--nm-on-dark-06);
 }
 
 .hexInputWrapper {
@@ -192,16 +216,16 @@
 
 @media (hover: hover) {
   .eyedropperButton:hover {
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--nm-on-dark-08);
   }
 }
 
 .eyedropperButton:active {
-  background: rgba(255, 255, 255, 0.14);
+  background: var(--nm-on-dark-14);
 }
 
 .eyedropperButton:focus-visible {
-  outline: 2px solid rgba(255, 255, 255, 0.65);
+  outline: 2px solid var(--nm-on-dark-65);
   outline-offset: -2px;
 }
 
@@ -213,7 +237,7 @@
   padding: 14px 18px 14px 78px;
   border: none;
   background: transparent;
-  color: #f9fafb;
+  color: var(--nm-text-muted-dark);
   font-size: 18px;
   line-height: 28px;
   font-family: "JetBrains Mono", "SFMono-Regular", Menlo, monospace;
@@ -227,7 +251,7 @@
 }
 
 .hexInput::placeholder {
-  color: rgba(249, 250, 251, 0.35);
+  color: var(--nm-on-dark-35);
 }
 
 
@@ -241,12 +265,13 @@
   gap: 28px;
   width: 100%;
   min-height: 100%;
+  background: transparent;
 }
 
 .copyButton {
-  border: 1px solid #111827;
-  background: #111827;
-  color: #fff;
+  border: 1px solid var(--nm-copy-surface);
+  background: var(--nm-copy-surface);
+  color: var(--nm-white);
   padding: 6px 10px;
   border-radius: 10px;
   cursor: pointer;
@@ -264,11 +289,13 @@
   flex-wrap: wrap;
   padding: 10px 12px;
   border-radius: 14px;
-  border: 1px solid #80808070;
-  background: #282828cb;
+  border: 1px solid color-mix(in srgb, var(--nm-white) 44%, transparent);
+  background: var(--nm-toolbar-bg);
 
   max-width: 100%;
-  pointer-events: auto;
+  pointer-events: auto !important;
+  position: relative;
+  z-index: 100;
 }
 
 .toolbar > * {
@@ -278,10 +305,19 @@
 .toolbarScroller {
   display: inline-flex;
   justify-content: center;
-  pointer-events: auto;
+  pointer-events: auto !important;
   min-width: 0;
   max-width: 100%;
   white-space: nowrap;
+  position: relative;
+  z-index: 100;
+}
+
+.toolbar button,
+.toolbar [role="button"],
+.toolbar input,
+.toolbar .iconOnlyButton {
+  pointer-events: auto !important;
 }
 
 .iconOnlyButton {
@@ -293,9 +329,9 @@
   padding: 0;
   margin: 0;
   border-radius: 10px;
-  border: 1px solid #34343b;
-  background: #282828a8;
-  color: #f7f7fb;
+  border: 1px solid var(--nm-control-border);
+  background: var(--nm-toolbar-bg-soft);
+  color: var(--nm-text-secondary-dark);
   
   transition:
     transform 0.18s ease,
@@ -308,8 +344,8 @@
 }
 
 .iconOnlyButtonActive {
-  background: rgba(132, 132, 132, 0.6);
-  border-color: rgba(132, 132, 132, 0.6);
+  background: var(--nm-control-active-bg);
+  border-color: var(--nm-control-active-bg);
 }
 
 .iconOnlyButton:not(:disabled) {
@@ -319,55 +355,55 @@
 @media (hover: hover) {
   .iconOnlyButton:not(:disabled):hover {
     transform: translateY(-1px);
-    border-color: #585861;
+    border-color: var(--nm-control-border-hover);
   }
 
   .iconOnlyButtonActive:not(:disabled):hover {
-    background: rgba(132, 132, 132, 0.6);
-    border-color: rgba(132, 132, 132, 0.6);
+    background: var(--nm-control-active-bg);
+    border-color: var(--nm-control-active-bg);
   }
 }
 
 .iconOnlyButton:not(:disabled):active {
   transform: translateY(0);
-  border-color: #41414a;
-  background: #18181d;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  border-color: var(--nm-control-border-active);
+  background: var(--nm-ink-850);
+  box-shadow: inset 0 1px 0 var(--nm-on-dark-03);
 }
 
 .iconOnlyButtonActive:not(:disabled):active {
-  background: rgba(132, 132, 132, 0.6);
-  border-color: rgba(132, 132, 132, 0.6);
+  background: var(--nm-control-active-bg);
+  border-color: var(--nm-control-active-bg);
 }
 
 .iconOnlyButton:focus-visible {
-  outline: 2px solid rgba(255, 255, 255, 0.75);
+  outline: 2px solid var(--nm-on-dark-75);
   outline-offset: 2px;
 }
 
 .iconOnlyButton:disabled {
   opacity: 0.45;
   cursor: not-allowed;
-  background: #16161a;
-  border-color: #24242a;
+  background: var(--nm-ink-870);
+  border-color: var(--nm-control-border-muted);
   box-shadow: none;
 }
 
 .arMeasureButton {
-  border-color: #7c3aed;
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.92), rgba(79, 70, 229, 0.92));
+  border-color: var(--nm-ar-border);
+  background: var(--nm-ar-gradient);
 }
 
 @media (hover: hover) {
   .arMeasureButton:not(:disabled):hover {
-    border-color: #8b5cf6;
-    background: linear-gradient(135deg, rgba(139, 92, 246, 0.94), rgba(99, 102, 241, 0.94));
+    border-color: var(--nm-ar-border-hover);
+    background: var(--nm-ar-gradient-hover);
   }
 }
 
 .arMeasureButton:not(:disabled):active {
-  border-color: #6d28d9;
-  background: linear-gradient(135deg, rgba(109, 40, 217, 0.96), rgba(67, 56, 202, 0.96));
+  border-color: var(--nm-ar-border-active);
+  background: var(--nm-ar-gradient-active);
 }
 
 .arMeasureIcon {
@@ -384,19 +420,27 @@
 }
 
 .iconFallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 25px;
   height: 25px;
   border-radius: 8px;
-
-  border: 1px dashed rgba(249, 250, 251, 0.45);
+  border: 1px dashed var(--nm-on-dark-45);
   background: repeating-linear-gradient(
     135deg,
-    rgba(255, 255, 255, 0.18),
-    rgba(255, 255, 255, 0.18) 6px,
-    rgba(255, 255, 255, 0.05) 6px,
-    rgba(255, 255, 255, 0.05) 12px
-
+    var(--nm-icon-fallback-stripe-strong),
+    var(--nm-icon-fallback-stripe-strong) 6px,
+    var(--nm-icon-fallback-stripe-soft) 6px,
+    var(--nm-icon-fallback-stripe-soft) 12px
   );
+  color: var(--nm-on-dark-75);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.iconFallback::before {
+  content: "-";
 }
 
 .iconButtonWithTooltip {
@@ -413,10 +457,10 @@
   transform: translate(-50%, -6px);
   padding: 8px 18px;
   border-radius: 999px;
-  background: rgba(23, 23, 31, 0.96);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.5);
-  color: rgba(244, 244, 249, 0.95);
+  background: var(--nm-tooltip-bg);
+  border: 1px solid var(--nm-on-dark-10);
+  box-shadow: var(--nm-shadow-tooltip);
+  color: var(--nm-on-dark-95);
   font-size: 0.8125rem;
   font-weight: 500;
   letter-spacing: 0.02em;
@@ -444,12 +488,12 @@
   width: 12px;
   height: 12px;
   background: inherit;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--nm-on-dark-10);
   border-top: none;
   border-left: none;
   transform: translateX(-50%) rotate(45deg);
   border-bottom-right-radius: 3px;
-  box-shadow: 0 -10px 20px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--nm-tooltip-arrow-shadow);
 }
 
 .iconButtonWithTooltip[data-tooltip-disabled="true"] .toolbarTooltip {
@@ -512,14 +556,14 @@
   pointer-events: none;
   padding: 6px 16px;
   border-radius: 999px;
-  background: rgba(16, 185, 129, 0.18);
-  border: 1px solid rgba(16, 185, 129, 0.45);
-  color: #bbf7d0;
+  background: color-mix(in srgb, var(--success) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--success) 45%, transparent);
+  color: var(--nm-success-foreground);
   font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.04em;
   line-height: 1.3;
-  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--nm-shadow-panel);
   text-align: center;
 }
 
@@ -534,10 +578,10 @@
   align-items: center;
 }
 
-.qualityUnknown { background: #9ca3af22; color: #9ca3af; border: 1px solid #9ca3af; }
-.qualityBad { background: #ef444422; color: #ef4444; border: 1px solid #ef4444; }
-.qualityWarn { background: #f59e0b22; color: #f59e0b; border: 1px solid #f59e0b; }
-.qualityOk { background: #10b98122; color: #10b981; border: 1px solid #10b981; }
+.qualityUnknown { background: var(--nm-quality-neutral-bg); color: var(--nm-quality-neutral-text); border: 1px solid var(--nm-quality-neutral-text); }
+.qualityBad { background: var(--nm-quality-danger-bg); color: var(--error); border: 1px solid var(--error); }
+.qualityWarn { background: var(--nm-quality-warning-bg); color: var(--warning); border: 1px solid var(--warning); }
+.qualityOk { background: var(--nm-quality-success-bg); color: var(--success); border: 1px solid var(--success); }
 
 
 .lienzo {
@@ -548,35 +592,57 @@
   display: flex;
   align-items: stretch;
   justify-content: center;
+  background: transparent;
 }
 
 .canvasWrapper {
   flex: 1;
-  width: 100%;
+  display: block !important;
+  width: 100% !important;
+  min-width: 100% !important;
   min-height: 0;
   height: 100%;
   border: none;
   border-radius: 12px;
   overflow: hidden;
-  background: #181818;
+  background: transparent;
   position: relative;
   cursor: default;
   touch-action: none;
+}
 
+.canvasWrapperTouchDrag {
+  touch-action: none !important;
+}
+
+.canvasWrapperTouchDrag :global(.konvajs-content),
+.canvasWrapperTouchDrag canvas {
+  pointer-events: auto !important;
+  touch-action: none !important;
 }
 
 @media (pointer: coarse) {
   .canvasWrapper {
-    touch-action: pan-y pinch-zoom !important;
+    touch-action: pan-y !important;
   }
 
-  /* En móvil deshabilitamos eventos directos sobre los canvas de Konva para
-     que el scroll vertical pase al documento aunque la interacción táctil
+  /* En mÃ³vil deshabilitamos eventos directos sobre los canvas de Konva para
+     que el scroll vertical pase al documento aunque la interacciÃ³n tÃ¡ctil
      comience sobre el lienzo. */
-  .canvasWrapper :global(.konvajs-content),
-  .canvasWrapper canvas {
+  .canvasWrapper:not(.canvasWrapperTouchDrag) :global(.konvajs-content),
+  .canvasWrapper:not(.canvasWrapperTouchDrag) canvas {
     pointer-events: none !important;
-    touch-action: pan-y pinch-zoom !important;
+    touch-action: pan-y !important;
+  }
+
+  .canvasWrapperTouchDrag {
+    touch-action: none !important;
+  }
+
+  .canvasWrapperTouchDrag :global(.konvajs-content),
+  .canvasWrapperTouchDrag canvas {
+    pointer-events: auto !important;
+    touch-action: none !important;
   }
 
   .touchScrollOverlay {
@@ -590,7 +656,7 @@
   inset: 0;
   z-index: 400;
   background: transparent;
-  touch-action: pan-y pinch-zoom;
+  touch-action: pan-y;
   pointer-events: auto;
 }
 
@@ -610,10 +676,10 @@
   height: 44px;
   padding: 0;
   margin: 0;
-  border-radius: 10px;
-  border: 1px solid #34343b;
-  background: #282828a8;
-  color: #f7f7fb;
+  border-radius: var(--radius-button);
+  border: 1px solid var(--border-default);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  color: var(--foreground);
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
@@ -621,8 +687,8 @@
 }
 
 .canvasWrapperInactive {
-  background: #181818;
-  border-color: rgba(70, 70, 98, 0.35);
+  background: transparent;
+  border-color: color-mix(in srgb, var(--nm-slate-500) 35%, transparent);
   border-radius: 12px !important;
 }
 
@@ -652,7 +718,7 @@
   bottom: 16px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 30;
+  z-index: 100;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -679,9 +745,9 @@
   margin: 0;
   padding: 0;
   border-radius: 5px;
-  border: 1px solid #8080802c;
-  background: #282828cb;
-  color: #e5e7ff;
+  border: 1px solid color-mix(in srgb, var(--nm-white) 17%, transparent);
+  background: var(--nm-toolbar-bg);
+  color: var(--nm-history-text);
   font-size: 0.65rem;
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -728,24 +794,24 @@
 @media (hover: hover) {
   .historyButton:not(:disabled):hover {
     transform: translateY(-2px);
-    border-color: rgba(126, 126, 220, 0.75);
-    background: rgba(26, 26, 40, 0.9);
+    border-color: var(--nm-history-hover-border);
+    background: var(--nm-history-hover-bg);
   }
 }
 
 .historyButton:focus-visible {
-  outline: 2px solid #2563eb;
+  outline: 2px solid var(--brand-primary);
   outline-offset: 2px;
 }
 
 .historyButtonDanger {
-  border-color: #80808036;
+  border-color: color-mix(in srgb, var(--nm-white) 21%, transparent);
 }
 
 @media (hover: hover) {
   .historyButtonDanger:not(:disabled):hover {
-    background: rgba(177, 48, 48, 0.9);
-    border-color: rgba(177, 48, 48, 0.9);
+    background: var(--nm-history-danger-hover-bg);
+    border-color: var(--nm-history-danger-hover-border);
   }
 }
 
@@ -754,6 +820,33 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
+}
+
+.replacingOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--nm-guide-primary) 12%, transparent);
+  backdrop-filter: blur(1.5px);
+}
+
+.replacingSpinner {
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  border: 3px solid var(--nm-on-dark-24);
+  border-top-color: var(--nm-on-dark-95);
+  animation: editorCanvasSpinner 0.75s linear infinite;
+  box-shadow: var(--nm-shadow-spinner);
+}
+
+@keyframes editorCanvasSpinner {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .confirmButton {
@@ -766,9 +859,9 @@
   align-self: center;
   padding: 10px 16px;
   border-radius: 14px;
-  border: 1px solid rgba(239, 68, 68, 0.45);
-  background: rgba(64, 18, 26, 0.82);
-  color: #fca5a5;
+  border: 1px solid color-mix(in srgb, var(--error) 45%, transparent);
+  background: color-mix(in srgb, var(--error) 18%, var(--surface));
+  color: var(--error);
   font-size: 0.85rem;
   max-width: 520px;
   text-align: center;
@@ -802,7 +895,7 @@
 
 
 
-/* El wrapper del botón + popover sirve de ancla para el popover */
+/* El wrapper del botÃ³n + popover sirve de ancla para el popover */
 .colorWrapper {
   position: relative;
           /* <- ancla local para posicionar el popover */
@@ -886,7 +979,7 @@
   }
 }
 
-/* El badge de calidad no rompe línea (si querés que no se corte) */
+/* El badge de calidad no rompe lÃ­nea (si querÃ©s que no se corte) */
 .qualityBadge {
   white-space: nowrap;
   flex: 0 0 auto;
@@ -903,5 +996,6 @@ pre, code {
   word-break: break-word;
 }
 
-/* Opcional (parche temporal mientras depurás): recorta overflow global horizontal
-   ÚSALO SOLO si aún tenés otros desbordes externos al toolbar */
+/* Opcional (parche temporal mientras depurÃ¡s): recorta overflow global horizontal
+   ÃšSALO SOLO si aÃºn tenÃ©s otros desbordes externos al toolbar */
+

@@ -20,6 +20,7 @@ export function materialLabel(material) {
   const input = typeof material === 'string' ? material : Array.isArray(material) ? material.join(' ') : '';
   const normalized = input.toLowerCase();
   if (normalized.includes('glass')) return 'Glasspad';
+  if (normalized.includes('ultra')) return 'Ultra';
   if (normalized.includes('pro')) return 'PRO';
   if (normalized.includes('classic')) return 'Classic';
   return input.trim() || 'Classic';

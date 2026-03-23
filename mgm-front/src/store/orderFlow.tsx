@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, ReactNode } from 'react';
 
 export type FlowState = {
-  mode: 'Classic' | 'Pro' | 'Glasspad';
+  mode: 'Classic' | 'Pro' | 'Glasspad' | 'Ultra';
   width_cm: number;
   height_cm: number;
   bleed_mm: number;

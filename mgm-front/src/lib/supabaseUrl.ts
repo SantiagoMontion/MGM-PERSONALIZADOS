@@ -1,3 +1,27 @@
+/** URLs públicas: `{origin}/storage/v1/object/public/{bucket}/path/to/object` */
+export function parseSupabasePublicStorageUrl(
+  url: string | null | undefined,
+): { bucket: string; path: string } | null {
+  if (!url || typeof url !== 'string') return null;
+  const trimmed = url.trim();
+  if (!trimmed || trimmed.startsWith('blob:')) return null;
+  try {
+    const u = new URL(trimmed);
+    const marker = '/storage/v1/object/public/';
+    const idx = u.pathname.indexOf(marker);
+    if (idx === -1) return null;
+    const rest = u.pathname.slice(idx + marker.length);
+    const parts = rest.split('/').filter(Boolean);
+    if (parts.length < 2) return null;
+    const bucket = parts[0];
+    const path = parts.slice(1).map((seg) => decodeURIComponent(seg)).join('/');
+    if (!bucket || !path) return null;
+    return { bucket, path };
+  } catch {
+    return null;
+  }
+}
+
 export function canonicalizeSupabaseUploadsUrl(input: string): string {
   if (!input) return input;
   try {

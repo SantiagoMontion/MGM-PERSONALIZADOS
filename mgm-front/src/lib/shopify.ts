@@ -253,6 +253,7 @@ function matLabelOf(material: unknown): string | null {
   if (!raw) return null;
   const text = raw.toLowerCase();
   if (text.includes('glass')) return 'Glasspad';
+  if (text.includes('ultra')) return 'Ultra';
   if (text.includes('pro')) return 'PRO';
   if (text.includes('alfombr')) return 'Alfombra';
   if (text.includes('classic')) return 'Classic';
@@ -440,11 +441,12 @@ export async function ensureMockupUrl(flow: FlowState): Promise<string> {
   const widthCm = cmFromPx(masterWidthPx, dpi);
   const heightCm = cmFromPx(masterHeightPx, dpi);
   const mat = matLabelOf(flowAny?.material) || 'Classic';
+  const flowShape = resolveProductShape(flowAny as FlowState);
   const filenameBaseRaw = buildMockupBaseName({
     designName: safeName(flowAny?.designName),
     widthCm,
     heightCm,
-    material: mat.replace(/\s+.*/, ''),
+    material: formatCustomerMaterialLabel(mat, flowShape === 'circle'),
   });
   const filenameBase = sanitizeMockupFilenameBase(filenameBaseRaw);
   const title = typeof flowAny?.title === 'string' && flowAny.title.trim()
@@ -594,7 +596,7 @@ function buildPrivateDraftOrderMetadata(options: {
 
   const sourceLine = 'Origen: Editor personalizado';
   lines.push(sourceLine);
-  pushAttribute('mgm_source', 'editor');
+  pushAttribute('_app_source', 'custom');
 
   const note = lines.join('\n').slice(0, 1024);
 
@@ -602,12 +604,44 @@ function buildPrivateDraftOrderMetadata(options: {
 }
 
 function buildGlasspadTitle(designName?: string, measurement?: string): string {
-  const sections = ['Glasspad'];
+  const sections: string[] = [];
   const normalizedName = (designName || '').trim();
   if (normalizedName) sections.push(normalizedName);
   const normalizedMeasurement = (measurement || '').trim();
   if (normalizedMeasurement) sections.push(normalizedMeasurement);
-  return `${sections.join(' ')} | MGM-EDITOR`;
+  sections.push('Glasspad');
+  return `${sections.join(' ').trim() || 'Glasspad'} | Custom`;
+}
+
+function normalizeProductShape(value: unknown): 'circle' | 'rounded_rect' {
+  if (typeof value !== 'string') return 'rounded_rect';
+  const normalized = value.trim().toLowerCase();
+  return normalized === 'circle' ? 'circle' : 'rounded_rect';
+}
+
+function resolveProductShape(flow: FlowState): 'circle' | 'rounded_rect' {
+  if ((flow as any)?.isCircular === true || (flow as any)?.options?.isCircular === true) {
+    return 'circle';
+  }
+  const shapeCandidates = [
+    (flow as any)?.shape,
+    (flow as any)?.editorState?.shape,
+    (flow as any)?.options?.shape,
+  ];
+  return shapeCandidates.some((candidate) => normalizeProductShape(candidate) === 'circle')
+    ? 'circle'
+    : 'rounded_rect';
+}
+
+function formatCustomerMaterialLabel(material?: string, isCircular = false): string {
+  const normalizedMaterial = typeof material === 'string' ? material.trim() : '';
+  if (!normalizedMaterial) {
+    return isCircular ? 'Form' : '';
+  }
+  if (isCircular && normalizedMaterial !== 'Glasspad' && normalizedMaterial !== 'Ultra' && !/\bForm\b/i.test(normalizedMaterial)) {
+    return `${normalizedMaterial} Form`;
+  }
+  return normalizedMaterial;
 }
 
 function buildDefaultTitle(
@@ -615,12 +649,27 @@ function buildDefaultTitle(
   designName?: string,
   measurement?: string,
   material?: string,
+  isCircular = false,
 ): string {
-  const parts = [productLabel];
+  const parts: string[] = [];
   if (designName) parts.push(designName);
   if (measurement) parts.push(measurement);
-  if (material && material !== productLabel) parts.push(material);
-  return `${parts.join(' ')} | MGM-EDITOR`;
+  const displayMaterial = formatCustomerMaterialLabel(
+    material && material !== productLabel ? material : material || productLabel,
+    isCircular,
+  );
+  if (displayMaterial) parts.push(displayMaterial);
+  if (!parts.length && productLabel) parts.push(productLabel);
+  return `${parts.join(' ').trim() || 'Custom'} | Custom`;
+}
+
+function normalizeCustomerProductTitle(value: string): string {
+  return value
+    .replace(/\bMGM[-_\s]?EDITOR\b/g, 'Custom')
+    .replace(/\s*\|\s*Custom\b/g, ' | Custom')
+    .replace(/\s*-\s*Custom\b/g, ' - Custom')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
 }
 
 function buildMetaDescription(
@@ -744,12 +793,15 @@ export async function createJobAndProduct(
     materialHint,
     normalizedProductType || 'mousepad',
   );
+  const productShape = resolveProductShape(flow);
+  const isCircularShape = productShape === 'circle';
   let productLabel = productType === 'glasspad' ? 'Glasspad' : 'Mousepad';
   const designNameInput = (flow as any)?.designName;
   const designNameRaw = (designNameInput ?? '').toString(); // el input tal cual (servidor corta a 40)
   let designName = designNameRaw.trim();
   const materialFromFlow = (flow.material || '').trim();
   let materialLabel = productType === 'glasspad' ? 'Glasspad' : (matLabelOf(materialFromFlow) || 'Classic');
+  const displayMaterialLabel = formatCustomerMaterialLabel(materialLabel, isCircularShape);
   if (materialLabel === 'Alfombra') {
     productLabel = 'Alfombra';
   }
@@ -860,13 +912,13 @@ export async function createJobAndProduct(
   let measurementLabel = formatMeasurement(widthCm, heightCm);
   let productTitle = productType === 'glasspad'
     ? buildGlasspadTitle(designName, measurementLabel)
-    : buildDefaultTitle(productLabel, designName, measurementLabel, materialLabel);
-  let metaDescription = buildMetaDescription(productLabel, designName, measurementLabel, materialLabel);
+    : buildDefaultTitle(productLabel, designName, measurementLabel, materialLabel, isCircularShape);
+  let metaDescription = buildMetaDescription(productLabel, designName, measurementLabel, displayMaterialLabel);
   const widthFallback = cmFromPx((flow as any)?.masterWidthPx, (flow as any)?.approxDpi || 300);
   const heightFallback = cmFromPx((flow as any)?.masterHeightPx, (flow as any)?.approxDpi || 300);
   const widthForName = resolveMeasurementForFilename(widthCm, widthFallback);
   const heightForName = resolveMeasurementForFilename(heightCm, heightFallback);
-  const materialForName = (materialLabel || 'Classic').replace(/\s+.*/, '');
+  const materialForName = displayMaterialLabel || materialLabel || 'Classic';
   const mockupBaseNameRaw = buildMockupBaseName({
     designName: designName || productTitle || 'Mousepad',
     widthCm: widthForName,
@@ -893,7 +945,7 @@ export async function createJobAndProduct(
       flow,
       measurement: measurementLabel,
       productLabel,
-      materialLabel,
+      materialLabel: displayMaterialLabel,
       customerEmail,
     })
     : null;
@@ -903,6 +955,7 @@ export async function createJobAndProduct(
     const materialTag = materialLabel.toLowerCase().replace(/[^a-z0-9]+/g, '-');
     if (materialTag) extraTags.push(`material-${materialTag}`);
   }
+  if (isCircularShape) extraTags.push('shape-form');
   if (flow.lowQualityAck) extraTags.push('calidad-baja');
   if (isPrivate) extraTags.push('private');
   let filename = `${slugify(fallbackMockupName)}.png`;
@@ -1020,6 +1073,8 @@ export async function createJobAndProduct(
       title: productTitle,
       material: materialLabel, // enviar material explícito plano
       materialResolved: materialLabel,
+      shape: productShape,
+      isCircular: isCircularShape,
       widthCm,
       heightCm,
       approxDpi,
@@ -1049,6 +1104,8 @@ export async function createJobAndProduct(
       options: {
         ...(materialLabel ? { material: materialLabel } : {}),
         productType: payloadProductType,
+        shape: productShape,
+        isCircular: isCircularShape,
       },
     };
 
@@ -1059,7 +1116,7 @@ export async function createJobAndProduct(
     if (overrides) {
       const titleOverride = overrides.title;
       if (typeof titleOverride === 'string' && titleOverride.trim()) {
-        payload.title = titleOverride.trim();
+        payload.title = normalizeCustomerProductTitle(titleOverride.trim());
       }
       const designNameOverride = overrides.designName;
       if (typeof designNameOverride === 'string' && designNameOverride.trim()) {

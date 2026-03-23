@@ -3,15 +3,15 @@ import SeoJsonLd from '../components/SeoJsonLd';
 import styles from './NotFound.module.css';
 
 const LOST_META = {
-  title: '¿Estás perdido? — MGMGAMERS',
+  title: '¿Estás perdido? — NOTMID',
   description: 'No encontramos la página que buscabas. Volvé al inicio.',
-  canonical: 'https://www.mgmgamers.store/404'
+  canonical: 'https://personalizados.notmid.ar/404'
 };
 
 const ERROR_META = {
-  title: 'Algo salió mal — MGMGAMERS',
+  title: 'Algo salió mal — NOTMID',
   description: 'Tuvimos un inconveniente inesperado al cargar la página. Probá nuevamente en unos instantes.',
-  canonical: 'https://www.mgmgamers.store/error'
+  canonical: 'https://personalizados.notmid.ar/error'
 };
 
 function LostLayout({

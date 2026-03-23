@@ -1,0 +1,123 @@
+/* Design Tokens Export - 13/3/2026 */
+/* Theme: light | View: desktop */
+
+:root,
+html.light,
+body.light {
+  /* ========================================
+     SPACING SCALE
+     ======================================== */
+  --space-0: 0; /* 0px */
+  --space-1: 0.25rem; /* 4px */
+  --space-2: 0.5rem; /* 8px */
+  --space-3: 0.75rem; /* 12px */
+  --space-4: 1rem; /* 16px */
+  --space-5: 1.25rem; /* 20px */
+  --space-6: 1.5rem; /* 24px */
+  --space-7: 1.75rem; /* 28px */
+  --space-8: 2rem; /* 32px */
+  --space-10: 2.5rem; /* 40px */
+  --space-12: 3rem; /* 48px */
+  --space-14: 3.5rem; /* 56px */
+  --space-16: 4rem; /* 64px */
+  --space-20: 5rem; /* 80px */
+  --space-24: 6rem; /* 96px */
+
+  /* ========================================
+     BORDER RADIUS
+     ======================================== */
+  --radius-none: 0; /* 0px */
+  --radius-xs: 0.25rem; /* 4px */
+  --radius-sm: 0.375rem; /* 6px */
+  --radius-md: 0.5rem; /* 8px */
+  --radius-lg: 0.625rem; /* 10px */
+  --radius-xl: 0.75rem; /* 12px */
+  --radius-2xl: 1rem; /* 16px */
+  --radius-3xl: 1.5rem; /* 24px */
+  --radius-full: 9999px; /* circle */
+
+  /* ========================================
+     TYPOGRAPHY
+     ======================================== */
+  --fs-2xs: 0.625rem; /* 10px */
+  --fs-xs: 0.75rem; /* 12px */
+  --fs-sm: 0.875rem; /* 14px */
+  --fs-base: 1rem; /* 16px */
+  --fs-lg: 1.125rem; /* 18px */
+  --fs-xl: 1.25rem; /* 20px */
+  --fs-2xl: 1.5rem; /* 24px */
+  --fs-3xl: 1.875rem; /* 30px */
+  --fs-4xl: 2.25rem; /* 36px */
+
+  /* ========================================
+     BACKGROUNDS
+     ======================================== */
+  --background: #F8FAFC; /* Fondo principal */
+  --surface: #FFFFFF; /* Superficie (cards) */
+  --surface-secondary: #F1F5F9; /* Superficie secundaria */
+  --surface-tertiary: #E2E8F0; /* Superficie terciaria */
+  --overlay: rgba(0, 0, 0, 0.6); /* Overlay/backdrop */
+
+  /* ========================================
+     FOREGROUNDS
+     ======================================== */
+  --foreground: #171717; /* Texto principal */
+  --foreground-secondary: #767474; /* Texto secundario */
+  --foreground-tertiary: rgba(0, 0, 0, 0.6); /* Texto terciario */
+  --foreground-muted: rgba(0, 0, 0, 0.4); /* Texto atenuado */
+  --foreground-subtle: rgba(0, 0, 0, 0.25); /* Texto sutil */
+
+  /* ========================================
+     BORDERS
+     ======================================== */
+  --border-default: rgba(0, 0, 0, 0.08); /* Borde por defecto */
+  --border-strong: rgba(0, 0, 0, 0.12); /* Borde fuerte */
+  --border-hover: rgba(0, 0, 0, 0.15); /* Borde en hover */
+  --border-focus: #e8d9006e; /* Borde en focus */
+
+  /* ========================================
+     INTERACTIVE STATES
+     ======================================== */
+  --interactive-hover: rgba(0, 0, 0, 0.03); /* Fondo hover */
+  --interactive-active: rgba(0, 0, 0, 0.05); /* Fondo active */
+  --interactive-selected: rgba(37, 99, 235, 0.08); /* Fondo seleccionado */
+  --interactive-disabled: rgba(0, 0, 0, 0.02); /* Fondo deshabilitado */
+
+  /* ========================================
+     BRAND COLORS
+     ======================================== */
+  --brand-primary: #e8d800; /* Azul principal */
+  --brand-primary-hover: #e8d800; /* Hover state */
+  --brand-primary-active: #e8d800; /* Active state */
+  --brand-secondary: rgba(37, 99, 235, 0.1); /* Fondo brand sutil */
+  --accent: #e8d800; /* Acento */
+
+  /* ========================================
+     SEMANTIC SPACING
+     ======================================== */
+  --spacing-component-gap-sm: var(--space-2); /* 8px */
+  --spacing-component-gap-md: var(--space-3); /* 12px */
+  --spacing-component-gap-lg: var(--space-4); /* 16px */
+  --spacing-section-gap-sm: var(--space-6); /* 24px */
+  --spacing-section-gap-md: var(--space-10); /* 40px */
+  --spacing-section-gap-lg: var(--space-16); /* 64px */
+  --spacing-container-padding: var(--space-6); /* 24px */
+  --spacing-card-padding: var(--space-5); /* 20px */
+
+  /* ========================================
+     SEMANTIC RADIUS
+     ======================================== */
+  --radius-button: var(--radius-lg); /* 10px */
+  --radius-card: var(--radius-2xl); /* 16px */
+  --radius-input: var(--radius-md); /* 8px */
+  --radius-dialog: var(--radius-3xl); /* 24px */
+  --radius-dropdown: var(--radius-lg); /* 10px */
+
+  /* ========================================
+     SEMANTIC COLORS
+     ======================================== */
+  --success: #22C55E;
+  --warning: #F59E0B;
+  --error: #EF4444;
+  --info: #e8d800;
+}

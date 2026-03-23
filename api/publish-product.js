@@ -48,6 +48,7 @@ function normalizeIncomingMaterial(material) {
   const normalized = raw.toLowerCase();
   if (normalized === 'pro') return 'PRO';
   if (normalized === 'classic' || normalized === 'clasic') return 'Classic';
+  if (normalized === 'ultra') return 'Ultra';
   if (normalized.includes('glass')) return 'Glasspad';
   if (normalized.includes('alfombr')) return 'Alfombra';
   if (normalized.includes('lamp') || normalized.includes('ilumin')) return 'Lámpara';
@@ -585,7 +586,7 @@ export default async function handler(req, res) {
   if (Number.isFinite(heightCmSafe) && heightCmSafe > 0) {
     heightCmSafe = Math.round(heightCmSafe);
   }
-  if (mat === 'Glasspad') {
+  if (mat === 'Glasspad' || mat === 'Ultra') {
     widthCmSafe = 49;
     heightCmSafe = 42;
   }
@@ -609,6 +610,13 @@ export default async function handler(req, res) {
   );
   const designNameNorm = normalizeDesignNameKeepSpaces(designNameRaw);
   const designName = designNameNorm.length ? designNameNorm : 'Personalizado';
+  const normalizedShape = (
+    parsedBody?.shape
+      ?? parsedBody?.options?.shape
+      ?? (parsedBody?.isCircular === true || parsedBody?.options?.isCircular === true ? 'circle' : 'rounded_rect')
+  );
+  const isCircularShape = String(normalizedShape || '').trim().toLowerCase() === 'circle';
+  const materialTitleLabel = isCircularShape && mat !== 'Glasspad' && mat !== 'Ultra' ? `${mat} Form` : mat;
   const hasDims = Number.isFinite(widthCmSafe) && Number.isFinite(heightCmSafe) && widthCmSafe > 0 && heightCmSafe > 0;
   const productLabel = productType.includes('glass')
     ? 'Glasspad'
@@ -616,19 +624,34 @@ export default async function handler(req, res) {
       ? 'Alfombra'
       : 'Mousepad';
   const nameParts = [
-    productLabel,
     designName,
     hasDims ? `${widthCmSafe}x${heightCmSafe}` : '',
-    productLabel === 'Mousepad' ? mat : '',
+    materialTitleLabel || productLabel,
   ].filter(Boolean);
-  const computedTitle = designName
-    ? `${nameParts.join(' ')} | MGM-EDITOR`
-    : parsedBody.title;
-  const finalTitle = typeof parsedBody.title === 'string' && parsedBody.title.includes('| MGM-EDITOR')
+  const normalizedIncomingTitle = typeof parsedBody.title === 'string'
     ? parsedBody.title
+      .replace(/\bMGM[-_\s]?EDITOR\b/g, 'Custom')
+      .replace(/\s*\|\s*Custom\b/g, ' | Custom')
+      .replace(/\s*-\s*Custom\b/g, ' - Custom')
+      .replace(/\s{2,}/g, ' ')
+      .trim()
+    : '';
+  const computedTitle = designName
+    ? `${nameParts.join(' ')} | Custom`
+    : normalizedIncomingTitle;
+  const finalTitle = normalizedIncomingTitle.includes('| Custom')
+    ? normalizedIncomingTitle
     : computedTitle;
   parsedBody.materialResolved = mat;
-  parsedBody.options = { ...(parsedBody.options || {}), material: mat, productType };
+  parsedBody.shape = isCircularShape ? 'circle' : 'rounded_rect';
+  parsedBody.isCircular = isCircularShape;
+  parsedBody.options = {
+    ...(parsedBody.options || {}),
+    material: mat,
+    productType,
+    shape: parsedBody.shape,
+    isCircular: parsedBody.isCircular,
+  };
   parsedBody.productType = productType;
   parsedBody.widthCm = Number.isFinite(widthCmSafe) && widthCmSafe > 0 ? widthCmSafe : undefined;
   parsedBody.heightCm = Number.isFinite(heightCmSafe) && heightCmSafe > 0 ? heightCmSafe : undefined;

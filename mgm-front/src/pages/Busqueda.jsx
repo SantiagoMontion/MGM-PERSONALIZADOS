@@ -14,7 +14,8 @@ import {
 import styles from './Busqueda.module.css';
 import { diag, warn } from '@/lib/log';
 
-const PAGE_LIMIT = 25;
+// Objetivo: traer pocas filas para acelerar (y reducir carga de preview/URLs).
+const PAGE_LIMIT = 5;
 
 function looksLikePdfUrl(value) {
   if (typeof value !== 'string') return false;
@@ -106,7 +107,7 @@ function PreviewThumbnail({ src }) {
       {src && !showFallback && status !== 'failed' ? (
         <img
           src={src}
-          alt="Miniatura MGMGAMERS"
+          alt="Miniatura NOTMID"
           className={styles.previewImage}
           loading="lazy"
           referrerPolicy="no-referrer"
@@ -132,8 +133,10 @@ export default function Busqueda() {
   const [query, setQuery] = useState('');
   const [lastQuery, setLastQuery] = useState('');
   const [results, setResults] = useState([]);
-  const [total, setTotal] = useState(0);
-  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [cursorStack, setCursorStack] = useState([null]); // null = primera página
+  const currentCursor = cursorStack[cursorStack.length - 1] ?? null;
+  const [nextCursor, setNextCursor] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [searched, setSearched] = useState(false);
@@ -161,11 +164,9 @@ export default function Busqueda() {
   }, [hasAccess]);
 
   const showingRange = useMemo(() => {
-    if (!searched || total === 0 || results.length === 0) return '';
-    const from = offset + 1;
-    const to = offset + results.length;
-    return `Mostrando ${from}-${to} de ${total}`;
-  }, [searched, total, results.length, offset]);
+    if (!searched || results.length === 0) return '';
+    return `Mostrando ${results.length} resultados`;
+  }, [searched, results.length]);
 
   const SUPA_URL = (import.meta.env?.VITE_SUPABASE_URL
     || import.meta.env?.NEXT_PUBLIC_SUPABASE_URL
@@ -247,12 +248,13 @@ export default function Busqueda() {
     [results, getPreviewUrlFromRecord],
   );
 
-  async function performSearch(nextQuery, nextOffset = 0) {
+  async function performSearch(nextQuery, cursor = null, nextOffset = 0) {
     const trimmed = nextQuery.trim();
     if (!trimmed) {
       setError('Ingresá un término para buscar.');
       setResults([]);
-      setTotal(0);
+      setHasMore(false);
+      setNextCursor(null);
       setSearched(false);
       return;
     }
@@ -271,12 +273,19 @@ export default function Busqueda() {
     setSearched(true);
 
     try {
+      // `offset` se manda como compatibilidad (fallback a storage).
+      // Si existe `cursor`, el backend lo prioriza para keyset pagination.
       const params = new URLSearchParams({
         query: trimmed,
         limit: String(PAGE_LIMIT),
-        offset: String(Math.max(0, nextOffset)),
         sortBy: 'created_at',
       });
+      if (Number.isFinite(nextOffset) && nextOffset >= 0) {
+        params.set('offset', String(Math.floor(nextOffset)));
+      }
+      if (typeof cursor === 'string' && cursor.trim()) {
+        params.set('cursor', cursor);
+      }
       const endpoint = `/api/prints/search?${params.toString()}`;
       const headers = { Accept: 'application/json' };
       if (gateToken) {
@@ -296,7 +305,8 @@ export default function Busqueda() {
         setError('Necesitás ingresar la contraseña temporal para buscar.');
         setPasswordValue('');
         setResults([]);
-        setTotal(0);
+        setHasMore(false);
+        setNextCursor(null);
         setSearched(false);
         return;
       }
@@ -313,22 +323,18 @@ export default function Busqueda() {
           ? 'Ingresá al menos 2 caracteres para buscar.'
           : `No se pudo realizar la búsqueda (${message}).`);
         setResults([]);
-        setTotal(0);
         setLastQuery(trimmed);
-        setOffset(nextOffset);
+        setHasMore(false);
+        setNextCursor(null);
         return;
       }
 
       const items = Array.isArray(payload?.items) ? payload.items : [];
-      const totalItemsRaw = payload?.total ?? payload?.pagination?.total;
-      const usedOffsetRaw = payload?.offset ?? payload?.pagination?.offset;
-      const totalItems = Number.isFinite(Number(totalItemsRaw)) ? Number(totalItemsRaw) : items.length;
-      const usedOffset = Number.isFinite(Number(usedOffsetRaw)) ? Number(usedOffsetRaw) : nextOffset;
 
       setResults(items);
-      setTotal(totalItems);
-      setOffset(Math.max(0, usedOffset));
       setLastQuery(trimmed);
+      setHasMore(Boolean(payload?.hasMore));
+      setNextCursor(typeof payload?.nextCursor === 'string' ? payload.nextCursor : null);
     } catch (requestError) {
       if (requestError?.name === 'AbortError') {
         return;
@@ -336,7 +342,8 @@ export default function Busqueda() {
       error('[prints-search]', requestError);
       setError('Ocurrió un error al buscar en Supabase.');
       setResults([]);
-      setTotal(0);
+      setHasMore(false);
+      setNextCursor(null);
     } finally {
       if (abortRef.current === controller) {
         abortRef.current = null;
@@ -347,19 +354,28 @@ export default function Busqueda() {
 
   function handleSubmit(event) {
     event.preventDefault();
-    performSearch(query, 0);
+    setCursorStack([null]);
+    performSearch(query, null, 0);
   }
 
   function handlePrevious() {
     if (loading) return;
-    const nextOffset = Math.max(0, offset - PAGE_LIMIT);
-    performSearch(lastQuery || query, nextOffset);
+    if (cursorStack.length <= 1) return;
+    const prevCursor = cursorStack[cursorStack.length - 2] ?? null;
+    setCursorStack((current) => current.slice(0, -1));
+    performSearch(lastQuery || query, prevCursor, Math.max(0, (cursorStack.length - 2) * PAGE_LIMIT));
   }
 
   function handleNext() {
     if (loading) return;
-    const nextOffset = offset + PAGE_LIMIT;
-    performSearch(lastQuery || query, nextOffset);
+    if (!hasMore || !nextCursor) return;
+    const newStackIndex = cursorStack.length; // next page index
+    setCursorStack((current) => [...current, nextCursor]);
+    performSearch(
+      lastQuery || query,
+      nextCursor,
+      Math.max(0, newStackIndex * PAGE_LIMIT),
+    );
   }
 
   function handlePasswordSubmit(event) {
@@ -383,12 +399,12 @@ export default function Busqueda() {
     setError('');
     if (query.trim()) {
       setTimeout(() => {
-        performSearch(query, 0);
+        performSearch(query, null, 0);
       }, 0);
     }
   }
 
-  const canShowPagination = searched && total > PAGE_LIMIT;
+  const canShowPagination = searched && (hasMore || cursorStack.length > 1);
   const hasResults = normalizedResults.length > 0;
   const noResultsMessage = searched && !loading && !hasResults && !error;
 
@@ -402,7 +418,7 @@ export default function Busqueda() {
   return (
     <div className={styles.page}>
       <Helmet>
-        <title>Buscar PDFs · MGM</title>
+        <title>Buscar PDFs · NOTMID</title>
       </Helmet>
       <header className={styles.header}>
         <h1 className={styles.title}>Buscador de PDFs</h1>
@@ -525,14 +541,18 @@ export default function Busqueda() {
         </div>
         {canShowPagination ? (
           <div className={styles.pagination}>
-            <button type="button" onClick={handlePrevious} disabled={loading || offset === 0}>
+            <button
+              type="button"
+              onClick={handlePrevious}
+              disabled={loading || cursorStack.length <= 1}
+            >
               Anterior
             </button>
             <p className={styles.paginationStatus}>{showingRange}</p>
             <button
               type="button"
               onClick={handleNext}
-              disabled={loading || offset + PAGE_LIMIT >= total}
+              disabled={loading || !hasMore || !nextCursor}
             >
               Siguiente
             </button>

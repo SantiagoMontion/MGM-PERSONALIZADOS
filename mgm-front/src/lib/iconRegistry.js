@@ -3,6 +3,8 @@ const iconModules = import.meta.glob("../icons/*.svg", {
   import: "default",
 });
 
+export const DEFAULT_ICON_FALLBACK = "-";
+
 export function resolveIconAsset(fileName, options = {}) {
   const { fallbackToPublic = true } = options;
   const normalized = `../icons/${fileName}`;
