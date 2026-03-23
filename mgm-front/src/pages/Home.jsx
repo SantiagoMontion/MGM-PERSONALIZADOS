@@ -888,6 +888,31 @@ const resolveCheckoutTargetUrl = (result) => {
   return pickCommerceTarget(result) || pickCommerceTarget(result?.raw) || null;
 };
 
+const resolveCartTargetUrl = (result) => {
+  const explicitCandidates = [
+    result?.cartUrl,
+    result?.raw?.cartUrl,
+    result?.meta?.cartUrl,
+  ];
+  for (const candidate of explicitCandidates) {
+    const value = safeStr(candidate);
+    if (value) return value;
+  }
+
+  const genericCandidates = [
+    result?.url,
+    result?.raw?.url,
+    result?.productUrl,
+    result?.raw?.productUrl,
+  ];
+  for (const candidate of genericCandidates) {
+    const value = safeStr(candidate);
+    if (value && /\/cart(?:\/|$|\?)/i.test(value)) return value;
+  }
+
+  return null;
+};
+
 const resolveCheckoutErrorMessage = (checkoutError) => {
   const friendlyMessage = safeStr(checkoutError?.friendlyMessage);
   if (friendlyMessage) return friendlyMessage;
@@ -3931,9 +3956,7 @@ export default function Home() {
     setStepThreeCommerceAction('cart');
     try {
       const result = await createJobAndProduct('cart', flow, {});
-      const targetUrl = safeStr(result?.cartUrl)
-        || safeStr(result?.checkoutUrl)
-        || resolveCheckoutTargetUrl(result);
+      const targetUrl = resolveCartTargetUrl(result);
       if (!targetUrl) {
         setErr('No se pudo agregar al carrito. Intentá nuevamente.');
         return;
@@ -4574,7 +4597,9 @@ export default function Home() {
                 </div>
                 <div className={`${styles.stepThreeDetailRow} ${styles.stepThreeDetailRowTotal}`.trim()}>
                   <span className={styles.stepThreeDetailLabel}>Total</span>
-                  <span className={styles.stepThreeDetailValueTotal}>$ {formattedPriceAmount}</span>
+                  <span className={styles.stepThreeDetailValueTotal}>
+                    $ {formattedPriceAmount} (Aplicando el cupón TRANSFERENCIA)
+                  </span>
                 </div>
               </div>
 

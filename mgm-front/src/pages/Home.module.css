@@ -2453,10 +2453,16 @@ body.light [class*='stepOneSecondaryAction'] svg {
   border-radius: inherit !important;
   overflow: hidden !important;
   background: transparent !important;
-  border: none !important;
+  box-sizing: border-box;
+  border: 1px solid #ffffff !important;
   box-shadow: none !important;
   position: relative;
   z-index: 5;
+}
+
+html.light .stepTwoCanvasWrapper,
+body.light .stepTwoCanvasWrapper {
+  border-color: #000000 !important;
 }
 
 .stepTwoCanvasWrapper :global(.konvajs-content),
@@ -4758,12 +4764,12 @@ body.light .stepTwoToolsDrawer.dark .stepTwoDrawerClose {
     grid-column: auto;
     grid-row: auto;
     align-items: center;
-    inline-size: min(100%, var(--step-two-stage-width, 100%));
+    inline-size: min(100%, calc(var(--step-two-stage-width, 100%) * 1.08));
     margin-block-start: 10px;
   }
 
   .stepTwoPreviewViewport {
-    inline-size: min(100%, var(--step-two-stage-width, 100%));
+    inline-size: min(100%, calc(var(--step-two-stage-width, 100%) * 1.08));
     max-inline-size: 100%;
     /* La fila de medida (p. ej. «100 CM») es absolute bajo el lienzo: reservar hueco para no superponer el caption */
     padding-block-end: calc(var(--step-two-measure-offset, 12px) + 22px);
@@ -4953,6 +4959,9 @@ body.light .stepTwoToolsDrawer.dark .stepTwoDrawerClose {
     block-size: 100vh;
     min-block-size: 100vh;
     max-block-size: 100vh;
+    block-size: 100dvh;
+    min-block-size: 100dvh;
+    max-block-size: 100dvh;
     border-radius: 0;
     border-inline-start: none;
     border-inline-end: none;
@@ -4977,6 +4986,9 @@ body.light .stepTwoToolsDrawer.dark .stepTwoDrawerClose {
     block-size: 100vh;
     min-block-size: 100vh;
     max-block-size: 100vh;
+    block-size: 100dvh;
+    min-block-size: 100dvh;
+    max-block-size: 100dvh;
     border-radius: 0;
     border-inline-start: none;
     border-inline-end: none;
@@ -4990,6 +5002,12 @@ body.light .stepTwoToolsDrawer.dark .stepTwoDrawerClose {
     top: 0;
     z-index: 10;
     background: var(--surface);
+  }
+
+  .stepTwoConfigFooter {
+    position: sticky;
+    inset-block-end: 0;
+    z-index: 11;
   }
 
   .stepTwoToolsDrawerScroll {
