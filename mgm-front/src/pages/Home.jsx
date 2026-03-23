@@ -273,6 +273,8 @@ const MOD_PREVIEW_RETRY_DIMENSIONS = [1024, 896, 768, 640];
 const STEP_TWO_UPLOAD_MESSAGE = 'Guardando tu diseño en alta resolución...';
 const STEP_TWO_UPLOAD_SUBTITLE = 'No cierres nada, esto puede demorar varios segundos.';
 const STEP_THREE_COMMERCE_PENDING_LABEL = 'Enviando...';
+/** Cupón mostrado en el total del paso 3 (transferencia). */
+const STEP_THREE_TRANSFER_DISCOUNT = 'TRANSFERENCIA';
 const STEP_THREE_ADD_TO_CART_LABEL = 'Agregar al carrito';
 const STEP_THREE_CHECKOUT_BUTTON_LABEL = 'Finalizar compra';
 const STEP_ONE_PREVIEW_MAX_WIDTH_PX = 551;
@@ -924,6 +926,24 @@ const resolveCheckoutErrorMessage = (checkoutError) => {
   return 'No se pudo abrir el checkout. Intentá nuevamente.';
 };
 
+function tryOpenCommerceTarget(url) {
+  const trimmed = safeStr(url);
+  if (!trimmed) return false;
+  try {
+    const popup = window.open(trimmed, '_blank', 'noopener');
+    if (popup) return true;
+  } catch (openErr) {
+    warn('[home-step-three-commerce] window_open_failed', openErr);
+  }
+  try {
+    window.location.assign(trimmed);
+    return true;
+  } catch (assignErr) {
+    error('[home-step-three-commerce] location_assign_failed', assignErr);
+  }
+  return false;
+}
+
 
 export default function Home() {
   const outletContext = useOutletContext() || {};
@@ -1079,6 +1099,8 @@ export default function Home() {
   const [ackLowError, setAckLowError] = useState(false);
   const ackCheckboxRef = useRef(null);
   const ackLowErrorDescriptionId = useId();
+  const stepThreeCheckoutTitleId = useId();
+  const stepThreeCheckoutDescId = useId();
   const [mockupUrl, setMockupUrl] = useState(null);
   const [mockupBlob, setMockupBlob] = useState(null);
   const [reviewPreviewUrl, setReviewPreviewUrl] = useState(null);
@@ -1087,8 +1109,11 @@ export default function Home() {
   const [err, setErr] = useState('');
   const [moderationNotice, setModerationNotice] = useState('');
   const [busy, setBusy] = useState(false);
-  /** Paso 3: null | 'cart' | 'checkout' mientras corre createJobAndProduct */
+  /** Paso 3: null | 'cart' | 'checkout-public' | 'checkout-private' mientras corre createJobAndProduct */
   const [stepThreeCommerceAction, setStepThreeCommerceAction] = useState(null);
+  const [stepThreeCheckoutPromptOpen, setStepThreeCheckoutPromptOpen] = useState(false);
+  const stepThreeCheckoutModalRef = useRef(null);
+  const stepThreeCheckoutFirstButtonRef = useRef(null);
   const [reviewExitBusy, setReviewExitBusy] = useState(false);
   const [isReplacing, setIsReplacing] = useState(false);
   const [masterPublicUrl, setMasterPublicUrl] = useState(null);
@@ -3969,13 +3994,17 @@ export default function Home() {
     setErr('');
     setStepThreeCommerceAction('cart');
     try {
-      const result = await createJobAndProduct('cart', flow, {});
+      const result = await createJobAndProduct('cart', flow, {
+        discountCode: STEP_THREE_TRANSFER_DISCOUNT,
+      });
       const targetUrl = resolveCartTargetUrl(result);
       if (!targetUrl) {
         setErr('No se pudo agregar al carrito. Intentá nuevamente.');
         return;
       }
-      window.location.assign(targetUrl);
+      if (!tryOpenCommerceTarget(targetUrl)) {
+        setErr('No se pudo abrir el enlace del carrito. Intentá nuevamente.');
+      }
     } catch (cartError) {
       error('[home-step-three-cart] failed', cartError);
       setErr(resolveCheckoutErrorMessage(cartError));
@@ -3984,27 +4013,126 @@ export default function Home() {
     }
   }, [busy, flow, stepThreeCommerceAction]);
 
-  const handleReviewContinueToPayment = useCallback(async () => {
+  const openStepThreeCheckoutPrompt = useCallback(() => {
     if (busy || stepThreeCommerceAction) return;
-
     setErr('');
-    setStepThreeCommerceAction('checkout');
+    setStepThreeCheckoutPromptOpen(true);
+  }, [busy, stepThreeCommerceAction]);
 
+  const closeStepThreeCheckoutPrompt = useCallback(() => {
+    if (stepThreeCommerceAction) return;
+    setStepThreeCheckoutPromptOpen(false);
+  }, [stepThreeCommerceAction]);
+
+  const handleStepThreeCheckoutPublic = useCallback(async () => {
+    if (busy || stepThreeCommerceAction) return;
+    setErr('');
+    setStepThreeCheckoutPromptOpen(false);
+    setStepThreeCommerceAction('checkout-public');
     try {
-      const result = await createJobAndProduct('checkout', flow, {});
+      const result = await createJobAndProduct('checkout', flow, {
+        discountCode: STEP_THREE_TRANSFER_DISCOUNT,
+      });
       const checkoutUrl = resolveCheckoutTargetUrl(result);
       if (!checkoutUrl) {
         setErr('No se pudo abrir el checkout. Intentá nuevamente.');
         return;
       }
-      window.location.assign(checkoutUrl);
+      if (!tryOpenCommerceTarget(checkoutUrl)) {
+        setErr('No se pudo abrir el checkout. Intentá nuevamente.');
+      }
     } catch (checkoutError) {
-      error('[home-step-three-checkout] failed', checkoutError);
+      error('[home-step-three-checkout-public] failed', checkoutError);
       setErr(resolveCheckoutErrorMessage(checkoutError));
     } finally {
       setStepThreeCommerceAction(null);
     }
   }, [busy, flow, stepThreeCommerceAction]);
+
+  const handleStepThreeCheckoutPrivate = useCallback(async () => {
+    if (busy || stepThreeCommerceAction) return;
+    setErr('');
+
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const flowState = (typeof flow?.get === 'function' ? flow.get() : flow) || {};
+    let emailRaw = typeof flowState.customerEmail === 'string' ? flowState.customerEmail.trim() : '';
+
+    if (!emailPattern.test(emailRaw)) {
+      if (typeof window === 'undefined') {
+        setErr('Ingresá un correo electrónico válido para comprar en privado.');
+        return;
+      }
+      const promptDefault = typeof flowState.customerEmail === 'string' ? flowState.customerEmail : '';
+      const provided = window.prompt(
+        'Ingresá tu correo electrónico para continuar con la compra privada:',
+        promptDefault,
+      );
+      if (provided == null) {
+        return;
+      }
+      const normalized = provided.trim();
+      if (!emailPattern.test(normalized)) {
+        window.alert('Ingresá un correo electrónico válido para comprar en privado.');
+        return;
+      }
+      emailRaw = normalized;
+    }
+
+    if (emailRaw !== flowState.customerEmail && typeof flow?.set === 'function') {
+      flow.set({ customerEmail: emailRaw });
+    }
+
+    setStepThreeCheckoutPromptOpen(false);
+    setStepThreeCommerceAction('checkout-private');
+    try {
+      const submissionFlow = { ...flow, customerEmail: emailRaw };
+      const result = await createJobAndProduct('private', submissionFlow, {});
+      const checkoutUrl = resolveCheckoutTargetUrl(result);
+      if (!checkoutUrl) {
+        setErr('No se pudo abrir el checkout privado. Intentá nuevamente.');
+        return;
+      }
+      if (!tryOpenCommerceTarget(checkoutUrl)) {
+        setErr('No se pudo abrir el checkout privado. Intentá nuevamente.');
+      }
+    } catch (checkoutError) {
+      error('[home-step-three-checkout-private] failed', checkoutError);
+      setErr(resolveCheckoutErrorMessage(checkoutError));
+    } finally {
+      setStepThreeCommerceAction(null);
+    }
+  }, [busy, flow, stepThreeCommerceAction]);
+
+  useEffect(() => {
+    if (!stepThreeCheckoutPromptOpen) return;
+    const t = window.setTimeout(() => {
+      try {
+        stepThreeCheckoutFirstButtonRef.current?.focus?.();
+      } catch (focusErr) {
+        warn('[home-step-three-checkout-prompt] focus_failed', focusErr);
+      }
+    }, 0);
+    return () => window.clearTimeout(t);
+  }, [stepThreeCheckoutPromptOpen]);
+
+  useEffect(() => {
+    if (!stepThreeCheckoutPromptOpen) return;
+    function handleKeyDown(event) {
+      if (event.key === 'Escape' || event.key === 'Esc') {
+        if (stepThreeCommerceAction) return;
+        event.preventDefault();
+        setStepThreeCheckoutPromptOpen(false);
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [stepThreeCheckoutPromptOpen, stepThreeCommerceAction]);
+
+  useEffect(() => {
+    if (!isStepReview) {
+      setStepThreeCheckoutPromptOpen(false);
+    }
+  }, [isStepReview]);
 
   const stepTwoEditorFitMode = safeStr(layout?.mode, 'cover');
   const stepTwoCircularToggleLabel = isCircular ? 'Volver a rectangular' : 'Lienzo circular';
@@ -4612,7 +4740,7 @@ export default function Home() {
                 <div className={`${styles.stepThreeDetailRow} ${styles.stepThreeDetailRowTotal}`.trim()}>
                   <span className={styles.stepThreeDetailLabel}>Total</span>
                   <span className={styles.stepThreeDetailValueTotal}>
-                    $ {formattedPriceAmount} (Aplicando el cupón TRANSFERENCIA)
+                    $ {formattedPriceAmount} (Abonando con transferencia)
                   </span>
                 </div>
               </div>
@@ -4655,7 +4783,11 @@ export default function Home() {
                   type="button"
                   className={styles.stepThreeSecondaryButton}
                   onClick={handleReviewAddToCart}
-                  disabled={busy || Boolean(stepThreeCommerceAction)}
+                  disabled={
+                    busy
+                    || Boolean(stepThreeCommerceAction)
+                    || stepThreeCheckoutPromptOpen
+                  }
                 >
                   {stepThreeCommerceAction === 'cart'
                     ? STEP_THREE_COMMERCE_PENDING_LABEL
@@ -4664,10 +4796,15 @@ export default function Home() {
                 <button
                   type="button"
                   className={styles.stepThreePrimaryButton}
-                  onClick={handleReviewContinueToPayment}
-                  disabled={busy || Boolean(stepThreeCommerceAction)}
+                  onClick={openStepThreeCheckoutPrompt}
+                  disabled={
+                    busy
+                    || Boolean(stepThreeCommerceAction)
+                    || stepThreeCheckoutPromptOpen
+                  }
                 >
-                  {stepThreeCommerceAction === 'checkout'
+                  {stepThreeCommerceAction === 'checkout-public'
+                    || stepThreeCommerceAction === 'checkout-private'
                     ? STEP_THREE_COMMERCE_PENDING_LABEL
                     : STEP_THREE_CHECKOUT_BUTTON_LABEL}
                 </button>
@@ -4677,7 +4814,11 @@ export default function Home() {
                 type="button"
                 className={styles.stepThreeBackLink}
                 onClick={handleReturnToEditor}
-                disabled={Boolean(stepThreeCommerceAction) || reviewExitBusy}
+                disabled={
+                  Boolean(stepThreeCommerceAction)
+                  || reviewExitBusy
+                  || stepThreeCheckoutPromptOpen
+                }
               >
                 <span className={styles.stepTwoBackIcon} aria-hidden="true">
                   <svg viewBox="0 0 24 24" className={styles.stepOneIconSvg}>
@@ -4693,6 +4834,79 @@ export default function Home() {
                 </span>
                 <span>Volver al editor</span>
               </button>
+
+              {stepThreeCheckoutPromptOpen ? (
+                <div
+                  role="presentation"
+                  className={styles.stepThreeCheckoutModalBackdrop}
+                  onClick={() => {
+                    if (stepThreeCommerceAction) return;
+                    closeStepThreeCheckoutPrompt();
+                  }}
+                >
+                  <div
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby={stepThreeCheckoutTitleId}
+                    aria-describedby={stepThreeCheckoutDescId}
+                    ref={stepThreeCheckoutModalRef}
+                    className={styles.stepThreeCheckoutModalCard}
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <button
+                      type="button"
+                      onClick={closeStepThreeCheckoutPrompt}
+                      disabled={Boolean(stepThreeCommerceAction)}
+                      aria-label="Cerrar"
+                      className={styles.stepThreeCheckoutModalClose}
+                    >
+                      ×
+                    </button>
+                    <h2 id={stepThreeCheckoutTitleId} className={styles.stepThreeCheckoutModalTitle}>
+                      Elegí cómo publicar tu diseño
+                    </h2>
+                    <p id={stepThreeCheckoutDescId} className={styles.stepThreeCheckoutModalDescription}>
+                      📣 Público: visible en la tienda.
+                      <br />
+                      <br />
+                      🔒 Privado: solo vos lo verás.
+                    </p>
+                    <div className={styles.stepThreeCheckoutModalActions}>
+                      <button
+                        ref={stepThreeCheckoutFirstButtonRef}
+                        type="button"
+                        className={styles.stepThreeCheckoutModalPrimary}
+                        disabled={
+                          busy
+                          || Boolean(stepThreeCommerceAction)
+                        }
+                        onClick={() => {
+                          void handleStepThreeCheckoutPublic();
+                        }}
+                      >
+                        {stepThreeCommerceAction === 'checkout-public'
+                          ? 'Procesando…'
+                          : 'Comprar público'}
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.stepThreeCheckoutModalSecondary}
+                        disabled={
+                          busy
+                          || Boolean(stepThreeCommerceAction)
+                        }
+                        onClick={() => {
+                          void handleStepThreeCheckoutPrivate();
+                        }}
+                      >
+                        {stepThreeCommerceAction === 'checkout-private'
+                          ? 'Procesando…'
+                          : 'Comprar en privado'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
             </div>
           ) : (
             <div className={styles.stepTwoLayout} style={stepTwoCanvasStyle}>

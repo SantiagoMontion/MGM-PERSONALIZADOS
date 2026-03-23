@@ -671,6 +671,15 @@ body.light [class*='stepTwoFooterPrimary']:disabled {
   background: transparent !important;
 }
 
+@media (max-width: 767px) {
+  html.light ._stepTwoFooterSizeMaterialLine_17lk3_2851,
+  body.light ._stepTwoFooterSizeMaterialLine_17lk3_2851,
+  html.light [class*='stepTwoFooterSizeMaterialLine'],
+  body.light [class*='stepTwoFooterSizeMaterialLine'] {
+    color: #000000 !important;
+  }
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
