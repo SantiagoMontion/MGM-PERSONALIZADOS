@@ -1,0 +1,38 @@
+.wrapper {
+  width: 100%;
+}
+
+.viewerContainer {
+  width: 100%;
+  min-height: 320px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: radial-gradient(circle at top, rgba(79, 79, 79, 0.2), rgba(16, 16, 16, 0.8));
+}
+
+.modelViewer {
+  width: 100%;
+  height: min(62vh, 500px);
+  background: transparent;
+}
+
+.loadingState {
+  min-height: 320px;
+  display: grid;
+  place-items: center;
+  color: rgba(242, 243, 245, 0.7);
+  font-size: 14px;
+}
+
+.caption {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: rgba(242, 243, 245, 0.82);
+}
+
+.warning {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: rgba(242, 243, 245, 0.62);
+}
