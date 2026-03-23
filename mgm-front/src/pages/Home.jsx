@@ -891,30 +891,68 @@ const resolveCheckoutTargetUrl = (result) => {
   return pickCommerceTarget(result) || pickCommerceTarget(result?.raw) || null;
 };
 
-const resolveCartTargetUrl = (result) => {
-  const explicitCandidates = [
-    result?.cartUrl,
-    result?.raw?.cartUrl,
-    result?.meta?.cartUrl,
+/** URL de la ficha del producto en Shopify (no carrito ni checkout). */
+const isLikelyCartOrCheckoutPath = (value) => /\/cart(?:\/|$|\?)/i.test(value) || /\/checkouts?\//i.test(value);
+
+const resolveProductPageTargetUrl = (result) => {
+  if (!result || typeof result !== 'object') return null;
+
+  const productCandidates = [
+    result?.productUrl,
+    result?.publicUrl,
+    result?.raw?.productUrl,
+    result?.raw?.publicUrl,
+    result?.meta?.productUrl,
   ];
-  for (const candidate of explicitCandidates) {
+  const shopHost = () => {
+    const domainRaw = safeStr(import.meta.env?.VITE_SHOPIFY_DOMAIN);
+    if (!domainRaw) return '';
+    return domainRaw.replace(/^https?:\/\//i, '').replace(/\/+$/, '').split('/')[0];
+  };
+
+  for (const candidate of productCandidates) {
     const value = safeStr(candidate);
-    if (value) return value;
+    if (!value || isLikelyCartOrCheckoutPath(value)) continue;
+    if (/^https?:\/\//i.test(value)) return value;
+    if (value.startsWith('/') && /\/products\//i.test(value)) {
+      const host = shopHost();
+      if (host) return `https://${host}${value}`;
+    }
   }
 
-  const genericCandidates = [
-    result?.url,
-    result?.raw?.url,
-    result?.productUrl,
-    result?.raw?.productUrl,
-  ];
-  for (const candidate of genericCandidates) {
-    const value = safeStr(candidate);
-    if (value && /\/cart(?:\/|$|\?)/i.test(value)) return value;
+  const handleRaw =
+    safeStr(result?.productHandle)
+    || safeStr(result?.handle)
+    || safeStr(result?.raw?.productHandle)
+    || safeStr(result?.raw?.handle);
+  if (handleRaw) {
+    let handle = handleRaw.replace(/^\/+/, '').replace(/\/+$/, '');
+    handle = safeReplace(handle, /^products\//i, '');
+    const host = shopHost();
+    if (host && handle) {
+      return `https://${host}/products/${encodeURIComponent(handle)}`;
+    }
   }
+
+  const fallback = pickCommerceTarget(result) || pickCommerceTarget(result?.raw);
+  const fb = safeStr(fallback);
+  if (fb && /\/products\//i.test(fb) && !isLikelyCartOrCheckoutPath(fb)) return fb;
 
   return null;
 };
+
+/** Navegación en la misma pestaña: evita ventanas emergentes y avisos del navegador. */
+function navigateSameTab(url) {
+  const trimmed = safeStr(url);
+  if (!trimmed) return false;
+  try {
+    window.location.assign(trimmed);
+    return true;
+  } catch (assignErr) {
+    error('[home-step-three-commerce] location_assign_failed', assignErr);
+  }
+  return false;
+}
 
 const resolveCheckoutErrorMessage = (checkoutError) => {
   const friendlyMessage = safeStr(checkoutError?.friendlyMessage);
@@ -3997,13 +4035,17 @@ export default function Home() {
       const result = await createJobAndProduct('cart', flow, {
         discountCode: STEP_THREE_TRANSFER_DISCOUNT,
       });
-      const targetUrl = resolveCartTargetUrl(result);
+      let targetUrl = resolveProductPageTargetUrl(result);
       if (!targetUrl) {
-        setErr('No se pudo agregar al carrito. Intentá nuevamente.');
+        const snap = typeof flow?.get === 'function' ? flow.get() : flow;
+        targetUrl = resolveProductPageTargetUrl(snap?.lastProduct || null);
+      }
+      if (!targetUrl) {
+        setErr('No se pudo abrir la página del producto. Intentá nuevamente.');
         return;
       }
-      if (!tryOpenCommerceTarget(targetUrl)) {
-        setErr('No se pudo abrir el enlace del carrito. Intentá nuevamente.');
+      if (!navigateSameTab(targetUrl)) {
+        setErr('No se pudo abrir la página del producto. Intentá nuevamente.');
       }
     } catch (cartError) {
       error('[home-step-three-cart] failed', cartError);
