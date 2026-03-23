@@ -2,6 +2,7 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { PDFDocument } from 'pdf-lib';
 import Toast from '@/components/Toast.jsx';
+import ARLauncher from '@/components/ARLauncher.jsx';
 import { useFlow } from '@/state/flow.js';
 import { downloadBlob, renderMockup1080 } from '@/lib/mockup.js';
 import styles from './Mockup.module.css';
@@ -4694,6 +4695,13 @@ export default function Mockup() {
             <p className={styles.ctaHint}>
               Finalizá tu compra para que tu creación <br></br>se haga realidad ✨
             </p>
+            <div className={styles.arLauncherWrap}>
+              <ARLauncher
+                printFullResDataUrl={flow.printFullResDataUrl}
+                widthCm={flow.widthCm ?? flow.editorState?.size_cm?.w}
+                heightCm={flow.heightCm ?? flow.editorState?.size_cm?.h}
+              />
+            </div>
           </div>
         </div>
         <section className={styles.communitySection}>
