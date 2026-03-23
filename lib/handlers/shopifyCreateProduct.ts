@@ -392,7 +392,9 @@ export default async function handler(req: any, res: any) {
       : typeof req.body?.options?.productType === 'string'
         ? req.body.options.productType
         : 'mousepad';
-    const templateSuffix = resolveTemplateSuffixByProductType(productTypeRaw);
+    const templateSuffix = mode === 'Ultra'
+      ? 'mousepads-poron'
+      : resolveTemplateSuffixByProductType(productTypeRaw);
     const designNameRaw = typeof req.body?.design_name === 'string'
       ? req.body.design_name
       : typeof req.body?.designName === 'string'
