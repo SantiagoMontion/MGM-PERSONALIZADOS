@@ -28,6 +28,12 @@ import seoCheckout from '../api-routes/seo/checkout.js';
 import seoEditor from '../api-routes/seo/editor.js';
 import seoHome from '../api-routes/seo/home.js';
 import seoProduct from '../api-routes/seo/product.js';
+import { randomUUID } from 'node:crypto';
+import {
+  applyCorsHeaders,
+  resolveRequestCors,
+  respondCorsDenied,
+} from '../lib/cors.js';
 
 const ROUTES = new Map([
   ['POST /api/create-checkout', createCheckout],
@@ -71,6 +77,16 @@ function findHandler(method, pathname) {
   return handler;
 }
 
+/** Para OPTIONS (preflight): saber si existe ruta real con otro método. */
+function findHandlerForPath(pathname) {
+  const methods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD'];
+  for (const m of methods) {
+    const h = findHandler(m, pathname);
+    if (h) return h;
+  }
+  return null;
+}
+
 function getPathname(req) {
   try {
     const url = new URL(req.url, `https://${req.headers.host || 'localhost'}`);
@@ -85,12 +101,29 @@ function getPathname(req) {
 export default async function handler(req, res) {
   const method = (req.method || 'GET').toUpperCase();
   const pathname = getPathname(req);
+  const corsDecision = resolveRequestCors(req);
+
+  if (!corsDecision.allowed || !corsDecision.allowedOrigin) {
+    respondCorsDenied(req, res, corsDecision, randomUUID());
+    return;
+  }
+
+  applyCorsHeaders(req, res, corsDecision);
+
+  if (method === 'OPTIONS') {
+    const exists = Boolean(findHandlerForPath(pathname));
+    res.statusCode = exists ? 204 : 404;
+    res.end();
+    return;
+  }
+
   const routeHandler = findHandler(method, pathname);
   if (!routeHandler) {
     res.statusCode = 404;
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    res.end(JSON.stringify({ ok: false, error: 'not_found' }));
+    res.end(JSON.stringify({ ok: false, error: 'not_found', path: pathname }));
     return;
   }
+
   return routeHandler(req, res);
 }
