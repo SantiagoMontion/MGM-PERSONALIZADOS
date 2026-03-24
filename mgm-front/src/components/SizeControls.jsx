@@ -54,6 +54,14 @@ const MATERIAL_OPTIONS = [
     disabled: true,
     disabledReason: 'Sin stock',
   },
+  {
+    value: 'Ultra',
+    main: 'ULTRA',
+    variant: 'control',
+    disabled: true,
+    disabledReason: 'Próximamente',
+    comingSoon: true,
+  },
   { value: 'PRO', main: 'PRO', variant: 'control' },
   { value: 'Classic', main: 'CLASSIC', variant: 'híbrido' },
   { value: 'Alfombra', main: 'ALFOMBRA', variant: 'para piso' },
@@ -573,7 +581,8 @@ export default function SizeControls({
                       const isActive = material === option.value;
                       const optionClasses = [
                         styles.selectOption,
-                        option.disabled ? styles.selectOptionDisabled : '',
+                        option.disabled && option.comingSoon ? styles.selectOptionSoon : '',
+                        option.disabled && !option.comingSoon ? styles.selectOptionDisabled : '',
                       ]
                         .filter(Boolean)
                         .join(' ');
@@ -593,7 +602,7 @@ export default function SizeControls({
                           aria-disabled={option.disabled ? 'true' : 'false'}
                           className={optionClasses}
                           tabIndex={option.disabled ? -1 : 0}
-                          title={option.disabled ? option.disabledReason || 'Sin stock' : undefined}
+                          title={option.disabled ? option.disabledReason || 'No disponible' : undefined}
                           onClick={(event) => {
                             event.preventDefault();
 
@@ -609,9 +618,14 @@ export default function SizeControls({
                             }
                           }}
                         >
-                          <span className={styles.selectLabel}>
-                            <strong className={styles.selectLabelStrong}>{option.main}</strong>
-                            <em className={styles.selectLabelSoft}>{option.variant}</em>
+                          <span className={styles.selectOptionInner}>
+                            <span className={styles.selectLabel}>
+                              <strong className={styles.selectLabelStrong}>{option.main}</strong>
+                              <em className={styles.selectLabelSoft}>{option.variant}</em>
+                            </span>
+                            {option.comingSoon ? (
+                              <span className={styles.selectOptionBadgeSoon}>Próximamente</span>
+                            ) : null}
                           </span>
                         </div>
                       );

@@ -1313,6 +1313,23 @@
   white-space: nowrap;
 }
 
+.stepOneDropdownBadgeSoon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: 24px;
+  padding-inline: 10px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--brand-primary) 55%, transparent);
+  background: color-mix(in srgb, var(--brand-primary) 16%, transparent);
+  color: var(--brand-primary);
+  font-family: Inter, var(--font-family), sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
 .stepOneSizeTriggerText,
 .stepOneSizeOptionText {
   display: flex;
@@ -1391,6 +1408,17 @@
 
 .stepOneSizeOptionSelected {
   background: color-mix(in srgb, var(--brand-primary) 10%, transparent);
+}
+
+.stepOneSizeOption:disabled,
+.stepOneSizeOptionDisabled {
+  opacity: 0.72;
+  cursor: not-allowed;
+}
+
+.stepOneSizeOption:disabled:hover,
+.stepOneSizeOptionDisabled:hover {
+  background: transparent;
 }
 
 .stepOneSizeOptionLead,
@@ -3925,6 +3953,20 @@ body.light .stepTwoContainColorLabel {
   background: color-mix(in srgb, var(--brand-primary) 18%, transparent);
   border: calc(var(--space-1) / 4) solid color-mix(in srgb, var(--brand-primary) 50%, transparent);
   color: var(--brand-primary);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.stepTwoOptionBadgeSoon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: var(--space-7);
+  padding-inline: var(--space-3);
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--foreground-secondary) 12%, transparent);
+  border: calc(var(--space-1) / 4) solid color-mix(in srgb, var(--foreground-secondary) 35%, transparent);
+  color: var(--foreground-secondary);
   font-size: var(--fs-sm);
   font-weight: 600;
 }

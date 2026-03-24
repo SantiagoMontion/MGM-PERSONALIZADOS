@@ -269,6 +269,33 @@
   user-select: none;
 }
 
+.selectOptionSoon {
+  opacity: 0.88;
+  cursor: not-allowed;
+  user-select: none;
+}
+
+.selectOptionInner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.selectOptionBadgeSoon {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, #93c5fd 45%, transparent);
+  background: color-mix(in srgb, #93c5fd 14%, transparent);
+  color: #bfdbfe;
+}
+
 @media (hover: hover) {
   .selectOption:hover {
     background: rgba(255, 255, 255, 0.05);

@@ -221,6 +221,7 @@ const STEP_TWO_MATERIAL_OPTIONS = [
     value: 'Ultra',
     label: 'Ultra',
     description: 'FPS ultra preciso y tracking.',
+    comingSoon: true,
   },
 ];
 /** Resumen paso 3 — fila "Material". */
@@ -3614,6 +3615,9 @@ export default function Home() {
 
   const handleStepOneMaterialSelect = useCallback((nextMaterial) => {
     if (!nextMaterial) return;
+    if (STEP_TWO_MATERIAL_OPTIONS.some((o) => o.value === nextMaterial && o.comingSoon)) {
+      return;
+    }
     handleSizeChange({ material: nextMaterial });
     setStepOneMaterialMenuOpen(false);
   }, [handleSizeChange]);
@@ -3903,6 +3907,9 @@ export default function Home() {
   }, [handleSizeChange, material, selectedStepTwoMaterialOption?.value]);
 
   const handleStepTwoMaterialSelect = useCallback((nextMaterial) => {
+    if (STEP_TWO_MATERIAL_OPTIONS.some((o) => o.value === nextMaterial && o.comingSoon)) {
+      return;
+    }
     handleSizeChange({ material: nextMaterial });
     setOpenConfigSection(STEP_TWO_DRAWER_SECTIONS.project);
   }, [handleSizeChange]);
@@ -4517,6 +4524,9 @@ export default function Home() {
                               {selectedStepOneMaterialOption?.recommended ? (
                                 <span className={styles.stepOneDropdownBadge}>Recomendado</span>
                               ) : null}
+                              {selectedStepOneMaterialOption?.comingSoon ? (
+                                <span className={styles.stepOneDropdownBadgeSoon}>Próximamente</span>
+                              ) : null}
                             </span>
                           </span>
                           <span className={styles.stepOneSizeArrow} aria-hidden="true">
@@ -4542,6 +4552,7 @@ export default function Home() {
                           >
                             {stepOneMaterialOptions.map((option) => {
                               const isSelected = selectedStepOneMaterialOption?.value === option.value;
+                              const isLocked = Boolean(option.comingSoon);
 
                               return (
                                 <button
@@ -4549,7 +4560,13 @@ export default function Home() {
                                   type="button"
                                   role="option"
                                   aria-selected={isSelected}
-                                  className={`${styles.stepOneSizeOption} ${isSelected ? styles.stepOneSizeOptionSelected : ''}`.trim()}
+                                  aria-disabled={isLocked}
+                                  disabled={isLocked}
+                                  className={[
+                                    styles.stepOneSizeOption,
+                                    isSelected ? styles.stepOneSizeOptionSelected : '',
+                                    isLocked ? styles.stepOneSizeOptionDisabled : '',
+                                  ].filter(Boolean).join(' ')}
                                   onClick={() => handleStepOneMaterialSelect(option.value)}
                                 >
                                   <span className={styles.stepOneSizeOptionLead}>
@@ -4557,6 +4574,9 @@ export default function Home() {
                                       <span className={styles.stepOneDropdownValue}>{option.label}</span>
                                       {option.recommended ? (
                                         <span className={styles.stepOneDropdownBadge}>Recomendado</span>
+                                      ) : null}
+                                      {option.comingSoon ? (
+                                        <span className={styles.stepOneDropdownBadgeSoon}>Próximamente</span>
                                       ) : null}
                                     </span>
                                   </span>
@@ -5530,17 +5550,26 @@ export default function Home() {
                             <div className={styles.stepTwoAccordionContent}>
                               {stepTwoDrawerMaterialOptions.map((option) => {
                                 const isSelected = selectedStepTwoMaterialOption?.value === option.value;
+                                const isLocked = Boolean(option.comingSoon);
                                 return (
                                   <label
                                     key={option.value}
-                                    className={`${styles.stepTwoOptionCard} ${isSelected ? styles.stepTwoOptionCardSelected : ''}`.trim()}
+                                    className={[
+                                      styles.stepTwoOptionCard,
+                                      isSelected ? styles.stepTwoOptionCardSelected : '',
+                                      isLocked ? styles.stepTwoOptionCardDisabled : '',
+                                    ].filter(Boolean).join(' ')}
                                   >
                                     <input
                                       type="radio"
                                       name="step-two-material"
                                       className={styles.stepTwoOptionInput}
                                       checked={isSelected}
-                                      onChange={() => handleStepTwoMaterialSelect(option.value)}
+                                      disabled={isLocked}
+                                      onChange={() => {
+                                        if (isLocked) return;
+                                        handleStepTwoMaterialSelect(option.value);
+                                      }}
                                     />
                                     <span className={styles.stepTwoOptionControl} aria-hidden="true" />
                                     <span className={styles.stepTwoOptionBody}>
@@ -5548,6 +5577,9 @@ export default function Home() {
                                         <span className={styles.stepTwoOptionTitle}>{option.label}</span>
                                         {option.recommended && (
                                           <span className={styles.stepTwoOptionBadge}>Recomendado</span>
+                                        )}
+                                        {option.comingSoon && (
+                                          <span className={styles.stepTwoOptionBadgeSoon}>Próximamente</span>
                                         )}
                                       </span>
                                       <span className={styles.stepTwoOptionDescription}>{option.description}</span>
