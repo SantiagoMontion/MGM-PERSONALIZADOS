@@ -50,20 +50,6 @@ function formatBytes(size) {
   return `${formatted} ${units[index]}`;
 }
 
-function formatDate(value) {
-  if (!value) return '-';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  try {
-    return new Intl.DateTimeFormat('es-AR', {
-      dateStyle: 'medium',
-      timeStyle: 'short',
-    }).format(date);
-  } catch {
-    return date.toLocaleString();
-  }
-}
-
 function formatMeasurement(width, height) {
   const w = Number(width);
   const h = Number(height);
@@ -172,7 +158,6 @@ export default function Busqueda() {
       try {
         const params = new URLSearchParams({
           limit: String(RECENTS_LIMIT),
-          sortBy: 'created_at',
         });
         const response = await apiFetch(
           'GET',
@@ -310,7 +295,6 @@ export default function Busqueda() {
       const trimmed = String(queryText || '').trim();
       const params = new URLSearchParams({
         limit: String(limit),
-        sortBy: 'created_at',
       });
       if (trimmed) {
         params.set('query', trimmed);
@@ -551,7 +535,6 @@ export default function Busqueda() {
                 <th scope="col">Medida</th>
                 <th scope="col">Material</th>
                 <th scope="col">Tamaño</th>
-                <th scope="col">Fecha</th>
                 <th scope="col">Descargar</th>
               </tr>
             </thead>
@@ -590,7 +573,6 @@ export default function Busqueda() {
                       <td className={styles.measureCell}>{measurement}</td>
                       <td className={styles.materialCell}>{row.material || '-'}</td>
                       <td className={styles.sizeCell}>{formatBytes(row.sizeBytes ?? row.size)}</td>
-                      <td className={styles.dateCell}>{formatDate(row.createdAt)}</td>
                       <td>
                         {downloadHref ? (
                           <a
@@ -611,7 +593,7 @@ export default function Busqueda() {
                 })
               ) : (
                 <tr>
-                  <td className={styles.noResults} colSpan={7}>
+                  <td className={styles.noResults} colSpan={6}>
                     {noResultsMessage ? 'No encontramos PDFs que coincidan.' : 'Sin resultados aún.'}
                   </td>
                 </tr>

@@ -155,7 +155,7 @@ const extractFlowBasics = (flow) => {
 
 const buildTitle = ({ productType, mat, widthCm, heightCm, designName }) => {
   if (mat === 'Ultra') {
-    return `Ultra ${designName} 49x42 | Custom`;
+    return `Mousepad ${designName} 49x42 Ultra | Custom`;
   }
   if (mat === 'Glasspad') {
     return `Glasspad ${designName} 49x42 | Custom`;
@@ -493,10 +493,23 @@ export async function ensureMockupUrlInFlow(flow, input) {
     err.reason = 'image_too_heavy';
     throw err;
   }
-  if (typeof state?.mockupPublicUrl === 'string' && state.mockupPublicUrl) {
+  const hashOk = (h) => typeof h === 'string' && h.trim().length >= 6;
+  if (
+    typeof state?.mockupPublicUrl === 'string'
+    && state.mockupPublicUrl
+    && !state.mockupPublicUrl.startsWith('blob:')
+    && hashOk(state.mockupHash)
+    && state.mockupUploadOk !== false
+  ) {
     return state.mockupPublicUrl;
   }
-  if (typeof state?.mockupUrl === 'string' && state.mockupUrl && !state.mockupUrl.startsWith('blob:')) {
+  if (
+    typeof state?.mockupUrl === 'string'
+    && state.mockupUrl
+    && !state.mockupUrl.startsWith('blob:')
+    && hashOk(state.mockupHash)
+    && state.mockupUploadOk !== false
+  ) {
     return state.mockupUrl;
   }
   const payloadLimitBytes = PUBLISH_MAX_PAYLOAD_KB * 1024;
@@ -541,6 +554,8 @@ export async function ensureMockupUrlInFlow(flow, input) {
     heightPx: Number(state?.masterHeightPx ?? input?.heightPx ?? image.naturalHeight ?? image.height ?? 0),
     widthMm: Number(input?.widthMm ?? state?.masterWidthMm ?? 0) || undefined,
     heightMm: Number(input?.heightMm ?? state?.masterHeightMm ?? 0) || undefined,
+    widthCm: Number.isFinite(widthRounded) && widthRounded > 0 ? widthRounded : undefined,
+    heightCm: Number.isFinite(heightRounded) && heightRounded > 0 ? heightRounded : undefined,
     dpi,
     material: mat,
   };
@@ -1260,7 +1275,8 @@ export default function Mockup() {
         ?? queryOverrides.material,
     );
     const isGlass = materialLabel === 'Glasspad';
-    const baseCategory = isGlass ? 'Glasspad' : 'Mousepad';
+    const isAlfombra = materialLabel === 'Alfombra';
+    const baseCategory = isGlass ? 'Glasspad' : isAlfombra ? 'Alfombra' : 'Mousepad';
     const widthCandidate = Number(
       flow?.editorState?.size_cm?.w
         ?? flow?.widthCm
@@ -1279,7 +1295,7 @@ export default function Mockup() {
         ? `${baseCategory} ${designNameValue} ${widthCm}x${heightCm} | Custom`
         : `${baseCategory} ${designNameValue} | Custom`;
     }
-    const matPart = materialLabel ? ` ${materialLabel}` : '';
+    const matPart = isAlfombra || !materialLabel ? '' : ` ${materialLabel}`;
     return hasDims
       ? `${baseCategory} ${designNameValue} ${widthCm}x${heightCm}${matPart} | Custom`
       : `${baseCategory} ${designNameValue}${matPart} | Custom`;

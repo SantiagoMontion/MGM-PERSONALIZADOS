@@ -114,13 +114,13 @@ function formatCustomerMaterialLabel(material?: string, isCircular = false): str
 }
 
 function buildGlasspadTitle(designName?: string, measurement?: string): string {
-  const parts: string[] = [];
+  const bodyParts: string[] = [];
   const normalizedName = (designName || '').trim();
-  if (normalizedName) parts.push(normalizedName);
+  if (normalizedName) bodyParts.push(normalizedName);
   const normalizedMeasurement = (measurement || '').trim();
-  if (normalizedMeasurement) parts.push(normalizedMeasurement);
-  parts.push('Glasspad');
-  return `${parts.join(' ').trim() || 'Glasspad'} | Custom`;
+  if (normalizedMeasurement) bodyParts.push(normalizedMeasurement);
+  const rest = bodyParts.join(' ').trim();
+  return rest ? `Glasspad ${rest} | Custom` : 'Glasspad | Custom';
 }
 
 
@@ -407,9 +407,10 @@ export default async function handler(req: any, res: any) {
     ).trim().toLowerCase();
     const isCircularShape = normalizedShape === 'circle';
     const displayMaterialLabel = formatCustomerMaterialLabel(mode === 'Glasspad' ? 'Glasspad' : String(mode || 'Mousepad'), isCircularShape);
+    const coreMousepad = `${[designNameRaw, measurementLabel, displayMaterialLabel].filter(Boolean).join(' ').trim() || displayMaterialLabel || 'Custom'} | Custom`;
     const title = mode === 'Glasspad'
       ? buildGlasspadTitle(designNameRaw, measurementLabel)
-      : `${[designNameRaw, measurementLabel, displayMaterialLabel].filter(Boolean).join(' ').trim() || displayMaterialLabel || 'Custom'} | Custom`;
+      : `Mousepad ${coreMousepad}`;
     const designNameForPath = designNameRaw || title;
     const payload = {
       product: {

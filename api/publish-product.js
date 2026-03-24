@@ -622,10 +622,13 @@ export default async function handler(req, res) {
     ? 'Glasspad'
     : mat === 'Alfombra'
       ? 'Alfombra'
-      : 'Mousepad';
+      : mat === 'Lámpara'
+        ? 'Lámpara'
+        : 'Mousepad';
+  const dimPart = hasDims ? `${widthCmSafe}x${heightCmSafe}` : '';
   const nameParts = [
     designName,
-    hasDims ? `${widthCmSafe}x${heightCmSafe}` : '',
+    dimPart,
     materialTitleLabel || productLabel,
   ].filter(Boolean);
   const normalizedIncomingTitle = typeof parsedBody.title === 'string'
@@ -636,9 +639,20 @@ export default async function handler(req, res) {
       .replace(/\s{2,}/g, ' ')
       .trim()
     : '';
-  const computedTitle = designName
-    ? `${nameParts.join(' ')} | Custom`
-    : normalizedIncomingTitle;
+  const computedTitle = (() => {
+    const core = `${nameParts.join(' ')} | Custom`;
+    if (productType.includes('glass') || mat === 'Glasspad') {
+      const rest = [designName, dimPart].filter(Boolean).join(' ');
+      return rest ? `Glasspad ${rest} | Custom` : 'Glasspad | Custom';
+    }
+    if (productLabel === 'Alfombra') {
+      return `Alfombra ${core}`;
+    }
+    if (productLabel === 'Lámpara') {
+      return `Lámpara ${core}`;
+    }
+    return `Mousepad ${core}`;
+  })();
   const finalTitle = normalizedIncomingTitle.includes('| Custom')
     ? normalizedIncomingTitle
     : computedTitle;

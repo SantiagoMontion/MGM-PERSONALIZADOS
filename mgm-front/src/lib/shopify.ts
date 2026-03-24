@@ -224,6 +224,24 @@ function cmFromPx(px: unknown, dpi: unknown): number {
   return Math.max(1, Math.round((pxNum / dpiNum) * 2.54));
 }
 
+/** Prefer customer-chosen cm so mockup aspect matches product (e.g. 82×32) when master export is square. */
+function effectiveMockupCmFromFlow(
+  flowAny: Record<string, any>,
+  masterWidthPx: number,
+  masterHeightPx: number,
+  dpi: number,
+): { widthCm: number; heightCm: number } {
+  const fw = Number(flowAny?.widthCm);
+  const fh = Number(flowAny?.heightCm);
+  if (Number.isFinite(fw) && fw > 0 && Number.isFinite(fh) && fh > 0) {
+    return { widthCm: fw, heightCm: fh };
+  }
+  return {
+    widthCm: cmFromPx(masterWidthPx, dpi),
+    heightCm: cmFromPx(masterHeightPx, dpi),
+  };
+}
+
 function normalizeMockupUrl(rawUrl: unknown): string {
   if (typeof rawUrl !== 'string') return '';
   const trimmed = rawUrl.trim();
@@ -366,7 +384,9 @@ function jsonByteLength(value: unknown): number {
   }
 }
 
-export async function ensureMockupUrl(flow: FlowState): Promise<string> {
+export type EnsureMockupUrlResult = { publicUrl: string; hash8: string };
+
+export async function ensureMockupUrl(flow: FlowState): Promise<EnsureMockupUrlResult> {
   const flowAny = flow as Record<string, any>;
   const existingPublicUrl = typeof flowAny?.mockupPublicUrl === 'string' ? flowAny.mockupPublicUrl.trim() : '';
   const existingHash = typeof flowAny?.mockupHash === 'string' ? flowAny.mockupHash.trim() : '';
@@ -376,7 +396,7 @@ export async function ensureMockupUrl(flow: FlowState): Promise<string> {
     && existingHash.length >= 6
     && flowAny?.mockupUploadOk !== false
   ) {
-    return existingPublicUrl;
+    return { publicUrl: existingPublicUrl, hash8: existingHash };
   }
 
   const payloadLimitBytes = PUBLISH_MAX_PAYLOAD_KB * 1024;
@@ -417,18 +437,22 @@ export async function ensureMockupUrl(flow: FlowState): Promise<string> {
     masterWidthPx = masterWidthPx || Number(image.naturalWidth || image.width || 0);
     masterHeightPx = masterHeightPx || Number(image.naturalHeight || image.height || 0);
     dpi = Number.isFinite(dpi) && dpi > 0 ? dpi : 300;
-    const widthCm = cmFromPx(masterWidthPx, dpi);
-    const heightCm = cmFromPx(masterHeightPx, dpi);
+    const { widthCm: regenWcm, heightCm: regenHcm } = effectiveMockupCmFromFlow(
+      flowAny,
+      masterWidthPx,
+      masterHeightPx,
+      dpi,
+    );
     mockupBlob = await renderMockup1080(image, {
       material: flowAny?.material,
       approxDpi: dpi,
       composition: {
         widthPx: masterWidthPx,
         heightPx: masterHeightPx,
-        widthCm,
-        heightCm,
-        widthMm: widthCm > 0 ? widthCm * 10 : undefined,
-        heightMm: heightCm > 0 ? heightCm * 10 : undefined,
+        widthCm: regenWcm,
+        heightCm: regenHcm,
+        widthMm: regenWcm > 0 ? regenWcm * 10 : undefined,
+        heightMm: regenHcm > 0 ? regenHcm * 10 : undefined,
         dpi,
         material: flowAny?.material,
       },
@@ -438,8 +462,7 @@ export async function ensureMockupUrl(flow: FlowState): Promise<string> {
   dpi = Number.isFinite(dpi) && dpi > 0 ? dpi : Number(flowAny?.approxDpi || 300);
   masterWidthPx = Number(flowAny?.masterWidthPx || masterWidthPx || 0);
   masterHeightPx = Number(flowAny?.masterHeightPx || masterHeightPx || 0);
-  const widthCm = cmFromPx(masterWidthPx, dpi);
-  const heightCm = cmFromPx(masterHeightPx, dpi);
+  const { widthCm, heightCm } = effectiveMockupCmFromFlow(flowAny, masterWidthPx, masterHeightPx, dpi);
   const mat = matLabelOf(flowAny?.material) || 'Classic';
   const flowShape = resolveProductShape(flowAny as FlowState);
   const filenameBaseRaw = buildMockupBaseName({
@@ -499,7 +522,7 @@ export async function ensureMockupUrl(flow: FlowState): Promise<string> {
         // ignore state log failures
       }
     }
-    return publicUrl;
+    return { publicUrl, hash8 };
   } catch (error) {
     try {
       if (typeof flow.set === 'function') {
@@ -604,13 +627,13 @@ function buildPrivateDraftOrderMetadata(options: {
 }
 
 function buildGlasspadTitle(designName?: string, measurement?: string): string {
-  const sections: string[] = [];
+  const bodyParts: string[] = [];
   const normalizedName = (designName || '').trim();
-  if (normalizedName) sections.push(normalizedName);
+  if (normalizedName) bodyParts.push(normalizedName);
   const normalizedMeasurement = (measurement || '').trim();
-  if (normalizedMeasurement) sections.push(normalizedMeasurement);
-  sections.push('Glasspad');
-  return `${sections.join(' ').trim() || 'Glasspad'} | Custom`;
+  if (normalizedMeasurement) bodyParts.push(normalizedMeasurement);
+  const rest = bodyParts.join(' ').trim();
+  return rest ? `Glasspad ${rest} | Custom` : 'Glasspad | Custom';
 }
 
 function normalizeProductShape(value: unknown): 'circle' | 'rounded_rect' {
@@ -660,7 +683,11 @@ function buildDefaultTitle(
   );
   if (displayMaterial) parts.push(displayMaterial);
   if (!parts.length && productLabel) parts.push(productLabel);
-  return `${parts.join(' ').trim() || 'Custom'} | Custom`;
+  const core = `${parts.join(' ').trim() || 'Custom'} | Custom`;
+  if (productLabel === 'Alfombra') {
+    return `Alfombra ${core}`;
+  }
+  return `Mousepad ${core}`;
 }
 
 function normalizeCustomerProductTitle(value: string): string {
@@ -749,9 +776,13 @@ export async function createJobAndProduct(
 
   const customerEmail = typeof flow.customerEmail === 'string' ? flow.customerEmail.trim() : '';
   const jobIdForPdf = readJobId(flow);
-  const printSourceUrl = typeof (flow as any)?.fileOriginalUrl === 'string'
+  const fileOriginal = typeof (flow as any)?.fileOriginalUrl === 'string'
     ? (flow as any).fileOriginalUrl.trim()
     : '';
+  const masterPub = typeof (flow as any)?.masterPublicUrl === 'string'
+    ? (flow as any).masterPublicUrl.trim()
+    : '';
+  const printSourceUrl = fileOriginal || masterPub;
   const printBackgroundHex = (flow.editorState as any)?.background || '#ffffff';
   const pdfPublicUrl = typeof (flow as any)?.pdfPublicUrl === 'string'
     ? (flow as any).pdfPublicUrl.trim()
@@ -963,16 +994,18 @@ export async function createJobAndProduct(
   let mockupUrlPublic: string | null = null;
 
   if (!canReuse) {
-    mockupUrlForPayload = (await ensureMockupUrl(flow))?.trim();
+    const ensured = await ensureMockupUrl(flow);
+    mockupUrlForPayload = (ensured?.publicUrl || '').trim();
     if (!mockupUrlForPayload) {
       const err: Error & { reason?: string } = new Error('missing_mockup_url');
       err.reason = 'missing_mockup_url';
       throw err;
     }
 
-    mockupHashForPayload = typeof (flow as any)?.mockupHash === 'string'
-      ? ((flow as any).mockupHash as string).trim()
-      : mockupHashForPayload;
+    mockupHashForPayload = (ensured?.hash8 || '').trim()
+      || (typeof (flow as any)?.mockupHash === 'string'
+        ? ((flow as any).mockupHash as string).trim()
+        : mockupHashForPayload);
     if (!mockupHashForPayload) {
       const err: Error & { reason?: string } = new Error('mockup_hash_missing');
       err.reason = 'mockup_hash_missing';
