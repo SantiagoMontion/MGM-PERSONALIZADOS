@@ -145,6 +145,13 @@
   width: 120px;
 }
 
+.previewThumbWrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 72px;
+}
+
 .previewImage {
   width: 72px;
   aspect-ratio: 1 / 1;

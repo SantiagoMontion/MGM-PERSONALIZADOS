@@ -14,9 +14,9 @@ import {
 import styles from './Busqueda.module.css';
 import { diag, error as logError, warn } from '@/lib/log';
 
-/** Alineado con el backend (max 50); paginación por cursor. */
-const PAGE_LIMIT = 25;
-const RECENTS_LIMIT = 50;
+/** Pocas filas por página = menos firmas Storage + menos miniaturas a la vez. */
+const PAGE_LIMIT = 5;
+const RECENTS_LIMIT = 25;
 
 function looksLikePdfUrl(value) {
   if (typeof value !== 'string') return false;
@@ -84,44 +84,32 @@ function buildDownloadUrl(publicUrl, filename) {
 }
 
 function PreviewThumbnail({ src }) {
-  const [status, setStatus] = useState(src ? 'loading' : 'fallback');
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
-    setStatus(src ? 'loading' : 'fallback');
+    setFailed(false);
   }, [src]);
 
-  useEffect(() => {
-    if (!src || status !== 'loading') return undefined;
-    const timeoutId = window.setTimeout(() => {
-      setStatus((current) => (current === 'loading' ? 'error' : current));
-    }, 8000);
-    return () => window.clearTimeout(timeoutId);
-  }, [src, status]);
+  if (!src) {
+    return <div className={styles.previewPlaceholder}>—</div>;
+  }
 
-  const showLoading = Boolean(src) && status === 'loading';
-  const showFallback = ['fallback', 'failed', 'error'].includes(status);
+  if (failed) {
+    return <div className={styles.previewPlaceholder}>Sin vista previa</div>;
+  }
 
   return (
-    <>
-      {showLoading ? <span className={styles.previewPlaceholder}>Cargando…</span> : null}
-      {showFallback ? <div className={styles.previewPlaceholder}>Sin vista previa</div> : null}
-      {src && !showFallback && status !== 'failed' ? (
-        <img
-          src={src}
-          alt="Miniatura NOTMID"
-          className={styles.previewImage}
-          loading="lazy"
-          referrerPolicy="no-referrer"
-          onLoad={() => {
-            setStatus('loaded');
-          }}
-          onError={() => {
-            setStatus('failed');
-          }}
-          style={showLoading ? { display: 'none' } : undefined}
-        />
-      ) : null}
-    </>
+    <div className={styles.previewThumbWrap}>
+      <img
+        src={src}
+        alt=""
+        className={styles.previewImage}
+        loading="lazy"
+        decoding="async"
+        referrerPolicy="no-referrer"
+        onError={() => setFailed(true)}
+      />
+    </div>
   );
 }
 
@@ -194,7 +182,10 @@ export default function Busqueda() {
         );
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) return;
-        const items = Array.isArray(payload?.items) ? payload.items : [];
+        let items = Array.isArray(payload?.items) ? payload.items : [];
+        if (items.length > RECENTS_LIMIT) {
+          items = items.slice(0, RECENTS_LIMIT);
+        }
         setResults(items);
         setHasMore(Boolean(payload?.hasMore));
         setNextCursor(typeof payload?.nextCursor === 'string' ? payload.nextCursor : null);
@@ -215,9 +206,10 @@ export default function Busqueda() {
 
   const showingRange = useMemo(() => {
     if (results.length === 0) return '';
-    if (!searched) return `Últimos ${results.length} PDFs`;
-    return `Mostrando ${results.length} resultados`;
-  }, [searched, results.length]);
+    const pageHint = hasMore ? ' · usá «Siguiente» para ver más' : '';
+    if (!searched) return `Últimos ${results.length} PDFs${pageHint}`;
+    return `Mostrando ${results.length} en esta página${pageHint}`;
+  }, [searched, results.length, hasMore]);
 
   const SUPA_URL = (import.meta.env?.VITE_SUPABASE_URL
     || import.meta.env?.NEXT_PUBLIC_SUPABASE_URL
@@ -292,10 +284,18 @@ export default function Busqueda() {
   }, [SUPA_URL]);
 
   const normalizedResults = useMemo(
-    () => results.map((row) => ({
-      ...row,
-      previewUrl: getPreviewUrlFromRecord(row),
-    })),
+    () => results.map((row) => {
+      const fromApi = typeof row.previewUrl === 'string' ? row.previewUrl.trim() : '';
+      const fromApiSnake = typeof row.preview_url === 'string' ? row.preview_url.trim() : '';
+      const direct = fromApi || fromApiSnake;
+      const resolved = /^https?:\/\//i.test(direct)
+        ? direct
+        : getPreviewUrlFromRecord(row);
+      return {
+        ...row,
+        previewUrl: resolved || null,
+      };
+    }),
     [results, getPreviewUrlFromRecord],
   );
 
@@ -364,7 +364,10 @@ export default function Busqueda() {
         return { ok: false };
       }
 
-      const items = Array.isArray(payload?.items) ? payload.items : [];
+      let items = Array.isArray(payload?.items) ? payload.items : [];
+      if (items.length > limit) {
+        items = items.slice(0, limit);
+      }
       setResults(items);
       setLastQuery(trimmed);
       setHasMore(Boolean(payload?.hasMore));
