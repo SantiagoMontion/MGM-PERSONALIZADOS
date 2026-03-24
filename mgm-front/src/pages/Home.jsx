@@ -530,6 +530,37 @@ function fitStageWithinBounds(widthCm, heightCm, maxWidthPx, maxHeightPx) {
   };
 }
 
+/** Solo móvil + proporción cuadrada / casi cuadrada (no aplica a 82×32, 140×100, etc.). */
+const STEP_ONE_MOBILE_SQUAREISH_ASPECT_MAX = 1.35;
+const STEP_ONE_MOBILE_SHELL_MAX_W_PX = 258;
+const STEP_ONE_MOBILE_SHELL_MAX_H_PX = 236;
+/** Achique leve; el cap px evita que el cuadrado invada los dropdowns. */
+const STEP_ONE_MOBILE_SQUAREISH_EXTRA_SCALE = 0.9;
+
+function shouldCapStepOneMobilePreviewShell(widthCm, heightCm) {
+  const sw = Number.isFinite(Number(widthCm)) && Number(widthCm) > 0 ? Number(widthCm) : 1;
+  const sh = Number.isFinite(Number(heightCm)) && Number(heightCm) > 0 ? Number(heightCm) : 1;
+  const minSide = Math.min(sw, sh);
+  const maxSide = Math.max(sw, sh);
+  const ratio = maxSide / minSide;
+  return ratio <= STEP_ONE_MOBILE_SQUAREISH_ASPECT_MAX;
+}
+
+function capPreviewShellPx(widthPx, heightPx, maxWPx, maxHPx) {
+  const w = Math.max(1, Number(widthPx));
+  const h = Math.max(1, Number(heightPx));
+  const mw = Number(maxWPx);
+  const mh = Number(maxHPx);
+  if (!Number.isFinite(mw) || mw <= 0 || !Number.isFinite(mh) || mh <= 0) {
+    return { width: Math.round(w), height: Math.round(h) };
+  }
+  const s = Math.min(1, mw / w, mh / h);
+  return {
+    width: Math.max(1, Math.round(w * s)),
+    height: Math.max(1, Math.round(h * s)),
+  };
+}
+
 function getStepOneDesktopPreviewSpacingPx(widthCm, heightCm) {
   const safeWidth = Number.isFinite(Number(widthCm)) && Number(widthCm) > 0 ? Number(widthCm) : 1;
   const safeHeight = Number.isFinite(Number(heightCm)) && Number(heightCm) > 0 ? Number(heightCm) : 1;
@@ -3300,8 +3331,22 @@ export default function Home() {
     const safeHeight = Number.isFinite(heightValue) && heightValue > 0 ? heightValue : 1;
     const referenceScale = STEP_ONE_PREVIEW_MAX_WIDTH_PX / STEP_ONE_PREVIEW_REFERENCE_CM.w;
     const scale = getStepOnePreviewScale(safeWidth, safeHeight);
-    const scaledWidthPx = safeWidth * scale;
-    const scaledHeightPx = safeHeight * scale;
+    let scaledWidthPx = safeWidth * scale;
+    let scaledHeightPx = safeHeight * scale;
+    const mobileSquareishCap =
+      isStepOneMobileViewport && shouldCapStepOneMobilePreviewShell(safeWidth, safeHeight);
+    if (mobileSquareishCap) {
+      scaledWidthPx *= STEP_ONE_MOBILE_SQUAREISH_EXTRA_SCALE;
+      scaledHeightPx *= STEP_ONE_MOBILE_SQUAREISH_EXTRA_SCALE;
+      const capped = capPreviewShellPx(
+        scaledWidthPx,
+        scaledHeightPx,
+        STEP_ONE_MOBILE_SHELL_MAX_W_PX,
+        STEP_ONE_MOBILE_SHELL_MAX_H_PX,
+      );
+      scaledWidthPx = capped.width;
+      scaledHeightPx = capped.height;
+    }
     const selectedWidthProgress = Math.min(safeWidth / STEP_ONE_PREVIEW_REFERENCE_CM.w, 1);
     const selectedHeightProgress = Math.min(safeHeight / STEP_ONE_PREVIEW_REFERENCE_CM.h, 1);
     const heroOffsetPx = Math.round((1 - selectedHeightProgress) * 56);
@@ -3334,7 +3379,7 @@ export default function Home() {
       ? 0
       : getStepOneDesktopPreviewSpacingPx(safeWidth, safeHeight);
     const previewTopSpacingPx = isStepOneMobileViewport
-      ? 0
+      ? (mobileSquareishCap ? 8 : 0)
       : Math.max(0, desiredPreviewSpacingPx - layoutGapPx - previewBodyGapPx - captionEstimatedHeightPx);
     const previewBottomSpacingPx = isStepOneMobileViewport
       ? 0

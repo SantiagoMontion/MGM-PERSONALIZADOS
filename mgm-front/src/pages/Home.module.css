@@ -4398,6 +4398,8 @@ body.light .stepTwoContainColorLabel {
   .stepOneSizeSection {
     width: 100%;
     flex: 0 0 auto;
+    position: relative;
+    z-index: 3;
   }
 
   .stepOneSelectorsRow {
@@ -4438,10 +4440,12 @@ body.light .stepTwoContainColorLabel {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    min-block-size: 100%;
+    min-block-size: 0;
     width: 100%;
     padding: 0;
     margin: 0;
+    position: relative;
+    z-index: 1;
   }
 
   .stepOneCanvasStage {
@@ -4455,7 +4459,7 @@ body.light .stepTwoContainColorLabel {
   .stepOnePreviewStack {
     flex: 1 1 auto;
     width: 100%;
-    min-block-size: clamp(320px, 48svh, 620px);
+    min-block-size: min(280px, 42svh);
     gap: 0;
     justify-content: flex-start;
   }
@@ -4470,17 +4474,17 @@ body.light .stepTwoContainColorLabel {
     align-items: center;
     justify-content: flex-start;
     gap: var(--space-3);
-    min-block-size: clamp(320px, 48svh, 620px);
+    min-block-size: min(260px, 40svh);
     overflow: visible;
     padding-block: var(--space-1) calc(var(--space-2) + 156px);
   }
 
   .stepOneCanvasViewport {
     flex: 1 1 auto;
-    inline-size: 100%;
-    max-inline-size: 100%;
+    inline-size: min(100%, var(--step-one-preview-figure-width-px, 100%));
+    max-inline-size: min(100%, var(--step-one-preview-max-width-px, 100%));
     block-size: auto;
-    min-block-size: clamp(260px, 36svh, 420px);
+    min-block-size: 0;
     max-block-size: none;
     align-items: center;
     justify-content: center;
@@ -4489,17 +4493,26 @@ body.light .stepTwoContainColorLabel {
 
   .stepOneCanvasFigure {
     --step-one-mobile-measure-column-offset: clamp(12px, 4vw, 15px);
-    inline-size: min(calc(100% - 12px), 85vw);
-    max-inline-size: calc(100% - 12px);
+    inline-size: min(100%, var(--step-one-preview-figure-width-px, 551px));
+    max-inline-size: min(100%, var(--step-one-preview-max-width-px, 551px));
     block-size: auto;
+    min-block-size: 0;
     margin: 0 auto;
     padding-block-end: var(--step-one-measure-row-space-px, 32px);
     box-sizing: border-box;
   }
 
+  /*
+   * Ancho acotado al contenedor; alto derivado del ratio cm (misma escala que el JS).
+   * No mezclar width:100% con height fijo en px — rompe 25×25 y achata 90×40.
+   */
   .stepOneCanvasShell {
-    inline-size: 100% !important;
-    block-size: auto;
+    inline-size: min(100%, var(--step-one-shell-width-px, 100px)) !important;
+    max-inline-size: min(100%, var(--step-one-shell-width-px, 100px));
+    block-size: auto !important;
+    aspect-ratio: var(--step-one-selected-ratio, 1);
+    max-block-size: none;
+    box-sizing: border-box;
   }
 
   .stepOneCanvasMeasureColumn {

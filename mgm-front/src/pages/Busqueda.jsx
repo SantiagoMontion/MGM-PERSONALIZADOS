@@ -12,10 +12,11 @@ import {
   isGateValid,
 } from '@/lib/printsGate.js';
 import styles from './Busqueda.module.css';
-import { diag, warn } from '@/lib/log';
+import { diag, error as logError, warn } from '@/lib/log';
 
-// Objetivo: traer pocas filas para acelerar (y reducir carga de preview/URLs).
-const PAGE_LIMIT = 5;
+/** Alineado con el backend (max 50); paginación por cursor. */
+const PAGE_LIMIT = 25;
+const RECENTS_LIMIT = 50;
 
 function looksLikePdfUrl(value) {
   if (typeof value !== 'string') return false;
@@ -140,6 +141,7 @@ export default function Busqueda() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [searched, setSearched] = useState(false);
+  const [recentsLoaded, setRecentsLoaded] = useState(false);
   const abortRef = useRef(null);
 
   useEffect(() => {
@@ -160,11 +162,60 @@ export default function Busqueda() {
   useEffect(() => {
     if (hasAccess) {
       setAuthError('');
+    } else {
+      setRecentsLoaded(false);
+      setResults([]);
+      setSearched(false);
+      setCursorStack([null]);
+      setHasMore(false);
+      setNextCursor(null);
+      setLastQuery('');
     }
   }, [hasAccess]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined' || !gateReady || !hasAccess || recentsLoaded) return undefined;
+
+    const controller = new AbortController();
+    const headers = { Accept: 'application/json' };
+    if (gateToken) headers['X-Prints-Gate'] = gateToken;
+
+    (async () => {
+      try {
+        const params = new URLSearchParams({
+          limit: String(RECENTS_LIMIT),
+          sortBy: 'created_at',
+        });
+        const response = await apiFetch(
+          'GET',
+          `/api/prints/search?${params.toString()}`,
+          undefined,
+          { signal: controller.signal, headers },
+        );
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) return;
+        const items = Array.isArray(payload?.items) ? payload.items : [];
+        setResults(items);
+        setHasMore(Boolean(payload?.hasMore));
+        setNextCursor(typeof payload?.nextCursor === 'string' ? payload.nextCursor : null);
+        setCursorStack([null]);
+        setSearched(false);
+        setLastQuery('');
+      } catch (e) {
+        if (e?.name !== 'AbortError') {
+          logError('[prints-search] recents', e);
+        }
+      } finally {
+        setRecentsLoaded(true);
+      }
+    })();
+
+    return () => controller.abort();
+  }, [gateReady, hasAccess, gateToken, recentsLoaded]);
+
   const showingRange = useMemo(() => {
-    if (!searched || results.length === 0) return '';
+    if (results.length === 0) return '';
+    if (!searched) return `Últimos ${results.length} PDFs`;
     return `Mostrando ${results.length} resultados`;
   }, [searched, results.length]);
 
@@ -248,9 +299,85 @@ export default function Busqueda() {
     [results, getPreviewUrlFromRecord],
   );
 
-  async function performSearch(nextQuery, cursor = null, nextOffset = 0) {
-    const trimmed = nextQuery.trim();
-    if (!trimmed) {
+  const fetchPrintsPage = useCallback(
+    async ({
+      queryText,
+      cursor = null,
+      nextOffset = 0,
+      limit = PAGE_LIMIT,
+      signal,
+    }) => {
+      const trimmed = String(queryText || '').trim();
+      const params = new URLSearchParams({
+        limit: String(limit),
+        sortBy: 'created_at',
+      });
+      if (trimmed) {
+        params.set('query', trimmed);
+      }
+      if (Number.isFinite(nextOffset) && nextOffset >= 0) {
+        params.set('offset', String(Math.floor(nextOffset)));
+      }
+      if (typeof cursor === 'string' && cursor.trim()) {
+        params.set('cursor', cursor);
+      }
+      const endpoint = `/api/prints/search?${params.toString()}`;
+      const headers = { Accept: 'application/json' };
+      if (gateToken) {
+        headers['X-Prints-Gate'] = gateToken;
+      }
+      const response = await apiFetch('GET', endpoint, undefined, {
+        signal,
+        headers,
+      });
+      const payload = await response.json().catch(() => ({}));
+
+      if (response.status === 401 || payload?.reason === 'unauthorized') {
+        clearGate();
+        setGateToken('');
+        setHasAccess(false);
+        setAuthError('La contraseña expiró. Ingresala de nuevo.');
+        setError('Necesitás ingresar la contraseña temporal para buscar.');
+        setPasswordValue('');
+        setResults([]);
+        setHasMore(false);
+        setNextCursor(null);
+        setSearched(false);
+        return { ok: false };
+      }
+
+      if (!response.ok) {
+        const message = typeof payload?.message === 'string'
+          ? payload.message
+          : typeof payload?.detail === 'string'
+            ? payload.detail
+            : typeof payload?.error === 'string'
+              ? payload.error
+              : `Error ${response.status}`;
+        setError(message === 'missing_query' || message === 'query_too_short'
+          ? 'Ingresá al menos 2 caracteres para buscar.'
+          : `No se pudo realizar la búsqueda (${message}).`);
+        setResults([]);
+        setLastQuery(trimmed);
+        setHasMore(false);
+        setNextCursor(null);
+        return { ok: false };
+      }
+
+      const items = Array.isArray(payload?.items) ? payload.items : [];
+      setResults(items);
+      setLastQuery(trimmed);
+      setHasMore(Boolean(payload?.hasMore));
+      setNextCursor(typeof payload?.nextCursor === 'string' ? payload.nextCursor : null);
+      setRecentsLoaded(true);
+      return { ok: true };
+    },
+    [gateToken],
+  );
+
+  async function performSearch(nextQuery, cursor = null, nextOffset = 0, { allowRecent = false } = {}) {
+    const trimmed = String(nextQuery || '').trim();
+    if (!trimmed && !allowRecent) {
       setError('Ingresá un término para buscar.');
       setResults([]);
       setHasMore(false);
@@ -270,76 +397,24 @@ export default function Busqueda() {
 
     setLoading(true);
     setError('');
-    setSearched(true);
+    if (trimmed) {
+      setSearched(true);
+    } else if (allowRecent) {
+      setSearched(false);
+    }
 
     try {
-      // `offset` se manda como compatibilidad (fallback a storage).
-      // Si existe `cursor`, el backend lo prioriza para keyset pagination.
-      const params = new URLSearchParams({
-        query: trimmed,
-        limit: String(PAGE_LIMIT),
-        sortBy: 'created_at',
-      });
-      if (Number.isFinite(nextOffset) && nextOffset >= 0) {
-        params.set('offset', String(Math.floor(nextOffset)));
-      }
-      if (typeof cursor === 'string' && cursor.trim()) {
-        params.set('cursor', cursor);
-      }
-      const endpoint = `/api/prints/search?${params.toString()}`;
-      const headers = { Accept: 'application/json' };
-      if (gateToken) {
-        headers['X-Prints-Gate'] = gateToken;
-      }
-      const response = await apiFetch('GET', endpoint, undefined, {
+      await fetchPrintsPage({
+        queryText: trimmed,
+        cursor,
+        nextOffset,
         signal: controller.signal,
-        headers,
       });
-      const payload = await response.json().catch(() => ({}));
-
-      if (response.status === 401 || payload?.reason === 'unauthorized') {
-        clearGate();
-        setGateToken('');
-        setHasAccess(false);
-        setAuthError('La contraseña expiró. Ingresala de nuevo.');
-        setError('Necesitás ingresar la contraseña temporal para buscar.');
-        setPasswordValue('');
-        setResults([]);
-        setHasMore(false);
-        setNextCursor(null);
-        setSearched(false);
-        return;
-      }
-
-      if (!response.ok) {
-        const message = typeof payload?.message === 'string'
-          ? payload.message
-          : typeof payload?.detail === 'string'
-            ? payload.detail
-            : typeof payload?.error === 'string'
-              ? payload.error
-              : `Error ${response.status}`;
-        setError(message === 'missing_query' || message === 'query_too_short'
-          ? 'Ingresá al menos 2 caracteres para buscar.'
-          : `No se pudo realizar la búsqueda (${message}).`);
-        setResults([]);
-        setLastQuery(trimmed);
-        setHasMore(false);
-        setNextCursor(null);
-        return;
-      }
-
-      const items = Array.isArray(payload?.items) ? payload.items : [];
-
-      setResults(items);
-      setLastQuery(trimmed);
-      setHasMore(Boolean(payload?.hasMore));
-      setNextCursor(typeof payload?.nextCursor === 'string' ? payload.nextCursor : null);
     } catch (requestError) {
       if (requestError?.name === 'AbortError') {
         return;
       }
-      error('[prints-search]', requestError);
+      logError('[prints-search]', requestError);
       setError('Ocurrió un error al buscar en Supabase.');
       setResults([]);
       setHasMore(false);
@@ -355,26 +430,34 @@ export default function Busqueda() {
   function handleSubmit(event) {
     event.preventDefault();
     setCursorStack([null]);
-    performSearch(query, null, 0);
+    performSearch(query, null, 0, { allowRecent: false });
   }
 
   function handlePrevious() {
     if (loading) return;
     if (cursorStack.length <= 1) return;
     const prevCursor = cursorStack[cursorStack.length - 2] ?? null;
+    const inRecentMode = !searched;
     setCursorStack((current) => current.slice(0, -1));
-    performSearch(lastQuery || query, prevCursor, Math.max(0, (cursorStack.length - 2) * PAGE_LIMIT));
+    performSearch(
+      lastQuery || query,
+      prevCursor,
+      Math.max(0, (cursorStack.length - 2) * PAGE_LIMIT),
+      { allowRecent: inRecentMode },
+    );
   }
 
   function handleNext() {
     if (loading) return;
     if (!hasMore || !nextCursor) return;
-    const newStackIndex = cursorStack.length; // next page index
+    const newStackIndex = cursorStack.length;
+    const inRecentMode = !searched;
     setCursorStack((current) => [...current, nextCursor]);
     performSearch(
       lastQuery || query,
       nextCursor,
       Math.max(0, newStackIndex * PAGE_LIMIT),
+      { allowRecent: inRecentMode },
     );
   }
 
@@ -404,7 +487,7 @@ export default function Busqueda() {
     }
   }
 
-  const canShowPagination = searched && (hasMore || cursorStack.length > 1);
+  const canShowPagination = hasMore || cursorStack.length > 1;
   const hasResults = normalizedResults.length > 0;
   const noResultsMessage = searched && !loading && !hasResults && !error;
 
@@ -474,7 +557,7 @@ export default function Busqueda() {
                 normalizedResults.map((row) => {
                   const key = row.id || row.path || row.fileName;
                   const measurement = formatMeasurement(row.widthCm, row.heightCm);
-                  const filename = row.name || row.fileName || 'archivo.pdf';
+                  const filename = row.fileName || row.name || 'archivo.pdf';
                   const rawDownloadUrl = row.downloadUrl || row.url || row.publicUrl || '';
                   let downloadHref = '';
                   if (rawDownloadUrl) {
@@ -489,12 +572,6 @@ export default function Busqueda() {
                       }
                     }
                   }
-                  console.log('[Busqueda] preview debug', {
-                    id: row.id || row.path || row.fileName || null,
-                    preview_url: row.preview_url ?? null,
-                    mockup_public_url: row.mockup_public_url ?? null,
-                    resolvedPreviewUrl: row.previewUrl ?? null,
-                  });
                   if (import.meta.env?.DEV) {
                     diag('[prints] preview', {
                       name: row.fileName || row.name,

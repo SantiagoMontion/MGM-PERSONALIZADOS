@@ -82,12 +82,20 @@ create table if not exists public.prints (
   file_size_bytes bigint,
   shopify_product_id text,
   shopify_variant_id text,
+  design_name text,
+  search_document text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
 create index if not exists idx_prints_created_at_desc
   on public.prints using btree (created_at desc, file_name asc);
+
+create index if not exists idx_prints_search_document_trgm
+  on public.prints using gin (search_document gin_trgm_ops);
+
+create index if not exists idx_prints_created_at_id_desc
+  on public.prints using btree (created_at desc, id desc);
 
 create index if not exists idx_prints_slug_trgm
   on public.prints using gin (slug gin_trgm_ops);
