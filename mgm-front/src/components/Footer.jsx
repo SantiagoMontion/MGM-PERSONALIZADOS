@@ -5,23 +5,23 @@ const sections = [
   {
     title: 'Más de nosotros',
     links: [
-      { label: 'Nuestros productos', href: 'https://mgmgamers.store/collections/todos-los-mousepads', external: true },                    // interno
-      { label: 'Instagram', href: 'https://instagram.com/mgmgamers.store', external: true },
-      { label: 'TikTok',    href: 'https://www.tiktok.com/@mgmgamers', external: true },
+      { label: 'Nuestros productos', href: 'https://notmid.ar/collections/todos-los-mousepads', external: true },                    // interno
+      { label: 'Instagram', href: 'https://instagram.com/notmid.ar', external: true },
+      { label: 'TikTok',    href: 'https://www.tiktok.com/@notmid', external: true },
     ],
   },
   {
     title: '¿Necesitás ayuda?',
     links: [
-      { label: 'Cuidados', href: 'https://mgmgamers.store/pages/cuidados', external: true },                            // interno
-      { label: 'Contactanos', href: 'https://mgmgamers.store/pages/contact', external: true },
+      { label: 'Cuidados', href: 'https://notmid.ar/pages/cuidados', external: true },                            // interno
+      { label: 'Contactanos', href: 'https://notmid.ar/pages/contact', external: true },
     ],
   },
   {
     title: 'Legal',
     links: [
       
-      { label: 'Términos y Condiciones', href: 'https://mgmgamers.store/blogs/noticias/terminos-y-condiciones', external: true },
+      { label: 'Términos y Condiciones', href: 'https://notmid.ar/blogs/noticias/terminos-y-condiciones', external: true },
     ],
   },
 ];
@@ -67,7 +67,7 @@ export default function Footer() {
       </div>
       <div className={styles.bottomRow}>
         <span className={styles.copyright}>
-          © 2025 MGM Gamers. Todos los derechos reservados.
+          © 2025 NOTMID. Todos los derechos reservados.
         </span>
       </div>
     </footer>

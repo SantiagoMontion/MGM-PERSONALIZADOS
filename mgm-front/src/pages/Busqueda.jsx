@@ -14,8 +14,8 @@ import {
 import styles from './Busqueda.module.css';
 import { diag, error as logError, warn } from '@/lib/log';
 
-/** Pocas filas por página = menos firmas Storage + menos miniaturas a la vez. */
-const PAGE_LIMIT = 5;
+/** Filas por página de búsqueda (más resultados por request; ajustá si pesan las firmas). */
+const PAGE_LIMIT = 25;
 const RECENTS_LIMIT = 25;
 
 function looksLikePdfUrl(value) {

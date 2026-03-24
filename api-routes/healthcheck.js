@@ -3,8 +3,8 @@ export default function handler(req, res) {
   const allow = new Set([
     'http://localhost:5173',
     'http://127.0.0.1:5173',
-    'https://mgmgamers.store',
-    'https://www.mgmgamers.store',
+    'https://notmid.ar',
+    'https://www.notmid.ar',
   ]);
   if (allow.has(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);

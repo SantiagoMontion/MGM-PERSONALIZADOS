@@ -1,5 +1,5 @@
 const fetch = globalThis.fetch;
-const ORIGIN = 'https://mgmgamers.store';
+const ORIGIN = 'https://notmid.ar';
 
 async function test() {
   const pre = await fetch('https://mgm-api.vercel.app/api/finalize-assets', {

@@ -30,7 +30,7 @@ Returns `{ ok: true, ts }`. Useful for load balancers.
 
 ### `POST /api/cart/link`
 
-Creates a Shopify cart that includes a single product variant and returns `{ url, webUrl, checkoutUrl?, strategy, requestId? }` where `url === webUrl` on the Storefront path. When Shopify cannot create the cart the handler falls back to the public permalink (`https://www.mgmgamers.store/cart/<variantId>:<quantity>`).
+Creates a Shopify cart that includes a single product variant and returns `{ url, webUrl, checkoutUrl?, strategy, requestId? }` where `url === webUrl` on the Storefront path. When Shopify cannot create the cart the handler falls back to the public permalink (`https://notmid.ar/cart/<variantId>:<quantity>`).
 
 - Request body must include `variantId` (numeric or GraphQL). `quantity` defaults to `1` and is clamped between `1` and `99`.
 - The handler short-polls variant availability through Storefront (`WaitVariant`) for up to ~5 s before attempting `cartCreate`. Failures (user errors, Storefront outages, 5xx responses) return a permalink so the browser can open `/cart` directly. All error payloads include `ok: false` and, when available, Shopify `requestId`/`userErrors`.

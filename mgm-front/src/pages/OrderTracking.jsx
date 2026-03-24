@@ -125,7 +125,7 @@ export default function OrderTracking() {
           <h2 className="text-lg font-semibold text-amber-100">Pago pendiente: transferencia bancaria</h2>
           <div className="mt-3 space-y-1 text-sm text-neutral-200">
             <p>CBU: 0000003100098765432101</p>
-            <p>Alias: MGM.GAMERS.SJ</p>
+            <p>Alias: NOTMID.SJ</p>
             <p>Banco: Banco Nación</p>
           </div>
         </article>
