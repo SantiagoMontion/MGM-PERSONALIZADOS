@@ -3,7 +3,16 @@ export function buildMockupBaseName({ designName, widthCm, heightCm, material })
   return base.replace(/\b(\d+x\d+\s+\w+)\s+\1\b/i, '$1');
 }
 
-/** PDF en outputs: pdf/YYYY/MM/archivo.pdf → preview/YYYY/MM/archivo.jpg (mismo bucket que printsSearch.js). */
+function sanitizePdfFilenameLikeServer(input) {
+  const raw = String(input || '').trim();
+  const last = raw.split(/[\\/]/).pop() || '';
+  const ensured = last.toLowerCase().endsWith('.pdf') ? last : `${last}.pdf`;
+  const sanitized = ensured.replace(/[^a-z0-9._-]+/gi, '-');
+  const trimmed = sanitized.replace(/^-+/, '');
+  return trimmed || 'diseno.pdf';
+}
+
+/** PDF en outputs: pdf/… y pdf-YYYY-MM/… → preview/YYYY/MM/….jpg (mismo criterio que printsSearch.js). */
 export function deriveOutputsPreviewJpgPathFromPdf(pdfKeyOrUrl) {
   if (typeof pdfKeyOrUrl !== 'string' || !pdfKeyOrUrl.trim()) return null;
   let p = pdfKeyOrUrl
@@ -16,6 +25,11 @@ export function deriveOutputsPreviewJpgPathFromPdf(pdfKeyOrUrl) {
   if (!lower.includes('.pdf')) return null;
   if (lower.startsWith('pdf/')) {
     return p.replace(/^pdf\//i, 'preview/').replace(/\.pdf(?:$|[?#])/i, '.jpg');
+  }
+  const pdfDash = p.match(/^pdf-(\d{4})-(\d{2})\/(.+)$/i);
+  if (pdfDash) {
+    const safeFile = sanitizePdfFilenameLikeServer(pdfDash[3]).replace(/\.pdf(?:$|[?#])/i, '.jpg');
+    return `preview/${pdfDash[1]}/${pdfDash[2]}/${safeFile}`;
   }
   return null;
 }
