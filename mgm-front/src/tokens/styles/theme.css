@@ -544,16 +544,16 @@ body.light ._stepTwoConfigDrawer_xcge5_3258.dark img {
   --info: #3B82F6;
   --info-surface: rgba(59, 130, 246, 0.15);
 
-  /* Legacy tokens for backwards compatibility */
-  --card: #0E1520;
+  /* Legacy tokens for backwards compatibility (superficies neutras, sin tinte azul) */
+  --card: #0a0a0a;
   --card-foreground: #DDE3ED;
-  --popover: #0E1520;
+  --popover: #0a0a0a;
   --popover-foreground: #DDE3ED;
   --primary: #DDE3ED;
   --primary-foreground: #090E14;
-  --secondary: #141D2C;
+  --secondary: #0a0a0a;
   --secondary-foreground: #DDE3ED;
-  --muted: #141D2C;
+  --muted: #0a0a0a;
   --muted-foreground: rgba(255, 255, 255, 0.6);
   --accent-foreground: #DDE3ED;
   --destructive: #7F1D1D;
@@ -572,7 +572,7 @@ body.light ._stepTwoConfigDrawer_xcge5_3258.dark img {
   --bg-hover: rgba(255, 255, 255, 0.04);
   --bg-active: rgba(255, 255, 255, 0.07);
   --bg-subtle: rgba(255, 255, 255, 0.02);
-  --bg-overlay: rgba(9, 14, 20, 0.75);
+  --bg-overlay: rgba(10, 10, 10, 0.75);
   --border-hover: rgba(255, 255, 255, 0.15);
   --border-strong: rgba(255, 255, 255, 0.12);
 
@@ -584,11 +584,11 @@ body.light ._stepTwoConfigDrawer_xcge5_3258.dark img {
   --chart-5: oklch(0.645 0.246 16.439);
   
   /* Sidebar */
-  --sidebar: #0E1520;
+  --sidebar: #0a0a0a;
   --sidebar-foreground: #DDE3ED;
   --sidebar-primary: #4F8EF7;
   --sidebar-primary-foreground: #090E14;
-  --sidebar-accent: #141D2C;
+  --sidebar-accent: #0a0a0a;
   --sidebar-accent-foreground: #DDE3ED;
   --sidebar-border: rgba(255, 255, 255, 0.07);
   --sidebar-ring: rgba(79, 142, 247, 0.4);
