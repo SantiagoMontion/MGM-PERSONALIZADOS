@@ -61,6 +61,28 @@ function formatMeasurement(width, height) {
   return `${normalize(w)}x${normalize(h)} cm`;
 }
 
+function computePrintRowFields(row) {
+  const key = row.id || row.path || row.fileName;
+  const measurement = formatMeasurement(row.widthCm, row.heightCm);
+  const filename = row.fileName || row.name || 'archivo.pdf';
+  const rawDownloadUrl = row.downloadUrl || row.url || row.publicUrl || '';
+  let downloadHref = '';
+  if (rawDownloadUrl) {
+    try {
+      downloadHref = buildDownloadUrl(rawDownloadUrl, filename);
+    } catch (err) {
+      if (import.meta.env?.DEV) {
+        warn('[prints] invalid download URL', {
+          error: err,
+          rawDownloadUrl,
+        });
+      }
+    }
+  }
+  const previewSrc = isUsableImageSrc(row?.previewUrl) ? row.previewUrl : null;
+  return { key, measurement, filename, downloadHref, previewSrc };
+}
+
 function buildDownloadUrl(publicUrl, filename) {
   const url = new URL(publicUrl);
   if (!url.searchParams.has('download')) {
@@ -475,13 +497,6 @@ export default function Busqueda() {
   const hasResults = normalizedResults.length > 0;
   const noResultsMessage = searched && !loading && !hasResults && !error;
 
-  // === Helpers para resolver URL pública del preview (Supabase) ===
-  const resolvePreviewUrl = (row) => {
-    const candidate = row?.previewUrl;
-    if (!isUsableImageSrc(candidate)) return null;
-    return candidate;
-  };
-
   return (
     <div className={styles.page}>
       <Helmet>
@@ -494,7 +509,7 @@ export default function Busqueda() {
         </p>
       </header>
 
-      <section className={styles.searchCard}>
+      <section className={styles.panel}>
         <form className={styles.searchForm} onSubmit={handleSubmit}>
           <div className={styles.inputWrapper}>
             <label className={styles.label} htmlFor="busqueda-query">
@@ -511,19 +526,24 @@ export default function Busqueda() {
               disabled={loading || !hasAccess}
             />
           </div>
-          <button type="submit" className={styles.searchButton} disabled={loading || !hasAccess}>
+          <button type="submit" className={styles.btnPrimary} disabled={loading || !hasAccess}>
             {loading ? 'Buscando…' : 'Buscar'}
           </button>
         </form>
-        {error ? (
-          <p className={`${styles.feedback} ${styles.error}`}>{error}</p>
-        ) : showingRange ? (
-          <p className={styles.feedback}>{showingRange}</p>
-        ) : null}
+        {error ? <p className={`${styles.feedback} ${styles.error}`}>{error}</p> : null}
       </section>
 
-      <section className={styles.resultsCard}>
-        <div className={styles.resultsTableWrapper}>
+      <section className={`${styles.panel} ${styles.resultsPanel}`} aria-busy={loading}>
+        <div className={styles.resultsToolbar}>
+          <h2 className={styles.resultsHeading}>Archivos</h2>
+          {loading ? (
+            <p className={styles.resultsMeta}>Cargando…</p>
+          ) : showingRange ? (
+            <p className={styles.resultsMeta}>{showingRange}</p>
+          ) : null}
+        </div>
+
+        <div className={styles.tableWrap}>
           <table className={styles.resultsTable}>
             <thead>
               <tr>
@@ -538,37 +558,28 @@ export default function Busqueda() {
             <tbody>
               {hasResults ? (
                 normalizedResults.map((row) => {
-                  const key = row.id || row.path || row.fileName;
-                  const measurement = formatMeasurement(row.widthCm, row.heightCm);
-                  const filename = row.fileName || row.name || 'archivo.pdf';
-                  const rawDownloadUrl = row.downloadUrl || row.url || row.publicUrl || '';
-                  let downloadHref = '';
-                  if (rawDownloadUrl) {
-                    try {
-                      downloadHref = buildDownloadUrl(rawDownloadUrl, filename);
-                    } catch (error) {
-                      if (import.meta.env?.DEV) {
-                        warn('[prints] invalid download URL', {
-                          error,
-                          rawDownloadUrl,
-                        });
-                      }
-                    }
-                  }
+                  const { key, measurement, filename, downloadHref, previewSrc } = computePrintRowFields(row);
                   if (import.meta.env?.DEV) {
                     diag('[prints] preview', {
                       name: row.fileName || row.name,
                       preview: row.previewUrl,
                     });
                   }
+                  const material = row.material || '-';
                   return (
                     <tr key={key}>
                       <td className={`${styles.previewCell} preview-cell`}>
-                        <PreviewThumbnail src={resolvePreviewUrl(row)} />
+                        <PreviewThumbnail src={previewSrc} />
                       </td>
                       <td className={styles.fileCell}>{row.fileName || row.name || '-'}</td>
                       <td className={styles.measureCell}>{measurement}</td>
-                      <td className={styles.materialCell}>{row.material || '-'}</td>
+                      <td className={styles.materialCell}>
+                        {material !== '-' ? (
+                          <span className={styles.materialPill}>{material}</span>
+                        ) : (
+                          <span className={styles.downloadMuted}>—</span>
+                        )}
+                      </td>
                       <td className={styles.sizeCell}>{formatBytes(row.sizeBytes ?? row.size)}</td>
                       <td>
                         {downloadHref ? (
@@ -579,10 +590,10 @@ export default function Busqueda() {
                             target="_self"
                             rel="nofollow"
                           >
-                            Descargar PDF
+                            Descargar
                           </a>
                         ) : (
-                          '-'
+                          <span className={styles.downloadMuted}>—</span>
                         )}
                       </td>
                     </tr>
@@ -598,18 +609,64 @@ export default function Busqueda() {
             </tbody>
           </table>
         </div>
+
+        <ul className={styles.cardList} role="list" aria-label="Lista de PDFs">
+          {hasResults ? (
+            normalizedResults.map((row) => {
+              const { key, measurement, filename, downloadHref, previewSrc } = computePrintRowFields(row);
+              const material = row.material || '-';
+              const sizeStr = formatBytes(row.sizeBytes ?? row.size);
+              return (
+                <li key={key} className={styles.resultCard} role="listitem">
+                  <PreviewThumbnail src={previewSrc} />
+                  <div className={styles.resultCardMain}>
+                    <p className={styles.resultCardTitle}>{row.fileName || row.name || '-'}</p>
+                    <div className={styles.resultCardMeta}>
+                      <span className={styles.metaChip}>{measurement}</span>
+                      {material !== '-' ? (
+                        <span className={styles.materialPill}>{material}</span>
+                      ) : null}
+                      <span className={styles.metaChip}>{sizeStr}</span>
+                    </div>
+                    <div className={styles.resultCardActions}>
+                      {downloadHref ? (
+                        <a
+                          className={styles.downloadLink}
+                          href={downloadHref}
+                          download={filename}
+                          target="_self"
+                          rel="nofollow"
+                        >
+                          Descargar PDF
+                        </a>
+                      ) : (
+                        <span className={styles.downloadMuted}>Sin enlace de descarga</span>
+                      )}
+                    </div>
+                  </div>
+                </li>
+              );
+            })
+          ) : (
+            <li className={styles.noResults}>
+              {noResultsMessage ? 'No encontramos PDFs que coincidan.' : 'Sin resultados aún.'}
+            </li>
+          )}
+        </ul>
+
         {canShowPagination ? (
           <div className={styles.pagination}>
             <button
               type="button"
+              className={styles.btnOutline}
               onClick={handlePrevious}
               disabled={loading || cursorStack.length <= 1}
             >
               Anterior
             </button>
-            <p className={styles.paginationStatus}>{showingRange}</p>
             <button
               type="button"
+              className={styles.btnOutline}
               onClick={handleNext}
               disabled={loading || !hasMore || !nextCursor}
             >
@@ -649,7 +706,7 @@ export default function Busqueda() {
                 disabled={loading}
               />
               {authError ? <p className={styles.authError}>{authError}</p> : null}
-              <button type="submit" className={styles.authButton} disabled={loading}>
+              <button type="submit" className={styles.btnPrimary} disabled={loading}>
                 Ingresar
               </button>
             </form>
