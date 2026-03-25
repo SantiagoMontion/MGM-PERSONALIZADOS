@@ -3,6 +3,45 @@ export function buildMockupBaseName({ designName, widthCm, heightCm, material })
   return base.replace(/\b(\d+x\d+\s+\w+)\s+\1\b/i, '$1');
 }
 
+/** PDF en outputs: pdf/YYYY/MM/archivo.pdf → preview/YYYY/MM/archivo.jpg (mismo bucket que printsSearch.js). */
+export function deriveOutputsPreviewJpgPathFromPdf(pdfKeyOrUrl) {
+  if (typeof pdfKeyOrUrl !== 'string' || !pdfKeyOrUrl.trim()) return null;
+  let p = pdfKeyOrUrl
+    .trim()
+    .replace(/^https?:\/\/[^/]+\//i, '')
+    .replace(/^storage\/v1\/object\/public\//i, '')
+    .replace(/^\/+/, '');
+  p = p.replace(/^outputs\//i, '');
+  const lower = p.toLowerCase();
+  if (!lower.includes('.pdf')) return null;
+  if (lower.startsWith('pdf/')) {
+    return p.replace(/^pdf\//i, 'preview/').replace(/\.pdf(?:$|[?#])/i, '.jpg');
+  }
+  return null;
+}
+
+const DEFAULT_OUTPUTS_BUCKET = 'outputs';
+
+export function publicUrlForOutputsPreviewFromPdf(supaUrl, pdfKeyOrUrl) {
+  const supa = typeof supaUrl === 'string' ? supaUrl.replace(/\/+$/, '') : '';
+  const rel = deriveOutputsPreviewJpgPathFromPdf(pdfKeyOrUrl);
+  const bucket = String(import.meta.env?.VITE_OUTPUT_STORAGE_BUCKET || DEFAULT_OUTPUTS_BUCKET).replace(
+    /^\/+|\/+$/g,
+    '',
+  );
+  if (!rel || !supa) return null;
+  return `${supa}/storage/v1/object/public/${bucket}/${rel}`;
+}
+
+/** Resuelve vista previa desde la ruta del PDF: layout nuevo (jpg en outputs) o legacy mockups-.png. */
+export function resolvePreviewUrlFromPdfKey(supaUrl, pdfKeyOrUrl) {
+  const jpg = publicUrlForOutputsPreviewFromPdf(supaUrl, pdfKeyOrUrl);
+  if (jpg) return jpg;
+  const legacyKey = pdfKeyToPreviewKey(pdfKeyOrUrl);
+  if (!legacyKey) return null;
+  return normalizePreviewUrl(legacyKey, supaUrl);
+}
+
 export function pdfKeyToPreviewKey(pdfKey) {
   if (typeof pdfKey !== 'string') return null;
   const normalized = pdfKey

@@ -2,7 +2,12 @@ import { apiFetch, getResolvedApiUrl } from './api';
 import { renderMockup1080 } from './mockup.js';
 import { FlowState } from '@/state/flow';
 import { diag, info, warn, error } from '@/lib/log';
-import { normalizePreviewUrl, pdfKeyToPreviewKey, headOk, buildMockupBaseName } from '@/lib/preview.js';
+import {
+  normalizePreviewUrl,
+  resolvePreviewUrlFromPdfKey,
+  headOk,
+  buildMockupBaseName,
+} from '@/lib/preview.js';
 
 const DEFAULT_STORE_BASE = 'https://kw0f4u-ji.myshopify.com';
 const RAW_PUBLISH_MAX_PAYLOAD_KB = readEnv(['VITE_PUBLISH_MAX_PAYLOAD_KB']);
@@ -1052,18 +1057,17 @@ export async function createJobAndProduct(
       }
       return pdfPublicUrl;
     })();
-    const previewKeyCandidates = [masterPdfKey, pdfKeyFromPublicUrl]
-      .map((key) => (typeof key === 'string' && key ? pdfKeyToPreviewKey(key) : null))
-      .filter((key): key is string => Boolean(key));
+    const previewUrlFromPdfKeys = [masterPdfKey, pdfKeyFromPublicUrl]
+      .map((key) => (typeof key === 'string' && key ? resolvePreviewUrlFromPdfKey(supaUrl, key) : null))
+      .filter((url): url is string => Boolean(url));
     mockupUrlPublic = normalizePreviewUrl(candidatePublic, supaUrl)
       || normalizePreviewUrl(candidateUrl, supaUrl)
       || normalizePreviewUrl(mockupUrlForPayload, supaUrl)
       || null;
     if (!mockupUrlPublic) {
-      for (const previewKey of previewKeyCandidates) {
-        const normalized = normalizePreviewUrl(previewKey, supaUrl);
-        if (normalized) {
-          mockupUrlPublic = normalized;
+      for (const resolved of previewUrlFromPdfKeys) {
+        if (resolved) {
+          mockupUrlPublic = resolved;
           break;
         }
       }

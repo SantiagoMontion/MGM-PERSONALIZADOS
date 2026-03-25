@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { apiFetch } from '@/lib/api.js';
 import { publicUrlForMockup } from '@/lib/previewPath.js';
-import { normalizePreviewUrl, pdfKeyToPreviewKey } from '@/lib/preview.js';
+import { normalizePreviewUrl, resolvePreviewUrlFromPdfKey } from '@/lib/preview.js';
 import {
   PRINTS_GATE_PASSWORD,
   createGateRecord,
@@ -253,11 +253,8 @@ export default function Busqueda() {
         }
       }
       key = key.replace(/^storage\/v1\/object\/public\//i, '');
-      const previewKey = pdfKeyToPreviewKey(key);
-      if (previewKey) {
-        const normalized = normalizePreviewUrl(previewKey, SUPA_URL);
-        if (normalized && !looksLikePdfUrl(normalized)) return normalized;
-      }
+      const fromPdf = resolvePreviewUrlFromPdfKey(SUPA_URL, key);
+      if (fromPdf && !looksLikePdfUrl(fromPdf)) return fromPdf;
     }
     const fallback = publicUrlForMockup(rec)
       || rec.image

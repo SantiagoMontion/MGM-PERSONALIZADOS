@@ -1,0 +1,43 @@
+================================================================================
+PASO A PASO: volver a indexar PDFs viejos en la tabla public.prints (buscador)
+================================================================================
+
+IMPORTANTE
+- Esto NO borra productos de Shopify ni archivos en Storage.
+- Solo crea filas en "prints" para PDFs que ya existen en el bucket "outputs"
+  y que todavía no tenían fila (por eso no salían en el buscador).
+- La migración de search_prints no eliminó datos; el problema suele ser que
+  nunca se insertó la fila al publicar.
+
+PASO 1 — Abrí Supabase del proyecto → SQL Editor.
+
+PASO 2 — Abrí el archivo del repo:
+       scripts/backfill-prints-from-storage-objects.sql
+
+PASO 3 — Ejecutá SOLO el SELECT de "Vista previa" (cuántos PDFs sin indexar).
+       Revisá que el número tenga sentido (no debería ser 0 si te faltan diseños).
+
+PASO 4 — Si el número te cierra, descomentá el bloque INSERT (quitá /* y */)
+       y ejecutalo UNA vez.
+
+PASO 5 — El trigger rellena design_name y search_document solo.
+       Probá en el buscador o con:
+       select * from public.search_prints(null::text, 25, null::timestamptz, null::uuid);
+
+PASO 6 — Pedidos que nunca generaron PDF en Storage no aparecerán: ahí no hay
+         nada que indexar. Esos solo se recuperan republicando o subiendo el PDF.
+
+================================================================================
+Si el SELECT de vista previa da ERROR
+================================================================================
+- Verificá que exista el bucket "outputs":
+  select * from storage.buckets where name = 'outputs';
+- En proyectos muy viejos el esquema puede variar; avisá y adaptamos la query.
+
+================================================================================
+Opcional: limitar por fecha en Storage (solo PDFs recientes)
+================================================================================
+Agregá al WHERE del SELECT/INSERT, por ejemplo:
+  and o.created_at >= now() - interval '14 days'
+
+(Ajustá el intervalo a gusto.)
