@@ -641,6 +641,11 @@ function buildGlasspadTitle(designName?: string, measurement?: string): string {
   return rest ? `Glasspad ${rest} | Custom` : 'Glasspad | Custom';
 }
 
+function buildUltraTitle(designName?: string): string {
+  const name = (designName || '').trim() || 'Personalizado';
+  return `Mousepad Serie Ultra ${name} | Custom`;
+}
+
 function normalizeProductShape(value: unknown): 'circle' | 'rounded_rect' {
   if (typeof value !== 'string') return 'rounded_rect';
   const normalized = value.trim().toLowerCase();
@@ -948,7 +953,9 @@ export async function createJobAndProduct(
   let measurementLabel = formatMeasurement(widthCm, heightCm);
   let productTitle = productType === 'glasspad'
     ? buildGlasspadTitle(designName, measurementLabel)
-    : buildDefaultTitle(productLabel, designName, measurementLabel, materialLabel, isCircularShape);
+    : materialLabel === 'Ultra'
+      ? buildUltraTitle(designName)
+      : buildDefaultTitle(productLabel, designName, measurementLabel, materialLabel, isCircularShape);
   let metaDescription = buildMetaDescription(productLabel, designName, measurementLabel, displayMaterialLabel);
   const widthFallback = cmFromPx((flow as any)?.masterWidthPx, (flow as any)?.approxDpi || 300);
   const heightFallback = cmFromPx((flow as any)?.masterHeightPx, (flow as any)?.approxDpi || 300);

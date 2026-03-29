@@ -155,7 +155,7 @@ const extractFlowBasics = (flow) => {
 
 const buildTitle = ({ productType, mat, widthCm, heightCm, designName }) => {
   if (mat === 'Ultra') {
-    return `Mousepad ${designName} 49x42 Ultra | Custom`;
+    return `Mousepad Serie Ultra ${designName} | Custom`;
   }
   if (mat === 'Glasspad') {
     return `Glasspad ${designName} 49x42 | Custom`;

@@ -123,6 +123,10 @@ function buildGlasspadTitle(designName?: string, measurement?: string): string {
   return rest ? `Glasspad ${rest} | Custom` : 'Glasspad | Custom';
 }
 
+function buildUltraTitle(designName?: string): string {
+  const name = (designName || '').trim() || 'Personalizado';
+  return `Mousepad Serie Ultra ${name} | Custom`;
+}
 
 function normalizeProductTypeForTemplateSuffix(value: unknown): string {
   if (typeof value !== 'string') return '';
@@ -410,7 +414,9 @@ export default async function handler(req: any, res: any) {
     const coreMousepad = `${[designNameRaw, measurementLabel, displayMaterialLabel].filter(Boolean).join(' ').trim() || displayMaterialLabel || 'Custom'} | Custom`;
     const title = mode === 'Glasspad'
       ? buildGlasspadTitle(designNameRaw, measurementLabel)
-      : `Mousepad ${coreMousepad}`;
+      : mode === 'Ultra'
+        ? buildUltraTitle(designNameRaw)
+        : `Mousepad ${coreMousepad}`;
     const designNameForPath = designNameRaw || title;
     const payload = {
       product: {

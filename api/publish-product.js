@@ -645,6 +645,9 @@ export default async function handler(req, res) {
       const rest = [designName, dimPart].filter(Boolean).join(' ');
       return rest ? `Glasspad ${rest} | Custom` : 'Glasspad | Custom';
     }
+    if (mat === 'Ultra') {
+      return `Mousepad Serie Ultra ${designName} | Custom`;
+    }
     if (productLabel === 'Alfombra') {
       return `Alfombra ${core}`;
     }

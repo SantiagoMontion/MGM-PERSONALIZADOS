@@ -221,7 +221,6 @@ const STEP_TWO_MATERIAL_OPTIONS = [
     value: 'Ultra',
     label: 'Ultra',
     description: 'FPS ultra preciso y tracking.',
-    comingSoon: true,
   },
 ];
 /** Resumen paso 3 — fila "Material". */
