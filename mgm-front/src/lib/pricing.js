@@ -10,7 +10,7 @@ const BASE_MARKUP_FACTOR = 1.12;
 const INFLATION_MARKUP_FACTOR = 1.07;
 const NORMAL_PRICE_FACTOR = 1.25;
 export const GLASSPAD_TRANSFER_PRICE = 130000;
-export const ULTRA_TRANSFER_PRICE = 60500;
+export const ULTRA_TRANSFER_PRICE = 60000;
 
 const roundToNearest500 = (price) => Math.round(price / 500) * 500;
 const roundUpTo500 = (price) => Math.ceil(price / 500) * 500;
