@@ -5268,7 +5268,7 @@ body.light .stepTwoContainColorLabel {
 
 .stepThreeCheckoutModalPrimary {
   background-color: var(--brand-primary);
-  color: var(--surface);
+  color: #fff;
 }
 
 .stepThreeCheckoutModalPrimary:not(:disabled):hover {

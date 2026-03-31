@@ -511,7 +511,7 @@
 
 .modalPrimary {
   background-color: var(--brand-primary);
-  color: var(--surface);
+  color: #fff;
 }
 
 .modalPrimary:not(:disabled):hover {
