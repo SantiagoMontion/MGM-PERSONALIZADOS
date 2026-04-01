@@ -54,6 +54,10 @@ import { getMaxImageMb, bytesToMB, formatHeavyImageToastMessage } from '@/lib/im
 import { MAX_IMAGE_MB as MAX_IMAGE_MB_BASE } from '../lib/imageSizeLimit.js';
 import { createJobAndProduct, pickCommerceTarget } from '@/lib/shopify.ts';
 import { parseSupabasePublicStorageUrl } from '@/lib/supabaseUrl.ts';
+import {
+  projectNameContainsForbiddenWord,
+  PROJECT_NAME_FORBIDDEN_WORDS_MESSAGE,
+} from '../../../lib/_lib/projectNameForbiddenWords.js';
 
 const MAX_IMAGE_MB = MAX_IMAGE_MB_BASE; // ajustar facilmente; hoy 40MB
 const MAX_IMAGE_BYTES = MAX_IMAGE_MB * 1024 * 1024;
@@ -130,6 +134,9 @@ function validateProjectName(value) {
   }
   if (!PROJECT_NAME_HAS_LETTER_REGEX.test(raw)) {
     return 'El nombre del proyecto debe incluir al menos una letra.';
+  }
+  if (projectNameContainsForbiddenWord(raw)) {
+    return PROJECT_NAME_FORBIDDEN_WORDS_MESSAGE;
   }
   return '';
 }

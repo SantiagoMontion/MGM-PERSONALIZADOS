@@ -7,6 +7,10 @@ import getSupabaseAdmin from '../_lib/supabaseAdmin.js';
 import savePrintPdfToSupabase, { savePrintPreviewToSupabase } from '../_lib/savePrintPdfToSupabase.js';
 import imageBufferToPdf from '../_lib/imageToPdf.js';
 import logger from '../_lib/logger.js';
+import {
+  projectNameContainsForbiddenWord,
+  PROJECT_NAME_FORBIDDEN_WORDS_MESSAGE,
+} from '../_lib/projectNameForbiddenWords.js';
 
 type DataUrlPayload = {
   mimeType: string;
@@ -404,6 +408,14 @@ export default async function handler(req: any, res: any) {
       : typeof req.body?.designName === 'string'
         ? req.body.designName
         : '';
+    const designNameTrimmedForRule = String(designNameRaw || '').trim();
+    if (designNameTrimmedForRule && projectNameContainsForbiddenWord(designNameTrimmedForRule)) {
+      return res.status(400).json({
+        ok: false,
+        reason: 'design_name_forbidden_words',
+        message: PROJECT_NAME_FORBIDDEN_WORDS_MESSAGE,
+      });
+    }
     const normalizedShape = String(
       req.body?.shape
       || req.body?.options?.shape
