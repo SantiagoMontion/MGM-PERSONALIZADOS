@@ -1,22 +1,8 @@
-// Genera mockup 1080x1080 en Worker con OffscreenCanvas
+// Genera mockup 1080×1080 en Worker con OffscreenCanvas
 // Entrada: { cmd:'mockup', buffer:ArrayBuffer, opts }
 // Salida:  { ok:true, type:'mockup', buffer:ArrayBuffer }
 
-const env = (typeof import.meta !== 'undefined' && import.meta.env) || {};
-const CANVAS_SIZE = 1080;
-const CLASSIC_MAX_LONG_PX = Number(env?.VITE_MOCKUP_CLASSIC_MAX_LONG_PX) || 990;
-const CLASSIC_MIN_LONG_PX = Number(env?.VITE_MOCKUP_CLASSIC_MIN_LONG_PX) || 400;
-const GLASS_MAX_LONG_PX = Number(env?.VITE_MOCKUP_GLASSPAD_MAX_LONG_PX) || 860;
-const GLASS_MIN_LONG_PX = Number(env?.VITE_MOCKUP_GLASSPAD_MIN_LONG_PX) || 420;
-const GLASS_FIXED_LONG_PX = Number(env?.VITE_MOCKUP_GLASSPAD_FIXED_LONG_PX) || 700;
-
-function materialLabelFromOpts(opts) {
-  const raw = String((opts?.material || opts?.materialLabel || opts?.options?.material || '')).toLowerCase();
-  if (raw.includes('glass')) return 'Glasspad';
-  if (raw.includes('ultra')) return 'Ultra';
-  if (raw.includes('pro')) return 'PRO';
-  return 'Classic';
-}
+import { getMockupPadRect1080, CANVAS_SIZE } from '../lib/mockupPadPlacement.js';
 
 function roundRectPath(ctx, x, y, w, h, r) {
   const rr = Math.max(0, Math.min(r, Math.min(w, h) / 2));
@@ -33,31 +19,6 @@ function roundRectPath(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-function pickLongPx(compW, compH, compWcm, compHcm, mat) {
-  const ratio = compW / Math.max(1, compH);
-  const materialLabel = materialLabelFromOpts({ material: mat });
-  let longPx;
-  if (materialLabel === 'Glasspad') {
-    longPx = Math.max(GLASS_MIN_LONG_PX, Math.min(GLASS_MAX_LONG_PX, GLASS_FIXED_LONG_PX));
-  } else if (Number.isFinite(compWcm) && Number.isFinite(compHcm) && compWcm > 0 && compHcm > 0) {
-    const longCm = Math.max(compWcm, compHcm);
-    const t = Math.max(0, Math.min(1, (longCm - 20) / (140 - 20)));
-    const mapped = Math.round(CLASSIC_MIN_LONG_PX + (CLASSIC_MAX_LONG_PX - CLASSIC_MIN_LONG_PX) * Math.pow(t, 1.08));
-    longPx = Math.max(CLASSIC_MIN_LONG_PX, Math.min(CLASSIC_MAX_LONG_PX, mapped));
-  }
-
-  if (!Number.isFinite(longPx)) {
-    const longest = Math.max(compW, compH);
-    const scale = longest > 0 ? Math.min(1, CANVAS_SIZE / longest) : 1;
-    return { w: Math.max(1, Math.round(compW * scale)), h: Math.max(1, Math.round(compH * scale)) };
-  }
-
-  if (ratio >= 1) {
-    return { w: longPx, h: Math.max(1, Math.round(longPx / ratio)) };
-  }
-  return { h: longPx, w: Math.max(1, Math.round(longPx * ratio)) };
-}
-
 self.onmessage = async (event) => {
   const { cmd, buffer, opts } = event.data || {};
   if (cmd !== 'mockup' || !buffer) {
@@ -67,12 +28,12 @@ self.onmessage = async (event) => {
   try {
     const blob = new Blob([buffer]);
     const image = await createImageBitmap(blob);
-    const compW = Number(opts?.composition?.widthPx || image.width);
-    const compH = Number(opts?.composition?.heightPx || image.height);
-    const compWcm = Number(opts?.composition?.widthCm);
-    const compHcm = Number(opts?.composition?.heightCm);
-    const mat = opts?.material || opts?.materialLabel;
-    const radiusPx = Number(opts?.radiusPx || 8);
+    const placement = getMockupPadRect1080(opts || {}, image.width, image.height);
+    if (!placement) {
+      self.postMessage({ ok: false, type: 'mockup' });
+      return;
+    }
+    const { x, y, targetW, targetH, radiusPx } = placement;
 
     const offscreen = new OffscreenCanvas(CANVAS_SIZE, CANVAS_SIZE);
     const ctx = offscreen.getContext('2d', { desynchronized: true, alpha: true });
@@ -80,11 +41,24 @@ self.onmessage = async (event) => {
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
 
+    ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
     ctx.save();
-    roundRectPath(ctx, 0, 0, CANVAS_SIZE, CANVAS_SIZE, radiusPx);
+    roundRectPath(ctx, x, y, targetW, targetH, radiusPx);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fill();
     ctx.clip();
-    ctx.drawImage(image, 0, 0, CANVAS_SIZE, CANVAS_SIZE);
+    ctx.drawImage(image, x, y, targetW, targetH);
     ctx.restore();
+
+    ctx.beginPath();
+    roundRectPath(ctx, x, y, targetW, targetH, radiusPx);
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = '#d1d5db';
+    ctx.stroke();
+
+    try {
+      image.close();
+    } catch (_) {}
 
     const outBlob = await offscreen.convertToBlob({ type: 'image/png' });
     const outBuf = await outBlob.arrayBuffer();
