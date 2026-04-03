@@ -1274,7 +1274,10 @@ export async function createJobAndProduct(
     if (!Number.isFinite(payloadBytes) || payloadBytes > PUBLISH_MAX_PAYLOAD_KB * 1024) {
       const err: Error & { reason?: string; detail?: unknown } = new Error('publish_payload_too_large');
       err.reason = 'publish_payload_too_large';
-      err.detail = { bytes: payloadBytes };
+      err.detail = {
+        bytes: payloadBytes,
+        limitBytes: PUBLISH_MAX_PAYLOAD_KB * 1024,
+      };
       throw err;
     }
 
@@ -1322,6 +1325,9 @@ export async function createJobAndProduct(
       if (typeof publish?.productHandle === 'string') productHandle = publish.productHandle;
       if (typeof publish?.productUrl === 'string') productUrl = publish.productUrl;
       if (publish?.visibility === 'private') visibilityResult = 'private';
+      // Para que el front pueda mostrar el mismo toast de "imagen muy pesada"
+      // usando los bytes/limit que devuelve el backend.
+      (err as any).detail = publish;
       throw err;
     }
   } else {

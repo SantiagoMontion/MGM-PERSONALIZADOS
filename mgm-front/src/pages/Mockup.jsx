@@ -1038,6 +1038,7 @@ export default function Mockup() {
   }
 
   const queryOverridesRef = useRef(parseQueryOverrides());
+  const heavyToastShownRef = useRef(false);
   const canvasWrapRef = useRef(null); // MOBILE-ONLY: wrapper for touch interactions
   const mobileContainerRef = useRef(null); // MOBILE-ONLY: track current stage container element
   const preservedFlowSnapshotRef = useRef({
@@ -1047,6 +1048,55 @@ export default function Mockup() {
     designName: null,
   });
   const [flowReady, setFlowReady] = useState(false);
+
+  const maybeShowHeavyImageToastFromError = useCallback((err) => {
+    const reason = safeStr(err?.reason || err?.code || err?.message).toLowerCase();
+    if (!reason) return false;
+
+    const heavyReasons = new Set([
+      'payload_too_large',
+      'publish_payload_too_large',
+      'file_too_large',
+      'pdf_too_large',
+      'supabase_object_too_large',
+      'image_too_heavy',
+      'preview_too_large',
+    ]);
+    if (!heavyReasons.has(reason)) return false;
+    if (heavyToastShownRef.current) return true;
+    heavyToastShownRef.current = true;
+
+    const detail = err && typeof err === 'object' ? (err.detail || err.json || null) : null;
+
+    const actualBytes = (
+      typeof detail?.estimatedBytes === 'number' ? detail.estimatedBytes
+        : typeof detail?.bytes === 'number' ? detail.bytes
+          : typeof detail?.sizeBytes === 'number' ? detail.sizeBytes
+            : typeof detail?.size_bytes === 'number' ? detail.size_bytes
+              : null
+    );
+
+    const maxBytes = (
+      typeof detail?.limitBytes === 'number' ? detail.limitBytes
+        : typeof detail?.max_size_bytes === 'number' ? detail.max_size_bytes
+          : typeof detail?.limit_bytes === 'number' ? detail.limit_bytes
+            : typeof detail?.limit === 'number' ? detail.limit
+              : null
+    );
+
+    const flowState = typeof flow?.get === 'function' ? flow.get() : flow;
+    const fallbackActualBytes = typeof flowState?.masterBytes === 'number' ? flowState.masterBytes : null;
+    const finalActualBytes = actualBytes ?? fallbackActualBytes;
+    const finalMaxBytes = maxBytes ?? MAX_IMAGE_BYTES;
+
+    if (!Number.isFinite(finalActualBytes) || finalActualBytes <= 0) return false;
+    if (!Number.isFinite(finalMaxBytes) || finalMaxBytes <= 0) return false;
+
+    const actualMb = bytesToMB(finalActualBytes);
+    const maxMb = bytesToMB(finalMaxBytes);
+    window?.toast?.error?.(formatHeavyImageToastMessage(actualMb, maxMb), { duration: 6000 });
+    return true;
+  }, [bytesToMB, flow, formatHeavyImageToastMessage]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -4412,7 +4462,8 @@ export default function Mockup() {
       return result;
     } catch (err) {
       error('[buy] direct:error', mode, err);
-      setToast((prev) => (prev ? prev : { message: 'No se pudo crear el producto.' }));
+      const isHeavy = maybeShowHeavyImageToastFromError(err);
+      setToast((prev) => (prev ? prev : { message: isHeavy ? 'La imagen es muy pesada.' : 'No se pudo crear el producto.' }));
       throw err;
     }
     })();
@@ -4472,7 +4523,8 @@ export default function Mockup() {
       return finalizePurchase(result, flow, bridgeRid, 'No se pudo abrir el checkout. Intenta nuevamente.', 'checkout');
     } catch (err) {
       error('[checkout-public-flow]', err);
-      const fallbackMessage = 'Ocurrió un error al procesar el checkout.';
+      const heavyShown = maybeShowHeavyImageToastFromError(err);
+      const fallbackMessage = heavyShown ? 'La imagen es muy pesada.' : 'Ocurrió un error al procesar el checkout.';
       publishBridgeError(bridgeRid, fallbackMessage);
       setToast({ message: fallbackMessage });
       return null;
@@ -4533,7 +4585,8 @@ export default function Mockup() {
       return finalizePurchase(result, flow, bridgeRid, 'No se pudo abrir el checkout privado. Proba de nuevo.', 'checkout');
     } catch (err) {
       error('[checkout-private-flow]', err);
-      const fallbackMessage = 'Ocurrió un error al procesar el checkout privado.';
+      const heavyShown = maybeShowHeavyImageToastFromError(err);
+      const fallbackMessage = heavyShown ? 'La imagen es muy pesada.' : 'Ocurrió un error al procesar el checkout privado.';
       publishBridgeError(bridgeRid, fallbackMessage);
       setToast({ message: fallbackMessage });
       return null;

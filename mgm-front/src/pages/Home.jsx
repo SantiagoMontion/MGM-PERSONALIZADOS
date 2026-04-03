@@ -59,7 +59,7 @@ import {
   PROJECT_NAME_FORBIDDEN_WORDS_MESSAGE,
 } from '../../../lib/_lib/projectNameForbiddenWords.js';
 
-const MAX_IMAGE_MB = MAX_IMAGE_MB_BASE; // ajustar facilmente; hoy 40MB
+const MAX_IMAGE_MB = MAX_IMAGE_MB_BASE; // proviene de VITE_MAX_IMAGE_MB (default 30MB)
 const MAX_IMAGE_BYTES = MAX_IMAGE_MB * 1024 * 1024;
 
 const asStr = (value) => (typeof value === 'string' ? value : value == null ? '' : String(value));
@@ -1572,6 +1572,60 @@ export default function Home() {
     toast?.error?.(formatHeavyImageToastMessage(actualMb, maxMb), { duration: 6000 });
   }, []);
 
+  const maybeShowHeavyImageToastFromError = useCallback((checkoutError) => {
+    const reason = safeStr(checkoutError?.reason || checkoutError?.code || checkoutError?.message).toLowerCase();
+    if (!reason) return;
+    const heavyReasons = new Set([
+      'payload_too_large',
+      'publish_payload_too_large',
+      'file_too_large',
+      'pdf_too_large',
+      'supabase_object_too_large',
+      'image_too_heavy',
+      'preview_too_large',
+    ]);
+    if (!heavyReasons.has(reason)) return;
+
+    const detail = (checkoutError && typeof checkoutError === 'object')
+      ? (checkoutError.detail || checkoutError.json || null)
+      : null;
+
+    const actualBytes = (
+      typeof detail?.estimatedBytes === 'number' ? detail.estimatedBytes
+        : typeof detail?.bytes === 'number' ? detail.bytes
+          : typeof detail?.sizeBytes === 'number' ? detail.sizeBytes
+            : typeof detail?.size_bytes === 'number' ? detail.size_bytes
+              : typeof detail?.size === 'number' ? detail.size
+              : null
+    );
+
+    const maxBytes = (
+      typeof detail?.limitBytes === 'number' ? detail.limitBytes
+        : typeof detail?.max_size_bytes === 'number' ? detail.max_size_bytes
+          : typeof detail?.limit_bytes === 'number' ? detail.limit_bytes
+            : typeof detail?.limit === 'number' ? detail.limit
+            : null
+    );
+
+    const fallbackActualBytes = typeof uploaded?.file?.size === 'number'
+      ? uploaded.file.size
+      : typeof flow?.masterBytes === 'number'
+        ? flow.masterBytes
+        : null;
+
+    const fallbackMaxBytes = MAX_IMAGE_BYTES;
+
+    const finalActualBytes = actualBytes ?? fallbackActualBytes;
+    const finalMaxBytes = maxBytes ?? fallbackMaxBytes;
+
+    if (!(Number.isFinite(finalActualBytes) && finalActualBytes > 0)) return;
+    if (!(Number.isFinite(finalMaxBytes) && finalMaxBytes > 0)) return;
+
+    const actualMb = bytesToMB(finalActualBytes);
+    const maxMb = bytesToMB(finalMaxBytes);
+    showHeavyImageToast(actualMb, maxMb);
+  }, [bytesToMB, flow, MAX_IMAGE_BYTES, showHeavyImageToast, uploaded]);
+
   const handleUploaded = useCallback((info) => {
     const file = info?.file;
     if (!file) return;
@@ -2578,11 +2632,21 @@ export default function Home() {
 
       if (pdfUploadResult.status === 'rejected') {
         error('[pdf-upload] failed', pdfUploadResult.reason);
+        if (pdfUploadResult?.reason?.status === 413) {
+          try {
+            showHeavyImageToast(bytesToMB(pdfBody?.size || 0), MAX_IMAGE_MB);
+          } catch {}
+        }
         setErr('No se pudo subir el PDF.');
         return false;
       }
       if (masterUploadResult.status === 'rejected') {
         error('[master-upload] failed', masterUploadResult.reason);
+        if (masterUploadResult?.reason?.status === 413) {
+          try {
+            showHeavyImageToast(bytesToMB(pdfSourceBlob?.size || 0), MAX_IMAGE_MB);
+          } catch {}
+        }
         setErr('No se pudo subir la imagen.');
         return false;
       }
@@ -2593,11 +2657,21 @@ export default function Home() {
 
       if (!pdfUploadRes?.ok) {
         error('[pdf-upload] failed', pdfUploadRes?.statusText || pdfUploadRes?.status || 'upload_failed');
+        if (pdfUploadRes?.status === 413) {
+          try {
+            showHeavyImageToast(bytesToMB(pdfBody?.size || 0), MAX_IMAGE_MB);
+          } catch {}
+        }
         setErr('No se pudo subir el PDF.');
         return false;
       }
       if (shouldUploadMaster && !masterUploadRes?.ok) {
         error('[master-upload] failed', masterUploadRes?.statusText || masterUploadRes?.status || 'upload_failed');
+        if (masterUploadRes?.status === 413) {
+          try {
+            showHeavyImageToast(bytesToMB(pdfSourceBlob?.size || 0), MAX_IMAGE_MB);
+          } catch {}
+        }
         setErr('No se pudo subir la imagen.');
         return false;
       }
@@ -3718,7 +3792,14 @@ export default function Home() {
   const captureReviewPreview = useCallback(() => {
     const editor = canvasRef.current;
     if (!editor) return null;
-    const previewDataUrl = editor.exportPadDataURL?.(1) || editor.exportPreviewDataURL?.() || null;
+    const devicePixelRatio = typeof window !== 'undefined' && Number.isFinite(window.devicePixelRatio)
+      ? window.devicePixelRatio
+      : 1.5;
+    const pixelRatio = Math.min(Math.max(devicePixelRatio, 1), 2);
+    const previewDataUrl =
+      editor.exportPadDataURL?.(pixelRatio)
+      || editor.exportPreviewDataURL?.()
+      || null;
     if (previewDataUrl) {
       setReviewPreviewUrl(previewDataUrl);
     }
@@ -3852,8 +3933,8 @@ export default function Home() {
   );
   const stepTwoProjectSummary = useMemo(() => trimmedDesignName, [trimmedDesignName]);
   const stepThreePreviewSrc =
-    reviewPreviewUrl
-    || mockupUrl
+    mockupUrl
+    || reviewPreviewUrl
     || editorImageUrl
     || uploaded?.canonical_url
     || uploaded?.file_original_url
@@ -4107,6 +4188,7 @@ export default function Home() {
       }
     } catch (cartError) {
       error('[home-step-three-cart] failed', cartError);
+      maybeShowHeavyImageToastFromError(cartError);
       setErr(resolveCheckoutErrorMessage(cartError));
     } finally {
       setStepThreeCommerceAction(null);
@@ -4143,6 +4225,7 @@ export default function Home() {
       }
     } catch (checkoutError) {
       error('[home-step-three-checkout-public] failed', checkoutError);
+      maybeShowHeavyImageToastFromError(checkoutError);
       setErr(resolveCheckoutErrorMessage(checkoutError));
     } finally {
       setStepThreeCommerceAction(null);
@@ -4197,6 +4280,7 @@ export default function Home() {
       }
     } catch (checkoutError) {
       error('[home-step-three-checkout-private] failed', checkoutError);
+      maybeShowHeavyImageToastFromError(checkoutError);
       setErr(resolveCheckoutErrorMessage(checkoutError));
     } finally {
       setStepThreeCommerceAction(null);

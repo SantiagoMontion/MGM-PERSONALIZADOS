@@ -2,8 +2,9 @@ const CM_PER_IN = 2.54;
 const FULL_HD_WIDTH_PX = 1920;
 const LARGE_PRODUCT_MIN_CM = 60;
 
-export const DPI_WARN_THRESHOLD = 140;
-export const DPI_LOW_THRESHOLD = 70;
+// Umbrales más permisivos: antes 140/70, ahora 120/50.
+export const DPI_WARN_THRESHOLD = 120;
+export const DPI_LOW_THRESHOLD = 50;
 
 export function dpiFor(cmW, cmH, pxW, pxH) {
   const dpiW = pxW / (cmW / CM_PER_IN);
