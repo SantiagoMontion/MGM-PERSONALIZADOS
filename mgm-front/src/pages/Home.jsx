@@ -2603,10 +2603,15 @@ export default function Home() {
         } catch {}
       }
       mockupUrlRef.current = generatedMockupUrl;
+      // No agregar ?v= a URLs blob: — en Firefox (y otros) deja de coincidir con el ObjectURL
+      // registrado y el <img> falla con error de seguridad / sin imagen.
       const cacheBustedMockupUrl =
-        typeof generatedMockupUrl === 'string' && generatedMockupUrl.startsWith('blob:')
-          ? `${generatedMockupUrl}?v=${designSha}`
-          : generatedMockupUrl;
+        typeof generatedMockupUrl === 'string'
+        && generatedMockupUrl.startsWith('blob:')
+          ? generatedMockupUrl
+          : designSha
+            ? `${generatedMockupUrl}${String(generatedMockupUrl).includes('?') ? '&' : '?'}v=${designSha}`
+            : generatedMockupUrl;
       setMockupBlob(generatedMockupBlob);
       setMockupUrl(cacheBustedMockupUrl);
 
@@ -3932,8 +3937,14 @@ export default function Home() {
     && selectedStepTwoSizeOptionId === STEP_TWO_CUSTOM_SIZE_OPTION.id,
   );
   const stepTwoProjectSummary = useMemo(() => trimmedDesignName, [trimmedDesignName]);
+  const stepThreeMockupPublicSrc = useMemo(() => {
+    const raw = typeof flow?.mockupPublicUrl === 'string' ? flow.mockupPublicUrl.trim() : '';
+    if (!raw || raw.startsWith('blob:')) return null;
+    return raw;
+  }, [flow?.mockupPublicUrl]);
   const stepThreePreviewSrc =
-    mockupUrl
+    stepThreeMockupPublicSrc
+    || mockupUrl
     || reviewPreviewUrl
     || editorImageUrl
     || uploaded?.canonical_url
@@ -4909,6 +4920,7 @@ export default function Home() {
                 <div className={styles.stepThreePreviewFrame}>
                   {stepThreePreviewSrc ? (
                     <img
+                      key={designHashState || stepThreePreviewSrc}
                       src={stepThreePreviewSrc}
                       alt={`Vista previa de ${trimmedDesignName || 'tu diseño'}`}
                       className={styles.stepThreePreviewImage}
