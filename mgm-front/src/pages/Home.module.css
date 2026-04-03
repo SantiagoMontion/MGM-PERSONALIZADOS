@@ -4161,33 +4161,18 @@ body.light .stepTwoContainColorLabel {
   background: transparent;
 }
 
+/* Mismo ancho que .stepThreeDetailsCard; el recorte al diseño lo hace StepThreeMockupPreview (canvas alpha). */
 .stepThreePreviewFrame {
   overflow: hidden;
-  display: grid;
-  place-items: stretch;
-  /* Caja fija: object-fit: cover en la imagen recorta márgenes transparentes sin generar otra imagen */
-  aspect-ratio: 16 / 10;
-  max-block-size: min(48vh, 440px);
-  /* Un poco más chico que el ancho útil */
-  inline-size: 88%;
+  inline-size: 100%;
   max-inline-size: 100%;
-  margin-inline: auto;
+  margin-inline: 0;
   border-radius: var(--radius-card);
   border: calc(var(--space-1) / 4) solid var(--border-default);
   background: var(--surface);
   box-shadow:
     0 var(--space-2) var(--space-8) color-mix(in srgb, var(--overlay) 28%, transparent),
     0 var(--space-1) var(--space-3) color-mix(in srgb, var(--border-default) 75%, transparent);
-}
-
-.stepThreePreviewImage {
-  display: block;
-  inline-size: 100%;
-  block-size: 100%;
-  min-block-size: 0;
-  object-fit: cover;
-  object-position: center;
-  background: var(--surface);
 }
 
 .stepThreePreviewFallback {
@@ -5137,10 +5122,6 @@ body.light .stepTwoContainColorLabel {
 @media (max-width: 767px) {
   .stepThreeLayout {
     align-items: stretch;
-  }
-
-  .stepThreePreviewFrame {
-    inline-size: 84%;
   }
 
   .stepThreeSafetyNote {

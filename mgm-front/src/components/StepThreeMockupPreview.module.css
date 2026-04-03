@@ -1,0 +1,28 @@
+.cropHostTight {
+  position: relative;
+  inline-size: 100%;
+  overflow: hidden;
+  border-radius: inherit;
+}
+
+.cropHostLoose {
+  inline-size: 100%;
+  border-radius: inherit;
+}
+
+.imgLoose {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+  max-inline-size: 100%;
+  object-fit: contain;
+  object-position: center;
+  vertical-align: middle;
+}
+
+.imgTight {
+  display: block;
+  max-inline-size: none;
+  pointer-events: none;
+  user-select: none;
+}

@@ -19,6 +19,7 @@ import CustomSizeFields from '../components/CustomSizeFields.jsx';
 import EditorCanvas from '../components/EditorCanvas';
 import ColorPopover from '../components/ColorPopover';
 import LoadingOverlay from '../components/LoadingOverlay';
+import StepThreeMockupPreview from '../components/StepThreeMockupPreview.jsx';
 import PrintAreaHelpCaption from '../components/PrintAreaHelpCaption.jsx';
 import deleteActionIconSrc from '@/assets/icons/eliminar.svg';
 import toolsActionIconSrc from '@/assets/icons/herramientas.svg';
@@ -4917,20 +4918,20 @@ export default function Home() {
           ) : isStepReview ? (
             <div className={styles.stepThreeLayout}>
               <div className={styles.stepThreePreviewCard} ref={headingRef}>
-                <div className={styles.stepThreePreviewFrame}>
-                  {stepThreePreviewSrc ? (
-                    <img
-                      key={designHashState || stepThreePreviewSrc}
-                      src={stepThreePreviewSrc}
-                      alt={`Vista previa de ${trimmedDesignName || 'tu diseño'}`}
-                      className={styles.stepThreePreviewImage}
-                    />
-                  ) : (
+                {stepThreePreviewSrc ? (
+                  <StepThreeMockupPreview
+                    frameClassName={styles.stepThreePreviewFrame}
+                    src={stepThreePreviewSrc}
+                    alt={`Vista previa de ${trimmedDesignName || 'tu diseño'}`}
+                    imageKey={designHashState || ''}
+                  />
+                ) : (
+                  <div className={styles.stepThreePreviewFrame}>
                     <div className={styles.stepThreePreviewFallback}>
                       Vista previa no disponible
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
 
               <div className={styles.stepThreeDetailsCard}>
