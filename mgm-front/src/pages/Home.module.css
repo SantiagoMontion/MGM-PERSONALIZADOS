@@ -4163,7 +4163,12 @@ body.light .stepTwoContainColorLabel {
 
 .stepThreePreviewFrame {
   overflow: hidden;
-  /* Un poco más chico que el ancho útil; la imagen sigue escalando con la misma relación de aspecto */
+  display: grid;
+  place-items: stretch;
+  /* Caja fija: object-fit: cover en la imagen recorta márgenes transparentes sin generar otra imagen */
+  aspect-ratio: 16 / 10;
+  max-block-size: min(48vh, 440px);
+  /* Un poco más chico que el ancho útil */
   inline-size: 88%;
   max-inline-size: 100%;
   margin-inline: auto;
@@ -4178,9 +4183,9 @@ body.light .stepTwoContainColorLabel {
 .stepThreePreviewImage {
   display: block;
   inline-size: 100%;
-  block-size: auto;
-  max-inline-size: 100%;
-  object-fit: contain;
+  block-size: 100%;
+  min-block-size: 0;
+  object-fit: cover;
   object-position: center;
   background: var(--surface);
 }
