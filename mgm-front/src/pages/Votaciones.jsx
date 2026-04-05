@@ -23,6 +23,9 @@ import styles from './Votaciones.module.css';
 
 const PRESET_IDS = new Set(VOTACION_OPCIONES.map((o) => o.id));
 
+const OTROS_PLACEHOLDER_MOBILE = 'Mouse (marca)';
+const OTROS_PLACEHOLDER_DESKTOP = 'Ej: Mouse y teclado (marca)';
+
 /** @typedef {{ kind: 'preset', id: string } | { kind: 'otros', text: string }} VotacionPick */
 
 /** @param {unknown[]} raw */
@@ -103,9 +106,25 @@ export default function Votaciones() {
   const [error, setError] = useState('');
   const [otrosFlipped, setOtrosFlipped] = useState(false);
   const [otrosDraft, setOtrosDraft] = useState('');
+  const [otrosPlaceholder, setOtrosPlaceholder] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
+      ? OTROS_PLACEHOLDER_MOBILE
+      : OTROS_PLACEHOLDER_DESKTOP,
+  );
   const otrosInputRef = useRef(null);
 
   const showResults = resultsMode;
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const mq = window.matchMedia('(max-width: 767px)');
+    const sync = () => {
+      setOtrosPlaceholder(mq.matches ? OTROS_PLACEHOLDER_MOBILE : OTROS_PLACEHOLDER_DESKTOP);
+    };
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
 
   const refreshCounts = useCallback(async () => {
     if (!isSupabaseConfigured) {
@@ -394,7 +413,7 @@ export default function Votaciones() {
                               maxLength={VOTACION_OTROS_MAX_CHARS}
                               value={otrosDraft}
                               onChange={(ev) => setOtrosDraft(ev.target.value.slice(0, VOTACION_OTROS_MAX_CHARS))}
-                              placeholder="Ej: Mouse y teclado (marca)"
+                              placeholder={otrosPlaceholder}
                               autoComplete="off"
                               disabled={submitting}
                               aria-label="Qué productos te gustaría que traigamos"

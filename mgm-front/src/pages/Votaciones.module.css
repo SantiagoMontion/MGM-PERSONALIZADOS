@@ -63,7 +63,7 @@ body.light .hint {
   display: flex;
   flex-direction: column;
   border-radius: var(--radius-card);
-  border: calc(var(--space-1) / 4) solid var(--border-default);
+  border: 1px solid #fff;
   background: var(--surface);
   overflow: hidden;
   cursor: pointer;
@@ -74,7 +74,7 @@ body.light .hint {
 }
 
 .card:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--brand-primary) 40%, var(--border-default));
+  border-color: color-mix(in srgb, #fff 75%, var(--brand-primary));
 }
 
 .card:focus-visible {
@@ -143,7 +143,7 @@ body.light .cardCheckOverlay {
 
 .flipOuter {
   border-radius: var(--radius-card);
-  border: calc(var(--space-1) / 4) solid var(--border-default);
+  border: 1px solid #fff;
   background: var(--surface);
   box-shadow: none;
   transition: border-color 0.2s ease;
@@ -328,6 +328,7 @@ body.light .flipBack {
   gap: var(--space-2);
   padding: var(--space-2) var(--space-3) var(--space-3);
   border-top: 1px solid var(--border-default);
+  flex-shrink: 0;
 }
 
 .otrosChip {
@@ -579,11 +580,102 @@ body.light .verResultadosBtn:hover:not(:disabled) {
 
 @media (max-width: 767px) {
   .grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  /* Misma huella que el resto: 2 cards por fila → 3 filas con 6 ítems */
   .cardTop,
-  .cardBottom {
+  .cardBottom,
+  .flipWrap {
     grid-column: span 1;
+  }
+
+  /*
+   * Cara frontal del flip: antes overflow:hidden recortaba los chips bajo la imagen.
+   * Scroll + chips sticky para poder quitar “Otros” en móvil como en escritorio.
+   */
+  .flipWrap {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .flipOuter {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .flipInner {
+    flex: 1;
+    min-height: 0;
+    min-block-size: 0;
+  }
+
+  .flipInner > .flipFace:first-child {
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  .otrosChips {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    background: var(--surface);
+    padding-block-end: var(--space-2);
+    box-shadow: 0 -6px 14px color-mix(in srgb, var(--foreground) 8%, transparent);
+  }
+
+  .otrosChipRemove {
+    min-width: 2.5rem;
+    min-height: 2.5rem;
+    touch-action: manipulation;
+  }
+
+  /* Dorso “Otros”: más compacto; botones en columna (Agregar arriba, Volver abajo) */
+  .flipBack {
+    padding: var(--space-3);
+    gap: var(--space-2);
+  }
+
+  .otrosLabel {
+    font-size: var(--fs-sm);
+    font-weight: 700;
+  }
+
+  .otrosInput {
+    font-size: var(--fs-sm);
+    padding: var(--space-1) var(--space-2);
+  }
+
+  .otrosCharCount {
+    font-size: 0.65rem;
+    margin-block-start: calc(-1 * var(--space-1));
+  }
+
+  .otrosActions {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: var(--space-2);
+    margin-block-start: var(--space-2);
+  }
+
+  .otrosBtnPrimary,
+  .otrosBtnGhost {
+    flex: none;
+    width: 100%;
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--fs-xs);
+  }
+
+  .otrosBtnPrimary {
+    order: -1;
+  }
+
+  .otrosBtnGhost {
+    order: 0;
   }
 }
