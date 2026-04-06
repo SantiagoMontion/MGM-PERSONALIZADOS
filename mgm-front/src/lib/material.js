@@ -1,5 +1,8 @@
 export const GLASSPAD_SIZE_CM = { w: 49, h: 42 };
 
+/** Mínimo ancho/alto (cm) para medidas personalizadas en Classic, PRO y Alfombra. */
+export const CUSTOM_PAD_MIN_DIMENSION_CM = 15;
+
 /** Misma medida fija 49×42 cm y mismas reglas de tamaño que Glasspad (sin personalizar). */
 export function isFixedPad49x42Material(material) {
   const m = String(material ?? '').trim();
@@ -15,9 +18,9 @@ export const DEFAULT_SIZE_CM = {
 };
 
 export const MIN_DIMENSION_CM_BY_MATERIAL = {
-  Classic: { w: 20, h: 20 },
-  PRO: { w: 20, h: 20 },
-  Alfombra: { w: 20, h: 20 },
+  Classic: { w: CUSTOM_PAD_MIN_DIMENSION_CM, h: CUSTOM_PAD_MIN_DIMENSION_CM },
+  PRO: { w: CUSTOM_PAD_MIN_DIMENSION_CM, h: CUSTOM_PAD_MIN_DIMENSION_CM },
+  Alfombra: { w: CUSTOM_PAD_MIN_DIMENSION_CM, h: CUSTOM_PAD_MIN_DIMENSION_CM },
   Glasspad: { ...GLASSPAD_SIZE_CM },
   Ultra: { ...GLASSPAD_SIZE_CM },
 };

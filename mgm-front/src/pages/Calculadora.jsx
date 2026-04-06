@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import Calculadora from '../components/Calculadora.jsx';
+import { CUSTOM_PAD_MIN_DIMENSION_CM } from '../lib/material.js';
 import styles from './Calculadora.module.css';
 
 const priceFormatter = new Intl.NumberFormat('es-AR', {
@@ -27,24 +28,24 @@ const CalculadoraPage = () => {
   const dimensionConstraints = useMemo(
     () => ({
       Classic: {
-        width: { min: 20, max: 140 },
-        height: { min: 20, max: 100 },
+        width: { min: CUSTOM_PAD_MIN_DIMENSION_CM, max: 140 },
+        height: { min: CUSTOM_PAD_MIN_DIMENSION_CM, max: 100 },
       },
       Alfombra: {
-        width: { min: 20, max: 140 },
-        height: { min: 20, max: 100 },
+        width: { min: CUSTOM_PAD_MIN_DIMENSION_CM, max: 140 },
+        height: { min: CUSTOM_PAD_MIN_DIMENSION_CM, max: 100 },
       },
       Pro: {
-        width: { min: 20, max: 120 },
-        height: { min: 20, max: 60 },
+        width: { min: CUSTOM_PAD_MIN_DIMENSION_CM, max: 120 },
+        height: { min: CUSTOM_PAD_MIN_DIMENSION_CM, max: 60 },
       },
       Glasspad: {
-        width: { min: 20, max: 49 },
-        height: { min: 20, max: 42 },
+        width: { min: CUSTOM_PAD_MIN_DIMENSION_CM, max: 49 },
+        height: { min: CUSTOM_PAD_MIN_DIMENSION_CM, max: 42 },
       },
       Ultra: {
-        width: { min: 20, max: 49 },
-        height: { min: 20, max: 42 },
+        width: { min: CUSTOM_PAD_MIN_DIMENSION_CM, max: 49 },
+        height: { min: CUSTOM_PAD_MIN_DIMENSION_CM, max: 42 },
       },
     }),
     [],
