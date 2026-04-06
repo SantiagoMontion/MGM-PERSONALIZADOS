@@ -63,16 +63,6 @@ export async function renderMockup1080(imageOrOptions, maybeOptions) {
 
   if (!placement) {
     console.warn('[renderMockup1080] placement_failed', { fallbackWidth, fallbackHeight });
-  } else {
-    console.log('[renderMockup1080] dimensions', {
-      targetW,
-      targetH,
-      x,
-      y,
-      radiusPx: padRadiusPx,
-      imageW: fallbackWidth,
-      imageH: fallbackHeight,
-    });
   }
 
   const abortWithEmpty = async () => {

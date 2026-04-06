@@ -30,12 +30,13 @@ const CORS_ALLOW_HEADERS = 'content-type, authorization, x-diag';
 const CORS_ALLOW_METHODS = 'POST, OPTIONS';
 const CORS_MAX_AGE = '86400';
 const DEDUPE_TTL_MS = 5 * 60 * 1000;
+const PUBLISH_VERBOSE_LOG = process.env.MGM_PUBLISH_VERBOSE_LOG === '1';
 const inFlightPublishByFingerprint = new Map();
 const recentPublishByFingerprint = new Map();
 
 export const config = {
-  memory: 256,
-  maxDuration: 60,
+  memory: 512,
+  maxDuration: 300,
   api: {
     bodyParser: true,
     sizeLimit: '32mb',
@@ -574,20 +575,22 @@ export default async function handler(req, res) {
   parsedBody.masterHeightPx = Number.isFinite(masterHeightPx) && masterHeightPx > 0 ? Math.round(masterHeightPx) : null;
 
   // Material canónico: usar lo que llegó del front (no adivinar salvo fallback explícito)
-  try {
-    console.log('[audit:publish-product:incoming]', {
-      diagId,
-      material: parsedBody?.material,
-      materialResolved: parsedBody?.materialResolved,
-      optionsMaterial: parsedBody?.options?.material,
-      widthCm: parsedBody?.widthCm,
-      heightCm: parsedBody?.heightCm,
-      priceTransfer: parsedBody?.priceTransfer,
-      price: parsedBody?.price,
-      title: parsedBody?.title,
-    });
-  } catch (_) {
-    // noop
+  if (PUBLISH_VERBOSE_LOG) {
+    try {
+      console.log('[audit:publish-product:incoming]', {
+        diagId,
+        material: parsedBody?.material,
+        materialResolved: parsedBody?.materialResolved,
+        optionsMaterial: parsedBody?.options?.material,
+        widthCm: parsedBody?.widthCm,
+        heightCm: parsedBody?.heightCm,
+        priceTransfer: parsedBody?.priceTransfer,
+        price: parsedBody?.price,
+        title: parsedBody?.title,
+      });
+    } catch (_) {
+      // noop
+    }
   }
 
   let productType = String(
@@ -763,30 +766,33 @@ export default async function handler(req, res) {
     value: isPrivate ? 'true' : 'false',
   };
   parsedBody.metafields = [...preservedMetafields, privateMetafield];
-  try {
-    console.log('[audit:metafields]', {
-      namespace: privateMetafield.namespace,
-      key: privateMetafield.key,
-      type: privateMetafield.type,
-      value: privateMetafield.value,
-    });
-  } catch (_) {
-    // noop
+  if (PUBLISH_VERBOSE_LOG) {
+    try {
+      console.log('[audit:metafields]', {
+        namespace: privateMetafield.namespace,
+        key: privateMetafield.key,
+        type: privateMetafield.type,
+        value: privateMetafield.value,
+      });
+    } catch (_) {
+      // noop
+    }
   }
   // Pasar mockupUrl simple; la imagen se adjunta en el handler vía REST
   parsedBody.mockupUrl = versionedMockupUrl;
-  // Diags para verificar qué llegó y qué se usó
-  try {
-    console.log('[audit:publish-product:resolved]', {
-      diagId,
-      materialLabelFinal: mat,
-      widthCmFinal: widthCmSafe,
-      heightCmFinal: heightCmSafe,
-      priceFinal: priceValue,
-      titleFinal: finalTitle,
-    });
-  } catch (logErr) {
-    // noop
+  if (PUBLISH_VERBOSE_LOG) {
+    try {
+      console.log('[audit:publish-product:resolved]', {
+        diagId,
+        materialLabelFinal: mat,
+        widthCmFinal: widthCmSafe,
+        heightCmFinal: heightCmSafe,
+        priceFinal: priceValue,
+        titleFinal: finalTitle,
+      });
+    } catch (logErr) {
+      // noop
+    }
   }
 
   try {

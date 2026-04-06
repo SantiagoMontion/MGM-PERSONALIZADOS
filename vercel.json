@@ -1,4 +1,10 @@
 {
+  "functions": {
+    "api/publish-product.js": {
+      "memory": 512,
+      "maxDuration": 300
+    }
+  },
   "headers": [
     {
       "source": "/(.*)\\.html",

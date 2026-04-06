@@ -5231,8 +5231,13 @@ body.light .stepTwoContainColorLabel {
 .stepThreeCheckoutModalDescription {
   margin: 0 0 20px;
   font-size: var(--fs-base);
-  color: var(--muted);
+  color: var(--foreground);
   line-height: 1.5;
+}
+
+:global(html.dark) .stepThreeCheckoutModalDescription,
+:global(body.dark) .stepThreeCheckoutModalDescription {
+  color: #f5f5f5;
 }
 
 .stepThreeCheckoutModalActions {

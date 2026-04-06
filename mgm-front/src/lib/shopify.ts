@@ -1265,8 +1265,6 @@ export async function createJobAndProduct(
       throw err;
     }
 
-    console.log('🚀 PAYLOAD SALIDA:', JSON.stringify(payload, null, 2));
-
     const payloadBytes = jsonByteLength(payload);
     try {
       diag('[publish] payload_bytes', { bytes: payloadBytes });
@@ -1316,6 +1314,9 @@ export async function createJobAndProduct(
       err.reason = reason;
       if (typeof publish?.message === 'string' && publish.message.trim()) {
         err.friendlyMessage = publish.message.trim();
+      } else if (publishStatus === 504) {
+        err.friendlyMessage =
+          'La publicación tardó demasiado (el servidor cortó por tiempo). Esperá unos segundos y probá de nuevo.';
       }
       if (Array.isArray(publish?.missing) && publish.missing.length) {
         err.missing = publish.missing;

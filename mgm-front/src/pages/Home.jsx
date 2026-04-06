@@ -997,6 +997,13 @@ const resolveCheckoutErrorMessage = (checkoutError) => {
   const friendlyMessage = safeStr(checkoutError?.friendlyMessage);
   if (friendlyMessage) return friendlyMessage;
   const rawMessage = safeStr(checkoutError?.message);
+  const name = safeStr(checkoutError?.name);
+  if (
+    name === 'TypeError'
+    && /network|fetch|load failed|abort|failed to fetch/i.test(rawMessage)
+  ) {
+    return 'No pudimos completar la solicitud (red o el servidor tardó demasiado). Si el navegador muestra CORS suele ser un timeout: esperá un momento y probá de nuevo.';
+  }
   if (rawMessage && /[\sáéíóúüñ]/i.test(rawMessage)) {
     return rawMessage;
   }

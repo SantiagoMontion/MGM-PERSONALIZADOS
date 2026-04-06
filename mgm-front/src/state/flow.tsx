@@ -168,12 +168,6 @@ export function FlowProvider({ children }: { children: ReactNode }) {
         next.widthCm = 49;
         next.heightCm = 42;
       }
-      console.log('[audit:flow:hydrate]', {
-        widthCm: next.widthCm,
-        heightCm: next.heightCm,
-        material: next.material,
-        designName: next.designName,
-      });
       return next;
     } catch (error) {
       console.warn('[flow] hydrate_failed', error);
