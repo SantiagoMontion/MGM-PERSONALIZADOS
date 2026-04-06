@@ -140,14 +140,39 @@ function cleanExpiredPublishCache(now = Date.now()) {
   }
 }
 
-function buildPublishFingerprint({ designHash, widthCm, heightCm }) {
+/**
+ * Huella para deduplicar publicaciones concurrentes. Debe incluir material, forma y visibilidad:
+ * antes solo usaba hash+cm y dos pedidos (p. ej. Classic vs PRO, o carrito vs checkout privado)
+ * compartían caché y el cliente recibía JSON sin variantId / sin URL → "No se pudo abrir el checkout".
+ */
+function buildPublishFingerprint({
+  designHash,
+  widthCm,
+  heightCm,
+  materialSlug,
+  shape,
+  visibility,
+}) {
   const hash = typeof designHash === 'string' ? designHash.trim().toLowerCase() : '';
   const width = Number(widthCm);
   const height = Number(heightCm);
+  const mat = typeof materialSlug === 'string' && materialSlug.trim()
+    ? materialSlug.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-')
+    : 'material';
+  const shapeTok = shape === 'circle' ? 'c' : 'r';
+  const vis = visibility === 'private' ? 'p' : 'o';
   if (!/^[a-f0-9]{64}$/.test(hash)) return null;
   if (!Number.isFinite(width) || width <= 0) return null;
   if (!Number.isFinite(height) || height <= 0) return null;
-  return `${hash}|${Math.round(width)}x${Math.round(height)}`;
+  return `${hash}|${Math.round(width)}x${Math.round(height)}|${mat}|${shapeTok}|${vis}`;
+}
+
+function isSuccessfulPublishReplayBody(body) {
+  if (!body || typeof body !== 'object') return false;
+  if (body.ok === false) return false;
+  if (body.ok === true && body.stub === true) return true;
+  const vid = typeof body.variantId === 'string' ? body.variantId.trim() : '';
+  return Boolean(vid);
 }
 
 function captureJsonResponse(res) {
@@ -672,10 +697,23 @@ export default async function handler(req, res) {
   parsedBody.productType = productType;
   parsedBody.widthCm = Number.isFinite(widthCmSafe) && widthCmSafe > 0 ? widthCmSafe : undefined;
   parsedBody.heightCm = Number.isFinite(heightCmSafe) && heightCmSafe > 0 ? heightCmSafe : undefined;
+  const modeFromBody = typeof parsedBody.mode === 'string' ? parsedBody.mode.trim().toLowerCase() : '';
+  const isPrivate = parsedBody.private === true
+    || modeFromBody === 'private'
+    || req?.query?.private === '1';
+  parsedBody.private = Boolean(isPrivate);
+  parsedBody.isPrivate = Boolean(isPrivate);
+  const materialSlugForFingerprint = String(mat || 'material')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-') || 'material';
   const publishFingerprint = buildPublishFingerprint({
     designHash: parsedBody.designHash,
     widthCm: parsedBody.widthCm,
     heightCm: parsedBody.heightCm,
+    materialSlug: materialSlugForFingerprint,
+    shape: isCircularShape ? 'circle' : 'rect',
+    visibility: isPrivate ? 'private' : 'public',
   });
   if (publishFingerprint) {
     parsedBody.publishFingerprint = publishFingerprint;
@@ -712,12 +750,6 @@ export default async function handler(req, res) {
   const currencyValue = String(parsedBody.currency || process.env.SHOPIFY_CART_PRESENTMENT_CURRENCY || 'USD');
   parsedBody.price = normalizedPriceValue;
   parsedBody.currency = currencyValue;
-  const modeFromBody = typeof parsedBody.mode === 'string' ? parsedBody.mode.trim().toLowerCase() : '';
-  const isPrivate = parsedBody.private === true
-    || modeFromBody === 'private'
-    || req?.query?.private === '1';
-  parsedBody.private = Boolean(isPrivate);
-  parsedBody.isPrivate = Boolean(isPrivate);
   const existingMetafields = Array.isArray(parsedBody.metafields) ? parsedBody.metafields : [];
   const preservedMetafields = existingMetafields.filter(
     (entry) => !entry || typeof entry !== 'object'
@@ -847,18 +879,29 @@ export default async function handler(req, res) {
     if (publishFingerprint) {
       const inflight = inFlightPublishByFingerprint.get(publishFingerprint);
       if (inflight?.promise) {
-        console.warn('🛡️ Idempotencia activada: Pedido duplicado detectado para hash:', designHashRaw);
+        console.warn('🛡️ Idempotencia: misma huella de publicación en curso:', publishFingerprint.slice(0, 24) + '…');
         const replay = await inflight.promise;
         if (replay?.body && Number.isFinite(replay?.status)) {
           sendJsonWithCors(req, res, replay.status, replay.body);
           return;
         }
+        logApiError('publish-product', { diagId, step: 'idempotent_inflight_empty_body', error: 'replay_without_json' });
+        sendJsonWithCors(req, res, 502, {
+          ok: false,
+          error: 'publish_replay_incomplete',
+          message: 'La publicación anterior no devolvió una respuesta válida. Intentá de nuevo.',
+          diagId,
+        });
+        return;
       }
       const recent = recentPublishByFingerprint.get(publishFingerprint);
       if (recent?.body && Number.isFinite(recent?.status) && Number.isFinite(recent?.expiresAt) && recent.expiresAt > Date.now()) {
-        console.warn('🛡️ Idempotencia activada: Pedido duplicado detectado para hash:', designHashRaw);
-        sendJsonWithCors(req, res, recent.status, recent.body);
-        return;
+        if (isSuccessfulPublishReplayBody(recent.body)) {
+          console.warn('🛡️ Idempotencia: reutilizando publicación reciente OK:', publishFingerprint.slice(0, 24) + '…');
+          sendJsonWithCors(req, res, recent.status, recent.body);
+          return;
+        }
+        recentPublishByFingerprint.delete(publishFingerprint);
       }
     }
 
@@ -878,7 +921,7 @@ export default async function handler(req, res) {
     }
 
     const settled = await publishExecution;
-    if (publishFingerprint && settled?.body && Number.isFinite(settled?.status)) {
+    if (publishFingerprint && settled?.body && Number.isFinite(settled?.status) && isSuccessfulPublishReplayBody(settled.body)) {
       recentPublishByFingerprint.set(publishFingerprint, {
         status: settled.status,
         body: settled.body,
