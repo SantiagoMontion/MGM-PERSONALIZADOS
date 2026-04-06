@@ -164,6 +164,13 @@ export function FlowProvider({ children }: { children: ReactNode }) {
           (next as any)[key] = parsed[key];
         });
       }
+      if (!next.material) {
+        const optMat = next.options && typeof next.options === 'object' ? (next.options as any).material : null;
+        const backfill = normalizeMaterial(optMat);
+        if (backfill) {
+          (next as any).material = backfill;
+        }
+      }
       if (next.material === 'Glasspad' || next.material === 'Ultra') {
         next.widthCm = 49;
         next.heightCm = 42;

@@ -95,6 +95,17 @@ const normalizeMaterialLabelSafe = (value) => {
   if (normalized.includes('alfombra')) return 'Alfombra';
   return 'Classic';
 };
+
+/** Si el estado local quedó en Classic pero el flow tiene PRO (u otro), alinear antes del paso 3. */
+const reconcileReviewMaterialFromFlow = (localMaterial, flowState) => {
+  const src = flowState && typeof flowState === 'object' ? flowState : {};
+  const fromFlow = normalizeMaterialLabelSafe(src.material ?? src.options?.material);
+  const local = normalizeMaterialLabelSafe(localMaterial);
+  if (local === fromFlow) return local;
+  if (local !== 'Classic' && fromFlow === 'Classic') return local;
+  if (fromFlow !== 'Classic' && local === 'Classic') return fromFlow;
+  return local;
+};
 const normalizeShapeSafe = (value) => {
   const normalized = safeStr(value).toLowerCase();
   if (normalized === 'circle' || normalized === 'circular' || normalized === 'form') {
@@ -4098,11 +4109,16 @@ export default function Home() {
   }, [designName, hasImage, selectedStepTwoMaterialOption, selectedStepTwoSizeOption]);
 
   const openStepThreeReview = useCallback(() => {
+    const fs = (typeof flow?.get === 'function' ? flow.get() : flow) || {};
+    const aligned = reconcileReviewMaterialFromFlow(material, fs);
+    if (aligned !== material) {
+      setMaterial(aligned);
+    }
     captureReviewPreview();
     setConfigOpen(false);
     setToolsDrawerOpen(false);
     dispatchStep({ type: 'REVIEW' });
-  }, [captureReviewPreview]);
+  }, [captureReviewPreview, flow, material]);
 
   const handleReturnToEditor = useCallback(() => {
     if (reviewExitBusy || stepThreeCommerceAction) return;

@@ -190,6 +190,13 @@ export function FlowProvider({ children }) {
           next[key] = parsed[key];
         });
       }
+      if (!next.material) {
+        const optMat = next.options && typeof next.options === 'object' ? next.options.material : null;
+        const backfill = normalizeMaterial(optMat);
+        if (backfill) {
+          next.material = backfill;
+        }
+      }
       if (next.material === 'Glasspad' || next.material === 'Ultra') {
         if (!(Number.isFinite(next.widthCm) && next.widthCm > 0)) {
           next.widthCm = 49;
