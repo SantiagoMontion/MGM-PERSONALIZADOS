@@ -3977,12 +3977,16 @@ export default function Home() {
     () => formatSizeLabel(activeSizeCm),
     [activeSizeCm],
   );
-  const stepThreeMaterialDetail = useMemo(
-    () => STEP_THREE_MATERIAL_SUMMARY[material]
+  const stepThreeMaterialDetail = useMemo(() => {
+    const body =
+      STEP_THREE_MATERIAL_SUMMARY[material]
       || selectedStepTwoMaterialOption?.label
-      || material,
-    [material, selectedStepTwoMaterialOption],
-  );
+      || material;
+    const prefix = safeStr(material);
+    if (!prefix) return body;
+    if (!body) return prefix;
+    return `${prefix}-${body}`;
+  }, [material, selectedStepTwoMaterialOption]);
   const stepThreeIdealUseDetail = useMemo(
     () => STEP_THREE_IDEAL_USE_SUMMARY[material] || '',
     [material],
