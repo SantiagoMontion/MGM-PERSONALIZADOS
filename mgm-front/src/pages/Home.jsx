@@ -4120,6 +4120,20 @@ export default function Home() {
     if (aligned !== material) {
       setMaterial(aligned);
     }
+    const canonicalMaterial = normalizeMaterialLabelSafe(aligned);
+    if (typeof flow?.set === 'function' && canonicalMaterial) {
+      const top = normalizeMaterialLabelSafe(fs.material ?? '');
+      const opt = normalizeMaterialLabelSafe(fs.options?.material ?? '');
+      if (top !== canonicalMaterial || opt !== canonicalMaterial) {
+        flow.set({
+          material: canonicalMaterial,
+          options: {
+            ...(fs.options && typeof fs.options === 'object' ? fs.options : {}),
+            material: canonicalMaterial,
+          },
+        });
+      }
+    }
     captureReviewPreview();
     setConfigOpen(false);
     setToolsDrawerOpen(false);

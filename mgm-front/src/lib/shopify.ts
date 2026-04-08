@@ -283,6 +283,21 @@ function matLabelOf(material: unknown): string | null {
   return raw;
 }
 
+/** `flow.material` puede quedar vacío tras updates parciales; `options.material` suele ser la fuente fiable. */
+function resolveMaterialStringFromFlow(flow: FlowState): string {
+  const f = flow as Record<string, unknown>;
+  const opt = f.options && typeof f.options === 'object' ? (f.options as { material?: unknown }).material : undefined;
+  const ed = f.editorState && typeof f.editorState === 'object' ? (f.editorState as Record<string, unknown>) : null;
+  const edOpt = ed?.options && typeof ed.options === 'object' ? (ed.options as { material?: unknown }).material : undefined;
+  const candidates = [f.material, opt, ed?.material, edOpt];
+  for (const c of candidates) {
+    if (c == null) continue;
+    const s = String(c).trim();
+    if (s) return s;
+  }
+  return '';
+}
+
 function resolveProductTypeFromMaterial(material: unknown, fallback: string = 'mousepad'): 'glasspad' | 'alfombra' | 'mousepad' {
   const normalizedMaterial = matLabelOf(material)?.toLowerCase() || String(material || '').trim().toLowerCase();
   if (normalizedMaterial.includes('glass')) return 'glasspad';
@@ -448,8 +463,9 @@ export async function ensureMockupUrl(flow: FlowState): Promise<EnsureMockupUrlR
       masterHeightPx,
       dpi,
     );
+    const regenMat = resolveMaterialStringFromFlow(flow) || flowAny?.material;
     mockupBlob = await renderMockup1080(image, {
-      material: flowAny?.material,
+      material: regenMat,
       approxDpi: dpi,
       composition: {
         widthPx: masterWidthPx,
@@ -459,7 +475,7 @@ export async function ensureMockupUrl(flow: FlowState): Promise<EnsureMockupUrlR
         widthMm: regenWcm > 0 ? regenWcm * 10 : undefined,
         heightMm: regenHcm > 0 ? regenHcm * 10 : undefined,
         dpi,
-        material: flowAny?.material,
+        material: regenMat,
       },
     });
   }
@@ -468,7 +484,7 @@ export async function ensureMockupUrl(flow: FlowState): Promise<EnsureMockupUrlR
   masterWidthPx = Number(flowAny?.masterWidthPx || masterWidthPx || 0);
   masterHeightPx = Number(flowAny?.masterHeightPx || masterHeightPx || 0);
   const { widthCm, heightCm } = effectiveMockupCmFromFlow(flowAny, masterWidthPx, masterHeightPx, dpi);
-  const mat = matLabelOf(flowAny?.material) || 'Classic';
+  const mat = matLabelOf(resolveMaterialStringFromFlow(flow) || flowAny?.material) || 'Classic';
   const flowShape = resolveProductShape(flowAny as FlowState);
   const filenameBaseRaw = buildMockupBaseName({
     designName: safeName(flowAny?.designName),
@@ -840,8 +856,8 @@ export async function createJobAndProduct(
   const designNameInput = (flow as any)?.designName;
   const designNameRaw = (designNameInput ?? '').toString(); // el input tal cual (servidor corta a 40)
   let designName = designNameRaw.trim();
-  const materialFromFlow = (flow.material || '').trim();
-  let materialLabel = productType === 'glasspad' ? 'Glasspad' : (matLabelOf(materialFromFlow) || 'Classic');
+  const materialFromFlowRaw = resolveMaterialStringFromFlow(flow);
+  let materialLabel = productType === 'glasspad' ? 'Glasspad' : (matLabelOf(materialFromFlowRaw) || 'Classic');
   const displayMaterialLabel = formatCustomerMaterialLabel(materialLabel, isCircularShape);
   if (materialLabel === 'Alfombra') {
     productLabel = 'Alfombra';
@@ -882,7 +898,12 @@ export async function createJobAndProduct(
   if (Number.isFinite(heightOverride) && heightOverride > 0) {
     heightCm = Math.round(heightOverride);
   }
-  const currentProductFingerprint = buildProductFingerprint(designHashRaw, widthCm, heightCm, materialFromFlow);
+  const currentProductFingerprint = buildProductFingerprint(
+    designHashRaw,
+    widthCm,
+    heightCm,
+    matLabelOf(materialFromFlowRaw) || materialFromFlowRaw,
+  );
   const lastProductFingerprint = typeof lastProduct?.fingerprint === 'string'
     ? lastProduct.fingerprint.trim().toLowerCase()
     : '';
