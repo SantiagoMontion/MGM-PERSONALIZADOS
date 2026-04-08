@@ -182,7 +182,7 @@ export default function OptionsStep({ uploaded, onSubmitted }) {
           <select value={material} onChange={e=>setMaterial(e.target.value)}>
             <option>Classic</option>
             <option>PRO</option>
-            <option>Glasspad</option>
+            <option value="Glasspad" disabled>Glasspad</option>
             <option>Ultra</option>
             <option disabled>Alfombra</option>
           </select>

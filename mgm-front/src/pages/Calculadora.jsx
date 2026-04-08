@@ -16,7 +16,7 @@ const CalculadoraPage = () => {
 
   const materialOptions = useMemo(
     () => [
-      { label: 'Glasspad', value: 'Glasspad' },
+      { label: 'Glasspad', value: 'Glasspad', disabled: true },
       { label: 'Ultra', value: 'Ultra' },
       { label: 'Pro', value: 'Pro' },
       { label: 'Classic', value: 'Classic' },
@@ -155,7 +155,7 @@ const CalculadoraPage = () => {
               onChange={(event) => setMaterial(event.target.value)}
             >
               {materialOptions.map((option) => (
-                <option key={option.value} value={option.value}>
+                <option key={option.value} value={option.value} disabled={option.disabled}>
                   {option.label}
                 </option>
               ))}

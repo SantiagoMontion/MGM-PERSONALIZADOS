@@ -235,6 +235,7 @@ const STEP_TWO_MATERIAL_OPTIONS = [
     value: 'Glasspad',
     label: 'Glasspad',
     description: 'Movimientos rápidos y flicks.',
+    disabled: true,
   },
   {
     value: 'Ultra',
@@ -242,6 +243,7 @@ const STEP_TWO_MATERIAL_OPTIONS = [
     description: 'FPS ultra preciso y tracking.',
   },
 ];
+const isMaterialDropdownLocked = (o) => Boolean(o?.comingSoon || o?.disabled);
 /** Resumen paso 3 — fila "Material". */
 const STEP_THREE_MATERIAL_SUMMARY = {
   Classic: 'Híbrido (Base goma)',
@@ -3722,7 +3724,7 @@ export default function Home() {
 
   const handleStepOneMaterialSelect = useCallback((nextMaterial) => {
     if (!nextMaterial) return;
-    if (STEP_TWO_MATERIAL_OPTIONS.some((o) => o.value === nextMaterial && o.comingSoon)) {
+    if (STEP_TWO_MATERIAL_OPTIONS.some((o) => o.value === nextMaterial && isMaterialDropdownLocked(o))) {
       return;
     }
     handleSizeChange({ material: nextMaterial });
@@ -4031,7 +4033,7 @@ export default function Home() {
   }, [handleSizeChange, material, selectedStepTwoMaterialOption?.value]);
 
   const handleStepTwoMaterialSelect = useCallback((nextMaterial) => {
-    if (STEP_TWO_MATERIAL_OPTIONS.some((o) => o.value === nextMaterial && o.comingSoon)) {
+    if (STEP_TWO_MATERIAL_OPTIONS.some((o) => o.value === nextMaterial && isMaterialDropdownLocked(o))) {
       return;
     }
     handleSizeChange({ material: nextMaterial });
@@ -4684,7 +4686,7 @@ export default function Home() {
                           >
                             {stepOneMaterialOptions.map((option) => {
                               const isSelected = selectedStepOneMaterialOption?.value === option.value;
-                              const isLocked = Boolean(option.comingSoon);
+                              const isLocked = isMaterialDropdownLocked(option);
 
                               return (
                                 <button
@@ -5683,7 +5685,7 @@ export default function Home() {
                             <div className={styles.stepTwoAccordionContent}>
                               {stepTwoDrawerMaterialOptions.map((option) => {
                                 const isSelected = selectedStepTwoMaterialOption?.value === option.value;
-                                const isLocked = Boolean(option.comingSoon);
+                                const isLocked = isMaterialDropdownLocked(option);
                                 return (
                                   <label
                                     key={option.value}
