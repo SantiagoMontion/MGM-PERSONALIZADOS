@@ -7,19 +7,14 @@ import {
   DEFAULT_SIZE_CM,
   MIN_DIMENSION_CM_BY_MATERIAL,
 } from '../lib/material.js';
-import {
-  dpiFor,
-  DPI_WARN_THRESHOLD,
-  DPI_LOW_THRESHOLD,
-  qualityLevel,
-} from '../lib/dpi';
+import { intrinsicImageQualityLevel } from '../lib/dpi';
 import styles from './OptionsStep.module.css';
 import { buildSubmitJobBody, prevalidateSubmitBody } from '../lib/jobPayload';
 import { submitJob } from '../lib/submitJob';
 import { DEFAULT_ICON_FALLBACK, resolveIconAsset } from '../lib/iconRegistry.js';
 import { error } from '@/lib/log';
 
-const LOW_ACK_ERROR_MESSAGE = 'La calidad parece baja. Confirmá que aceptás continuar.';
+const LOW_ACK_ERROR_MESSAGE = 'La imagen tiene pocas píxeles. Confirmá que aceptás continuar.';
 const CONTINUE_ICON_SRC = resolveIconAsset('continuar.svg');
 
 const Form = z.object({
@@ -89,17 +84,9 @@ export default function OptionsStep({ uploaded, onSubmitted }) {
     setHText(String(h));
   };
 
-  // DPI estimado
-  const dpiVal = useMemo(() => dpiFor(size.w, size.h, imgPx.w, imgPx.h), [size, imgPx]);
   const level = useMemo(
-    () => qualityLevel({
-      dpi: dpiVal,
-      naturalWidth: imgPx.w,
-      sizeCm: size,
-      warn: DPI_WARN_THRESHOLD,
-      low: DPI_LOW_THRESHOLD,
-    }),
-    [dpiVal, imgPx.w, size],
+    () => intrinsicImageQualityLevel(imgPx.w, imgPx.h),
+    [imgPx.h, imgPx.w],
   );
 
   useEffect(() => {
@@ -238,9 +225,17 @@ export default function OptionsStep({ uploaded, onSubmitted }) {
       )}
 
       <div className={styles.dpiSection}>
-        <b>DPI estimado:</b> {Math.round(dpiVal)} — {
-          level === 'ok' ? 'Excelente' : level === 'warn' ? 'Buena' : 'Baja (Revisar)'
-        }
+        <b>Calidad del archivo:</b>
+        {' '}
+        {imgPx.w > 0 && imgPx.h > 0 ? (
+          <>
+            {imgPx.w}×{imgPx.h} px — {
+              level === 'ok' ? 'Alta resolución' : level === 'warn' ? 'Buena para imprimir' : 'Pocas píxeles (mejor subir más grande)'
+            }
+          </>
+        ) : (
+          '…'
+        )}
         {level === 'bad' && (
           <div className={styles.ackRow}>
             <label>
@@ -254,7 +249,7 @@ export default function OptionsStep({ uploaded, onSubmitted }) {
                   }
                 }}
               />
-              Acepto imprimir en baja calidad.
+              Acepto continuar con esta imagen.
             </label>
           </div>
         )}

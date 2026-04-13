@@ -30,9 +30,7 @@ import { submitJob } from "../lib/submitJob";
 import { renderGlasspadPNG } from "../lib/renderGlasspadPNG";
 import { isFixedPad49x42Material } from "../lib/material.js";
 import {
-  DPI_WARN_THRESHOLD,
-  DPI_LOW_THRESHOLD,
-  qualityLevel,
+  intrinsicImageQualityLevel,
 } from "../lib/dpi";
 import { resolveIconAsset } from "@/lib/iconRegistry.js";
 import { isTouchDevice } from "@/lib/device.ts";
@@ -1945,50 +1943,42 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     material,
   ]);
 
-  // calidad
-  const dpiEffective = useMemo(() => {
-    if (!imgEl || !imgBaseCm) return null;
-    const printedWcm = imgBaseCm.w * Math.abs(imgTx.scaleX);
-    const printedHcm = imgBaseCm.h * Math.abs(imgTx.scaleY);
-    if (printedWcm <= 0 || printedHcm <= 0) return null;
-    const printedWin = printedWcm / CM_PER_INCH;
-    const printedHin = printedHcm / CM_PER_INCH;
-    const dpiX = imgEl.naturalWidth / printedWin;
-    const dpiY = imgEl.naturalHeight / printedHin;
-    return Math.max(1, Math.min(1000, Math.min(dpiX, dpiY)));
-  }, [imgEl, imgBaseCm, imgTx.scaleX, imgTx.scaleY]);
-
+  // Calidad: solo resolución del archivo (px), no tamaño del pad ni zoom en el lienzo.
   const quality = useMemo(() => {
-    if (dpiEffective == null) {
-      return { label: "â€”", color: qualityUnknownColor, level: null };
+    if (!imgEl?.naturalWidth || !imgEl?.naturalHeight) {
+      return { label: '—', color: qualityUnknownColor, level: null };
     }
-    const level = qualityLevel({
-      dpi: dpiEffective,
-      naturalWidth: imgEl?.naturalWidth,
-      sizeCm: { w: wCm, h: hCm },
-      warn: DPI_WARN_THRESHOLD,
-      low: DPI_LOW_THRESHOLD,
-    });
-    if (level === "bad") {
+    const nw = imgEl.naturalWidth;
+    const nh = imgEl.naturalHeight;
+    const level = intrinsicImageQualityLevel(nw, nh);
+    const pxLabel = `${nw}×${nh} px`;
+    if (level === 'bad') {
       return {
-        label: `Baja (Revisar, ${dpiEffective | 0} DPI)`,
+        label: `Pocas píxeles (${pxLabel}) — subí una más grande si podés`,
         color: qualityBadColor,
         level,
       };
     }
-    if (level === "warn") {
+    if (level === 'warn') {
       return {
-        label: `Buena (${dpiEffective | 0} DPI)`,
+        label: `Buena (${pxLabel})`,
         color: qualityWarnColor,
         level,
       };
     }
     return {
-      label: `Excelente (${Math.min(300, dpiEffective | 0)} DPI)`,
+      label: `Alta resolución (${pxLabel})`,
       color: qualityOkColor,
       level,
     };
-  }, [dpiEffective, qualityBadColor, qualityOkColor, qualityUnknownColor, qualityWarnColor]);
+  }, [
+    imgEl?.naturalHeight,
+    imgEl?.naturalWidth,
+    qualityBadColor,
+    qualityOkColor,
+    qualityUnknownColor,
+    qualityWarnColor,
+  ]);
 
   const getPadRectPx = () => {
     const k = baseScale * viewScale;
