@@ -787,7 +787,6 @@ export async function createJobAndProduct(
     reuseLastProduct = false,
     skipPublication = false,
     onPrivateStageChange,
-    discountCode,
     skipPrivateCheckout = false,
     payloadOverrides,
   } = options;
@@ -797,7 +796,6 @@ export async function createJobAndProduct(
   const requestedVisibility: 'public' | 'private' = isPrivate ? 'private' : 'public';
   const nowMs = Date.now();
   const lastProductReuseWindowMs = 2 * 60 * 1000;
-  const normalizedDiscountCode = typeof discountCode === 'string' ? discountCode.trim() : '';
   let canReuse = false;
 
   const customerEmail = typeof flow.customerEmail === 'string' ? flow.customerEmail.trim() : '';
@@ -1504,7 +1502,6 @@ export async function createJobAndProduct(
 
   if (!result.checkoutUrl && variantId && mode === 'checkout') {
     const fallbackCheckoutUrl = buildCartPermalink(variantId, 1, {
-      discountCode: normalizedDiscountCode || undefined,
       returnTo: '/checkout',
     });
     if (fallbackCheckoutUrl) {
@@ -1729,7 +1726,6 @@ export async function createJobAndProduct(
           quantity: 1,
           ...(customerEmail ? { email: customerEmail } : {}),
           mode,
-          ...(normalizedDiscountCode ? { discount: normalizedDiscountCode } : {}),
         };
         try {
           const ckResp = await apiFetch('/api/create-checkout', {
@@ -1849,10 +1845,6 @@ export function buildCartPermalink(
       : `/${normalizedReturn.replace(/^\/+/, '')}`;
     cartUrl.searchParams.set('return_to', returnTo);
   }
-  const discountCode = typeof options?.discountCode === 'string' ? options.discountCode.trim() : '';
-  if (discountCode) {
-    cartUrl.searchParams.set('discount', discountCode);
-  }
   return cartUrl.toString();
 }
 
@@ -1885,10 +1877,6 @@ export function buildCartAddUrl(
       ? normalizedReturn
       : `/${normalizedReturn.replace(/^\/+/, '')}`;
     cartUrl.searchParams.set('return_to', returnTo);
-  }
-  const discountCode = typeof options?.discountCode === 'string' ? options.discountCode.trim() : '';
-  if (discountCode) {
-    cartUrl.searchParams.set('discount', discountCode);
   }
   return cartUrl.toString();
 }
@@ -2052,8 +2040,8 @@ async function performStorefrontCartMutation(
   return performStorefrontGraphQL<StorefrontCartResponse>(config, query, variables);
 }
 
-const CART_CREATE_MUTATION = `mutation CartCreate($lines: [CartLineInput!]!, $discountCodes: [String!]) {
-  cartCreate(input: { lines: $lines, discountCodes: $discountCodes }) {
+const CART_CREATE_MUTATION = `mutation CartCreate($lines: [CartLineInput!]!) {
+  cartCreate(input: { lines: $lines }) {
     cart { id checkoutUrl }
     userErrors { message code field }
   }
@@ -2122,8 +2110,6 @@ export async function addVariantToCartStorefront(
   }
   const merchandiseId = buildVariantGid(variantId);
   const lines = [{ merchandiseId, quantity: clampQuantity(quantity) }];
-  const normalizedDiscount = typeof options?.discountCode === 'string' ? options.discountCode.trim() : '';
-  const discountCodes = normalizedDiscount ? [normalizedDiscount] : undefined;
   const RETRY_DELAY_MS = 1_500;
 
   function buildCartError(
@@ -2208,11 +2194,10 @@ export async function addVariantToCartStorefront(
   const attemptCartCreate = async (
     attempt = 1,
   ): Promise<{ ok: true; value: StorefrontCartSuccess } | { ok: false; error: Error }> => {
-    const variables = discountCodes?.length ? { lines, discountCodes } : { lines };
     const { response, payload, requestId } = await performStorefrontCartMutation(
       config,
       CART_CREATE_MUTATION,
-      variables,
+      { lines },
     );
     const data = payload?.data?.cartCreate;
     const userErrors = extractUserErrors(data);
