@@ -245,6 +245,7 @@ export default function Votaciones() {
       if (res.mis_votos >= VOTACION_GALERIA_MAX_VOTOS) {
         setGaleriaCompletedLocal();
         setLightboxFoto(null);
+        navigate('/resultados', { replace: true });
       }
     } catch (e) {
       setError(mapRpcError(e));

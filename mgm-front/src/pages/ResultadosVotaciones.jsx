@@ -21,6 +21,7 @@ export default function ResultadosVotaciones() {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [filtroNombre, setFiltroNombre] = useState('');
   /** @type {[GaleriaFotoRow | null, (f: GaleriaFotoRow | null) => void]} */
   const [lightboxFoto, setLightboxFoto] = useState(null);
 
@@ -57,16 +58,31 @@ export default function ResultadosVotaciones() {
     return () => window.removeEventListener('keydown', onKey);
   }, [lightboxFoto]);
 
+  const rowsWithVotos = useMemo(
+    () =>
+      VOTACION_GALERIA_FOTOS.map((f) => ({
+        ...f,
+        votos: Number(countsById[f.id]) || 0,
+      })),
+    [countsById],
+  );
+
   const rowsSorted = useMemo(() => {
-    return [...VOTACION_GALERIA_FOTOS].map((f) => ({
-      ...f,
-      votos: Number(countsById[f.id]) || 0,
-    }));
-  }, [countsById]);
+    return [...rowsWithVotos].sort((a, b) => {
+      if (b.votos !== a.votos) return b.votos - a.votos;
+      return a.titulo.localeCompare(b.titulo, 'es');
+    });
+  }, [rowsWithVotos]);
+
+  const filasMostradas = useMemo(() => {
+    const q = filtroNombre.trim().toLowerCase();
+    if (!q) return rowsSorted;
+    return rowsSorted.filter((r) => r.titulo.toLowerCase().includes(q));
+  }, [rowsSorted, filtroNombre]);
 
   const totalVotos = useMemo(
-    () => rowsSorted.reduce((acc, r) => acc + r.votos, 0),
-    [rowsSorted],
+    () => rowsWithVotos.reduce((acc, r) => acc + r.votos, 0),
+    [rowsWithVotos],
   );
 
   const yaCompletoLocal = typeof window !== 'undefined' && isGaleriaCompletedLocal();
@@ -106,37 +122,73 @@ export default function ResultadosVotaciones() {
 
         {error ? <div className={styles.errorBox} role="alert">{error}</div> : null}
 
+        <div className={styles.searchWrap}>
+          <span className={styles.searchIcon} aria-hidden>
+            <svg viewBox="0 0 24 24" width="20" height="20">
+              <circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" strokeWidth="2" />
+              <path
+                d="M16 16l4.5 4.5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+            </svg>
+          </span>
+          <input
+            type="search"
+            className={styles.searchInput}
+            value={filtroNombre}
+            onChange={(e) => setFiltroNombre(e.target.value)}
+            placeholder="Buscar por nombre…"
+            autoComplete="off"
+            spellCheck={false}
+            aria-label="Filtrar resultados por nombre"
+          />
+        </div>
+
+        <p className={styles.participantCount}>
+          Cantidad de participantes ({filasMostradas.length})
+        </p>
+
         {loading ? (
           <div className={styles.loading}>Cargando…</div>
         ) : (
-          <div className={styles.resultsBlock}>
-            {rowsSorted.map((row) => {
-              const n = row.votos;
-              const pct = totalVotos > 0 ? Math.round((n / totalVotos) * 1000) / 10 : 0;
-              return (
-                <div key={row.id} className={styles.barRow}>
-                  <button
-                    type="button"
-                    className={styles.thumbBtn}
-                    onClick={() => setLightboxFoto(row)}
-                    aria-label={`Ver foto grande: ${row.titulo}`}
-                  >
-                    <img className={styles.thumbImg} src={row.src} alt="" loading="lazy" />
-                  </button>
-                  <div className={styles.barLabel}>{row.titulo}</div>
-                  <div className={styles.barTrack} aria-hidden="true">
-                    <div
-                      className={styles.barFill}
-                      style={{ width: `${totalVotos > 0 ? (n / totalVotos) * 100 : 0}%` }}
-                    />
+          <>
+            <div className={styles.resultsBlock}>
+              {filasMostradas.map((row) => {
+                const n = row.votos;
+                const pct = totalVotos > 0 ? Math.round((n / totalVotos) * 1000) / 10 : 0;
+                return (
+                  <div key={row.id} className={styles.barRow}>
+                    <button
+                      type="button"
+                      className={styles.thumbBtn}
+                      onClick={() => setLightboxFoto(row)}
+                      aria-label={`Ver foto grande: ${row.titulo}`}
+                    >
+                      <img className={styles.thumbImg} src={row.src} alt="" loading="lazy" />
+                    </button>
+                    <div className={styles.barLabel}>{row.titulo}</div>
+                    <div className={styles.barTrack} aria-hidden="true">
+                      <div
+                        className={styles.barFill}
+                        style={{ width: `${totalVotos > 0 ? (n / totalVotos) * 100 : 0}%` }}
+                      />
+                    </div>
+                    <div className={styles.barStats}>
+                      {pct}% · {n} {n === 1 ? 'voto' : 'votos'}
+                    </div>
                   </div>
-                  <div className={styles.barStats}>
-                    {pct}% · {n} {n === 1 ? 'voto' : 'votos'}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+            {filasMostradas.length === 0 && rowsSorted.length > 0 ? (
+              <p className={styles.searchEmpty} role="status">
+                No hay participantes que coincidan con la búsqueda.
+              </p>
+            ) : null}
+          </>
         )}
 
         <div className={styles.footerNav}>
