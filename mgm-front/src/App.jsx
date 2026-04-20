@@ -14,7 +14,7 @@ function resolveCurrentStep(pathname) {
   if (
     pathname.startsWith('/confirm')
     || pathname.startsWith('/creating')
-    || pathname.startsWith('/result')
+    || pathname.startsWith('/result/')
     || pathname.startsWith('/bridge')
   ) {
     return 3;
@@ -81,6 +81,10 @@ export default function App() {
     setIsDarkMode((prev) => !prev);
   }, []);
 
+  const showTiendaLink =
+    location.pathname.startsWith('/votaciones')
+    || location.pathname.startsWith('/resultados');
+
   return (
     <div className={`${styles.container} ${shouldLockViewport ? styles.containerLocked : ''}`.trim()}>
       <SeoJsonLd />
@@ -90,6 +94,7 @@ export default function App() {
         isDarkMode={isDarkMode}
         onToggleTheme={handleToggleTheme}
         showStepper={showStepper}
+        showTiendaLink={showTiendaLink}
       />
       <main className={`${styles.main} ${shouldLockViewport ? styles.mainLocked : ''}`.trim()}>
         <Outlet context={{ setHeaderStepOverride, isDarkMode, toggleTheme: handleToggleTheme }} />

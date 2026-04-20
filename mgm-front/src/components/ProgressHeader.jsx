@@ -41,11 +41,14 @@ function SunIcon() {
   );
 }
 
+const TIENDA_URL = 'https://www.notmid.ar';
+
 export default function ProgressHeader({
   currentStep = 1,
   isDarkMode = true,
   onToggleTheme,
   showStepper = true,
+  showTiendaLink = false,
 }) {
   const resolvedStep = clampStep(currentStep);
   const currentStepTitle = FLOW_STEPS[resolvedStep - 1]?.title || FLOW_STEPS[0].title;
@@ -91,6 +94,16 @@ export default function ProgressHeader({
               </div>
             </>
           )}
+
+          {showTiendaLink ? (
+            <a
+              href={TIENDA_URL}
+              className={styles.tiendaLink}
+              aria-label="Ir a la tienda NOTMID (notmid.ar)"
+            >
+              Tienda
+            </a>
+          ) : null}
 
           <button
             type="button"
@@ -181,6 +194,16 @@ export default function ProgressHeader({
                 })}
               </ol>
             </nav>
+          ) : showTiendaLink ? (
+            <div className={styles.stepper}>
+              <a
+                href={TIENDA_URL}
+                className={styles.tiendaLink}
+                aria-label="Ir a la tienda NOTMID (notmid.ar)"
+              >
+                Tienda
+              </a>
+            </div>
           ) : (
             <div className={styles.stepperSpacer} aria-hidden="true" />
           )}

@@ -154,9 +154,51 @@
 }
 
 .themeButton:focus-visible,
-.brandLink:focus-visible {
+.brandLink:focus-visible,
+.tiendaLink:focus-visible {
   outline: calc(var(--space-1) / 2) solid var(--border-focus);
   outline-offset: calc(var(--space-1) / 2);
+}
+
+.tiendaLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-button);
+  font-family: var(--navbar-font-family);
+  font-size: var(--navbar-font-size);
+  font-weight: 600;
+  line-height: var(--navbar-line-height);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  text-decoration: none;
+  white-space: nowrap;
+  color: inherit;
+  border: calc(var(--space-1) / 4) solid transparent;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.headerDark .tiendaLink {
+  opacity: 0.88;
+}
+
+.headerDark .tiendaLink:hover {
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  opacity: 1;
+}
+
+.headerLight .tiendaLink {
+  color: var(--foreground-muted);
+}
+
+.headerLight .tiendaLink:hover {
+  color: var(--foreground);
+  background: var(--interactive-hover);
 }
 
 .themeIcon {
