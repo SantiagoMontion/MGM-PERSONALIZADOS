@@ -84,6 +84,10 @@ export default function ResultadosVotaciones() {
     () => rowsWithVotos.reduce((acc, r) => acc + r.votos, 0),
     [rowsWithVotos],
   );
+  const maxVotos = useMemo(
+    () => rowsWithVotos.reduce((acc, r) => (r.votos > acc ? r.votos : acc), 0),
+    [rowsWithVotos],
+  );
 
   const yaCompletoLocal = typeof window !== 'undefined' && isGaleriaCompletedLocal();
 
@@ -167,7 +171,7 @@ export default function ResultadosVotaciones() {
                     <div className={styles.barTrack} aria-hidden="true">
                       <div
                         className={styles.barFill}
-                        style={{ width: `${totalVotos > 0 ? (n / totalVotos) * 100 : 0}%` }}
+                        style={{ width: `${maxVotos > 0 ? (n / maxVotos) * 100 : 0}%` }}
                       />
                     </div>
                     <div className={styles.barStats}>
