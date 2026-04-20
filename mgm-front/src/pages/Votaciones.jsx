@@ -12,6 +12,7 @@ import {
   VOTACION_GALERIA_MAX_VOTOS,
 } from '../lib/votacionesOptions.js';
 import {
+  fetchGaleriaCounts,
   fetchGaleriaMiCuenta,
   fetchGaleriaMisFotos,
   votarGaleriaFoto,
@@ -81,6 +82,7 @@ export default function Votaciones() {
   const [error, setError] = useState('');
   const [countdownMs, setCountdownMs] = useState(() => getSorteoCountdownMs());
   const [filtroNombre, setFiltroNombre] = useState('');
+  const [votosRegistradosTotal, setVotosRegistradosTotal] = useState(0);
 
   const fotosFiltradas = useMemo(() => {
     const q = filtroNombre.trim().toLowerCase();
@@ -143,16 +145,19 @@ export default function Votaciones() {
 
   const syncEstado = useCallback(async () => {
     if (!isSupabaseConfigured) {
+      setVotosRegistradosTotal(0);
       setLoading(false);
       return;
     }
     try {
-      const [cuenta, ids] = await Promise.all([
+      const [cuenta, ids, countsRows] = await Promise.all([
         fetchGaleriaMiCuenta(voterUuid),
         fetchGaleriaMisFotos(voterUuid),
+        fetchGaleriaCounts(),
       ]);
       setMiTotal(cuenta);
       setMisFotos(new Set(ids));
+      setVotosRegistradosTotal(countsRows.reduce((acc, r) => acc + r.votos, 0));
       if (cuenta < VOTACION_GALERIA_MAX_VOTOS) {
         clearGaleriaCompletedLocal();
       }
@@ -242,6 +247,12 @@ export default function Votaciones() {
       const res = await votarGaleriaFoto(voterUuid, foto.id, ip);
       setMisFotos((prev) => new Set([...prev, foto.id]));
       setMiTotal(res.mis_votos);
+      try {
+        const rows = await fetchGaleriaCounts();
+        setVotosRegistradosTotal(rows.reduce((acc, r) => acc + r.votos, 0));
+      } catch {
+        /* el contador global es secundario */
+      }
       if (res.mis_votos >= VOTACION_GALERIA_MAX_VOTOS) {
         setGaleriaCompletedLocal();
         setLightboxFoto(null);
@@ -327,7 +338,7 @@ export default function Votaciones() {
         </div>
 
         <p className={styles.participantCount}>
-          Cantidad de participantes ({fotosFiltradas.length})
+          Cantidad de votos registrados ({votosRegistradosTotal})
         </p>
 
         {!isSupabaseConfigured ? (
