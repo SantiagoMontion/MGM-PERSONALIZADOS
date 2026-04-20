@@ -92,20 +92,6 @@
   color: var(--foreground-secondary);
 }
 
-.note {
-  margin: 0 auto var(--space-5);
-  max-width: 36rem;
-  text-align: center;
-  font-size: var(--fs-sm);
-  color: #e9b949;
-  font-weight: 600;
-}
-
-html.light .note,
-body.light .note {
-  color: #b8860b;
-}
-
 .resultsBlock {
   width: 100%;
 }

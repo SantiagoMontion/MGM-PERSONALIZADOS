@@ -108,12 +108,6 @@ export default function ResultadosVotaciones() {
             : 'Totales por foto (se actualizan al recargar la página).'}
         </p>
 
-        {yaCompletoLocal ? (
-          <p className={styles.note} role="status">
-            Ya participaste con este navegador: no podés volver a votar en /votaciones.
-          </p>
-        ) : null}
-
         {!isSupabaseConfigured ? (
           <div className={styles.infoBox} role="status">
             Sin Supabase no hay totales en vivo. Configurá las variables de entorno para producción.
