@@ -142,7 +142,7 @@ export default function ResultadosVotaciones() {
         </div>
 
         <p className={styles.participantCount}>
-          Cantidad de participantes ({filasMostradas.length})
+          Cantidad de votos registrados ({totalVotos})
         </p>
 
         {loading ? (
