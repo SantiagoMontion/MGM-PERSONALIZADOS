@@ -5,264 +5,275 @@ import {
   useRef,
   useState,
 } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import SeoJsonLd from '../components/SeoJsonLd';
 import {
-  VOTACION_MAX_VOTOS,
-  VOTACION_OPCIONES,
-  VOTACION_OTROS_CARD,
-  VOTACION_OTROS_MAX_CHARS,
-  VOTACION_SESSION_KEY,
+  VOTACION_GALERIA_FOTOS,
+  VOTACION_GALERIA_MAX_VOTOS,
 } from '../lib/votacionesOptions.js';
 import {
-  fetchVotacionCounts,
-  incrementOtro,
-  incrementVoto,
+  fetchGaleriaMiCuenta,
+  fetchGaleriaMisFotos,
+  votarGaleriaFoto,
 } from '../lib/votacionesApi.js';
+import {
+  clearGaleriaCompletedLocal,
+  getOrCreateVoterUuid,
+  getPublicIpHashHex,
+  setGaleriaCompletedLocal,
+} from '../lib/votacionVoterId.js';
 import { isSupabaseConfigured } from '../lib/supa.js';
 import styles from './Votaciones.module.css';
 
-const PRESET_IDS = new Set(VOTACION_OPCIONES.map((o) => o.id));
+function mapRpcError(err) {
+  const msg = String(err?.message || err || '');
+  if (msg.includes('ya_votaste_esta_foto')) return 'Ya votaste esta foto.';
+  if (msg.includes('max_votos')) return 'Ya usaste tus 5 votos.';
+  if (msg.includes('ip_ya_voto')) return 'Desde esta red ya se votó esta foto.';
+  if (msg.includes('foto_invalida')) return 'Esta opción no existe.';
+  return 'No se pudo registrar el voto. Probá de nuevo.';
+}
 
-const OTROS_PLACEHOLDER_MOBILE = 'Mouse (marca)';
-const OTROS_PLACEHOLDER_DESKTOP = 'Ej: Mouse y teclado (marca)';
+/** @typedef {{ id: string, src: string, titulo: string }} GaleriaFoto */
 
-/** @typedef {{ kind: 'preset', id: string } | { kind: 'otros', text: string }} VotacionPick */
+/** Inicio ventana 24h: 20/4/2026 00:00 · Fin: 21/4/2026 00:00 (hora local del navegador) */
+const SORTEO_VENTANA_INICIO_MS = new Date(2026, 3, 20, 0, 0, 0).getTime();
+const SORTEO_VENTANA_FIN_MS = new Date(2026, 3, 21, 0, 0, 0).getTime();
 
-/** @param {unknown[]} raw */
-function normalizePicks(raw) {
-  if (!Array.isArray(raw)) return [];
-  const out = [];
-  for (const item of raw) {
-    if (typeof item === 'string' && PRESET_IDS.has(item)) {
-      out.push({ kind: 'preset', id: item });
-    } else if (item && typeof item === 'object' && item.kind === 'preset' && PRESET_IDS.has(item.id)) {
-      out.push({ kind: 'preset', id: item.id });
-    } else if (item && typeof item === 'object' && item.kind === 'otros' && typeof item.text === 'string') {
-      const t = item.text.trim().slice(0, VOTACION_OTROS_MAX_CHARS);
-      if (t.length >= 1) out.push({ kind: 'otros', text: t });
-    }
+/**
+ * Antes del 20/4 00:00: ms hasta el inicio del sorteo.
+ * Entre el 20/4 00:00 y el 21/4 00:00: ms que faltan de las 24 horas.
+ * Después del 21/4 00:00: 0.
+ */
+function getSorteoCountdownMs(now = Date.now()) {
+  if (now < SORTEO_VENTANA_INICIO_MS) {
+    return SORTEO_VENTANA_INICIO_MS - now;
   }
-  return out.slice(0, VOTACION_MAX_VOTOS);
+  return Math.max(0, SORTEO_VENTANA_FIN_MS - now);
 }
 
-/** @returns {VotacionPick[]} si ya se enviaron votos en esta sesión (1 a VOTACION_MAX_VOTOS) */
-function loadCompletedSessionPicks() {
-  if (typeof sessionStorage === 'undefined') return [];
-  try {
-    const raw = sessionStorage.getItem(VOTACION_SESSION_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    const picks = normalizePicks(parsed?.picks || []);
-    if (parsed?.submitted === true && picks.length >= 1) return picks;
-    /* Compat: sesiones viejas sin `submitted` pero con 3 picks */
-    if (picks.length >= VOTACION_MAX_VOTOS) return picks;
-    return [];
-  } catch {
-    return [];
-  }
-}
-
-/** @param {VotacionPick[]} picks — entre 1 y VOTACION_MAX_VOTOS ítems */
-function saveCompletedSessionPicks(picks) {
-  if (typeof sessionStorage === 'undefined') return;
-  try {
-    sessionStorage.setItem(
-      VOTACION_SESSION_KEY,
-      JSON.stringify({ picks, updatedAt: Date.now(), submitted: true }),
-    );
-  } catch {
-    /* ignore quota */
-  }
-}
-
-/** @param {VotacionPick[]} picks */
-function hasPickedPreset(picks, id) {
-  return picks.some((p) => p.kind === 'preset' && p.id === id);
-}
-
-/** @param {VotacionPick[]} picks */
-function otrosPickCount(picks) {
-  return picks.filter((p) => p.kind === 'otros').length;
+function formatCountdown(ms) {
+  if (ms <= 0) return '00:00:00';
+  const totalSec = Math.floor(ms / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  return [h, m, s].map((n) => String(n).padStart(2, '0')).join(':');
 }
 
 export default function Votaciones() {
-  const title = 'Próximos ingresos: Vos decidís. | NOTMID';
+  const navigate = useNavigate();
+  const title = 'Sorteo Express 24hs | NOTMID';
   const description =
-    'Queremos que la tienda tenga exactamente lo que buscás. Votá por tus productos favoritos (o sugerí uno nuevo).';
+    'Sorteo Express 24 horas: votá a tus 5 favoritos. Tocá una foto para ampliarla.';
   const url = 'https://personalizados.notmid.ar/votaciones';
 
-  const [presetCounts, setPresetCounts] = useState(() => {
-    const initial = {};
-    for (const o of VOTACION_OPCIONES) initial[o.id] = 0;
-    return initial;
-  });
-  const [otrosRows, setOtrosRows] = useState(() => []);
-  const [resultsMode, setResultsMode] = useState(
-    () => loadCompletedSessionPicks().length >= 1,
-  );
-  const [draftPicks, setDraftPicks] = useState([]);
+  const voterUuid = useMemo(() => getOrCreateVoterUuid(), []);
+  const ipHashRef = useRef('');
+
+  /** @type {[GaleriaFoto | null, (f: GaleriaFoto | null) => void]} */
+  const [lightboxFoto, setLightboxFoto] = useState(null);
+
+  const [misFotos, setMisFotos] = useState(() => new Set());
+  const [miTotal, setMiTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
+  const [votingId, setVotingId] = useState('');
   const [error, setError] = useState('');
-  const [otrosFlipped, setOtrosFlipped] = useState(false);
-  const [otrosDraft, setOtrosDraft] = useState('');
-  const [otrosPlaceholder, setOtrosPlaceholder] = useState(() =>
-    typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
-      ? OTROS_PLACEHOLDER_MOBILE
-      : OTROS_PLACEHOLDER_DESKTOP,
-  );
-  const otrosInputRef = useRef(null);
+  const [countdownMs, setCountdownMs] = useState(() => getSorteoCountdownMs());
+  const [filtroNombre, setFiltroNombre] = useState('');
 
-  const showResults = resultsMode;
+  const fotosFiltradas = useMemo(() => {
+    const q = filtroNombre.trim().toLowerCase();
+    if (!q) return VOTACION_GALERIA_FOTOS;
+    return VOTACION_GALERIA_FOTOS.filter((f) =>
+      f.titulo.toLowerCase().includes(q),
+    );
+  }, [filtroNombre]);
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return undefined;
-    const mq = window.matchMedia('(max-width: 767px)');
-    const sync = () => {
-      setOtrosPlaceholder(mq.matches ? OTROS_PLACEHOLDER_MOBILE : OTROS_PLACEHOLDER_DESKTOP);
-    };
-    sync();
-    mq.addEventListener('change', sync);
-    return () => mq.removeEventListener('change', sync);
-  }, []);
-
-  const refreshCounts = useCallback(async () => {
-    if (!isSupabaseConfigured) {
-      setLoading(false);
-      setError('');
-      return;
-    }
-    try {
-      const { presets, otros } = await fetchVotacionCounts();
-      setPresetCounts((prev) => {
-        const next = { ...prev };
-        for (const o of VOTACION_OPCIONES) {
-          if (presets[o.id] != null) next[o.id] = presets[o.id];
-        }
-        return next;
-      });
-      setOtrosRows(Array.isArray(otros) ? otros : []);
-      setError('');
-    } catch (e) {
-      setError(
-        'No se pudieron cargar los votos. Verificá tablas y funciones SQL (scripts/votaciones_supabase_setup.sql).',
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    refreshCounts();
-  }, [refreshCounts]);
-
-  const totalVotos = useMemo(() => {
-    let t = 0;
-    for (const o of VOTACION_OPCIONES) t += Number(presetCounts[o.id]) || 0;
-    for (const row of otrosRows) t += Number(row.votos) || 0;
-    return t;
-  }, [presetCounts, otrosRows]);
-
-  useEffect(() => {
-    if (otrosFlipped && otrosInputRef.current) {
-      const id = requestAnimationFrame(() => {
-        otrosInputRef.current?.focus?.();
-      });
-      return () => cancelAnimationFrame(id);
-    }
-    return undefined;
-  }, [otrosFlipped]);
-
-  useEffect(() => {
-    if (showResults || draftPicks.length >= VOTACION_MAX_VOTOS) {
-      setOtrosFlipped(false);
-    }
-  }, [showResults, draftPicks.length]);
-
-  const togglePreset = (optionId) => {
-    if (showResults || submitting) return;
-    setDraftPicks((prev) => {
-      if (hasPickedPreset(prev, optionId)) {
-        return prev.filter((p) => !(p.kind === 'preset' && p.id === optionId));
-      }
-      if (prev.length >= VOTACION_MAX_VOTOS) return prev;
-      return [...prev, { kind: 'preset', id: optionId }];
+  const goLightboxPrev = useCallback(() => {
+    setLightboxFoto((prev) => {
+      if (!prev) return null;
+      const i = fotosFiltradas.findIndex((f) => f.id === prev.id);
+      if (i <= 0) return prev;
+      return fotosFiltradas[i - 1];
     });
-  };
+  }, [fotosFiltradas]);
 
-  const removeOtroPick = (text) => {
-    if (showResults || submitting) return;
-    setDraftPicks((prev) => prev.filter((p) => !(p.kind === 'otros' && p.text === text)));
-  };
+  const goLightboxNext = useCallback(() => {
+    setLightboxFoto((prev) => {
+      if (!prev) return null;
+      const i = fotosFiltradas.findIndex((f) => f.id === prev.id);
+      if (i < 0 || i >= fotosFiltradas.length - 1) return prev;
+      return fotosFiltradas[i + 1];
+    });
+  }, [fotosFiltradas]);
 
-  const handleConfirmOtro = (e) => {
-    e.preventDefault();
-    const trimmed = otrosDraft.trim().slice(0, VOTACION_OTROS_MAX_CHARS);
-    if (!trimmed.length) return;
-    if (showResults || submitting) return;
-    if (draftPicks.length >= VOTACION_MAX_VOTOS) return;
-    if (draftPicks.some((p) => p.kind === 'otros' && p.text === trimmed)) return;
+  const lightboxTouchStartRef = useRef({ x: 0, y: 0 });
+  const lightboxSwipeIgnoreRef = useRef(false);
 
-    setDraftPicks((prev) => [...prev, { kind: 'otros', text: trimmed }]);
-    setOtrosDraft('');
-    setOtrosFlipped(false);
-  };
-
-  const handleVerResultados = async () => {
-    if (showResults || submitting) return;
-    if (draftPicks.length < 1) return;
-    if (!isSupabaseConfigured) {
-      setError('Configurá Supabase en el entorno para enviar los votos.');
+  const onLightboxTouchStart = useCallback((e) => {
+    const t = e.target;
+    if (t instanceof Element && t.closest('button')) {
+      lightboxSwipeIgnoreRef.current = true;
       return;
     }
+    lightboxSwipeIgnoreRef.current = false;
+    const touch = e.touches[0];
+    if (!touch) return;
+    lightboxTouchStartRef.current = { x: touch.clientX, y: touch.clientY };
+  }, []);
 
-    setSubmitting(true);
-    setError('');
-    try {
-      for (const pick of draftPicks) {
-        if (pick.kind === 'preset') {
-          await incrementVoto(pick.id);
-        } else {
-          await incrementOtro(pick.text);
-        }
+  const onLightboxTouchEnd = useCallback(
+    (e) => {
+      if (lightboxSwipeIgnoreRef.current) {
+        lightboxSwipeIgnoreRef.current = false;
+        return;
       }
+      const touch = e.changedTouches[0];
+      if (!touch) return;
+      const dx = touch.clientX - lightboxTouchStartRef.current.x;
+      const dy = touch.clientY - lightboxTouchStartRef.current.y;
+      if (Math.abs(dx) < 48) return;
+      if (Math.abs(dx) < Math.abs(dy)) return;
+      if (dx < 0) goLightboxNext();
+      else goLightboxPrev();
+    },
+    [goLightboxNext, goLightboxPrev],
+  );
 
-      saveCompletedSessionPicks(draftPicks);
-      setResultsMode(true);
-      await refreshCounts();
+  const syncEstado = useCallback(async () => {
+    if (!isSupabaseConfigured) {
+      setLoading(false);
+      return;
+    }
+    try {
+      const [cuenta, ids] = await Promise.all([
+        fetchGaleriaMiCuenta(voterUuid),
+        fetchGaleriaMisFotos(voterUuid),
+      ]);
+      setMiTotal(cuenta);
+      setMisFotos(new Set(ids));
+      if (cuenta < VOTACION_GALERIA_MAX_VOTOS) {
+        clearGaleriaCompletedLocal();
+      }
+      if (cuenta >= VOTACION_GALERIA_MAX_VOTOS) {
+        setGaleriaCompletedLocal();
+        navigate('/resultados', { replace: true });
+      }
     } catch {
       setError(
-        'No se pudieron registrar los votos. Revisá las funciones RPC y RLS en Supabase.',
+        'No se pudieron cargar los datos. Revisá la migración SQL en Supabase (votacion_galeria).',
       );
-      await refreshCounts();
     } finally {
-      setSubmitting(false);
+      setLoading(false);
+    }
+  }, [navigate, voterUuid]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const h = await getPublicIpHashHex();
+        if (!cancelled) ipHashRef.current = h;
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    syncEstado();
+  }, [syncEstado]);
+
+  useEffect(() => {
+    const tick = () => setCountdownMs(getSorteoCountdownMs());
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    if (!lightboxFoto) return undefined;
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        setLightboxFoto(null);
+        return;
+      }
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        goLightboxPrev();
+        return;
+      }
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        goLightboxNext();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [lightboxFoto, goLightboxPrev, goLightboxNext]);
+
+  useEffect(() => {
+    if (!lightboxFoto) return;
+    if (!fotosFiltradas.some((f) => f.id === lightboxFoto.id)) {
+      setLightboxFoto(null);
+    }
+  }, [fotosFiltradas, lightboxFoto]);
+
+  const cupoLleno = miTotal >= VOTACION_GALERIA_MAX_VOTOS;
+
+  /**
+   * @param {GaleriaFoto} foto
+   */
+  const handleVotar = async (foto) => {
+    if (!foto || votingId || misFotos.has(foto.id) || cupoLleno) return;
+    if (!isSupabaseConfigured) {
+      setError('Configurá Supabase (VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY) para votar.');
+      return;
+    }
+    setVotingId(foto.id);
+    setError('');
+    try {
+      const ip = ipHashRef.current || (await getPublicIpHashHex());
+      ipHashRef.current = ip;
+      const res = await votarGaleriaFoto(voterUuid, foto.id, ip);
+      setMisFotos((prev) => new Set([...prev, foto.id]));
+      setMiTotal(res.mis_votos);
+      if (res.mis_votos >= VOTACION_GALERIA_MAX_VOTOS) {
+        setGaleriaCompletedLocal();
+        setLightboxFoto(null);
+      }
+    } catch (e) {
+      setError(mapRpcError(e));
+      await syncEstado();
+    } finally {
+      setVotingId('');
     }
   };
 
-  const closeOtrosFlip = () => {
-    setOtrosFlipped(false);
-    setOtrosDraft('');
+  const voteLabel = (fotoId) => {
+    if (misFotos.has(fotoId)) return 'Ya votaste';
+    if (cupoLleno) return 'Sin votos';
+    if (votingId === fotoId) return '…';
+    return 'Votar';
   };
 
-  const draftFull = draftPicks.length >= VOTACION_MAX_VOTOS;
+  const voteDisabled = (fotoId) =>
+    !isSupabaseConfigured || Boolean(votingId) || misFotos.has(fotoId) || cupoLleno;
 
-  const topRow = VOTACION_OPCIONES.slice(0, 3);
-  const bottomRow = [...VOTACION_OPCIONES.slice(3, 5), VOTACION_OTROS_CARD];
+  const puedeVerResultados = miTotal >= VOTACION_GALERIA_MAX_VOTOS;
 
-  const otrosFlipDisabled = showResults || submitting || draftFull;
-  const otrosOuterLocked = showResults || submitting;
-  const otrosPicked = otrosPickCount(draftPicks) > 0;
+  const lightboxIdx = useMemo(() => {
+    if (!lightboxFoto) return -1;
+    return fotosFiltradas.findIndex((f) => f.id === lightboxFoto.id);
+  }, [lightboxFoto, fotosFiltradas]);
 
-  const resultsOtrosSorted = useMemo(
-    () => [...otrosRows].sort((a, b) => (Number(b.votos) || 0) - (Number(a.votos) || 0)),
-    [otrosRows],
-  );
-
-  const draftOtrosTexts = useMemo(
-    () => draftPicks.filter((p) => p.kind === 'otros').map((p) => p.text),
-    [draftPicks],
-  );
+  const lightboxPuedeAnterior = lightboxIdx > 0;
+  const lightboxPuedeSiguiente =
+    lightboxIdx >= 0 && lightboxIdx < fotosFiltradas.length - 1;
 
   return (
     <>
@@ -278,258 +289,213 @@ export default function Votaciones() {
         }}
       />
       <div className={styles.page}>
-        {showResults ? (
-          <h1 className={styles.title}>Resultados</h1>
-        ) : (
-          <>
-            <h1 className={styles.title}>Próximos ingresos: Vos decidís.</h1>
-            <p className={styles.subtitle}>
-              Queremos que la tienda tenga exactamente lo que buscás. Votá por tus productos favoritos (o sugerí uno nuevo).
-            </p>
-          </>
-        )}
+        <header className={styles.heroBanner}>
+          <h1 className={styles.heroTitle}>SORTEO EXPRESS 24HS</h1>
+          <p className={styles.heroTimer} aria-live="polite">{formatCountdown(countdownMs)}</p>
+          <p className={styles.heroSubtitle}>VOTA A TUS 5 FAVORITOS</p>
+          <p className={styles.heroTagline}>15 PREMIOS SELECCIONADOS DE NUESTRO OUTLET</p>
+        </header>
 
-        {!showResults && (
-          <p className={styles.hint}>
-            Seleccionados: {draftPicks.length} / {VOTACION_MAX_VOTOS}
-          </p>
-        )}
+        <p className={styles.hint}>
+          Tus votos: {miTotal} / {VOTACION_GALERIA_MAX_VOTOS}
+        </p>
+
+        <div className={styles.searchWrap}>
+          <span className={styles.searchIcon} aria-hidden>
+            <svg viewBox="0 0 24 24" width="20" height="20">
+              <circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" strokeWidth="2" />
+              <path
+                d="M16 16l4.5 4.5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+            </svg>
+          </span>
+          <input
+            type="search"
+            className={styles.searchInput}
+            value={filtroNombre}
+            onChange={(e) => setFiltroNombre(e.target.value)}
+            placeholder="Buscar por nombre…"
+            autoComplete="off"
+            spellCheck={false}
+            aria-label="Filtrar participantes por nombre"
+          />
+        </div>
+
+        <p className={styles.participantCount}>
+          Cantidad de participantes ({fotosFiltradas.length})
+        </p>
 
         {!isSupabaseConfigured ? (
           <div className={styles.infoBox} role="status">
             Vista previa sin Supabase: definí <code>VITE_SUPABASE_URL</code> y{' '}
-            <code>VITE_SUPABASE_ANON_KEY</code> en el entorno (p. ej. Vercel) para guardar votos en vivo.
+            <code>VITE_SUPABASE_ANON_KEY</code> para guardar votos.
           </div>
         ) : null}
 
         {error ? <div className={styles.errorBox} role="alert">{error}</div> : null}
 
         {loading ? (
-          <div className={styles.loading}>Cargando conteos…</div>
-        ) : null}
-
-        {!showResults && (
+          <div className={styles.loading}>Cargando…</div>
+        ) : (
           <>
-            <div className={styles.grid} aria-busy={submitting}>
-              {topRow.map((opt) => {
-                const picked = hasPickedPreset(draftPicks, opt.id);
-                return (
+            <div className={styles.grid}>
+              {fotosFiltradas.map((f) => (
+                <article key={f.id} className={styles.card}>
                   <button
-                    key={opt.id}
                     type="button"
-                    className={`${styles.card} ${styles.cardTop} ${picked ? styles.cardPicked : ''}`.trim()}
-                    onClick={() => togglePreset(opt.id)}
-                    disabled={showResults || submitting}
+                    className={styles.cardMediaBtn}
+                    onClick={() => setLightboxFoto(f)}
+                    aria-label={`Ampliar: ${f.titulo}`}
                   >
                     <div className={styles.cardMedia}>
                       <img
-                        className={`${styles.cardImg} ${picked ? styles.cardImgPicked : ''}`.trim()}
-                        src={opt.imagen}
+                        className={`${styles.cardImg} ${misFotos.has(f.id) ? styles.cardImgVoted : ''}`.trim()}
+                        src={f.src}
                         alt=""
                         loading="lazy"
                       />
-                      {picked ? (
+                      {misFotos.has(f.id) ? (
                         <span className={styles.cardCheckOverlay} aria-hidden>✓</span>
                       ) : null}
                     </div>
-                    <div className={styles.cardBody}>
-                      <h2 className={styles.cardTitle}>{opt.titulo}</h2>
-                    </div>
                   </button>
-                );
-              })}
-              {bottomRow.map((opt) => (
-                opt.id === VOTACION_OTROS_CARD.id ? (
-                  <div
-                    key={opt.id}
-                    className={`${styles.flipWrap} ${styles.cardBottom}`.trim()}
-                  >
-                    <div
-                      className={`${styles.flipOuter} ${otrosPicked ? styles.flipOuterPicked : ''} ${otrosOuterLocked ? styles.flipOuterDisabled : ''}`.trim()}
+                  <div className={styles.cardBody}>
+                    <h2 className={styles.cardTitle}>{f.titulo}</h2>
+                    <button
+                      type="button"
+                      className={styles.cardVoteBtn}
+                      onClick={() => handleVotar(f)}
+                      disabled={voteDisabled(f.id)}
                     >
-                      <div
-                        className={`${styles.flipInner} ${otrosFlipped ? styles.flipInnerActive : ''}`.trim()}
-                      >
-                        <div className={`${styles.flipFace} ${styles.flipFront}`}>
-                          <div className={styles.flipFrontStack}>
-                            <button
-                              type="button"
-                              className={styles.flipFrontBtn}
-                              disabled={otrosFlipDisabled}
-                              onClick={() => {
-                                if (!otrosFlipDisabled) setOtrosFlipped(true);
-                              }}
-                            >
-                              <div className={styles.cardMedia}>
-                                <img
-                                  className={`${styles.cardImg} ${otrosPicked ? styles.cardImgPicked : ''}`.trim()}
-                                  src={opt.imagen}
-                                  alt=""
-                                  loading="lazy"
-                                />
-                                {otrosPicked ? (
-                                  <span className={styles.cardCheckOverlay} aria-hidden>✓</span>
-                                ) : null}
-                              </div>
-                              <div className={styles.cardBody}>
-                                <h2 className={styles.cardTitle}>{opt.titulo}</h2>
-                                {!otrosPicked ? (
-                                  <span className={styles.otrosFrontHint}>Tocá para indicar</span>
-                                ) : null}
-                              </div>
-                            </button>
-                            {draftOtrosTexts.length > 0 ? (
-                              <div className={styles.otrosChips}>
-                                {draftOtrosTexts.map((t) => (
-                                  <span key={t} className={styles.otrosChip}>
-                                    <span className={styles.otrosChipText}>{t}</span>
-                                    <button
-                                      type="button"
-                                      className={styles.otrosChipRemove}
-                                      disabled={submitting}
-                                      onClick={() => removeOtroPick(t)}
-                                      aria-label={`Quitar «${t}»`}
-                                    >
-                                      ×
-                                    </button>
-                                  </span>
-                                ))}
-                              </div>
-                            ) : null}
-                          </div>
-                        </div>
-                        <div
-                          className={`${styles.flipFace} ${styles.flipBack}`}
-                          style={{
-                            '--otros-card-bg': `url(${JSON.stringify(opt.imagen)})`,
-                          }}
-                        >
-                          <p className={styles.otrosLabel}>¿Qué traemos?</p>
-                          <form onSubmit={handleConfirmOtro}>
-                            <input
-                              ref={otrosInputRef}
-                              className={styles.otrosInput}
-                              type="text"
-                              maxLength={VOTACION_OTROS_MAX_CHARS}
-                              value={otrosDraft}
-                              onChange={(ev) => setOtrosDraft(ev.target.value.slice(0, VOTACION_OTROS_MAX_CHARS))}
-                              placeholder={otrosPlaceholder}
-                              autoComplete="off"
-                              disabled={submitting}
-                              aria-label="Qué productos te gustaría que traigamos"
-                            />
-                            <p className={styles.otrosCharCount}>
-                              {otrosDraft.length}/{VOTACION_OTROS_MAX_CHARS}
-                            </p>
-                            <div className={styles.otrosActions}>
-                              <button
-                                type="button"
-                                className={styles.otrosBtnGhost}
-                                onClick={closeOtrosFlip}
-                                disabled={submitting}
-                              >
-                                Volver
-                              </button>
-                              <button
-                                type="submit"
-                                className={styles.otrosBtnPrimary}
-                                disabled={
-                                  submitting
-                                  || !otrosDraft.trim()
-                                  || draftPicks.length >= VOTACION_MAX_VOTOS
-                                }
-                              >
-                                Agregar selección
-                              </button>
-                            </div>
-                          </form>
-                        </div>
-                      </div>
-                    </div>
+                      {voteLabel(f.id)}
+                    </button>
                   </div>
-                ) : (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    className={`${styles.card} ${styles.cardBottom} ${hasPickedPreset(draftPicks, opt.id) ? styles.cardPicked : ''}`.trim()}
-                    onClick={() => togglePreset(opt.id)}
-                    disabled={showResults || submitting}
-                  >
-                    <div className={styles.cardMedia}>
-                      <img
-                        className={`${styles.cardImg} ${hasPickedPreset(draftPicks, opt.id) ? styles.cardImgPicked : ''}`.trim()}
-                        src={opt.imagen}
-                        alt=""
-                        loading="lazy"
-                      />
-                      {hasPickedPreset(draftPicks, opt.id) ? (
-                        <span className={styles.cardCheckOverlay} aria-hidden>✓</span>
-                      ) : null}
-                    </div>
-                    <div className={styles.cardBody}>
-                      <h2 className={styles.cardTitle}>{opt.titulo}</h2>
-                    </div>
-                  </button>
-                )
+                </article>
               ))}
             </div>
 
-            <div className={styles.verResultadosWrap}>
-              <button
-                type="button"
-                className={styles.verResultadosBtn}
-                onClick={handleVerResultados}
-                disabled={draftPicks.length < 1 || submitting}
-              >
-                {submitting ? 'Enviando…' : 'Ver resultados'}
-              </button>
+            {fotosFiltradas.length === 0 ? (
+              <p className={styles.searchEmpty} role="status">
+                No hay participantes que coincidan con la búsqueda.
+              </p>
+            ) : null}
+
+            <div className={styles.actions}>
+              {puedeVerResultados ? (
+                <Link className={styles.resultadosLink} to="/resultados">
+                  Ver resultados
+                </Link>
+              ) : (
+                <span
+                  className={`${styles.resultadosLink} ${styles.resultadosLinkLocked}`.trim()}
+                  aria-disabled="true"
+                  title="Completá tus 5 votos para ver resultados"
+                >
+                  Ver resultados
+                </span>
+              )}
             </div>
+
+            <p className={styles.conditionsNote}>
+              Condiciones: El envio queda a cargo del ganador.
+            </p>
+            <p className={styles.conditionsNote}>
+              La selección del mousepad será a elección de los participantes, se priorizarán a los ganadores que enviaron primero su foto.
+            </p>
           </>
         )}
-
-        {showResults && (
-          <div className={styles.resultsBlock}>
-            <h2 className={styles.resultsTitle}>Esto es lo que quiere la gente</h2>
-            {VOTACION_OPCIONES.map((opt) => {
-              const n = Number(presetCounts[opt.id]) || 0;
-              const pct = totalVotos > 0 ? Math.round((n / totalVotos) * 1000) / 10 : 0;
-              return (
-                <div key={opt.id} className={styles.barRow}>
-                  <div className={styles.barLabel}>{opt.titulo}</div>
-                  <div className={styles.barTrack} aria-hidden="true">
-                    <div
-                      className={styles.barFill}
-                      style={{ width: `${totalVotos > 0 ? (n / totalVotos) * 100 : 0}%` }}
-                    />
-                  </div>
-                  <div className={styles.barStats}>
-                    {pct}% · {n} {n === 1 ? 'voto' : 'votos'}
-                  </div>
-                </div>
-              );
-            })}
-            {resultsOtrosSorted.map((row) => {
-              const n = Number(row.votos) || 0;
-              const pct = totalVotos > 0 ? Math.round((n / totalVotos) * 1000) / 10 : 0;
-              const label = `Otros (“${row.texto}”)`;
-              return (
-                <div key={`otros-${row.texto}`} className={styles.barRow}>
-                  <div className={styles.barLabel}>{label}</div>
-                  <div className={styles.barTrack} aria-hidden="true">
-                    <div
-                      className={styles.barFill}
-                      style={{ width: `${totalVotos > 0 ? (n / totalVotos) * 100 : 0}%` }}
-                    />
-                  </div>
-                  <div className={styles.barStats}>
-                    {pct}% · {n} {n === 1 ? 'voto' : 'votos'}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
       </div>
+
+      {lightboxFoto ? (
+        <div
+          className={styles.lightbox}
+          role="presentation"
+          onClick={() => setLightboxFoto(null)}
+        >
+          <div
+            className={styles.lightboxRow}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              className={styles.lightboxArrow}
+              onClick={() => goLightboxPrev()}
+              disabled={!lightboxPuedeAnterior}
+              aria-label="Participante anterior"
+            >
+              <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden>
+                <path
+                  d="M15 6l-6 6 6 6"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+            <div
+              className={styles.lightboxDialog}
+              role="dialog"
+              aria-modal="true"
+              aria-label={lightboxFoto.titulo}
+              onTouchStart={onLightboxTouchStart}
+              onTouchEnd={onLightboxTouchEnd}
+            >
+              <button
+                type="button"
+                className={styles.lightboxClose}
+                onClick={() => setLightboxFoto(null)}
+                aria-label="Cerrar"
+              >
+                ×
+              </button>
+              <div className={styles.lightboxCardInner}>
+                <div className={styles.lightboxMediaBlock}>
+                  <p className={styles.lightboxCaption}>{lightboxFoto.titulo}</p>
+                  <div className={styles.lightboxFigure}>
+                    <img
+                      className={styles.lightboxImg}
+                      src={lightboxFoto.src}
+                      alt=""
+                    />
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className={styles.voteBtn}
+                  onClick={() => handleVotar(lightboxFoto)}
+                  disabled={voteDisabled(lightboxFoto.id)}
+                >
+                  {voteLabel(lightboxFoto.id)}
+                </button>
+              </div>
+            </div>
+            <button
+              type="button"
+              className={styles.lightboxArrow}
+              onClick={() => goLightboxNext()}
+              disabled={!lightboxPuedeSiguiente}
+              aria-label="Participante siguiente"
+            >
+              <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden>
+                <path
+                  d="M9 6l6 6-6 6"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }

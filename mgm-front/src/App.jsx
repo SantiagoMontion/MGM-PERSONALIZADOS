@@ -25,7 +25,8 @@ function resolveCurrentStep(pathname) {
 function resolveDocumentTitle(pathname) {
   if (pathname === '/') return 'Mousepad Personalizado a Medida | Calidad Gamer y Profesional | NOTMID';
   if (pathname.startsWith('/mockup')) return 'Vista previa del mousepad | NOTMID';
-  if (pathname.startsWith('/votaciones')) return 'Próximos ingresos: Vos decidís. | NOTMID';
+  if (pathname.startsWith('/votaciones')) return 'Sorteo Express 24hs | NOTMID';
+  if (pathname.startsWith('/resultados')) return 'Resultados de la votación | NOTMID';
   return '';
 }
 

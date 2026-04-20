@@ -1,48 +1,65 @@
-import foto1 from '../icons/Foto1.jpeg';
-import foto2 from '../icons/Foto2.jpeg';
-import foto3 from '../icons/Foto3.jpeg';
-import foto4 from '../icons/Foto4.jpeg';
-import foto5 from '../icons/Foto5.jpeg';
-import foto6 from '../icons/Foto6.jpeg';
+/**
+ * Galería de votación: colocá las imágenes en `src/votaciones/`.
+ *
+ * Convención de nombre de archivo:
+ *   `<orden>.<instagram>.<ext>`
+ * El handle puede incluir puntos (ej. `39.the_fran.exe.jpeg`).
+ * Ejemplos: `1.romanborque.jpg`, `2.elbuendmitry.webp`
+ * - El número antes del primer punto define el orden y el id en Supabase: `foto_<orden>`.
+ * - El texto entre el primer y el segundo punto es el handle; en la UI se muestra como @handle
+ *   (si ya empieza con @, se deja igual).
+ *
+ * Formatos: jpg, jpeg, png, webp. Podés tener tantas fotos como archivos válidos (hasta el límite
+ * de filas en `votacion_galeria_fotos` en Supabase; migración extendida hasta foto_200).
+ */
 
-/** IDs = filas en `votacion_opciones` (script SQL). Imágenes: `src/icons/Foto1.jpeg` … `Foto6.jpeg`. */
-export const VOTACION_OPCIONES = [
-  {
-    id: 'opt_a',
-    titulo: 'Keycaps',
-    imagen: foto1,
-  },
-  {
-    id: 'opt_b',
-    titulo: 'Gabinetes',
-    imagen: foto2,
-  },
-  {
-    id: 'opt_c',
-    titulo: 'Mouse pad de silicona',
-    imagen: foto3,
-  },
-  {
-    id: 'opt_d',
-    titulo: 'Mangas de poliéster',
-    imagen: foto4,
-  },
-  {
-    id: 'opt_e',
-    titulo: 'Barra de luz para PC',
-    imagen: foto5,
-  },
-];
+const FILENAME_RE = /^(\d+)\.(.+)\.(jpe?g|png|webp)$/i;
 
-/** Tarjeta UI; votos en `votacion_otros`. */
-export const VOTACION_OTROS_CARD = {
-  id: 'opt_otros_ui',
-  titulo: 'Otros',
-  imagen: foto6,
-};
+/**
+ * @param {Record<string, { default?: string } | string>} modules
+ * @returns {{ id: string, titulo: string, src: string }[]}
+ */
+function buildGaleriaFotosFromFolder(modules) {
+  /** @type {Map<number, { order: number, handle: string, src: string }>} */
+  const byOrder = new Map();
 
-export const VOTACION_MAX_VOTOS = 3;
+  for (const [path, mod] of Object.entries(modules)) {
+    const base = path.split(/[/\\]/).pop() ?? '';
+    const m = base.match(FILENAME_RE);
+    if (!m) continue;
 
-export const VOTACION_OTROS_MAX_CHARS = 40;
+    const order = Number(m[1], 10);
+    const handle = (m[2] || '').trim();
+    if (!Number.isFinite(order) || order < 1 || !handle) continue;
 
-export const VOTACION_SESSION_KEY = 'mgm_votaciones_session_v2';
+    const raw = mod && typeof mod === 'object' && 'default' in mod ? mod.default : mod;
+    const src = typeof raw === 'string' ? raw : '';
+    if (!src) continue;
+
+    if (byOrder.has(order)) continue;
+
+    byOrder.set(order, { order, handle, src });
+  }
+
+  return [...byOrder.keys()]
+    .sort((a, b) => a - b)
+    .map((order) => {
+      const row = byOrder.get(order);
+      const handle = row.handle;
+      const titulo = handle.startsWith('@') ? handle : `@${handle}`;
+      return {
+        id: `foto_${order}`,
+        titulo,
+        src: row.src,
+      };
+    });
+}
+
+const galeriaModules = import.meta.glob('../votaciones/*.{jpg,jpeg,png,webp}', {
+  eager: true,
+});
+
+export const VOTACION_GALERIA_FOTOS = buildGaleriaFotosFromFolder(galeriaModules);
+
+/** Máximo de fotos distintas que puede votar cada usuario. */
+export const VOTACION_GALERIA_MAX_VOTOS = 5;

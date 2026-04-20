@@ -4512,7 +4512,7 @@ export default function Home() {
                         <button
                           id="step-one-size-select"
                           type="button"
-                          className={`${styles.stepOneSizeTrigger} ${isStepOneSizeMenuOpen ? styles.stepOneSizeTriggerOpen : ''}`.trim()}
+                          className={`${styles.stepOneSizeTrigger} ${isDarkMode ? styles.stepOneSizeTriggerDark : styles.stepOneSizeTriggerLight} ${isStepOneSizeMenuOpen ? styles.stepOneSizeTriggerOpen : ''}`.trim()}
                           aria-haspopup="listbox"
                           aria-expanded={isStepOneSizeMenuOpen}
                           aria-controls="step-one-size-menu"
@@ -4555,7 +4555,7 @@ export default function Home() {
                         {isStepOneSizeMenuOpen && (
                           <div
                             id="step-one-size-menu"
-                            className={styles.stepOneSizeMenu}
+                            className={`${styles.stepOneSizeMenu} ${isDarkMode ? styles.stepOneSizeMenuDark : ''}`.trim()}
                             role="listbox"
                             aria-labelledby="step-one-size-label"
                           >
@@ -4637,7 +4637,7 @@ export default function Home() {
                         <button
                           id="step-one-material-select"
                           type="button"
-                          className={`${styles.stepOneSizeTrigger} ${isStepOneMaterialMenuOpen ? styles.stepOneSizeTriggerOpen : ''}`.trim()}
+                          className={`${styles.stepOneSizeTrigger} ${isDarkMode ? styles.stepOneSizeTriggerDark : styles.stepOneSizeTriggerLight} ${isStepOneMaterialMenuOpen ? styles.stepOneSizeTriggerOpen : ''}`.trim()}
                           aria-haspopup="listbox"
                           aria-expanded={isStepOneMaterialMenuOpen}
                           aria-controls="step-one-material-menu"
@@ -4686,7 +4686,7 @@ export default function Home() {
                         {isStepOneMaterialMenuOpen && (
                           <div
                             id="step-one-material-menu"
-                            className={styles.stepOneSizeMenu}
+                            className={`${styles.stepOneSizeMenu} ${isDarkMode ? styles.stepOneSizeMenuDark : ''}`.trim()}
                             role="listbox"
                             aria-labelledby="step-one-material-label"
                           >
@@ -4760,7 +4760,7 @@ export default function Home() {
                         limits={customSizeLimits}
                         onChange={handleCustomSizeChange}
                         disabled={isStepOneCustomSizePanelCollapsible && !isStepOneCustomSizePanelVisible}
-                        className={styles.stepOneCustomSizeFields}
+                        className={`${styles.stepOneCustomSizeFields} ${isDarkMode ? styles.stepOneCustomSizeFieldsDark : ''}`.trim()}
                       />
                     </div>
                   )}
@@ -4825,7 +4825,7 @@ export default function Home() {
                       className={styles.stepOneHiddenInput}
                       onChange={handleStepOneInputChange}
                     />
-                    <div className={`${styles.stepOneFooterBar} ${!isDarkMode ? styles.stepOneFooterBarLight : ''}`.trim()}>
+                    <div className={`${styles.stepOneFooterBar} ${isDarkMode ? styles.stepOneFooterBarDark : styles.stepOneFooterBarLight}`.trim()}>
                       <div className={styles.stepOneFooterPriceBlock}>
                         <span className={`${styles.stepOneFooterPrice} ${!isDarkMode ? styles.stepOneFooterPriceLight : ''}`.trim()}>$ {stepOneFormattedPriceAmount}</span>
                         <span className={`${styles.stepOneFooterPriceCaption} ${!isDarkMode ? styles.stepOneFooterPriceCaptionLight : ''}`.trim()}>Total según configuración</span>

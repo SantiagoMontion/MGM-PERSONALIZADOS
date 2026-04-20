@@ -1,0 +1,288 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  max-width: 900px;
+  margin-inline: auto;
+  padding: var(--space-6) var(--space-4) var(--space-10);
+  box-sizing: border-box;
+}
+
+.title {
+  margin: 0 0 var(--space-2);
+  text-align: center;
+  color: var(--foreground);
+  font-size: clamp(var(--fs-2xl), 4vw, var(--fs-3xl));
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.lead {
+  margin: 0 auto var(--space-6);
+  max-width: 40rem;
+  text-align: center;
+  color: var(--foreground-secondary);
+  font-size: var(--fs-base);
+  line-height: 1.5;
+}
+
+.note {
+  margin: 0 auto var(--space-5);
+  max-width: 36rem;
+  text-align: center;
+  font-size: var(--fs-sm);
+  color: #e9b949;
+  font-weight: 600;
+}
+
+html.light .note,
+body.light .note {
+  color: #b8860b;
+}
+
+.resultsBlock {
+  width: 100%;
+}
+
+.barRow {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  gap: var(--space-2) var(--space-3);
+  align-items: start;
+  margin-block-end: var(--space-4);
+}
+
+.thumbBtn {
+  grid-column: 1;
+  grid-row: 1 / -1;
+  align-self: center;
+  width: 4.5rem;
+  height: 4.5rem;
+  padding: 0;
+  border: calc(var(--space-1) / 4) solid var(--border-default);
+  border-radius: var(--radius-card);
+  background: color-mix(in srgb, var(--foreground) 5%, var(--surface));
+  cursor: zoom-in;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.thumbBtn:hover {
+  border-color: color-mix(in srgb, var(--brand-primary) 45%, var(--border-default));
+}
+
+.thumbBtn:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
+}
+
+.thumbImg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+.barLabel {
+  grid-column: 2;
+  grid-row: 1;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--foreground);
+  line-height: 1.3;
+  min-width: 0;
+}
+
+.barTrack {
+  grid-column: 2;
+  grid-row: 2;
+  height: 32px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--foreground) 8%, var(--surface));
+  overflow: hidden;
+  border: calc(var(--space-1) / 4) solid var(--border-default);
+  min-width: 0;
+}
+
+.barFill {
+  height: 100%;
+  min-width: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--brand-primary) 85%, transparent),
+    color-mix(in srgb, var(--brand-primary) 55%, var(--foreground))
+  );
+  transition: width 0.35s ease;
+}
+
+.barStats {
+  grid-column: 3;
+  grid-row: 1;
+  align-self: start;
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--foreground-secondary);
+  white-space: nowrap;
+  text-align: end;
+}
+
+@media (max-width: 640px) {
+  .barRow {
+    grid-template-columns: 3.25rem minmax(0, 1fr);
+    grid-template-rows: auto auto auto;
+    gap: var(--space-2);
+  }
+
+  .thumbBtn {
+    grid-column: 1;
+    grid-row: 1 / 3;
+    align-self: start;
+    width: 3.25rem;
+    height: 3.25rem;
+  }
+
+  .barLabel {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .barStats {
+    grid-column: 2;
+    grid-row: 2;
+    text-align: start;
+    white-space: normal;
+  }
+
+  .barTrack {
+    grid-column: 1 / -1;
+    grid-row: 3;
+  }
+}
+
+.errorBox {
+  margin-block-end: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-card);
+  background: color-mix(in srgb, #ef4444 12%, var(--surface));
+  border: 1px solid color-mix(in srgb, #ef4444 35%, var(--border-default));
+  color: var(--foreground);
+  font-size: var(--fs-sm);
+}
+
+.infoBox {
+  margin-block-end: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-card);
+  background: color-mix(in srgb, var(--brand-primary) 10%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--brand-primary) 28%, var(--border-default));
+  color: var(--foreground-secondary);
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+}
+
+.loading {
+  text-align: center;
+  color: var(--foreground-secondary);
+  font-size: var(--fs-sm);
+  padding: var(--space-6);
+}
+
+.footerNav {
+  margin-block-start: var(--space-8);
+  display: flex;
+  justify-content: center;
+}
+
+.backLink {
+  color: var(--foreground-secondary);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.backLink:hover {
+  color: var(--foreground);
+}
+
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background: color-mix(in srgb, #000 72%, transparent);
+  box-sizing: border-box;
+  cursor: zoom-out;
+}
+
+.lightboxDialog {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  max-width: min(100%, 920px);
+  max-height: min(92dvh, 900px);
+  padding: var(--space-4);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  border: 1px solid var(--border-default);
+  cursor: default;
+  overflow: auto;
+}
+
+.lightboxClose {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  width: 2.5rem;
+  height: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-card);
+  background: color-mix(in srgb, var(--foreground) 10%, transparent);
+  color: var(--foreground);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 2;
+}
+
+.lightboxClose:hover {
+  background: color-mix(in srgb, var(--foreground) 16%, transparent);
+}
+
+.lightboxFigure {
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-block-start: var(--space-6);
+}
+
+.lightboxImg {
+  display: block;
+  max-width: 100%;
+  max-height: min(65dvh, 560px);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
+.lightboxCaption {
+  margin: 0;
+  text-align: center;
+  font-size: var(--fs-base);
+  font-weight: 600;
+  color: var(--foreground);
+}

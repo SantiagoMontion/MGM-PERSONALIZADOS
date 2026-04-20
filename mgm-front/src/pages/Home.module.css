@@ -1259,9 +1259,27 @@
   box-shadow: none;
 }
 
+/* Dark: mismo gris sólido que la barra de precio */
+.stepOneSizeTriggerDark {
+  background: #1c1c1c;
+  border-color: rgba(255, 255, 255, 0.09);
+  box-shadow: none;
+}
+
+.stepOneSizeTriggerLight {
+  background: #e8e8ec;
+  border-color: color-mix(in srgb, var(--border-default) 88%, #0f172a 12%);
+  box-shadow: none;
+}
+
 .stepOneSizeTriggerOpen {
   border-color: var(--border-hover);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--border-hover) 55%, transparent);
+}
+
+.stepOneSizeTriggerDark.stepOneSizeTriggerOpen {
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06);
 }
 
 .stepOneSizeTriggerBody {
@@ -1384,6 +1402,13 @@
   overflow: hidden;
 }
 
+/* Mismo #1c1c1c que .stepOneSizeTriggerDark (modo oscuro; clase en Home.jsx) */
+.stepOneSizeMenuDark {
+  background: #1c1c1c;
+  border-color: rgba(255, 255, 255, 0.09);
+  box-shadow: 0 var(--space-4) var(--space-8) rgba(0, 0, 0, 0.55);
+}
+
 .stepOneSizeOption {
   display: flex;
   align-items: center;
@@ -1479,6 +1504,12 @@
 
 .stepOneCustomSizeFields.stepOneCustomSizeFields {
   background: transparent;
+}
+
+/* Mismo #1c1c1c que triggers / dropdowns paso 1 (modo oscuro) */
+.stepOneCustomSizeFields.stepOneCustomSizeFields.stepOneCustomSizeFieldsDark {
+  background: #1c1c1c;
+  border-color: rgba(255, 255, 255, 0.09);
 }
 
 .stepOneCustomSizeFields.stepOneCustomSizeFields label > span:last-child {
@@ -1829,21 +1860,28 @@
   inline-size: 100%;
   padding: 18px 20px;
   border-radius: 24px;
-  background: var(--nm-footer-bg);
   border: 1px solid var(--nm-on-dark-08);
   box-shadow: var(--nm-shadow-footer);
 }
 
+/* Mismo tono que .stepOneSizeTriggerDark (después de .stepOneFooterBar para ganar en border) */
+.stepOneFooterBarDark {
+  background: #1c1c1c;
+  border-color: rgba(255, 255, 255, 0.09);
+  box-shadow: var(--nm-shadow-footer);
+}
+
 .stepOneFooterBarLight {
-  background: #f4f4f4;
-  border-color: color-mix(in srgb, var(--nm-guide-primary) 8%, transparent);
+  /* Light: gris más neutro que el blanco roto anterior */
+  background: #e4e4e7;
+  border-color: color-mix(in srgb, var(--nm-guide-primary) 12%, transparent);
   box-shadow: var(--nm-shadow-footer-light);
 }
 
-/* Si por alguna razón no se aplica la clase *Light*, en light igual forzamos el fondo */
-html.light .stepOneFooterBar,
-body.light .stepOneFooterBar {
-  background: #f4f4f4 !important;
+/* Refuerzo si falta la clase Light pero el documento está en tema claro */
+html.light .stepOneFooterBar:not(.stepOneFooterBarDark),
+body.light .stepOneFooterBar:not(.stepOneFooterBarDark) {
+  background: #e4e4e7 !important;
 }
 
 .stepOneFooterPriceBlock {
@@ -4612,11 +4650,10 @@ body.light .stepTwoContainColorLabel {
     border-radius: 22px;
     position: relative;
     z-index: 11;
-    background: var(--nm-step-two-footer-bg);
   }
 
   .stepOneFooterBarLight {
-    background: var(--nm-white);
+    background: #e4e4e7;
   }
 
   .stepPrimaryAction {

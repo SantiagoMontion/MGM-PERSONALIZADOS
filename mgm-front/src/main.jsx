@@ -20,6 +20,7 @@ import Tutorial from './pages/Tutorial.jsx';
 import Bridge from './pages/Bridge.jsx';
 import OrderTracking from './pages/OrderTracking.jsx';
 import Votaciones from './pages/Votaciones.jsx';
+import ResultadosVotaciones from './pages/ResultadosVotaciones.jsx';
 import NotFound, { NotFoundBoundary } from './pages/NotFound.jsx';
 import { OrderFlowProvider } from './store/orderFlow';
 import { FlowProvider } from './state/flow.js';
@@ -56,6 +57,7 @@ const routes = [
       { path: '/seguimiento/:orderId', element: <OrderTracking /> },
       { path: '/calculadora', element: <CalculadoraPage /> },
       { path: '/votaciones', element: <Votaciones /> },
+      { path: '/resultados', element: <ResultadosVotaciones /> },
       { path: '/creating/:jobId', element: <Creating /> },
       { path: '/result/:jobId', element: <Result /> },
       { path: '/admin/analytics', element: <AdminAnalyticsPage /> },

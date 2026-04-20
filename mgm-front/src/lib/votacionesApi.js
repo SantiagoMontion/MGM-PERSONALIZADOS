@@ -1,68 +1,93 @@
 import { supa } from './supa.js';
 
 /**
- * @returns {Promise<{ presets: Record<string, number>, otros: { texto: string, votos: number }[] }>}
+ * @returns {Promise<{ id: string, votos: number, sort_order: number }[]>}
  */
-export async function fetchVotacionCounts() {
-  if (!supa) return { presets: {}, otros: [] };
+export async function fetchGaleriaCounts() {
+  if (!supa) return [];
 
-  const [r1, r2] = await Promise.all([
-    supa.from('votacion_opciones').select('id, votos'),
-    supa.from('votacion_otros').select('texto, votos'),
-  ]);
+  const { data, error } = await supa
+    .from('votacion_galeria_fotos')
+    .select('id, votos, sort_order')
+    .order('sort_order', { ascending: true });
 
-  if (r1.error) throw r1.error;
-  if (r2.error) throw r2.error;
-
-  const presets = {};
-  for (const row of r1.data || []) {
-    presets[row.id] = Number(row.votos) || 0;
-  }
-  const otros = (r2.data || []).map((row) => ({
-    texto: String(row.texto || ''),
+  if (error) throw error;
+  return (data || []).map((row) => ({
+    id: String(row.id),
     votos: Number(row.votos) || 0,
+    sort_order: Number(row.sort_order) || 0,
   }));
-  return { presets, otros };
 }
 
 /**
- * @param {string} optionId
- * @returns {Promise<number>} nuevo total
+ * @param {string} voterUuid
+ * @returns {Promise<number>}
  */
-export async function incrementVoto(optionId) {
+export async function fetchGaleriaMiCuenta(voterUuid) {
+  if (!supa) return 0;
+
+  const { data, error } = await supa.rpc('votacion_galeria_mi_cuenta', {
+    p_voter_uuid: voterUuid,
+  });
+
+  if (error) throw error;
+  return Number(data) || 0;
+}
+
+/**
+ * @param {string} voterUuid
+ * @returns {Promise<string[]>}
+ */
+export async function fetchGaleriaMisFotos(voterUuid) {
+  if (!supa) return [];
+
+  const { data, error } = await supa.rpc('votacion_galeria_mis_votos', {
+    p_voter_uuid: voterUuid,
+  });
+
+  if (error) throw error;
+  if (data == null) return [];
+  if (Array.isArray(data)) return data.map((x) => String(x));
+  if (typeof data === 'string') {
+    try {
+      const parsed = JSON.parse(data);
+      return Array.isArray(parsed) ? parsed.map((x) => String(x)) : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+/**
+ * @param {string} voterUuid
+ * @param {string} fotoId
+ * @param {string} ipHashHex — puede ser '' si no se pudo obtener IP
+ * @returns {Promise<{ votos: number, mis_votos: number }>}
+ */
+export async function votarGaleriaFoto(voterUuid, fotoId, ipHashHex) {
   if (!supa) {
     throw new Error('supabase_not_configured');
   }
 
-  const { data, error } = await supa.rpc('increment_voto', {
-    p_opcion_id: optionId,
+  const { data, error } = await supa.rpc('votacion_galeria_votar', {
+    p_voter_uuid: voterUuid,
+    p_foto_id: fotoId,
+    p_ip_hash: ipHashHex || null,
   });
 
   if (error) throw error;
-  const n = Number(data);
-  if (!Number.isFinite(n)) {
-    throw new Error('rpc_invalid_response');
+  let o = data;
+  if (typeof o === 'string') {
+    try {
+      o = JSON.parse(o);
+    } catch {
+      o = {};
+    }
   }
-  return n;
-}
-
-/**
- * @param {string} texto — 1–40 caracteres tras trim
- * @returns {Promise<number>} nuevo total para ese texto
- */
-export async function incrementOtro(texto) {
-  if (!supa) {
-    throw new Error('supabase_not_configured');
-  }
-
-  const { data, error } = await supa.rpc('increment_otro', {
-    p_texto: texto,
-  });
-
-  if (error) throw error;
-  const n = Number(data);
-  if (!Number.isFinite(n)) {
-    throw new Error('rpc_invalid_response');
-  }
-  return n;
+  if (!o || typeof o !== 'object') o = {};
+  return {
+    votos: Number(o.votos) || 0,
+    mis_votos: Number(o.mis_votos) || 0,
+  };
 }
