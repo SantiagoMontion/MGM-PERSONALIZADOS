@@ -8,3 +8,12 @@ mgm-front/public/icons/*.png -filter -diff -merge
 # Imágenes de votación: sin LFS (evita deploy sin binarios si LFS no empujó bien a GitHub)
 mgm-front/src/icons/Foto*.jpeg -filter -diff -merge
 mgm-front/src/icons/Foto*.jpg -filter -diff -merge
+# Galería /votaciones: sin LFS (Vite empaqueta en build; LFS en CI suele dejar punteros y no se ven fotos)
+mgm-front/src/votaciones/*.jpg -filter -diff -merge
+mgm-front/src/votaciones/*.jpeg -filter -diff -merge
+mgm-front/src/votaciones/*.png -filter -diff -merge
+mgm-front/src/votaciones/*.webp -filter -diff -merge
+mgm-front/src/votaciones/*.JPG -filter -diff -merge
+mgm-front/src/votaciones/*.JPEG -filter -diff -merge
+mgm-front/src/votaciones/*.PNG -filter -diff -merge
+mgm-front/src/votaciones/*.WEBP -filter -diff -merge

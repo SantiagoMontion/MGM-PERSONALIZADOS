@@ -9,8 +9,10 @@
  * - El texto entre el primer y el segundo punto es el handle; en la UI se muestra como @handle
  *   (si ya empieza con @, se deja igual).
  *
- * Formatos: jpg, jpeg, png, webp. Podés tener tantas fotos como archivos válidos (hasta el límite
- * de filas en `votacion_galeria_fotos` en Supabase; migración extendida hasta foto_200).
+ * Formatos: jpg, jpeg, png, webp (mayúsculas ok). Podés tener tantas fotos como archivos válidos
+ * (hasta el límite de filas en `votacion_galeria_fotos` en Supabase).
+ * En el repo: `mgm-front/src/votaciones/` debe estar **sin Git LFS** (ver `.gitattributes` en la raíz),
+ * si no el build en la nube a veces empaqueta punteros y las imágenes no cargan.
  */
 
 const FILENAME_RE = /^(\d+)\.(.+)\.(jpe?g|png|webp)$/i;
@@ -55,9 +57,22 @@ function buildGaleriaFotosFromFolder(modules) {
     });
 }
 
-const galeriaModules = import.meta.glob('../votaciones/*.{jpg,jpeg,png,webp}', {
-  eager: true,
-});
+/** Incluye mayúsculas: en Linux/CI el glob es sensible al caso. */
+const galeriaModules = {
+  ...import.meta.glob(
+    [
+      '../votaciones/*.jpg',
+      '../votaciones/*.jpeg',
+      '../votaciones/*.png',
+      '../votaciones/*.webp',
+      '../votaciones/*.JPG',
+      '../votaciones/*.JPEG',
+      '../votaciones/*.PNG',
+      '../votaciones/*.WEBP',
+    ],
+    { eager: true },
+  ),
+};
 
 export const VOTACION_GALERIA_FOTOS = buildGaleriaFotosFromFolder(galeriaModules);
 
