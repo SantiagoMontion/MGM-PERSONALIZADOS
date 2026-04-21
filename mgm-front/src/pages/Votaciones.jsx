@@ -81,6 +81,7 @@ export default function Votaciones() {
   const [error, setError] = useState('');
   const [countdownMs, setCountdownMs] = useState(() => getSorteoCountdownMs());
   const [filtroNombre, setFiltroNombre] = useState('');
+  const votacionTerminada = countdownMs <= 0;
 
   const fotosFiltradas = useMemo(() => {
     const q = filtroNombre.trim().toLowerCase();
@@ -196,6 +197,12 @@ export default function Votaciones() {
   }, []);
 
   useEffect(() => {
+    if (votacionTerminada) {
+      navigate('/resultados', { replace: true });
+    }
+  }, [navigate, votacionTerminada]);
+
+  useEffect(() => {
     if (!lightboxFoto) return undefined;
     const onKey = (e) => {
       if (e.key === 'Escape') {
@@ -229,7 +236,7 @@ export default function Votaciones() {
    * @param {GaleriaFoto} foto
    */
   const handleVotar = async (foto) => {
-    if (!foto || votingId || misFotos.has(foto.id) || cupoLleno) return;
+    if (!foto || votingId || misFotos.has(foto.id) || cupoLleno || votacionTerminada) return;
     if (!isSupabaseConfigured) {
       setError('Configurá Supabase (VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY) para votar.');
       return;
@@ -263,7 +270,11 @@ export default function Votaciones() {
   };
 
   const voteDisabled = (fotoId) =>
-    !isSupabaseConfigured || Boolean(votingId) || misFotos.has(fotoId) || cupoLleno;
+    !isSupabaseConfigured
+    || Boolean(votingId)
+    || misFotos.has(fotoId)
+    || cupoLleno
+    || votacionTerminada;
 
   const puedeVerResultados = miTotal >= VOTACION_GALERIA_MAX_VOTOS;
 
