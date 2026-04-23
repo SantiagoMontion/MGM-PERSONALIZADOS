@@ -396,6 +396,10 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     () => previewOutlineStrokeCm * (straightEdges ? 0.8 : 1.45),
     [previewOutlineStrokeCm, straightEdges],
   );
+  const previewOutlineBottomInsetCm = useMemo(
+    () => previewOutlineInsetCm + (straightEdges ? previewOutlineStrokeCm * 0.25 : previewOutlineStrokeCm * 0.95),
+    [previewOutlineInsetCm, previewOutlineStrokeCm, straightEdges],
+  );
   const viewScaleRef = useRef(viewScale);
   const viewPosRef = useRef(viewPos);
 
@@ -2952,7 +2956,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                 drawRoundedPath(
                   ctx,
                   Math.max(0, workCm.w - previewOutlineInsetCm * 2),
-                  Math.max(0, workCm.h - previewOutlineInsetCm * 2),
+                  Math.max(0, workCm.h - previewOutlineInsetCm - previewOutlineBottomInsetCm),
                   previewCornerRadiusCm,
                 );
                 ctx.strokeStyle = previewOutlineColor;
