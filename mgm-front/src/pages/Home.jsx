@@ -3401,6 +3401,28 @@ export default function Home() {
     () => formatARS(stepOneTransferPricing.valid ? stepOneTransferPricing.transfer : 0),
     [stepOneTransferPricing.transfer, stepOneTransferPricing.valid],
   );
+  /*
+   * Classic 40% OFF (visual only) temporarily disabled.
+   * Re-enable this block when discount promo returns.
+   *
+   * const isStepOneClassicSeriesSelected = material === 'Classic';
+   * const stepOneOriginalPriceAmount = useMemo(
+   *   () => (stepOneTransferPricing.valid ? Number(stepOneTransferPricing.transfer) || 0 : 0),
+   *   [stepOneTransferPricing.transfer, stepOneTransferPricing.valid],
+   * );
+   * const stepOneDiscountedPriceAmount = useMemo(
+   *   () => (
+   *     isStepOneClassicSeriesSelected
+   *       ? Math.round(stepOneOriginalPriceAmount * 0.6)
+   *       : stepOneOriginalPriceAmount
+   *   ),
+   *   [isStepOneClassicSeriesSelected, stepOneOriginalPriceAmount],
+   * );
+   * const stepOneFormattedDiscountedPriceAmount = useMemo(
+   *   () => formatARS(stepOneDiscountedPriceAmount),
+   *   [stepOneDiscountedPriceAmount],
+   * );
+   */
   const formatStepOneDimension = useCallback((value) => {
     const numeric = Number(value);
     if (!Number.isFinite(numeric) || numeric <= 0) {
@@ -4827,6 +4849,7 @@ export default function Home() {
                     />
                     <div className={`${styles.stepOneFooterBar} ${isDarkMode ? styles.stepOneFooterBarDark : styles.stepOneFooterBarLight}`.trim()}>
                       <div className={styles.stepOneFooterPriceBlock}>
+                        {/* Classic 40% OFF (visual only) temporarily disabled. */}
                         <span className={`${styles.stepOneFooterPrice} ${!isDarkMode ? styles.stepOneFooterPriceLight : ''}`.trim()}>$ {stepOneFormattedPriceAmount}</span>
                         <span className={`${styles.stepOneFooterPriceCaption} ${!isDarkMode ? styles.stepOneFooterPriceCaptionLight : ''}`.trim()}>Total según configuración</span>
                       </div>

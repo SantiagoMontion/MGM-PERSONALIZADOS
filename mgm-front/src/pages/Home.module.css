@@ -1891,6 +1891,25 @@ body.light .stepOneFooterBar:not(.stepOneFooterBarDark) {
   min-inline-size: 0;
 }
 
+/*
+ * Classic 40% OFF (visual only) temporarily disabled.
+ * Keep these classes ready for quick re-enable.
+ *
+.stepOneFooterOriginalPrice {
+  color: color-mix(in srgb, var(--nm-white) 70%, transparent);
+  font-family: Inter, var(--font-family), sans-serif;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.1;
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+}
+
+.stepOneFooterOriginalPriceLight {
+  color: color-mix(in srgb, var(--nm-black) 60%, transparent);
+}
+*/
+
 .stepOneFooterPrice {
   color: var(--nm-accent-blue);
   font-family: Inter, var(--font-family), sans-serif;
