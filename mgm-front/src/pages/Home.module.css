@@ -2790,6 +2790,11 @@ body.light [class*='stepOneSecondaryAction'] svg {
   color: inherit;
 }
 
+.stepTwoActionIconRecto {
+  inline-size: 23px;
+  block-size: 23px;
+}
+
 .stepTwoActionIconImage {
   inline-size: 100%;
   block-size: 100%;

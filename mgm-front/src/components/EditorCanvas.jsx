@@ -392,6 +392,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     () => 1 / Math.max(baseScale * viewScale, 0.0001),
     [baseScale, viewScale],
   );
+  const previewOutlineInsetCm = previewOutlineStrokeCm / 2;
   const viewScaleRef = useRef(viewScale);
   const viewPosRef = useRef(viewPos);
 
@@ -2942,10 +2943,10 @@ const EditorCanvas = forwardRef(function EditorCanvas(
           )}
           <Layer listening={false}>
             <Rect
-              x={0}
-              y={0}
-              width={workCm.w}
-              height={workCm.h}
+              x={previewOutlineInsetCm}
+              y={previewOutlineInsetCm}
+              width={Math.max(0, workCm.w - previewOutlineInsetCm * 2)}
+              height={Math.max(0, workCm.h - previewOutlineInsetCm * 2)}
               cornerRadius={previewCornerRadiusCm}
               stroke={previewOutlineColor}
               strokeWidth={previewOutlineStrokeCm}
