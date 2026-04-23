@@ -5489,10 +5489,12 @@ export default function Home() {
                           <span className={styles.stepTwoActionIcon} aria-hidden="true">
                             <svg viewBox="0 0 24 24" className={styles.stepOneIconSvg}>
                               <rect
-                                x="5"
-                                y="5"
-                                width="14"
-                                height="14"
+                                x={isStraightEdges ? '5' : '6'}
+                                y={isStraightEdges ? '5' : '6'}
+                                width={isStraightEdges ? '14' : '12'}
+                                height={isStraightEdges ? '14' : '12'}
+                                rx={isStraightEdges ? '0.6' : '2'}
+                                ry={isStraightEdges ? '0.6' : '2'}
                                 fill="none"
                                 stroke="currentColor"
                                 strokeWidth="1.8"
