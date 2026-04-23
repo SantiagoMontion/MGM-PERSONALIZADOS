@@ -2490,7 +2490,8 @@ export default function Home() {
       const widthLabel = formatDimensionCm(activeWcm ?? (masterWidthMm ? masterWidthMm / 10 : undefined));
       const heightLabel = formatDimensionCm(activeHcm ?? (masterHeightMm ? masterHeightMm / 10 : undefined));
       const materialPart = sanitizeFileName(materialLabel, 'classic');
-      const pdfFileName = sanitizeFileName(`${namePart}-${widthLabel}x${heightLabel}-${materialPart}`, 'design-pdf');
+      const rectoPart = isStraightEdgesAvailable && !isCircular && isStraightEdges ? '-recto' : '';
+      const pdfFileName = sanitizeFileName(`${namePart}-${widthLabel}x${heightLabel}-${materialPart}${rectoPart}`, 'design-pdf');
       const yyyymmValue = (() => {
         const now = new Date();
         return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
