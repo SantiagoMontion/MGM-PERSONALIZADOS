@@ -2,6 +2,12 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import styles from './StepThreeMockupPreview.module.css';
 
+function resolveMaxPreviewHeightPx() {
+  if (typeof window === 'undefined') return 420;
+  const viewportBased = Math.round(window.innerHeight * 0.46);
+  return Math.max(260, Math.min(460, viewportBased));
+}
+
 /**
  * Encuentra el rectángulo mínimo que cubre píxeles con alpha > umbral (muestreo para no bloquear).
  */
@@ -48,7 +54,8 @@ export default function StepThreeMockupPreview({ src, alt, frameClassName, image
   const wrapRef = useRef(null);
   const [tight, setTight] = useState(null);
   const [looseFallback, setLooseFallback] = useState(false);
-  const [containerW, setContainerW] = useState(0);
+  const [availableW, setAvailableW] = useState(0);
+  const [maxPreviewHeightPx, setMaxPreviewHeightPx] = useState(resolveMaxPreviewHeightPx);
 
   useEffect(() => {
     setTight(null);
@@ -94,25 +101,59 @@ export default function StepThreeMockupPreview({ src, alt, frameClassName, image
   }, [src, imageKey]);
 
   useLayoutEffect(() => {
-    const el = wrapRef.current;
-    if (!el) return undefined;
+    const host = wrapRef.current;
+    if (!host) return undefined;
+    const container = host.parentElement;
+    if (!container) return undefined;
     const ro = new ResizeObserver(() => {
-      setContainerW(el.clientWidth);
+      setAvailableW(container.clientWidth);
     });
-    ro.observe(el);
-    setContainerW(el.clientWidth);
+    ro.observe(container);
+    setAvailableW(container.clientWidth);
     return () => ro.disconnect();
   }, [tight, src]);
 
-  const scale = tight && containerW > 0 ? containerW / tight.cw : 0;
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const updateMaxHeight = () => {
+      setMaxPreviewHeightPx(resolveMaxPreviewHeightPx());
+    };
+    updateMaxHeight();
+    window.addEventListener('resize', updateMaxHeight);
+    return () => window.removeEventListener('resize', updateMaxHeight);
+  }, []);
+
+  let renderW = availableW;
+  if (tight && availableW > 0) {
+    const ratio = tight.cw / tight.ch;
+    const projectedHeight = availableW / ratio;
+    if (projectedHeight > maxPreviewHeightPx) {
+      renderW = Math.round(maxPreviewHeightPx * ratio);
+    }
+  }
+  const effectiveW = Math.max(0, Math.min(availableW, renderW));
+  const scale = tight && effectiveW > 0 ? effectiveW / tight.cw : 0;
   const useTight = Boolean(tight && scale > 0 && !looseFallback);
+  const maxHeightStyle = { maxHeight: `${maxPreviewHeightPx}px` };
+  const tightHostStyle = useTight
+    ? {
+        ...maxHeightStyle,
+        aspectRatio: `${tight.cw} / ${tight.ch}`,
+        inlineSize: effectiveW > 0 ? `${effectiveW}px` : '100%',
+      }
+    : maxHeightStyle;
+  const looseImgStyle = !useTight
+    ? {
+        ...maxHeightStyle,
+      }
+    : undefined;
 
   return (
     <div className={frameClassName}>
       <div
         ref={wrapRef}
         className={useTight ? styles.cropHostTight : styles.cropHostLoose}
-        style={useTight ? { aspectRatio: `${tight.cw} / ${tight.ch}` } : undefined}
+        style={tightHostStyle}
       >
         {src ? (
           <img
@@ -130,7 +171,7 @@ export default function StepThreeMockupPreview({ src, alt, frameClassName, image
                     width: tight.nw * scale,
                     height: tight.nh * scale,
                   }
-                : undefined
+                : looseImgStyle
             }
           />
         ) : null}

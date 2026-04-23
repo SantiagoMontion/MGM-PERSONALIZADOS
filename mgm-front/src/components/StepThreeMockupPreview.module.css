@@ -3,11 +3,13 @@
   inline-size: 100%;
   overflow: hidden;
   border-radius: inherit;
+  margin-inline: auto;
 }
 
 .cropHostLoose {
   inline-size: 100%;
   border-radius: inherit;
+  margin-inline: auto;
 }
 
 .imgLoose {
