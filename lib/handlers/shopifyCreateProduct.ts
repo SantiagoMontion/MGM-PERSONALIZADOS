@@ -64,11 +64,13 @@ function buildPdfFilename({
   widthCm,
   heightCm,
   material,
+  straightEdges,
 }: {
   designName?: string;
   widthCm?: number | null;
   heightCm?: number | null;
   material?: string;
+  straightEdges?: boolean;
 }) {
   const designSlug = slugifyName(designName || '') || 'design';
   const width = safeNumber(widthCm);
@@ -87,6 +89,7 @@ function buildPdfFilename({
   const parts = [designSlug];
   if (measurement) parts.push(measurement);
   parts.push(materialSegment);
+  if (straightEdges === true) parts.push('recto');
   parts.push(hash);
   return `${parts.join('-')}.pdf`;
 }
@@ -422,6 +425,12 @@ export default async function handler(req: any, res: any) {
       || ((req.body?.isCircular === true || req.body?.options?.isCircular === true) ? 'circle' : 'rounded_rect'),
     ).trim().toLowerCase();
     const isCircularShape = normalizedShape === 'circle';
+    const isStraightEdges = !isCircularShape && (
+      req.body?.straightEdges === true
+      || req.body?.straight_edges === true
+      || req.body?.options?.straightEdges === true
+      || req.body?.options?.straight_edges === true
+    );
     const displayMaterialLabel = formatCustomerMaterialLabel(mode === 'Glasspad' ? 'Glasspad' : String(mode || 'Mousepad'), isCircularShape);
     const coreMousepad = `${[designNameRaw, measurementLabel, displayMaterialLabel].filter(Boolean).join(' ').trim() || displayMaterialLabel || 'Custom'} | Custom`;
     const title = mode === 'Glasspad'
@@ -458,6 +467,7 @@ export default async function handler(req: any, res: any) {
         widthCm: Number.isFinite(width) ? width : undefined,
         heightCm: Number.isFinite(height) ? height : undefined,
         material: mode,
+        straightEdges: isStraightEdges,
       });
       const pdfMetadata: MetadataRecord = {
         private: true,
@@ -473,6 +483,7 @@ export default async function handler(req: any, res: any) {
         pdfMetadata.heightCmPrint = Number(height) + EXTRA_MARGIN_TOTAL_CM;
       }
       if (mode) pdfMetadata.material = mode;
+      if (isStraightEdges) pdfMetadata.straightEdges = true;
       if (product?.id) pdfMetadata.productId = String(product.id);
       if (variantId) pdfMetadata.variantId = variantId;
 

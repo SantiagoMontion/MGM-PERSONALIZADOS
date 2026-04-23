@@ -23,6 +23,16 @@ export default function Creating() {
       const mode = render_v2?.material || render?.material || 'Classic';
       const isGlasspad = mode === 'Glasspad';
       const fixed49 = isGlasspad || mode === 'Ultra';
+      const isStraightEdges = Boolean(
+        render_v2?.straightEdges === true
+        || render_v2?.straight_edges === true
+        || render_v2?.options?.straightEdges === true
+        || render_v2?.options?.straight_edges === true
+        || render?.straightEdges === true
+        || render?.straight_edges === true
+        || render?.options?.straightEdges === true
+        || render?.options?.straight_edges === true,
+      );
       const payload = {
         job_id: jobId,
         mode,
@@ -31,6 +41,7 @@ export default function Creating() {
         design_url: render_v2?.design_url ?? render?.design_url ?? null,
         bleed_mm: Number(render_v2?.bleed_mm ?? render?.bleed_mm ?? 0),
         rotate_deg: Number(render_v2?.rotate_deg ?? render?.rotate_deg ?? 0),
+        straightEdges: isStraightEdges,
         ...(isGlasspad ? { glasspad: { effect: true } } : {}),
       };
       const finalizeRes = await apiFetch(`/api/finalize-assets`, {
