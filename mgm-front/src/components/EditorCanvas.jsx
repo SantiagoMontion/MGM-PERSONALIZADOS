@@ -2942,13 +2942,23 @@ const EditorCanvas = forwardRef(function EditorCanvas(
             </Layer>
           )}
           <Layer listening={false}>
-            <Rect
-              x={previewOutlineInsetCm}
-              y={previewOutlineInsetCm}
-              width={Math.max(0, workCm.w - previewOutlineInsetCm * 2)}
-              height={Math.max(0, workCm.h - previewOutlineInsetCm * 2)}
-              cornerRadius={previewCornerRadiusCm}
-              stroke={previewOutlineColor}
+            <Shape
+              sceneFunc={(ctx, shape) => {
+                ctx.save();
+                ctx.translate(previewOutlineInsetCm, previewOutlineInsetCm);
+                drawRoundedPath(
+                  ctx,
+                  Math.max(0, workCm.w - previewOutlineInsetCm * 2),
+                  Math.max(0, workCm.h - previewOutlineInsetCm * 2),
+                  previewCornerRadiusCm,
+                );
+                ctx.strokeStyle = previewOutlineColor;
+                ctx.lineWidth = shape.strokeWidth();
+                ctx.lineJoin = 'round';
+                ctx.lineCap = 'round';
+                ctx.stroke();
+                ctx.restore();
+              }}
               strokeWidth={previewOutlineStrokeCm}
               listening={false}
             />
