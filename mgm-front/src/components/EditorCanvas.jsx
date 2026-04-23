@@ -235,6 +235,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     onLayoutChange,
     material,
     isCircular = false,
+    straightEdges = false,
     onToggleCircular,
     onPickedColor,
     onClearImage,
@@ -371,20 +372,22 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   });
   const previewCornerRadiusCm = useMemo(() => {
     if (isCircular) return Math.min(workCm.w, workCm.h) / 2;
+    if (straightEdges) return 0;
     const pixelsPerCm = Math.max(baseScale * viewScale, 0.0001);
     return Math.min(
       Math.min(workCm.w, workCm.h) / 2,
       PREVIEW_CORNER_RADIUS_PX / pixelsPerCm,
     );
-  }, [baseScale, isCircular, viewScale, workCm.h, workCm.w]);
+  }, [baseScale, isCircular, straightEdges, viewScale, workCm.h, workCm.w]);
   const previewPadCornerRadiusCm = useMemo(() => {
     if (isCircular) return Math.min(wCm, hCm) / 2;
+    if (straightEdges) return 0;
     const pixelsPerCm = Math.max(baseScale * viewScale, 0.0001);
     return Math.min(
       Math.min(wCm, hCm) / 2,
       PREVIEW_CORNER_RADIUS_PX / pixelsPerCm,
     );
-  }, [baseScale, hCm, isCircular, viewScale, wCm]);
+  }, [baseScale, hCm, isCircular, straightEdges, viewScale, wCm]);
   const previewOutlineStrokeCm = useMemo(
     () => 1 / Math.max(baseScale * viewScale, 0.0001),
     [baseScale, viewScale],

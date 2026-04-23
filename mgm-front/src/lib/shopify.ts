@@ -464,6 +464,7 @@ export async function ensureMockupUrl(flow: FlowState): Promise<EnsureMockupUrlR
       dpi,
     );
     const regenMat = resolveMaterialStringFromFlow(flow) || flowAny?.material;
+    const regenStraightEdges = resolveStraightEdges(flowAny as FlowState);
     mockupBlob = await renderMockup1080(image, {
       material: regenMat,
       approxDpi: dpi,
@@ -477,6 +478,7 @@ export async function ensureMockupUrl(flow: FlowState): Promise<EnsureMockupUrlR
         dpi,
         material: regenMat,
       },
+      radiusPx: regenStraightEdges ? 0 : undefined,
     });
   }
 
@@ -682,6 +684,29 @@ function resolveProductShape(flow: FlowState): 'circle' | 'rounded_rect' {
     : 'rounded_rect';
 }
 
+function isStraightEdgesMaterial(material?: string): boolean {
+  const normalized = typeof material === 'string' ? material.trim() : '';
+  return normalized === 'Classic' || normalized === 'PRO' || normalized === 'Alfombra';
+}
+
+function resolveStraightEdges(flow: FlowState): boolean {
+  const flowAny = flow as any;
+  const material = matLabelOf(resolveMaterialStringFromFlow(flowAny) || flowAny?.material || flowAny?.options?.material);
+  if (!isStraightEdgesMaterial(material)) return false;
+  return flowAny?.straightEdges === true || flowAny?.options?.straightEdges === true;
+}
+
+function appendRectoSuffix(title: string, straightEdges: boolean): string {
+  if (!straightEdges) return title;
+  const base = typeof title === 'string' ? title.trim() : '';
+  if (!base) return title;
+  if (/\|\s*custom-recto\b/i.test(base)) return base;
+  if (/\|\s*custom\b/i.test(base)) {
+    return base.replace(/\|\s*custom\b/i, '| Custom-recto');
+  }
+  return `${base}-recto`;
+}
+
 function formatCustomerMaterialLabel(material?: string, isCircular = false): string {
   const normalizedMaterial = typeof material === 'string' ? material.trim() : '';
   if (!normalizedMaterial) {
@@ -850,6 +875,7 @@ export async function createJobAndProduct(
   );
   const productShape = resolveProductShape(flow);
   const isCircularShape = productShape === 'circle';
+  const isStraightEdges = resolveStraightEdges(flow) && !isCircularShape;
   let productLabel = productType === 'glasspad' ? 'Glasspad' : 'Mousepad';
   const designNameInput = (flow as any)?.designName;
   const designNameRaw = (designNameInput ?? '').toString(); // el input tal cual (servidor corta a 40)
@@ -975,6 +1001,7 @@ export async function createJobAndProduct(
     : materialLabel === 'Ultra'
       ? buildUltraTitle(designName)
       : buildDefaultTitle(productLabel, designName, measurementLabel, materialLabel, isCircularShape);
+  productTitle = appendRectoSuffix(productTitle, isStraightEdges);
   let metaDescription = buildMetaDescription(productLabel, designName, measurementLabel, displayMaterialLabel);
   const widthFallback = cmFromPx((flow as any)?.masterWidthPx, (flow as any)?.approxDpi || 300);
   const heightFallback = cmFromPx((flow as any)?.masterHeightPx, (flow as any)?.approxDpi || 300);
@@ -1018,6 +1045,7 @@ export async function createJobAndProduct(
     if (materialTag) extraTags.push(`material-${materialTag}`);
   }
   if (isCircularShape) extraTags.push('shape-form');
+  if (isStraightEdges) extraTags.push('shape-recto');
   if (flow.lowQualityAck) extraTags.push('calidad-baja');
   if (isPrivate) extraTags.push('private');
   let filename = `${slugify(fallbackMockupName)}.png`;
@@ -1138,6 +1166,7 @@ export async function createJobAndProduct(
       materialResolved: materialLabel,
       shape: productShape,
       isCircular: isCircularShape,
+      straightEdges: isStraightEdges,
       widthCm,
       heightCm,
       approxDpi,
@@ -1169,6 +1198,7 @@ export async function createJobAndProduct(
         productType: payloadProductType,
         shape: productShape,
         isCircular: isCircularShape,
+        straightEdges: isStraightEdges,
       },
     };
 

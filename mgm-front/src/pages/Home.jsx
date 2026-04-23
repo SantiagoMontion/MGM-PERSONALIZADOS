@@ -120,6 +120,22 @@ const resolveCircularShapeFromSource = (source, materialLabel) => {
     source?.editorState?.shape,
   ].some((candidate) => normalizeShapeSafe(candidate) === 'circle');
 };
+const isStraightEdgesMaterial = (materialLabel) => {
+  const material = normalizeMaterialLabelSafe(materialLabel);
+  return material === 'Classic' || material === 'PRO' || material === 'Alfombra';
+};
+const resolveStraightEdgesFromSource = (source, materialLabel) => {
+  if (!isStraightEdgesMaterial(materialLabel)) return false;
+  if (source?.straightEdges === true || source?.options?.straightEdges === true) return true;
+  const shapeCandidates = [
+    source?.shape,
+    source?.options?.shape,
+    source?.editorState?.shape,
+  ]
+    .map((candidate) => safeStr(candidate).toLowerCase())
+    .filter(Boolean);
+  return shapeCandidates.includes('rect') || shapeCandidates.includes('straight_rect');
+};
 const formatMaterialLabelWithShape = (value, isCircular = false) => {
   const materialLabel = normalizeMaterialLabelSafe(value);
   if (isCircular && !isFixedPad49x42Material(materialLabel)) {
@@ -459,6 +475,7 @@ const resolveEditorSelectionFromFlow = (flowState) => {
   const rawMaterial = source.material ?? source.options?.material;
   const material = normalizeMaterialLabelSafe(rawMaterial);
   const isCircular = resolveCircularShapeFromSource(source, material);
+  const isStraightEdges = resolveStraightEdgesFromSource(source, material);
   const widthCm = Number(source.widthCm);
   const heightCm = Number(source.heightCm);
   const hasPresetSize =
@@ -474,6 +491,7 @@ const resolveEditorSelectionFromFlow = (flowState) => {
       mode: 'standard',
       size: { ...GLASSPAD_SIZE_CM },
       isCircular: false,
+      isStraightEdges: false,
     };
   }
 
@@ -486,6 +504,7 @@ const resolveEditorSelectionFromFlow = (flowState) => {
         mode: isDropdownStandardSizeForMaterial(candidateSize, material) ? 'standard' : 'custom',
         size: candidateSize,
         isCircular,
+        isStraightEdges: isCircular ? false : isStraightEdges,
       };
     }
   }
@@ -496,6 +515,7 @@ const resolveEditorSelectionFromFlow = (flowState) => {
     mode: 'standard',
     size: getDefaultDropdownSizeForMaterial(material),
     isCircular,
+    isStraightEdges: isCircular ? false : isStraightEdges,
   };
 };
 
@@ -1095,6 +1115,7 @@ export default function Home() {
   const [mode, setMode] = useState(initialEditorSelection.mode);
   const [size, setSize] = useState(() => ({ ...initialEditorSelection.size }));
   const [isCircular, setIsCircular] = useState(Boolean(initialEditorSelection.isCircular));
+  const [isStraightEdges, setIsStraightEdges] = useState(Boolean(initialEditorSelection.isStraightEdges));
   const didHydrateEditorSelectionRef = useRef(initialEditorSelection.hasPreset);
   const sizeCm = useMemo(
     () => ({ w: Math.round(Number(size.w)) || 90, h: Math.round(Number(size.h)) || 40 }),
@@ -1775,6 +1796,7 @@ export default function Home() {
     setMode(nextSelection.mode);
     setSize({ ...nextSelection.size });
     setIsCircular(Boolean(nextSelection.isCircular));
+    setIsStraightEdges(Boolean(nextSelection.isStraightEdges));
     setStepOneCustomSizePanelOpen(
       nextSelection.mode === 'custom' && !isFixedPad49x42Material(nextSelection.material),
     );
@@ -1789,6 +1811,7 @@ export default function Home() {
       }
       if (nextMaterial === 'Glasspad' || nextMaterial === 'Ultra') {
         setIsCircular(false);
+        setIsStraightEdges(false);
         setMaterial(nextMaterial);
         setMode('standard');
         setSize({ w: GLASSPAD_SIZE_CM.w, h: GLASSPAD_SIZE_CM.h });
@@ -1880,6 +1903,7 @@ export default function Home() {
     if (isFixedPad49x42Material(material)) return;
     setIsCircular((prev) => {
       if (!prev) {
+        setIsStraightEdges(false);
         if (!isFixedPad49x42Material(material)) {
           lastRectSizeRef.current[material] = { ...size };
         }
@@ -1901,6 +1925,24 @@ export default function Home() {
       return false;
     });
   }, [clampSizeForMaterial, material, normalizeCircularSizeForMaterial, size]);
+
+  const isStraightEdgesAvailable = isStraightEdgesMaterial(material);
+  const handleToggleStraightEdges = useCallback(() => {
+    if (!isStraightEdgesAvailable) return;
+    setIsStraightEdges((prev) => {
+      const next = !prev;
+      if (next && isCircular) {
+        handleToggleCircular();
+      }
+      return next;
+    });
+  }, [handleToggleCircular, isCircular, isStraightEdgesAvailable]);
+
+  useEffect(() => {
+    if (isStraightEdgesAvailable) return;
+    if (!isStraightEdges) return;
+    setIsStraightEdges(false);
+  }, [isStraightEdges, isStraightEdgesAvailable]);
 
 
   useEffect(() => {
@@ -1953,12 +1995,14 @@ export default function Home() {
     const nextHeightCm = Math.round(Number(activeSizeCm?.h) || 0);
     const nextShape = isCircular && !isFixedPad49x42Material(material) ? 'circle' : 'rounded_rect';
     const nextIsCircular = nextShape === 'circle';
+    const nextStraightEdges = Boolean(isStraightEdgesAvailable && !nextIsCircular && isStraightEdges);
     const nextOptions = {
       ...((flow?.options && typeof flow.options === 'object') ? flow.options : {}),
       material,
       productType: material === 'Glasspad' ? 'glasspad' : material === 'Alfombra' ? 'alfombra' : 'mousepad',
       shape: nextShape,
       isCircular: nextIsCircular,
+      straightEdges: nextStraightEdges,
     };
 
     const shouldSync =
@@ -1966,6 +2010,7 @@ export default function Home() {
       || flow?.material !== material
       || Boolean(flow?.isCircular) !== nextIsCircular
       || flow?.shape !== nextShape
+      || Boolean(flow?.straightEdges) !== nextStraightEdges
       || Number(flow?.widthCm || 0) !== nextWidthCm
       || Number(flow?.heightCm || 0) !== nextHeightCm
       || Number(flow?.priceTransfer || 0) !== Number(priceAmount || 0)
@@ -1973,7 +2018,8 @@ export default function Home() {
       || flow?.options?.material !== nextOptions.material
       || flow?.options?.productType !== nextOptions.productType
       || flow?.options?.shape !== nextOptions.shape
-      || Boolean(flow?.options?.isCircular) !== nextOptions.isCircular;
+      || Boolean(flow?.options?.isCircular) !== nextOptions.isCircular
+      || Boolean(flow?.options?.straightEdges) !== nextOptions.straightEdges;
 
     if (!shouldSync) return;
 
@@ -1982,6 +2028,7 @@ export default function Home() {
       material,
       isCircular: nextIsCircular,
       shape: nextShape,
+      straightEdges: nextStraightEdges,
       widthCm: nextWidthCm || null,
       heightCm: nextHeightCm || null,
       priceTransfer: Number(priceAmount || 0),
@@ -2001,11 +2048,15 @@ export default function Home() {
     flow?.options?.productType,
     flow?.options?.shape,
     flow?.options?.isCircular,
+    flow?.options?.straightEdges,
     flow?.priceCurrency,
     flow?.priceTransfer,
     flow?.shape,
+    flow?.straightEdges,
     flow?.widthCm,
     isCircular,
+    isStraightEdges,
+    isStraightEdgesAvailable,
     material,
     priceAmount,
   ]);
@@ -2449,6 +2500,9 @@ export default function Home() {
       const mockupStart = tnow();
       const mockupPromise = (async () => {
         let newMockupBlob = null;
+        const mockupRadiusPx = isStraightEdgesAvailable && !isCircular && isStraightEdges
+          ? 0
+          : (Number(import.meta.env?.VITE_MOCKUP_PAD_RADIUS_PX) || 8);
         try {
           newMockupBlob = await generateMockupOffthread(pdfSourceBlob, {
             composition: {
@@ -2463,7 +2517,7 @@ export default function Home() {
             material: flowState?.material || material,
             options: { material: flowState?.material || material },
             materialLabel: flowState?.material || material,
-            radiusPx: Number(import.meta.env?.VITE_MOCKUP_PAD_RADIUS_PX) || 8,
+            radiusPx: mockupRadiusPx,
           });
         } catch (_) {
           newMockupBlob = null;
@@ -2485,6 +2539,7 @@ export default function Home() {
                 dpi: dpiForMockup,
                 material,
               },
+              radiusPx: mockupRadiusPx,
             });
           } catch (mockupErr) {
             warn('[mockup] renderMockup1080 failed', mockupErr);
@@ -2777,6 +2832,7 @@ export default function Home() {
       const heightToStore = chosenHeightCm
         ?? (Number.isFinite(existingHeight) && existingHeight > 0 ? Math.round(existingHeight) : null);
       const finalMaterial = selectedMaterial || 'Classic';
+      const finalStraightEdges = Boolean(isStraightEdgesMaterial(finalMaterial) && !isCircular && isStraightEdges);
       let finalWidthCm = widthToStore;
       let finalHeightCm = heightToStore;
       if (isFixedPad49x42Material(finalMaterial)) {
@@ -2818,12 +2874,14 @@ export default function Home() {
         material: finalMaterial,
         isCircular: isCircular && !isFixedPad49x42Material(finalMaterial),
         shape: isCircular && !isFixedPad49x42Material(finalMaterial) ? 'circle' : 'rounded_rect',
+        straightEdges: finalStraightEdges,
         options: {
           ...(flowState?.options || {}),
           material: finalMaterial,
           productType: nextProductType,
           shape: isCircular && !isFixedPad49x42Material(finalMaterial) ? 'circle' : 'rounded_rect',
           isCircular: isCircular && !isFixedPad49x42Material(finalMaterial),
+          straightEdges: finalStraightEdges,
         },
         lowQualityAck: level === 'bad' ? acceptedLowQuality : false,
         approxDpi: effDpi || null,
@@ -2839,6 +2897,7 @@ export default function Home() {
           widthCm: finalWidthCm,
           heightCm: finalHeightCm,
           shape: isCircular && !isFixedPad49x42Material(finalMaterial) ? 'circle' : 'rounded_rect',
+          straightEdges: finalStraightEdges,
         });
       } catch (_) {
         // noop
@@ -2867,6 +2926,7 @@ export default function Home() {
           heightMm: masterHeightMm,
           dpi: dpiForMockup,
           material,
+          straightEdges: finalStraightEdges,
         });
       } catch (mockupEnsureError) {
         warn('[diag] ensure mockup url failed during continue', mockupEnsureError);
@@ -5228,6 +5288,7 @@ export default function Home() {
                             dpi={300}
                             material={material}
                             isCircular={isCircular}
+                            straightEdges={isStraightEdgesAvailable && !isCircular && isStraightEdges}
                             onToggleCircular={handleToggleCircular}
                             onLayoutChange={setLayout}
                             onClearImage={handleClearImage}
@@ -5238,7 +5299,7 @@ export default function Home() {
                             onReplaceSettled={() => setIsReplacing(false)}
                             editorRootClassName={styles.stepTwoCanvasRoot}
                             lienzoClassName={styles.stepTwoCanvasLienzo}
-                            canvasWrapperClassName={styles.stepTwoCanvasWrapper}
+                            canvasWrapperClassName={`${styles.stepTwoCanvasWrapper} ${isStraightEdgesAvailable && !isCircular && isStraightEdges ? styles.stepTwoCanvasWrapperRecto : ''}`.trim()}
                             allowCanvasPan={false}
                             onUnmountCleanup={handleStepTwoEditorUnmount}
                             onImageDragStart={handleStepTwoImageDragStart}
@@ -5349,7 +5410,7 @@ export default function Home() {
                       labelClassName={styles.stepTwoPreviewCaption}
                     />
 
-                    <aside className={styles.stepTwoActionsRail} aria-label="Acciones del editor">
+                    <aside className={`${styles.stepTwoActionsRail} ${isStraightEdgesAvailable ? styles.stepTwoActionsRailWithStraightEdges : ''}`.trim()} aria-label="Acciones del editor">
                       <input
                         ref={stepTwoFileInputRef}
                         type="file"
@@ -5416,6 +5477,30 @@ export default function Home() {
                         </span>
                         <span>Herramientas</span>
                       </button>
+                      {isStraightEdgesAvailable && (
+                        <button
+                          type="button"
+                          className={`${styles.stepTwoActionButton} ${isStraightEdges ? styles.stepTwoActionButtonActive : ''}`.trim()}
+                          onClick={handleToggleStraightEdges}
+                          aria-pressed={isStraightEdges}
+                          aria-label={isStraightEdges ? 'Borde redondeado' : 'Borde recto'}
+                        >
+                          <span className={styles.stepTwoActionIcon} aria-hidden="true">
+                            <svg viewBox="0 0 24 24" className={styles.stepOneIconSvg}>
+                              <rect
+                                x="5"
+                                y="5"
+                                width="14"
+                                height="14"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                              />
+                            </svg>
+                          </span>
+                          <span>Recto</span>
+                        </button>
+                      )}
                     </aside>
 
                     {stepTwoEditorFitMode === 'contain' && (

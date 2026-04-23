@@ -78,6 +78,23 @@ const parsePositivePrice = (...values) => {
   return 0;
 };
 
+const isStraightEdgesMaterial = (materialLabel) => (
+  materialLabel === 'Classic' || materialLabel === 'PRO' || materialLabel === 'Alfombra'
+);
+
+const resolveStraightEdgesFromFlow = (flow, materialLabel) => {
+  if (!isStraightEdgesMaterial(materialLabel)) return false;
+  if (flow?.straightEdges === true || flow?.options?.straightEdges === true) return true;
+  const shapeCandidates = [
+    flow?.shape,
+    flow?.options?.shape,
+    flow?.editorState?.shape,
+  ]
+    .map((candidate) => safeStr(candidate).toLowerCase())
+    .filter(Boolean);
+  return shapeCandidates.includes('rect') || shapeCandidates.includes('straight_rect');
+};
+
 // NO mezclar material con productType.
 // productType = mousepad/glasspad (tipo de producto).
 // material = Classic/PRO/Glasspad (tarifa/título).
@@ -143,6 +160,7 @@ const extractFlowBasics = (flow) => {
   const designName = safeStr(flow?.designName)
     || safeStr(flow?.editorState?.designName)
     || 'Personalizado';
+  const straightEdges = resolveStraightEdgesFromFlow(flow, mat);
 
   return {
     productType,
@@ -150,15 +168,23 @@ const extractFlowBasics = (flow) => {
     widthCm: Number.isFinite(widthCm) && widthCm > 0 ? widthCm : NaN,
     heightCm: Number.isFinite(heightCm) && heightCm > 0 ? heightCm : NaN,
     designName,
+    straightEdges,
   };
 };
 
-const buildTitle = ({ productType, mat, widthCm, heightCm, designName }) => {
+const withRectoSuffix = (title, straightEdges) => {
+  if (!straightEdges) return title;
+  if (/\|\s*custom-recto\b/i.test(title)) return title;
+  if (/\|\s*custom\b/i.test(title)) return title.replace(/\|\s*custom\b/i, '| Custom-recto');
+  return `${title}-recto`;
+};
+
+const buildTitle = ({ productType, mat, widthCm, heightCm, designName, straightEdges = false }) => {
   if (mat === 'Ultra') {
-    return `Mousepad Serie Ultra ${designName} | Custom`;
+    return withRectoSuffix(`Mousepad Serie Ultra ${designName} | Custom`, straightEdges && isStraightEdgesMaterial(mat));
   }
   if (mat === 'Glasspad') {
-    return `Glasspad ${designName} 49x42 | Custom`;
+    return withRectoSuffix(`Glasspad ${designName} 49x42 | Custom`, straightEdges && isStraightEdgesMaterial(mat));
   }
   if (mat === 'Alfombra') {
     const w = Number(widthCm);
@@ -168,7 +194,7 @@ const buildTitle = ({ productType, mat, widthCm, heightCm, designName }) => {
       parts.push(`${w}x${h}`);
     }
     parts.push('|', 'Custom');
-    return parts.join(' ');
+    return withRectoSuffix(parts.join(' '), straightEdges && isStraightEdgesMaterial(mat));
   }
   const prefix = productType.toLowerCase().includes('mouse') ? 'Mousepad' : 'Mousepad';
   const w = Number(widthCm);
@@ -178,7 +204,7 @@ const buildTitle = ({ productType, mat, widthCm, heightCm, designName }) => {
     parts.push(`${w}x${h}`);
   }
   parts.push(mat, '|', 'Custom');
-  return parts.join(' ');
+  return withRectoSuffix(parts.join(' '), straightEdges && isStraightEdgesMaterial(mat));
 };
 
 function parseQueryOverrides() {
@@ -528,6 +554,10 @@ export async function ensureMockupUrlInFlow(flow, input) {
   const dpi = Number(state?.approxDpi ?? input?.dpi ?? 300);
   const basics = extractFlowBasics(state);
   const { productType, mat, widthCm, heightCm, designName } = basics;
+  const isStraightEdges = Boolean(
+    (input?.straightEdges === true || input?.options?.straightEdges === true || basics.straightEdges === true)
+    && isStraightEdgesMaterial(mat),
+  );
   const printDpi = Number(state?.printDpi ?? state?.approxDpi ?? input?.dpi ?? 300);
   const pxToCmFromRaw = (px) => {
     const pxValue = Number(px);
@@ -548,7 +578,14 @@ export async function ensureMockupUrlInFlow(flow, input) {
   const heightRounded = Number.isFinite(heightCm) && heightCm > 0
     ? Math.round(heightCm)
     : (Number.isFinite(fallbackHeightCm) && fallbackHeightCm > 0 ? Math.round(fallbackHeightCm) : undefined);
-  const title = buildTitle({ productType, mat, widthCm: widthRounded, heightCm: heightRounded, designName });
+  const title = buildTitle({
+    productType,
+    mat,
+    widthCm: widthRounded,
+    heightCm: heightRounded,
+    designName,
+    straightEdges: isStraightEdges,
+  });
   const composition = {
     widthPx: Number(state?.masterWidthPx ?? input?.widthPx ?? image.naturalWidth ?? image.width ?? 0),
     heightPx: Number(state?.masterHeightPx ?? input?.heightPx ?? image.naturalHeight ?? image.height ?? 0),
@@ -563,6 +600,7 @@ export async function ensureMockupUrlInFlow(flow, input) {
     material: mat,
     approxDpi: dpi,
     composition,
+    radiusPx: isStraightEdges ? 0 : undefined,
   });
   let hashFromUpload = null;
   let uploadFailed = false;
@@ -779,7 +817,15 @@ function buildShopifyPayload(flowState, mode) {
   }
   const roundedWidth = Number.isFinite(widthCm) && widthCm > 0 ? Math.round(widthCm) : undefined;
   const roundedHeight = Number.isFinite(heightCm) && heightCm > 0 ? Math.round(heightCm) : undefined;
-  const title = buildTitle({ productType, mat, widthCm: roundedWidth, heightCm: roundedHeight, designName });
+  const straightEdges = resolveStraightEdgesFromFlow(source, mat);
+  const title = buildTitle({
+    productType,
+    mat,
+    widthCm: roundedWidth,
+    heightCm: roundedHeight,
+    designName,
+    straightEdges,
+  });
   const priceTransfer = parsePositivePrice(
     source?.priceTransfer,
     source?.pricing?.transfer,
@@ -1340,15 +1386,21 @@ export default function Mockup() {
     const widthCm = Number.isFinite(widthCandidate) && widthCandidate > 0 ? Math.round(widthCandidate) : null;
     const heightCm = Number.isFinite(heightCandidate) && heightCandidate > 0 ? Math.round(heightCandidate) : null;
     const hasDims = widthCm != null && heightCm != null;
+    const isStraightEdges = Boolean(
+      isStraightEdgesMaterial(materialLabel)
+      && (flow?.straightEdges === true || flow?.options?.straightEdges === true),
+    );
     if (isGlass) {
-      return hasDims
+      const title = hasDims
         ? `${baseCategory} ${designNameValue} ${widthCm}x${heightCm} | Custom`
         : `${baseCategory} ${designNameValue} | Custom`;
+      return withRectoSuffix(title, isStraightEdges);
     }
     const matPart = isAlfombra || !materialLabel ? '' : ` ${materialLabel}`;
-    return hasDims
+    const title = hasDims
       ? `${baseCategory} ${designNameValue} ${widthCm}x${heightCm}${matPart} | Custom`
       : `${baseCategory} ${designNameValue}${matPart} | Custom`;
+    return withRectoSuffix(title, isStraightEdges);
   }, [flow]);
 
   useEffect(() => {
@@ -4210,6 +4262,7 @@ export default function Mockup() {
       widthCm: width ?? undefined,
       heightCm: height ?? undefined,
       designName: resolvedDesignName,
+      straightEdges: resolveStraightEdgesFromFlow(flowState, mat),
     });
 
     const price = parsePositivePrice(
@@ -4395,6 +4448,7 @@ export default function Mockup() {
         widthCm: widthRounded,
         heightCm: heightRounded,
         designName,
+        straightEdges: basics.straightEdges,
       });
       try {
         diag('[buy] direct:flow', {

@@ -2544,6 +2544,10 @@ body.light [class*='stepOneSecondaryAction'] svg {
   z-index: 5;
 }
 
+.stepTwoCanvasWrapperRecto {
+  border-radius: 0 !important;
+}
+
 .stepTwoCanvasWrapper :global(.konvajs-content),
 .stepTwoCanvasWrapper :global(canvas) {
   display: block;
@@ -2758,6 +2762,11 @@ body.light [class*='stepOneSecondaryAction'] svg {
 }
 
 .stepTwoActionButton:hover {
+  background: var(--nm-step-two-action-hover);
+  color: var(--nm-step-two-action-text-hover);
+}
+
+.stepTwoActionButtonActive {
   background: var(--nm-step-two-action-hover);
   color: var(--nm-step-two-action-text-hover);
 }
@@ -4917,6 +4926,10 @@ body.light .stepTwoContainColorLabel {
     margin-block-start: 30px;
   }
 
+  .stepTwoActionsRailWithStraightEdges {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
   .stepTwoPreviewHint {
     z-index: 50;
     inline-size: calc(100% - var(--space-6));
@@ -5172,6 +5185,10 @@ body.light .stepTwoContainColorLabel {
 @media (max-width: 360px) {
   .stepTwoActionsRail {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .stepTwoActionsRailWithStraightEdges {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 

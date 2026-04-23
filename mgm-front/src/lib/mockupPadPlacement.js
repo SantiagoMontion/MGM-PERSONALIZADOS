@@ -115,13 +115,29 @@ export function getMockupPadRect1080(opts, fallbackImageW, fallbackImageH) {
     return null;
   }
 
+  const resolvedRadiusPx = (() => {
+    const candidates = [
+      options.radiusPx,
+      options.radius_px,
+      composition.radiusPx,
+      composition.radius_px,
+    ];
+    for (const candidate of candidates) {
+      const parsed = Number(candidate);
+      if (Number.isFinite(parsed) && parsed >= 0) {
+        return Math.round(parsed);
+      }
+    }
+    return RADIUS_PX;
+  })();
+
   return {
     x,
     y,
     targetW,
     targetH,
     canvasSize: CANVAS_SIZE,
-    radiusPx: RADIUS_PX,
+    radiusPx: resolvedRadiusPx,
   };
 }
 
