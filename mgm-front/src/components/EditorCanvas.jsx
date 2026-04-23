@@ -389,10 +389,13 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     );
   }, [baseScale, hCm, isCircular, straightEdges, viewScale, wCm]);
   const previewOutlineStrokeCm = useMemo(
-    () => 1 / Math.max(baseScale * viewScale, 0.0001),
+    () => 1.35 / Math.max(baseScale * viewScale, 0.0001),
     [baseScale, viewScale],
   );
-  const previewOutlineInsetCm = previewOutlineStrokeCm / 2;
+  const previewOutlineInsetCm = useMemo(
+    () => previewOutlineStrokeCm * (straightEdges ? 0.8 : 1.45),
+    [previewOutlineStrokeCm, straightEdges],
+  );
   const viewScaleRef = useRef(viewScale);
   const viewPosRef = useRef(viewPos);
 
