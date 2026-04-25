@@ -1494,6 +1494,59 @@ export async function createJobAndProduct(
     throw new Error('missing_variant');
   }
 
+  /** Producto recién creado: asegurar canal Online Store y dar tiempo a que Storefront/discounts propaguen (evita checkout “en frío”). */
+  if (!canReuse && !skipPublication && productId && !isPrivate) {
+    try {
+      await ensureProductPublication(productId);
+    } catch (error: unknown) {
+      const errObj = error as {
+        response?: { error?: string };
+        reason?: string;
+        message?: string;
+      };
+      const detail = errObj?.response;
+      const rawReason =
+        typeof detail?.error === 'string'
+          ? detail.error
+          : typeof errObj?.reason === 'string'
+            ? errObj.reason
+            : typeof errObj?.message === 'string'
+              ? errObj.message
+              : 'ensure_publication_failed';
+      const normalizedReason =
+        rawReason === 'publication_missing' ? 'online_store_publication_missing' : rawReason;
+      const err = new Error(normalizedReason) as Error & {
+        reason?: string;
+        friendlyMessage?: string;
+      };
+      err.reason = normalizedReason;
+      if (normalizedReason === 'online_store_publication_missing') {
+        err.friendlyMessage = ONLINE_STORE_MISSING_MESSAGE;
+      }
+      throw err;
+    }
+  }
+
+  if (!isPrivate && mode === 'checkout') {
+    try {
+      const expectedHandle =
+        typeof productHandle === 'string' && productHandle.trim() ? productHandle.trim() : null;
+      const pollResult = await waitForVariantAvailability(variantId, {
+        expectedHandle,
+        verifyProductPublication: productId
+          ? () => verifyProductPublicationStatus(productId)
+          : undefined,
+      });
+      if (pollResult?.timedOut) {
+        warn('[createJobAndProduct] storefront_variant_poll_timed_out', {
+          variantId: String(variantId).slice(0, 24),
+        });
+      }
+    } catch (pollErr) {
+      warn('[createJobAndProduct] storefront_variant_poll_failed', pollErr);
+    }
+  }
+
   const variantIdNumeric = normalizeVariantNumericId(variantId);
   const variantIdGid = variantIdNumeric ? buildVariantGid(variantIdNumeric) : '';
 
