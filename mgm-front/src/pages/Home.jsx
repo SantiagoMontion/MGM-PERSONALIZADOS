@@ -3913,6 +3913,27 @@ export default function Home() {
       minimumFractionDigits: 0,
     });
   }, [priceAmount]);
+  const isStepTwoClassicSeriesSelected = material === 'Classic';
+  const stepTwoOriginalPriceAmount = useMemo(() => {
+    const amount = Number(priceAmount);
+    return Number.isFinite(amount) && amount > 0 ? amount : 0;
+  }, [priceAmount]);
+  const stepTwoDiscountedPriceAmount = useMemo(
+    () => (
+      isStepTwoClassicSeriesSelected
+        ? Math.round(stepTwoOriginalPriceAmount * 0.6)
+        : stepTwoOriginalPriceAmount
+    ),
+    [isStepTwoClassicSeriesSelected, stepTwoOriginalPriceAmount],
+  );
+  const stepTwoFormattedOriginalPriceAmount = useMemo(
+    () => formatARS(stepTwoOriginalPriceAmount),
+    [stepTwoOriginalPriceAmount],
+  );
+  const stepTwoFormattedDiscountedPriceAmount = useMemo(
+    () => formatARS(stepTwoDiscountedPriceAmount),
+    [stepTwoDiscountedPriceAmount],
+  );
 
   const stepTwoQualityState = useMemo(() => {
     if (!hasImage) return null;
@@ -5565,7 +5586,14 @@ export default function Home() {
                 <div className={styles.stepTwoFooter} ref={stepTwoFooterRef}>
                   <div className={styles.stepTwoFooterTopRow}>
                     <div className={styles.stepTwoFooterPriceBlock}>
-                      <span className={styles.stepTwoFooterPrice}>$ {formattedPriceAmount}</span>
+                      {isStepTwoClassicSeriesSelected ? (
+                        <>
+                          <span className={styles.stepTwoFooterOriginalPrice}>$ {stepTwoFormattedOriginalPriceAmount}</span>
+                          <span className={styles.stepTwoFooterPrice}>$ {stepTwoFormattedDiscountedPriceAmount}</span>
+                        </>
+                      ) : (
+                        <span className={styles.stepTwoFooterPrice}>$ {formattedPriceAmount}</span>
+                      )}
                       <span className={styles.stepTwoFooterPriceCaption}>Total según configuración</span>
                       <span className={styles.stepTwoFooterSizeMaterialLine}>
                         {stepTwoFooterMobileSizeMaterialLine}
@@ -5965,7 +5993,14 @@ export default function Home() {
                       <div className={styles.stepTwoConfigFooter}>
                         <div className={styles.stepTwoConfigFooterPriceBlock}>
                           <p className={styles.stepTwoConfigFooterLabel}>Total</p>
-                          <p className={styles.stepTwoConfigFooterAmount}>$ {formattedPriceAmount}</p>
+                          {isStepTwoClassicSeriesSelected ? (
+                            <>
+                              <p className={styles.stepTwoConfigFooterOriginalAmount}>$ {stepTwoFormattedOriginalPriceAmount}</p>
+                              <p className={styles.stepTwoConfigFooterAmount}>$ {stepTwoFormattedDiscountedPriceAmount}</p>
+                            </>
+                          ) : (
+                            <p className={styles.stepTwoConfigFooterAmount}>$ {formattedPriceAmount}</p>
+                          )}
                         </div>
 
                         <div className={styles.stepTwoConfigActions}>

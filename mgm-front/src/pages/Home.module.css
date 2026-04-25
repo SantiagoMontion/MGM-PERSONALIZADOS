@@ -2936,6 +2936,15 @@ body.light .stepTwoFooterPriceCaption {
   letter-spacing: -0.04em;
 }
 
+.stepTwoFooterOriginalPrice {
+  color: var(--nm-text-subtle-dark);
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.1;
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+}
+
 .stepTwoFooterPriceCaption {
   color: var(--nm-text-subtle-dark);
   font-size: 14px;
@@ -4080,6 +4089,17 @@ body.light .stepTwoContainColorLabel {
   color: var(--foreground);
   font-size: var(--fs-lg);
   font-weight: 600;
+  white-space: nowrap;
+}
+
+.stepTwoConfigFooterOriginalAmount {
+  margin: 0;
+  color: var(--foreground-secondary);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  line-height: 1.1;
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
   white-space: nowrap;
 }
 
