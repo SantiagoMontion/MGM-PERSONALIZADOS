@@ -4177,11 +4177,15 @@ body.light .stepTwoContainColorLabel {
   flex-direction: column;
   flex: 0 0 auto;
   min-block-size: 0;
+  max-block-size: 100%;
   gap: 0;
   inline-size: 100%;
   max-inline-size: 100%;
   margin: 0;
-  overflow: visible;
+  overflow-x: visible;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
   box-sizing: border-box;
 }
 
@@ -4498,6 +4502,7 @@ body.light .stepTwoContainColorLabel {
     flex: 0 0 auto;
     position: relative;
     z-index: 3;
+    margin-block-end: var(--space-2);
   }
 
   .stepOneSelectorsRow {
@@ -4575,6 +4580,13 @@ body.light .stepTwoContainColorLabel {
     min-block-size: min(260px, 40svh);
     overflow: visible;
     padding-block: var(--space-1) calc(var(--space-2) + 156px);
+  }
+
+  /* En móvil, evitamos "saltos" visuales del paso 1 cuando cambia la barra del navegador al hacer scroll. */
+  .sectionOneInnerStepUpload,
+  .pageHeadingStepUpload,
+  .stepHero {
+    transition: none;
   }
 
   .stepOneCanvasViewport {
