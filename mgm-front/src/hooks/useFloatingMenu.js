@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 const GAP = 8;
 const ESTIMATED_MENU_HEIGHT = 3 * 48 + 16 + 2;
 const MIN_VIEWPORT_PADDING = 8;
+const MIN_MENU_HEIGHT = 140;
 
 export function useFloatingMenu(triggerRef, isOpen) {
   const [style, setStyle] = useState({});
@@ -31,12 +32,20 @@ export function useFloatingMenu(triggerRef, isOpen) {
         }
       }
 
-      const fitsBelow = top + menuHeight <= window.innerHeight - MIN_VIEWPORT_PADDING;
-      if (!fitsBelow) {
-        top = Math.max(
-          MIN_VIEWPORT_PADDING,
-          rect.top - GAP - menuHeight,
-        );
+      const availableBelow = Math.max(0, window.innerHeight - rect.bottom - GAP - MIN_VIEWPORT_PADDING);
+      const availableAbove = Math.max(0, rect.top - GAP - MIN_VIEWPORT_PADDING);
+      const shouldOpenBelow = availableBelow >= menuHeight || availableBelow >= availableAbove;
+
+      let maxHeight = shouldOpenBelow ? availableBelow : availableAbove;
+      if (!Number.isFinite(maxHeight) || maxHeight <= 0) {
+        maxHeight = window.innerHeight - MIN_VIEWPORT_PADDING * 2;
+      }
+
+      if (shouldOpenBelow) {
+        top = rect.bottom + GAP;
+      } else {
+        const visibleHeight = Math.min(menuHeight, maxHeight);
+        top = Math.max(MIN_VIEWPORT_PADDING, rect.top - GAP - visibleHeight);
       }
 
       const maxLeft = window.innerWidth - width - MIN_VIEWPORT_PADDING;
@@ -48,6 +57,7 @@ export function useFloatingMenu(triggerRef, isOpen) {
         left,
         width,
         minWidth: width,
+        maxHeight: Math.max(MIN_MENU_HEIGHT, Math.floor(maxHeight)),
       });
     }
 

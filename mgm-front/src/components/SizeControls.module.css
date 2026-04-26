@@ -247,7 +247,10 @@
   border: 1px solid var(--cfg-border);
   background: #181818;
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4);
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   max-height: min(320px, 70vh);
   margin-top: -5px;
 }
