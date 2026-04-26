@@ -4685,31 +4685,41 @@ body.light .stepTwoContainColorLabel {
   }
 
   .stepOneActions {
-    position: sticky;
-    inset-block-end: 68px;
-    z-index: 10;
+    position: static;
+    inset-block-end: auto;
+    z-index: auto;
     inline-size: 100%;
     margin: 0 auto;
     gap: 10px;
-    padding: var(--space-2) 0 calc(20px + env(safe-area-inset-bottom));
-    background:
-      linear-gradient(
-        180deg,
-        color-mix(in srgb, var(--background) 0%, transparent) 0%,
-        color-mix(in srgb, var(--background) 82%, transparent) 28%,
-        var(--background) 100%
-      );
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    padding: 6px 0 calc(10px + env(safe-area-inset-bottom));
+    background: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
 
   .stepOneFooterBar {
     grid-template-columns: 1fr;
-    gap: 14px;
-    padding: 16px;
+    gap: 10px;
+    padding: 12px 14px;
     border-radius: 22px;
     position: relative;
     z-index: 11;
+  }
+
+  .stepOneFooterOriginalPrice {
+    font-size: 14px;
+    line-height: 1.1;
+  }
+
+  .stepOneFooterPrice {
+    font-size: 24px;
+    line-height: 1.1;
+    letter-spacing: -0.04em;
+  }
+
+  .stepOneFooterPriceCaption {
+    font-size: 10px;
+    line-height: 1.35;
   }
 
   .stepOneFooterBarLight {
@@ -4718,7 +4728,9 @@ body.light .stepTwoContainColorLabel {
 
   .stepPrimaryAction {
     width: 100%;
-    font-size: var(--fs-base);
+    min-block-size: 46px;
+    padding-inline: 14px;
+    font-size: 14px;
     margin-inline: auto;
   }
 
