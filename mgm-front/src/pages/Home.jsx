@@ -943,18 +943,32 @@ async function createPreviewFromImage(image, options = {}) {
 }
 
 const resolveCheckoutTargetUrl = (result) => {
-  const directCandidates = [
+  // Priorizar siempre destinos de checkout (incluyendo privado) antes de productUrl,
+  // porque en flujos privados el producto puede no estar navegable públicamente.
+  const checkoutCandidates = [
     result?.checkoutUrl,
-    result?.url,
-    result?.productUrl,
-    result?.cartUrl,
     result?.privateCheckoutUrl,
+    result?.invoiceUrl,
+    result?.url,
+    result?.cartUrl,
     result?.raw?.checkoutUrl,
+    result?.raw?.privateCheckoutUrl,
+    result?.raw?.invoiceUrl,
     result?.raw?.url,
+    result?.meta?.checkoutUrl,
+    result?.meta?.privateCheckoutUrl,
+  ];
+  for (const candidate of checkoutCandidates) {
+    const value = safeStr(candidate);
+    if (value) return value;
+  }
+
+  const productCandidates = [
+    result?.productUrl,
     result?.raw?.productUrl,
     result?.meta?.productUrl,
   ];
-  for (const candidate of directCandidates) {
+  for (const candidate of productCandidates) {
     const value = safeStr(candidate);
     if (value) return value;
   }
