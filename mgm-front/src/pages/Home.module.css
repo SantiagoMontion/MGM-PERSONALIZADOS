@@ -3975,17 +3975,6 @@ body.light .stepTwoContainColorLabel {
     radial-gradient(circle, var(--brand-primary) 0 45%, transparent 46%);
 }
 
-/* Tema oscuro: el drawer usa fondo negro; --border-default es casi invisible en radios sin seleccionar */
-html:not(.light) .stepTwoConfigDrawer.dark .stepTwoOptionCard:not(.stepTwoOptionCardSelected) .stepTwoOptionControl,
-body:not(.light) .stepTwoConfigDrawer.dark .stepTwoOptionCard:not(.stepTwoOptionCardSelected) .stepTwoOptionControl {
-  border-color: rgba(255, 255, 255, 0.88);
-}
-
-html:not(.light) .stepTwoConfigDrawer.dark .stepTwoOptionCardDisabled:not(.stepTwoOptionCardSelected) .stepTwoOptionControl,
-body:not(.light) .stepTwoConfigDrawer.dark .stepTwoOptionCardDisabled:not(.stepTwoOptionCardSelected) .stepTwoOptionControl {
-  border-color: rgba(255, 255, 255, 0.38);
-}
-
 .stepTwoOptionPrice:empty {
   min-inline-size: 4.5rem;
 }

@@ -636,6 +636,17 @@ body.light #configuracion-editor [class*='stepTwoOptionControl'] {
   border-color: color-mix(in srgb, #e8d800 50%, transparent) !important;
 }
 
+/* Tema oscuro: círculo del radio (clase hasheada tipo _stepTwoOptionControl_*) sin seleccionar */
+html.dark #configuracion-editor [class*='stepTwoOptionCard']:not([class*='stepTwoOptionCardSelected']) [class*='stepTwoOptionControl'],
+body.dark #configuracion-editor [class*='stepTwoOptionCard']:not([class*='stepTwoOptionCardSelected']) [class*='stepTwoOptionControl'] {
+  border-color: rgba(255, 255, 255, 0.9) !important;
+}
+
+html.dark #configuracion-editor [class*='stepTwoOptionCardDisabled']:not([class*='stepTwoOptionCardSelected']) [class*='stepTwoOptionControl'],
+body.dark #configuracion-editor [class*='stepTwoOptionCardDisabled']:not([class*='stepTwoOptionCardSelected']) [class*='stepTwoOptionControl'] {
+  border-color: rgba(255, 255, 255, 0.38) !important;
+}
+
 html.light #editor-tools-drawer img,
 body.light #editor-tools-drawer img,
 html.light #configuracion-editor img,
