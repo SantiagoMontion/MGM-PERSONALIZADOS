@@ -1,8 +1,5 @@
 {% liquid
   assign base_url = block.settings.base_url | strip
-  if base_url == blank
-    assign base_url = 'https://www.personalizados.notmid.ar'
-  endif
   assign iframe_height = block.settings.iframe_height | default: 920
   assign iframe_title = block.settings.iframe_title | strip
   if iframe_title == blank
@@ -11,7 +8,11 @@
 %}
 
 <div class="mgm-personalizados-root" style="width:100%;max-width:100%;">
-  {% if block.settings.product %}
+  {% if base_url == blank %}
+    <p class="mgm-personalizados-placeholder">{{ 'personalizados.configure_base_url' | t }}</p>
+  {% elsif block.settings.product == blank %}
+    <p class="mgm-personalizados-placeholder">{{ 'personalizados.pick_product' | t }}</p>
+  {% else %}
     {% assign vid = block.settings.product.selected_or_first_available_variant.id %}
     {% capture iframe_src %}{{ base_url }}{% if base_url contains '?' %}&{% else %}?{% endif %}mgm_embed=1&shop={{ shop.permanent_domain | url_encode }}&product_id={{ block.settings.product.id }}&variant_id={{ vid }}{% endcapture %}
     {% assign iframe_src = iframe_src | strip %}
@@ -23,8 +24,6 @@
       referrerpolicy="strict-origin-when-cross-origin"
       style="width:100%;min-height:{{ iframe_height }}px;border:0;display:block;"
     ></iframe>
-  {% else %}
-    <p class="mgm-personalizados-placeholder">{{ 'personalizados.pick_product' | t }}</p>
   {% endif %}
 </div>
 
@@ -43,8 +42,9 @@
       "type": "text",
       "id": "base_url",
       "label": "URL base del personalizador",
-      "default": "https://www.personalizados.notmid.ar",
-      "info": "Dominio donde está deployado mgm-front (sin barra final)."
+      "default": "",
+      "placeholder": "https://tu-app.vercel.app",
+      "info": "URL pública donde está deployado mgm-front (Vercel u otro). La barra del navegador sigue siendo la tienda Shopify; solo el recuadro interno carga esta URL."
     },
     {
       "type": "range",
