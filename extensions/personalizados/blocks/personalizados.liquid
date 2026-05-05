@@ -1,12 +1,28 @@
-<div
-  class="mgm-personalizados-root"
+{% liquid
+  assign base_url = block.settings.base_url | strip
+  if base_url == blank
+    assign base_url = 'https://www.personalizados.notmid.ar'
+  endif
+  assign iframe_height = block.settings.iframe_height | default: 920
+  assign iframe_title = block.settings.iframe_title | strip
+  if iframe_title == blank
+    assign iframe_title = 'Personalizador NOTMID'
+  endif
+%}
+
+<div class="mgm-personalizados-root" style="width:100%;max-width:100%;">
   {% if block.settings.product %}
-    data-product-id="{{ block.settings.product.id }}"
-    data-product-handle="{{ block.settings.product.handle }}"
-  {% endif %}
->
-  {% if block.settings.product %}
-    <p class="mgm-personalizados-placeholder">{{ 'personalizados.placeholder' | t }}</p>
+    {% assign vid = block.settings.product.selected_or_first_available_variant.id %}
+    {% capture iframe_src %}{{ base_url }}{% if base_url contains '?' %}&{% else %}?{% endif %}mgm_embed=1&shop={{ shop.permanent_domain | url_encode }}&product_id={{ block.settings.product.id }}&variant_id={{ vid }}{% endcapture %}
+    {% assign iframe_src = iframe_src | strip %}
+    <iframe
+      class="mgm-personalizados-iframe"
+      src="{{ iframe_src | escape }}"
+      title="{{ iframe_title | escape }}"
+      loading="lazy"
+      referrerpolicy="strict-origin-when-cross-origin"
+      style="width:100%;min-height:{{ iframe_height }}px;border:0;display:block;"
+    ></iframe>
   {% else %}
     <p class="mgm-personalizados-placeholder">{{ 'personalizados.pick_product' | t }}</p>
   {% endif %}
@@ -22,6 +38,29 @@
       "id": "product",
       "label": "Producto",
       "autofill": true
+    },
+    {
+      "type": "text",
+      "id": "base_url",
+      "label": "URL base del personalizador",
+      "default": "https://www.personalizados.notmid.ar",
+      "info": "Dominio donde está deployado mgm-front (sin barra final)."
+    },
+    {
+      "type": "range",
+      "id": "iframe_height",
+      "min": 480,
+      "max": 1400,
+      "step": 20,
+      "unit": "px",
+      "label": "Alto mínimo del iframe",
+      "default": 920
+    },
+    {
+      "type": "text",
+      "id": "iframe_title",
+      "label": "Título del iframe (accesibilidad)",
+      "default": "Personalizador NOTMID"
     }
   ]
 }

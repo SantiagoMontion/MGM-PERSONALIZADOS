@@ -6,6 +6,26 @@ import Footer from './components/Footer';
 import MobileAdvisoryBanner from './components/MobileAdvisoryBanner';
 import ProgressHeader from './components/ProgressHeader';
 
+const SHOPIFY_EMBED_STORAGE_KEY = 'mgm_shopify_embed';
+
+function useShopifyEmbedFlag(search, pathname) {
+  return useMemo(() => {
+    try {
+      const params = new URLSearchParams(search || '');
+      if (params.get('mgm_embed') === '1' || params.get('embed') === '1') {
+        return true;
+      }
+      if (typeof window !== 'undefined'
+        && window.sessionStorage?.getItem(SHOPIFY_EMBED_STORAGE_KEY) === '1') {
+        return true;
+      }
+    } catch {
+      return false;
+    }
+    return false;
+  }, [search, pathname]);
+}
+
 const APP_THEME_STORAGE_KEY = 'mgm-app-theme';
 
 function resolveCurrentStep(pathname) {
@@ -32,6 +52,7 @@ function resolveDocumentTitle(pathname) {
 
 export default function App() {
   const location = useLocation();
+  const shopifyEmbed = useShopifyEmbedFlag(location.search, location.pathname);
   const shouldShowFooter = location.pathname === '/mockup';
   const shouldLockViewport = location.pathname === '/';
   const [headerStepOverride, setHeaderStepOverride] = useState(null);
@@ -47,7 +68,7 @@ export default function App() {
     [location.pathname],
   );
   const currentStep = headerStepOverride ?? routeStep;
-  const showStepper = currentStep !== null;
+  const showStepper = shopifyEmbed ? false : currentStep !== null;
 
   useEffect(() => {
     if (location.pathname !== '/' && headerStepOverride !== null) {
@@ -55,10 +76,28 @@ export default function App() {
     }
   }, [headerStepOverride, location.pathname]);
 
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(location.search || '');
+      if (params.get('mgm_embed') === '1' || params.get('embed') === '1') {
+        window.sessionStorage.setItem(SHOPIFY_EMBED_STORAGE_KEY, '1');
+      } else if (
+        location.pathname === '/'
+        && params.get('mgm_embed') !== '1'
+        && params.get('embed') !== '1'
+      ) {
+        window.sessionStorage.removeItem(SHOPIFY_EMBED_STORAGE_KEY);
+      }
+    } catch {
+      // noop
+    }
+  }, [location.search, location.pathname]);
+
   useLayoutEffect(() => {
     if (typeof window === 'undefined') return;
     const root = window.document.documentElement;
     const body = window.document.body;
+    root.classList.toggle('mgm-shopify-embed', shopifyEmbed);
     const nextTheme = isDarkMode ? 'dark' : 'light';
 
     root.classList.remove('dark', 'light');
@@ -67,7 +106,7 @@ export default function App() {
     body.classList.add(nextTheme);
     root.style.colorScheme = nextTheme;
     window.localStorage.setItem(APP_THEME_STORAGE_KEY, nextTheme);
-  }, [isDarkMode]);
+  }, [isDarkMode, shopifyEmbed]);
 
   useEffect(() => {
     if (typeof document === 'undefined') return;
@@ -88,16 +127,25 @@ export default function App() {
   return (
     <div className={`${styles.container} ${shouldLockViewport ? styles.containerLocked : ''}`.trim()}>
       <SeoJsonLd />
-      <MobileAdvisoryBanner />
-      <ProgressHeader
-        currentStep={currentStep}
-        isDarkMode={isDarkMode}
-        onToggleTheme={handleToggleTheme}
-        showStepper={showStepper}
-        showTiendaLink={showTiendaLink}
-      />
+      {!shopifyEmbed && <MobileAdvisoryBanner />}
+      {!shopifyEmbed && (
+        <ProgressHeader
+          currentStep={currentStep}
+          isDarkMode={isDarkMode}
+          onToggleTheme={handleToggleTheme}
+          showStepper={showStepper}
+          showTiendaLink={showTiendaLink}
+        />
+      )}
       <main className={`${styles.main} ${shouldLockViewport ? styles.mainLocked : ''}`.trim()}>
-        <Outlet context={{ setHeaderStepOverride, isDarkMode, toggleTheme: handleToggleTheme }} />
+        <Outlet
+          context={{
+            setHeaderStepOverride,
+            isDarkMode,
+            toggleTheme: handleToggleTheme,
+            shopifyEmbed,
+          }}
+        />
       </main>
       {shouldShowFooter && <Footer />}
     </div>

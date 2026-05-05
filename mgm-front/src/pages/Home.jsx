@@ -1076,8 +1076,23 @@ function tryOpenCommerceTarget(url) {
 
 export default function Home() {
   const outletContext = useOutletContext() || {};
-  const { setHeaderStepOverride, isDarkMode = true } = outletContext;
+  const { setHeaderStepOverride, isDarkMode = true, shopifyEmbed = false } = outletContext;
   const [currentStep, dispatchStep] = useReducer(homeStepReducer, HOME_STEP.upload);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !shopifyEmbed) return;
+    try {
+      const params = new URLSearchParams(window.location.search || '');
+      const shop = params.get('shop');
+      const productId = params.get('product_id');
+      const variantId = params.get('variant_id');
+      if (shop) window.sessionStorage.setItem('mgm_embed_shop', shop);
+      if (productId) window.sessionStorage.setItem('mgm_embed_product_id', productId);
+      if (variantId) window.sessionStorage.setItem('mgm_embed_variant_id', variantId);
+    } catch {
+      // noop
+    }
+  }, [shopifyEmbed]);
   const currentStepRef = useRef(currentStep);
   currentStepRef.current = currentStep;
   const flow = useFlow();
