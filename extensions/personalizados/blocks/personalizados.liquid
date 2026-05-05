@@ -1,0 +1,28 @@
+<div
+  class="mgm-personalizados-root"
+  {% if block.settings.product %}
+    data-product-id="{{ block.settings.product.id }}"
+    data-product-handle="{{ block.settings.product.handle }}"
+  {% endif %}
+>
+  {% if block.settings.product %}
+    <p class="mgm-personalizados-placeholder">{{ 'personalizados.placeholder' | t }}</p>
+  {% else %}
+    <p class="mgm-personalizados-placeholder">{{ 'personalizados.pick_product' | t }}</p>
+  {% endif %}
+</div>
+
+{% schema %}
+{
+  "name": "Personalizados",
+  "target": "section",
+  "settings": [
+    {
+      "type": "product",
+      "id": "product",
+      "label": "Producto",
+      "autofill": true
+    }
+  ]
+}
+{% endschema %}
