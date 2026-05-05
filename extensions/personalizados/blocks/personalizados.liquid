@@ -10,11 +10,8 @@
 <div class="mgm-personalizados-root" style="width:100%;max-width:100%;">
   {% if base_url == blank %}
     <p class="mgm-personalizados-placeholder">{{ 'personalizados.configure_base_url' | t }}</p>
-  {% elsif block.settings.product == blank %}
-    <p class="mgm-personalizados-placeholder">{{ 'personalizados.pick_product' | t }}</p>
   {% else %}
-    {% assign vid = block.settings.product.selected_or_first_available_variant.id %}
-    {% capture iframe_src %}{{ base_url }}{% if base_url contains '?' %}&{% else %}?{% endif %}mgm_embed=1&shop={{ shop.permanent_domain | url_encode }}&product_id={{ block.settings.product.id }}&variant_id={{ vid }}{% endcapture %}
+    {% capture iframe_src %}{{ base_url }}{% if base_url contains '?' %}&{% else %}?{% endif %}mgm_embed=1&shop={{ shop.permanent_domain | url_encode }}{% endcapture %}
     {% assign iframe_src = iframe_src | strip %}
     <iframe
       class="mgm-personalizados-iframe"
@@ -33,18 +30,12 @@
   "target": "section",
   "settings": [
     {
-      "type": "product",
-      "id": "product",
-      "label": "Producto",
-      "autofill": true
-    },
-    {
       "type": "text",
       "id": "base_url",
       "label": "URL base del personalizador",
-      "default": "",
-      "placeholder": "https://tu-app.vercel.app",
-      "info": "URL pública donde está deployado mgm-front (Vercel u otro). La barra del navegador sigue siendo la tienda Shopify; solo el recuadro interno carga esta URL."
+      "default": "https://personalizados.notmid.ar",
+      "placeholder": "https://preview-tu-app.vercel.app",
+      "info": "URL pública donde está deployado mgm-front. El producto se crea desde el diseño; aquí solo indicamos la tienda (shop) para que tu backend sepa en qué Shopify actuar."
     },
     {
       "type": "range",

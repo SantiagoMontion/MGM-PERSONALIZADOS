@@ -57,6 +57,7 @@ import {
   projectNameContainsForbiddenWord,
   PROJECT_NAME_FORBIDDEN_WORDS_MESSAGE,
 } from '../../../lib/_lib/projectNameForbiddenWords.js';
+import { assignLeavingHostedApp } from '@/lib/navigateHosted.js';
 
 const MAX_IMAGE_MB = MAX_IMAGE_MB_BASE; // proviene de VITE_MAX_IMAGE_MB (default 30MB)
 const MAX_IMAGE_BYTES = MAX_IMAGE_MB * 1024 * 1024;
@@ -1025,17 +1026,15 @@ const resolveProductPageTargetUrl = (result) => {
   return null;
 };
 
-/** Navegación en la misma pestaña: evita ventanas emergentes y avisos del navegador. */
+/** Abre destino de tienda/checkout en la pestaña real (sale del iframe del tema si hace falta). */
 function navigateSameTab(url) {
   const trimmed = safeStr(url);
   if (!trimmed) return false;
-  try {
-    window.location.assign(trimmed);
-    return true;
-  } catch (assignErr) {
-    error('[home-step-three-commerce] location_assign_failed', assignErr);
+  const ok = assignLeavingHostedApp(trimmed);
+  if (!ok) {
+    error('[home-step-three-commerce] location_assign_failed', new Error('assign_failed'));
   }
-  return false;
+  return ok;
 }
 
 const resolveCheckoutErrorMessage = (checkoutError) => {
@@ -1064,13 +1063,7 @@ function tryOpenCommerceTarget(url) {
   } catch (openErr) {
     warn('[home-step-three-commerce] window_open_failed', openErr);
   }
-  try {
-    window.location.assign(trimmed);
-    return true;
-  } catch (assignErr) {
-    error('[home-step-three-commerce] location_assign_failed', assignErr);
-  }
-  return false;
+  return assignLeavingHostedApp(trimmed);
 }
 
 
@@ -1084,9 +1077,9 @@ export default function Home() {
     try {
       const params = new URLSearchParams(window.location.search || '');
       const shop = params.get('shop');
+      if (shop) window.sessionStorage.setItem('mgm_embed_shop', shop);
       const productId = params.get('product_id');
       const variantId = params.get('variant_id');
-      if (shop) window.sessionStorage.setItem('mgm_embed_shop', shop);
       if (productId) window.sessionStorage.setItem('mgm_embed_product_id', productId);
       if (variantId) window.sessionStorage.setItem('mgm_embed_variant_id', variantId);
     } catch {

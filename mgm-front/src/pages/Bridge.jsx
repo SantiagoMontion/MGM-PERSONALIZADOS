@@ -1,4 +1,5 @@
 ﻿import { useEffect, useMemo, useState } from 'react';
+import { replaceLeavingHostedApp } from '@/lib/navigateHosted.js';
 import { useLocation } from 'react-router-dom';
 
 function useRid() {
@@ -92,7 +93,7 @@ function useBridgeWatcher(rid) {
           redirectScheduled = true;
           navigationTimeoutId = window.setTimeout(() => {
             if (cancelled) return;
-            window.location.replace(url);
+            replaceLeavingHostedApp(url);
           }, 2500);
           return;
         }

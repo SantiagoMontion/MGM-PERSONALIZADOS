@@ -18,6 +18,7 @@ import { bytesToMB, formatHeavyImageToastMessage } from '@/lib/imageLimits.js';
 import { MAX_IMAGE_MB, MAX_IMAGE_BYTES } from '../lib/imageSizeLimit.js';
 import { isTouchDevice } from '@/lib/device.ts';
 import { isFixedPad49x42Material } from '@/lib/material.js';
+import { assignLeavingHostedApp } from '@/lib/navigateHosted.js';
 
 const safeStr = (v) => (typeof v === 'string' ? v : '').trim();
 
@@ -3358,13 +3359,11 @@ export default function Mockup() {
       if (opened) {
         return true;
       }
-      window.location.assign(urlInstance.toString());
-      return true;
+      return assignLeavingHostedApp(urlInstance.toString());
     } catch (navErr) {
       warn('[mockup] commerce_navigation_failed', navErr);
       try {
-        window.location.assign(trimmed);
-        return true;
+        return assignLeavingHostedApp(trimmed);
       } catch (assignErr) {
         warn('[mockup] commerce_navigation_assign_failed', assignErr);
       }
@@ -3844,7 +3843,7 @@ export default function Mockup() {
             }
             if (popup == null) {
               try {
-                window.location.assign(primaryTarget);
+                assignLeavingHostedApp(primaryTarget);
                 return finalizeCartSuccess('Listo. Abrimos tu checkout en otra pestaña.', {
                   skipNavigate: true,
                 });
@@ -4400,7 +4399,7 @@ export default function Mockup() {
         publishBridgeUrl(bridgeRid, targetUrl);
       } else if (!openInNewTabSafe(targetUrl)) {
         try {
-          window.location.assign(targetUrl);
+          assignLeavingHostedApp(targetUrl);
         } catch (assignErr) {
           warn('[mockup] finalize_navigation_failed', assignErr);
         }

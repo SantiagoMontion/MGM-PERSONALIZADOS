@@ -1,6 +1,5 @@
 {
   "personalizados": {
-    "configure_base_url": "Configurá la URL base del personalizador en el editor del tema (bloque Personalizados → URL base). Tiene que ser donde está deployado el front (ej. tu proyecto en Vercel).",
-    "pick_product": "Elegí un producto en la configuración del bloque."
+    "configure_base_url": "Configurá la URL base del personalizador en el editor del tema (bloque Personalizados → URL base)."
   }
 }
