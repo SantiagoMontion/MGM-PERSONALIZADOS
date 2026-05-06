@@ -1,19 +1,15 @@
 .container {
   display: flex;
   flex-direction: column;
-  min-height: 100dvh;
+  min-height: auto;
   background-color: var(--background);
   color: var(--foreground);
   transition:
     background-color 0.2s ease,
     color 0.2s ease;
+  overflow: visible;
 }
 
-.containerLocked {
-  /* block-size: 100vh; */
-  /* overflow: hidden; */ 
-  min-height: 100dvh; /* Para que al menos mantenga la estructura */
-}
 .main {
   display: flex;
   flex-direction: column;
@@ -25,8 +21,4 @@
 .main > * {
   flex: 1;
   min-block-size: 0;
-}
-
-.mainLocked {
-  /* overflow: hidden; */
 }

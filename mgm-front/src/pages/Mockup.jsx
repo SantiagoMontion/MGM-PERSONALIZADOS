@@ -4333,7 +4333,7 @@ export default function Mockup() {
     setToast(null);
     const bridgeRid = generateBridgeRid();
     clearBridgeKey(bridgeRid);
-    window.open(`/bridge?rid=${encodeURIComponent(bridgeRid)}`, '_blank', 'noopener');
+    window.location.assign(`/bridge?rid=${encodeURIComponent(bridgeRid)}`);
     setCartStatus('creating');
     try {
       try {
@@ -4541,7 +4541,7 @@ export default function Mockup() {
 
     const bridgeRid = generateBridgeRid();
     clearBridgeKey(bridgeRid);
-    window.open(`/bridge?rid=${encodeURIComponent(bridgeRid)}`, '_blank', 'noopener');
+    window.location.assign(`/bridge?rid=${encodeURIComponent(bridgeRid)}`);
 
     try {
       setBuyPromptOpen(false);
@@ -4599,7 +4599,7 @@ export default function Mockup() {
 
     const bridgeRid = generateBridgeRid();
     clearBridgeKey(bridgeRid);
-    window.open(`/bridge?rid=${encodeURIComponent(bridgeRid)}`, '_blank', 'noopener');
+    window.location.assign(`/bridge?rid=${encodeURIComponent(bridgeRid)}`);
 
     try {
       setBuyPromptOpen(false);

@@ -54,7 +54,6 @@ export default function App() {
   const location = useLocation();
   const shopifyEmbed = useShopifyEmbedFlag(location.search, location.pathname);
   const shouldShowFooter = location.pathname === '/mockup';
-  const shouldLockViewport = location.pathname === '/';
   const [headerStepOverride, setHeaderStepOverride] = useState(null);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     if (typeof window === 'undefined') return true;
