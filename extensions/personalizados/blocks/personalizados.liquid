@@ -1,13 +1,13 @@
 {% liquid
   assign base_url = block.settings.base_url | strip
-  assign iframe_height = block.settings.iframe_height | default: 920
+  assign iframe_height = block.settings.iframe_height | default: 800
   assign iframe_title = block.settings.iframe_title | strip
   if iframe_title == blank
     assign iframe_title = 'Personalizador NOTMID'
   endif
 %}
 
-<div class="mgm-personalizados-root" style="width:100%;max-width:100%;">
+<div class="mgm-personalizados-root" style="width:100%; max-width:100%; overflow: visible;">
   {% if base_url == blank %}
     <p class="mgm-personalizados-placeholder">{{ 'personalizados.configure_base_url' | t }}</p>
   {% else %}
@@ -18,8 +18,9 @@
       src="{{ iframe_src | escape }}"
       title="{{ iframe_title | escape }}"
       loading="lazy"
+      scrolling="no"
       referrerpolicy="strict-origin-when-cross-origin"
-      style="width:100%;min-height:{{ iframe_height }}px;border:0;display:block;"
+      style="width: 100%; height: {{ iframe_height }}px; border: 0; display: block; overflow: hidden;"
     ></iframe>
   {% endif %}
 </div>
@@ -35,17 +36,18 @@
       "label": "URL base del personalizador",
       "default": "https://personalizados.notmid.ar",
       "placeholder": "https://preview-tu-app.vercel.app",
-      "info": "URL pública donde está deployado mgm-front. El producto se crea desde el diseño; aquí solo indicamos la tienda (shop) para que tu backend sepa en qué Shopify actuar."
+      "info": "URL pública donde está deployado el front. Se envía el dominio de la tienda para la vinculación con el backend."
     },
     {
       "type": "range",
       "id": "iframe_height",
-      "min": 480,
-      "max": 1400,
-      "step": 20,
+      "min": 400,
+      "max": 1200,
+      "step": 10,
       "unit": "px",
-      "label": "Alto mínimo del iframe",
-      "default": 920
+      "label": "Altura del personalizador",
+      "default": 800,
+      "info": "Ajustá este valor para que el personalizador se vea completo sin dejar mucho espacio en blanco abajo. En notebooks, un valor menor a 850px ayuda a que el scroll hacia el footer sea más fluido."
     },
     {
       "type": "text",
