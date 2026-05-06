@@ -10,10 +10,10 @@
 }
 
 .containerLocked {
-  block-size: 100vh;
-  overflow: hidden;
+  /* block-size: 100vh; */
+  /* overflow: hidden; */ 
+  min-height: 100dvh; /* Para que al menos mantenga la estructura */
 }
-
 .main {
   display: flex;
   flex-direction: column;
@@ -28,5 +28,5 @@
 }
 
 .mainLocked {
-  overflow: hidden;
+  /* overflow: hidden; */
 }
