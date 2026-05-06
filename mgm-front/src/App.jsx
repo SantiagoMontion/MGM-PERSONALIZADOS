@@ -124,30 +124,30 @@ export default function App() {
     location.pathname.startsWith('/votaciones')
     || location.pathname.startsWith('/resultados');
 
-  return (
-    <div className={`${styles.container} ${shouldLockViewport ? styles.containerLocked : ''}`.trim()}>
-      <SeoJsonLd />
-      {!shopifyEmbed && <MobileAdvisoryBanner />}
-      {!shopifyEmbed && (
-        <ProgressHeader
-          currentStep={currentStep}
-          isDarkMode={isDarkMode}
-          onToggleTheme={handleToggleTheme}
-          showStepper={showStepper}
-          showTiendaLink={showTiendaLink}
-        />
-      )}
-      <main className={`${styles.main} ${shouldLockViewport ? styles.mainLocked : ''}`.trim()}>
-        <Outlet
-          context={{
-            setHeaderStepOverride,
-            isDarkMode,
-            toggleTheme: handleToggleTheme,
-            shopifyEmbed,
-          }}
-        />
-      </main>
-      {shouldShowFooter && <Footer />}
-    </div>
-  );
+    return (
+      <div className={styles.container}>
+        <SeoJsonLd />
+        {!shopifyEmbed && <MobileAdvisoryBanner />}
+        {!shopifyEmbed && (
+          <ProgressHeader
+            currentStep={currentStep}
+            isDarkMode={isDarkMode}
+            onToggleTheme={handleToggleTheme}
+            showStepper={showStepper}
+            showTiendaLink={showTiendaLink}
+          />
+        )}
+        <main className={styles.main}>
+          <Outlet
+            context={{
+              setHeaderStepOverride,
+              isDarkMode,
+              toggleTheme: handleToggleTheme,
+              shopifyEmbed,
+            }}
+          />
+        </main>
+        {shouldShowFooter && <Footer />}
+      </div>
+    );
 }
