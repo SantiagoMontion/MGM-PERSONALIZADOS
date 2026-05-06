@@ -48,6 +48,7 @@ export default function ProgressHeader({
   isDarkMode = true,
   onToggleTheme,
   showStepper = true,
+  showBrandLogo = true,
   showTiendaLink = false,
 }) {
   const resolvedStep = clampStep(currentStep);
@@ -61,14 +62,16 @@ export default function ProgressHeader({
   return (
     <header className={headerClasses}>
       <div className={styles.mobileBar}>
-        <Link
-          to="/"
-          className={`${styles.brandLink} ${styles.brandCompact}`.trim()}
-          aria-label="Ir al inicio de NOTMID"
-        >
-          <img src={brandLogoSrc} alt="" className={styles.brandMark} aria-hidden="true" />
-          <span className={styles.srOnly}>NOTMID</span>
-        </Link>
+        {showBrandLogo ? (
+          <Link
+            to="/"
+            className={`${styles.brandLink} ${styles.brandCompact}`.trim()}
+            aria-label="Ir al inicio de NOTMID"
+          >
+            <img src={brandLogoSrc} alt="" className={styles.brandMark} aria-hidden="true" />
+            <span className={styles.srOnly}>NOTMID</span>
+          </Link>
+        ) : null}
 
         <div className={styles.mobileActions}>
           {showStepper && (
@@ -129,14 +132,16 @@ export default function ProgressHeader({
 
       <div className={styles.desktopBar}>
         <div className={styles.desktopInner}>
-          <Link
-            to="/"
-            className={styles.brandLink}
-            aria-label="Ir al inicio de NOTMID"
-          >
-            <img src={brandLogoSrc} alt="" className={styles.brandMark} aria-hidden="true" />
-            <span className={styles.srOnly}>NOTMID</span>
-          </Link>
+          {showBrandLogo ? (
+            <Link
+              to="/"
+              className={styles.brandLink}
+              aria-label="Ir al inicio de NOTMID"
+            >
+              <img src={brandLogoSrc} alt="" className={styles.brandMark} aria-hidden="true" />
+              <span className={styles.srOnly}>NOTMID</span>
+            </Link>
+          ) : null}
 
           {showStepper ? (
             <nav className={styles.stepper} aria-label="Progreso de compra">

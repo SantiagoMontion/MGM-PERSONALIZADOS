@@ -67,7 +67,7 @@ export default function App() {
     [location.pathname],
   );
   const currentStep = headerStepOverride ?? routeStep;
-  const showStepper = shopifyEmbed ? false : currentStep !== null;
+  const showStepper = currentStep !== null;
 
   useEffect(() => {
     if (location.pathname !== '/' && headerStepOverride !== null) {
@@ -127,15 +127,14 @@ export default function App() {
       <div className={styles.container}>
         <SeoJsonLd />
         {!shopifyEmbed && <MobileAdvisoryBanner />}
-        {!shopifyEmbed && (
-          <ProgressHeader
-            currentStep={currentStep}
-            isDarkMode={isDarkMode}
-            onToggleTheme={handleToggleTheme}
-            showStepper={showStepper}
-            showTiendaLink={showTiendaLink}
-          />
-        )}
+        <ProgressHeader
+          currentStep={currentStep}
+          isDarkMode={isDarkMode}
+          onToggleTheme={handleToggleTheme}
+          showStepper={showStepper}
+          showBrandLogo={!shopifyEmbed}
+          showTiendaLink={shopifyEmbed ? false : showTiendaLink}
+        />
         <main className={styles.main}>
           <Outlet
             context={{
