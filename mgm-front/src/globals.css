@@ -73,6 +73,18 @@ body {
   overscroll-behavior: none;
 }
 
+/* En Shopify embed, permitir encadenamiento de scroll con la pagina host */
+html.mgm-shopify-embed,
+html.mgm-shopify-embed body {
+  overscroll-behavior: auto;
+}
+
+html.mgm-shopify-embed [class*="pageStepUpload"],
+html.mgm-shopify-embed [class*="pageStepEdit"],
+html.mgm-shopify-embed [class*="pageStepReview"] {
+  overflow-y: visible !important;
+}
+
 #root {
   min-height: 100dvh;
   background-color: var(--background);
