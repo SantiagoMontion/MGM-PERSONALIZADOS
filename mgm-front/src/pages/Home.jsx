@@ -5129,7 +5129,18 @@ export default function Home() {
                 <div className={`${styles.stepThreeDetailRow} ${styles.stepThreeDetailRowTotal}`.trim()}>
                   <span className={styles.stepThreeDetailLabel}>Total</span>
                   <span className={styles.stepThreeDetailValueTotal}>
-                    $ {formattedPriceAmount} (Abonando con transferencia)
+                    {isStepTwoClassicSeriesSelected ? (
+                      <span className={styles.stepThreeTotalPriceColumn}>
+                        <span className={styles.stepThreeTotalOriginalStrike}>
+                          $ {stepTwoFormattedOriginalPriceAmount}
+                        </span>
+                        <span className={styles.stepThreeTotalDiscountedLine}>
+                          $ {stepTwoFormattedDiscountedPriceAmount} (Abonando con transferencia)
+                        </span>
+                      </span>
+                    ) : (
+                      `$ ${formattedPriceAmount} (Abonando con transferencia)`
+                    )}
                   </span>
                 </div>
               </div>

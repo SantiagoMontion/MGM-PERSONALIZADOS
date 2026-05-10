@@ -4330,6 +4330,34 @@ body.light .stepTwoContainColorLabel {
   text-align: right;
 }
 
+.stepThreeTotalPriceColumn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  inline-size: 100%;
+}
+
+.stepThreeTotalOriginalStrike {
+  color: var(--foreground-secondary);
+  font-family: Inter, var(--font-family), sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+  white-space: nowrap;
+}
+
+.stepThreeTotalDiscountedLine {
+  color: var(--foreground);
+  font-family: Inter, var(--font-family), sans-serif;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 19.5px;
+  text-align: right;
+}
+
 .stepThreeSafetyNote {
   display: inline-flex;
   align-items: center;
