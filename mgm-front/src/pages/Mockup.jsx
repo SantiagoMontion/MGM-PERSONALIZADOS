@@ -511,6 +511,8 @@ async function uploadPreviewViaApi(metadata, blob) {
 
 export async function ensureMockupUrlInFlow(flow, input) {
   const state = typeof flow?.get === 'function' ? flow.get() : flow;
+  /** `flow.get()` lee `stateRef` actualizado en useEffect; justo después de `flow.set()` puede estar desfasado. Si el caller pasa `dataUrl`, esa fuente y las medidas de `input` mandan sobre el snapshot. */
+  const inputDataUrlOk = isDataUrl(input?.dataUrl);
   const bytes = state?.masterBytes;
   if (bytes && bytes > MAX_IMAGE_BYTES) {
     const actualMb = bytesToMB(bytes);
@@ -521,31 +523,35 @@ export async function ensureMockupUrlInFlow(flow, input) {
     throw err;
   }
   const hashOk = (h) => typeof h === 'string' && h.trim().length >= 6;
-  if (
-    typeof state?.mockupPublicUrl === 'string'
-    && state.mockupPublicUrl
-    && !state.mockupPublicUrl.startsWith('blob:')
-    && hashOk(state.mockupHash)
-    && state.mockupUploadOk !== false
-  ) {
-    return state.mockupPublicUrl;
-  }
-  if (
-    typeof state?.mockupUrl === 'string'
-    && state.mockupUrl
-    && !state.mockupUrl.startsWith('blob:')
-    && hashOk(state.mockupHash)
-    && state.mockupUploadOk !== false
-  ) {
-    return state.mockupUrl;
+  if (!inputDataUrlOk) {
+    if (
+      typeof state?.mockupPublicUrl === 'string'
+      && state.mockupPublicUrl
+      && !state.mockupPublicUrl.startsWith('blob:')
+      && hashOk(state.mockupHash)
+      && state.mockupUploadOk !== false
+    ) {
+      return state.mockupPublicUrl;
+    }
+    if (
+      typeof state?.mockupUrl === 'string'
+      && state.mockupUrl
+      && !state.mockupUrl.startsWith('blob:')
+      && hashOk(state.mockupHash)
+      && state.mockupUploadOk !== false
+    ) {
+      return state.mockupUrl;
+    }
   }
   const payloadLimitBytes = PUBLISH_MAX_PAYLOAD_KB * 1024;
-  if (isDataUrl(state?.mockupDataUrl) && state.mockupDataUrl.length <= payloadLimitBytes) {
+  if (!inputDataUrlOk && isDataUrl(state?.mockupDataUrl) && state.mockupDataUrl.length <= payloadLimitBytes) {
     return state.mockupDataUrl;
   }
-  const sourceDataUrl = isDataUrl(state?.printFullResDataUrl)
-    ? state.printFullResDataUrl
-    : (input?.dataUrl && isDataUrl(input.dataUrl) ? input.dataUrl : null);
+  const sourceDataUrl = inputDataUrlOk
+    ? input.dataUrl
+    : (isDataUrl(state?.printFullResDataUrl)
+      ? state.printFullResDataUrl
+      : (input?.dataUrl && isDataUrl(input.dataUrl) ? input.dataUrl : null));
   if (!isDataUrl(sourceDataUrl)) {
     const err = new Error('missing_print_fullres_dataurl');
     err.reason = 'missing_print_fullres_dataurl';
@@ -587,9 +593,21 @@ export async function ensureMockupUrlInFlow(flow, input) {
     designName,
     straightEdges: isStraightEdges,
   });
+  const inputWpx = Number(input?.widthPx);
+  const inputHpx = Number(input?.heightPx);
   const composition = {
-    widthPx: Number(state?.masterWidthPx ?? input?.widthPx ?? image.naturalWidth ?? image.width ?? 0),
-    heightPx: Number(state?.masterHeightPx ?? input?.heightPx ?? image.naturalHeight ?? image.height ?? 0),
+    widthPx: (() => {
+      if (Number.isFinite(inputWpx) && inputWpx > 0) return Math.round(inputWpx);
+      const sw = Number(state?.masterWidthPx);
+      if (Number.isFinite(sw) && sw > 0) return Math.round(sw);
+      return Number(image.naturalWidth || image.width || 0);
+    })(),
+    heightPx: (() => {
+      if (Number.isFinite(inputHpx) && inputHpx > 0) return Math.round(inputHpx);
+      const sh = Number(state?.masterHeightPx);
+      if (Number.isFinite(sh) && sh > 0) return Math.round(sh);
+      return Number(image.naturalHeight || image.height || 0);
+    })(),
     widthMm: Number(input?.widthMm ?? state?.masterWidthMm ?? 0) || undefined,
     heightMm: Number(input?.heightMm ?? state?.masterHeightMm ?? 0) || undefined,
     widthCm: Number.isFinite(widthRounded) && widthRounded > 0 ? widthRounded : undefined,

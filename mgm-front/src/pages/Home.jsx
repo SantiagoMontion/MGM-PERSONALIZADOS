@@ -2529,8 +2529,8 @@ export default function Home() {
         try {
           newMockupBlob = await generateMockupOffthread(pdfSourceBlob, {
             composition: {
-              widthPx: flowState?.masterWidthPx || masterWidthExact,
-              heightPx: flowState?.masterHeightPx || masterHeightExact,
+              widthPx: masterWidthExact,
+              heightPx: masterHeightExact,
               widthCm: flowState?.widthCm || activeWcm,
               heightCm: flowState?.heightCm || activeHcm,
               widthMm: masterWidthMm,
