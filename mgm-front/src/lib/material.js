@@ -60,11 +60,48 @@ export const STANDARD = {
 };
 
 export function normalizeMaterialLabel(value) {
-  const text = String(value ?? '').toLowerCase();
+  const text = String(value ?? '').trim().toLowerCase();
+  if (!text) return 'Classic';
+  if (text === 'classic' || text === 'clasic') return 'Classic';
+  if (text === 'pro') return 'PRO';
   if (text.includes('glass')) return 'Glasspad';
   if (text.includes('ultra')) return 'Ultra';
   if (text.includes('alfombr')) return 'Alfombra';
+  if (text.includes('classic') || text.includes('clasic')) return 'Classic';
   if (text.includes('pro')) return 'PRO';
-  if (text.includes('classic')) return 'Classic';
   return 'Classic';
+}
+
+/** Presets estándar (cm) para el material normalizado. */
+export function getStandardPresetsForMaterial(material) {
+  const normalized = normalizeMaterialLabel(material);
+  if (isFixedPad49x42Material(normalized)) {
+    return [{ ...GLASSPAD_SIZE_CM }];
+  }
+  return STANDARD[normalized] || STANDARD.Classic;
+}
+
+/** Límites min/max (cm) para medidas personalizadas según material. */
+export function getCustomSizeLimitsForMaterial(material) {
+  const normalized = normalizeMaterialLabel(material);
+  const mins = MIN_DIMENSION_CM_BY_MATERIAL[normalized] || MIN_DIMENSION_CM_BY_MATERIAL.Classic;
+  const maxs = LIMITS[normalized] || LIMITS.Classic;
+  const minW = Math.max(CUSTOM_PAD_MIN_DIMENSION_CM, Number(mins?.w) || CUSTOM_PAD_MIN_DIMENSION_CM);
+  const minH = Math.max(CUSTOM_PAD_MIN_DIMENSION_CM, Number(mins?.h) || CUSTOM_PAD_MIN_DIMENSION_CM);
+  return {
+    minW,
+    minH,
+    maxW: Number(maxs?.maxW) || LIMITS.Classic.maxW,
+    maxH: Number(maxs?.maxH) || LIMITS.Classic.maxH,
+  };
+}
+
+export function isSizeWithinMaterialLimits(size, material) {
+  const { minW, minH, maxW, maxH } = getCustomSizeLimitsForMaterial(material);
+  const w = Number(size?.w);
+  const h = Number(size?.h);
+  if (!Number.isFinite(w) || !Number.isFinite(h)) return false;
+  if (w < minW || h < minH) return false;
+  if (w > maxW || h > maxH) return false;
+  return true;
 }

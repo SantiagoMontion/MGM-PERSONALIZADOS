@@ -30,11 +30,13 @@ import vrActionIconSrc from '@/assets/icons/vr.svg';
 import closeXIconSrc from '../icons/closeX.svg';
 
 import {
-  LIMITS,
   GLASSPAD_SIZE_CM,
   DEFAULT_SIZE_CM,
-  MIN_DIMENSION_CM_BY_MATERIAL,
+  getCustomSizeLimitsForMaterial,
+  getStandardPresetsForMaterial,
   isFixedPad49x42Material,
+  isSizeWithinMaterialLimits,
+  normalizeMaterialLabel,
 } from '../lib/material.js';
 import { calculateTransferPricing, formatARS } from '../lib/pricing.js';
 
@@ -83,28 +85,7 @@ const sanitizeFileName = (value, fallback = 'design') => {
   if (normalized) return normalized;
   return fallback;
 };
-const normalizeMaterialLabelSafe = (value) => {
-  const label = safeStr(value);
-  if (label === 'Alfombra') return 'Alfombra';
-  if (label === 'Ultra') return 'Ultra';
-  const normalized = label.toLowerCase();
-  if (normalized.includes('glass')) return 'Glasspad';
-  if (normalized.includes('ultra')) return 'Ultra';
-  if (normalized.includes('pro')) return 'PRO';
-  if (normalized.includes('alfombra')) return 'Alfombra';
-  return 'Classic';
-};
-
-/** Si el estado local quedó en Classic pero el flow tiene PRO (u otro), alinear antes del paso 3. */
-const reconcileReviewMaterialFromFlow = (localMaterial, flowState) => {
-  const src = flowState && typeof flowState === 'object' ? flowState : {};
-  const fromFlow = normalizeMaterialLabelSafe(src.material ?? src.options?.material);
-  const local = normalizeMaterialLabelSafe(localMaterial);
-  if (local === fromFlow) return local;
-  if (local !== 'Classic' && fromFlow === 'Classic') return local;
-  if (fromFlow !== 'Classic' && local === 'Classic') return fromFlow;
-  return local;
-};
+const normalizeMaterialLabelSafe = (value) => normalizeMaterialLabel(value);
 const normalizeShapeSafe = (value) => {
   const normalized = safeStr(value).toLowerCase();
   if (normalized === 'circle' || normalized === 'circular' || normalized === 'form') {
@@ -411,11 +392,16 @@ const getDropdownStandardSizeOptionsForMaterial = (targetMaterial) => {
     return [buildGlasspadFixedSizeOption()];
   }
 
-  return STEP_TWO_SIZE_OPTIONS.filter((option) => {
-    if (targetMaterial === 'PRO' && sameCmSize(option, { w: 140, h: 100 })) {
-      return false;
-    }
-    return true;
+  const normalizedMaterial = normalizeMaterialLabel(targetMaterial);
+  return getStandardPresetsForMaterial(normalizedMaterial).map((preset) => {
+    const existing = STEP_TWO_SIZE_OPTIONS.find((option) => sameCmSize(option, preset));
+    if (existing) return existing;
+    return {
+      id: `${Number(preset.w)}x${Number(preset.h)}`,
+      label: '',
+      w: Number(preset.w),
+      h: Number(preset.h),
+    };
   });
 };
 
@@ -423,18 +409,7 @@ const isSizeAllowedForMaterial = (candidate, targetMaterial) => {
   if (isFixedPad49x42Material(targetMaterial)) {
     return sameCmSize(candidate, GLASSPAD_SIZE_CM);
   }
-
-  const min = MIN_DIMENSION_CM_BY_MATERIAL[targetMaterial] || { w: 1, h: 1 };
-  const limits = LIMITS[targetMaterial] || {};
-  const w = Number(candidate?.w);
-  const h = Number(candidate?.h);
-
-  if (!Number.isFinite(w) || !Number.isFinite(h)) return false;
-  if (w < (Number(min.w) || 1) || h < (Number(min.h) || 1)) return false;
-  if (Number.isFinite(Number(limits.maxW)) && w > Number(limits.maxW)) return false;
-  if (Number.isFinite(Number(limits.maxH)) && h > Number(limits.maxH)) return false;
-
-  return true;
+  return isSizeWithinMaterialLimits(candidate, targetMaterial);
 };
 
 const isDropdownStandardSizeForMaterial = (candidate, targetMaterial) => (
@@ -1143,16 +1118,10 @@ export default function Home() {
     () => ({ w: Math.round(Number(size.w)) || 90, h: Math.round(Number(size.h)) || 40 }),
     [size.w, size.h],
   );
-  const customSizeLimits = useMemo(() => {
-    const materialMin = MIN_DIMENSION_CM_BY_MATERIAL[material] || {};
-    const materialMax = LIMITS[material] || {};
-    const minW = Math.max(CUSTOM_SIZE_BASE_LIMITS_CM.minW, Number(materialMin.w) || CUSTOM_SIZE_BASE_LIMITS_CM.minW);
-    const minH = Math.max(CUSTOM_SIZE_BASE_LIMITS_CM.minH, Number(materialMin.h) || CUSTOM_SIZE_BASE_LIMITS_CM.minH);
-    const maxW = Math.max(minW, Math.min(CUSTOM_SIZE_BASE_LIMITS_CM.maxW, Number(materialMax.maxW) || CUSTOM_SIZE_BASE_LIMITS_CM.maxW));
-    const maxH = Math.max(minH, Math.min(CUSTOM_SIZE_BASE_LIMITS_CM.maxH, Number(materialMax.maxH) || CUSTOM_SIZE_BASE_LIMITS_CM.maxH));
-
-    return { minW, minH, maxW, maxH };
-  }, [material]);
+  const customSizeLimits = useMemo(
+    () => getCustomSizeLimitsForMaterial(material),
+    [material],
+  );
 
   const useFixedPadDimensions = isFixedPad49x42Material(material);
   const activeWcm = useFixedPadDimensions ? GLASSPAD_SIZE_CM.w : sizeCm.w;
@@ -1163,8 +1132,7 @@ export default function Home() {
 
   const clampSizeForMaterial = useCallback(
     (candidate, targetMaterial = material) => {
-      const min = MIN_DIMENSION_CM_BY_MATERIAL[targetMaterial] || { w: 1, h: 1 };
-      const lim = LIMITS[targetMaterial] || {};
+      const { minW, minH, maxW, maxH } = getCustomSizeLimitsForMaterial(targetMaterial);
       const clamp = (value, minVal, maxVal) => {
         const numeric = Number(value);
         const lower = Math.round(typeof minVal === 'number' ? minVal : 1);
@@ -1175,8 +1143,8 @@ export default function Home() {
         return Math.max(lower, rounded);
       };
       return {
-        w: clamp(candidate?.w, min.w, lim.maxW),
-        h: clamp(candidate?.h, min.h, lim.maxH),
+        w: clamp(candidate?.w, minW, maxW),
+        h: clamp(candidate?.h, minH, maxH),
       };
     },
     [material],
@@ -1185,12 +1153,11 @@ export default function Home() {
   const normalizeCircularSizeForMaterial = useCallback(
     (candidate, targetMaterial = material) => {
       const clamped = clampSizeForMaterial(candidate, targetMaterial);
-      const min = MIN_DIMENSION_CM_BY_MATERIAL[targetMaterial] || { w: 1, h: 1 };
-      const lim = LIMITS[targetMaterial] || {};
-      const minSide = Math.max(min.w ?? 1, min.h ?? 1);
+      const { minW, minH, maxW, maxH } = getCustomSizeLimitsForMaterial(targetMaterial);
+      const minSide = Math.max(minW ?? 1, minH ?? 1);
       const maxSide = Math.min(
-        typeof lim.maxW === 'number' ? lim.maxW : clamped.w,
-        typeof lim.maxH === 'number' ? lim.maxH : clamped.h,
+        typeof maxW === 'number' ? maxW : clamped.w,
+        typeof maxH === 'number' ? maxH : clamped.h,
       );
       const side = Math.max(minSide, Math.min(maxSide, Math.max(clamped.w, clamped.h)));
       return { w: side, h: side };
@@ -4228,31 +4195,63 @@ export default function Home() {
     return true;
   }, [designName, hasImage, selectedStepTwoMaterialOption, selectedStepTwoSizeOption]);
 
-  const openStepThreeReview = useCallback(() => {
+  const syncFlowEditorSelection = useCallback(() => {
+    if (typeof flow?.set !== 'function') return;
+    const canonicalMaterial = normalizeMaterialLabelSafe(material);
     const fs = (typeof flow?.get === 'function' ? flow.get() : flow) || {};
-    const aligned = reconcileReviewMaterialFromFlow(material, fs);
-    if (aligned !== material) {
-      setMaterial(aligned);
-    }
-    const canonicalMaterial = normalizeMaterialLabelSafe(aligned);
-    if (typeof flow?.set === 'function' && canonicalMaterial) {
-      const top = normalizeMaterialLabelSafe(fs.material ?? '');
-      const opt = normalizeMaterialLabelSafe(fs.options?.material ?? '');
-      if (top !== canonicalMaterial || opt !== canonicalMaterial) {
-        flow.set({
-          material: canonicalMaterial,
-          options: {
-            ...(fs.options && typeof fs.options === 'object' ? fs.options : {}),
-            material: canonicalMaterial,
-          },
-        });
-      }
-    }
+    const nextWidthCm = Math.round(Number(activeSizeCm?.w) || 0);
+    const nextHeightCm = Math.round(Number(activeSizeCm?.h) || 0);
+    const nextShape = isCircular && !isFixedPad49x42Material(material) ? 'circle' : 'rounded_rect';
+    const nextIsCircular = nextShape === 'circle';
+    const nextStraightEdges = Boolean(isStraightEdgesAvailable && !nextIsCircular && isStraightEdges);
+    flow.set({
+      designName,
+      material: canonicalMaterial,
+      isCircular: nextIsCircular,
+      shape: nextShape,
+      straightEdges: nextStraightEdges,
+      widthCm: nextWidthCm || null,
+      heightCm: nextHeightCm || null,
+      priceTransfer: Number(priceAmount || 0),
+      priceCurrency: PRICE_CURRENCY,
+      options: {
+        ...(fs.options && typeof fs.options === 'object' ? fs.options : {}),
+        material: canonicalMaterial,
+        productType: canonicalMaterial === 'Glasspad'
+          ? 'glasspad'
+          : canonicalMaterial === 'Alfombra'
+            ? 'alfombra'
+            : 'mousepad',
+        shape: nextShape,
+        isCircular: nextIsCircular,
+        straightEdges: nextStraightEdges,
+      },
+    });
+  }, [
+    activeSizeCm?.h,
+    activeSizeCm?.w,
+    designName,
+    flow,
+    isCircular,
+    isStraightEdges,
+    isStraightEdgesAvailable,
+    material,
+    priceAmount,
+  ]);
+
+  const buildCommercePayloadOverrides = useCallback(() => ({
+    material: normalizeMaterialLabelSafe(material),
+    widthCm: Math.round(Number(activeSizeCm?.w) || 0) || undefined,
+    heightCm: Math.round(Number(activeSizeCm?.h) || 0) || undefined,
+  }), [activeSizeCm?.h, activeSizeCm?.w, material]);
+
+  const openStepThreeReview = useCallback(() => {
+    syncFlowEditorSelection();
     captureReviewPreview();
     setConfigOpen(false);
     setToolsDrawerOpen(false);
     dispatchStep({ type: 'REVIEW' });
-  }, [captureReviewPreview, flow, material]);
+  }, [captureReviewPreview, syncFlowEditorSelection]);
 
   const handleReturnToEditor = useCallback(() => {
     if (reviewExitBusy || stepThreeCommerceAction) return;
@@ -4343,8 +4342,10 @@ export default function Home() {
     setErr('');
     setStepThreeCommerceAction('cart');
     try {
+      syncFlowEditorSelection();
       const result = await createJobAndProduct('cart', flow, {
         discountCode: STEP_THREE_TRANSFER_DISCOUNT,
+        payloadOverrides: buildCommercePayloadOverrides(),
       });
       let targetUrl = resolveProductPageTargetUrl(result);
       if (!targetUrl) {
@@ -4365,7 +4366,7 @@ export default function Home() {
     } finally {
       setStepThreeCommerceAction(null);
     }
-  }, [busy, flow, stepThreeCommerceAction]);
+  }, [buildCommercePayloadOverrides, busy, flow, stepThreeCommerceAction, syncFlowEditorSelection]);
 
   const openStepThreeCheckoutPrompt = useCallback(() => {
     if (busy || stepThreeCommerceAction) return;
@@ -4384,8 +4385,10 @@ export default function Home() {
     setStepThreeCheckoutPromptOpen(false);
     setStepThreeCommerceAction('checkout-public');
     try {
+      syncFlowEditorSelection();
       const result = await createJobAndProduct('checkout', flow, {
         discountCode: STEP_THREE_TRANSFER_DISCOUNT,
+        payloadOverrides: buildCommercePayloadOverrides(),
       });
       const checkoutUrl = resolveCheckoutTargetUrl(result);
       if (!checkoutUrl) {
@@ -4402,7 +4405,7 @@ export default function Home() {
     } finally {
       setStepThreeCommerceAction(null);
     }
-  }, [busy, flow, stepThreeCommerceAction]);
+  }, [buildCommercePayloadOverrides, busy, flow, stepThreeCommerceAction, syncFlowEditorSelection]);
 
   const handleStepThreeCheckoutPrivate = useCallback(async () => {
     if (busy || stepThreeCommerceAction) return;
@@ -4440,8 +4443,14 @@ export default function Home() {
     setStepThreeCheckoutPromptOpen(false);
     setStepThreeCommerceAction('checkout-private');
     try {
-      const submissionFlow = { ...flow, customerEmail: emailRaw };
-      const result = await createJobAndProduct('private', submissionFlow, {});
+      syncFlowEditorSelection();
+      if (typeof flow?.set === 'function') {
+        flow.set({ customerEmail: emailRaw });
+      }
+      const submissionFlow = (typeof flow?.get === 'function' ? flow.get() : flow) || {};
+      const result = await createJobAndProduct('private', submissionFlow, {
+        payloadOverrides: buildCommercePayloadOverrides(),
+      });
       const checkoutUrl = resolveCheckoutTargetUrl(result);
       if (!checkoutUrl) {
         setErr('No se pudo abrir el checkout privado. Intentá nuevamente.');
@@ -4457,7 +4466,7 @@ export default function Home() {
     } finally {
       setStepThreeCommerceAction(null);
     }
-  }, [busy, flow, stepThreeCommerceAction]);
+  }, [buildCommercePayloadOverrides, busy, flow, stepThreeCommerceAction, syncFlowEditorSelection]);
 
   useEffect(() => {
     if (!stepThreeCheckoutPromptOpen) return;

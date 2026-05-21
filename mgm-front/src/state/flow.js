@@ -291,7 +291,9 @@ export function FlowProvider({ children }) {
     setState((prev) => {
       const nextPartial = typeof partial === 'function' ? partial(prev) : partial;
       if (!nextPartial || typeof nextPartial !== 'object') return prev;
-      return { ...prev, ...nextPartial };
+      const next = { ...prev, ...nextPartial };
+      stateRef.current = next;
+      return next;
     });
   }, []);
 

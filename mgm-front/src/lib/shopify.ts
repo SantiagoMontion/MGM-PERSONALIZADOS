@@ -275,11 +275,13 @@ function matLabelOf(material: unknown): string | null {
   const raw = (material ?? '').toString().trim();
   if (!raw) return null;
   const text = raw.toLowerCase();
+  if (text === 'classic' || text === 'clasic') return 'Classic';
+  if (text === 'pro') return 'PRO';
   if (text.includes('glass')) return 'Glasspad';
   if (text.includes('ultra')) return 'Ultra';
-  if (text.includes('pro')) return 'PRO';
   if (text.includes('alfombr')) return 'Alfombra';
-  if (text.includes('classic')) return 'Classic';
+  if (text.includes('classic') || text.includes('clasic')) return 'Classic';
+  if (text.includes('pro')) return 'PRO';
   return raw;
 }
 
@@ -880,7 +882,14 @@ export async function createJobAndProduct(
   const designNameInput = (flow as any)?.designName;
   const designNameRaw = (designNameInput ?? '').toString(); // el input tal cual (servidor corta a 40)
   let designName = designNameRaw.trim();
-  const materialFromFlowRaw = resolveMaterialStringFromFlow(flow);
+  const earlyOverrides =
+    payloadOverrides && typeof payloadOverrides === 'object'
+      ? (payloadOverrides as Record<string, unknown>)
+      : null;
+  const materialOverrideRaw = earlyOverrides?.material;
+  const materialFromFlowRaw = typeof materialOverrideRaw === 'string' && materialOverrideRaw.trim()
+    ? materialOverrideRaw.trim()
+    : resolveMaterialStringFromFlow(flow);
   let materialLabel = productType === 'glasspad' ? 'Glasspad' : (matLabelOf(materialFromFlowRaw) || 'Classic');
   const displayMaterialLabel = formatCustomerMaterialLabel(materialLabel, isCircularShape);
   if (materialLabel === 'Alfombra') {
@@ -908,12 +917,8 @@ export async function createJobAndProduct(
   const heightFromMm = mmToCm(safeNumber((flow as any)?.masterHeightMm ?? (flow.editorState as any)?.size_mm?.h));
   const widthFromPx = pxToCm(masterWidthPx);
   const heightFromPx = pxToCm(masterHeightPx);
-  widthCm = pickDimension(widthCm, widthFromFlow, widthFromMm, widthFromPx);
-  heightCm = pickDimension(heightCm, heightFromFlow, heightFromMm, heightFromPx);
-  const earlyOverrides =
-    payloadOverrides && typeof payloadOverrides === 'object'
-      ? (payloadOverrides as Record<string, unknown>)
-      : null;
+  widthCm = pickDimension(widthFromFlow, widthCm, widthFromMm, widthFromPx);
+  heightCm = pickDimension(heightFromFlow, heightCm, heightFromMm, heightFromPx);
   const widthOverride = Number(earlyOverrides?.widthCm);
   if (Number.isFinite(widthOverride) && widthOverride > 0) {
     widthCm = Math.round(widthOverride);
