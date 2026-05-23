@@ -3451,24 +3451,6 @@ export default function Home() {
     () => formatARS(stepOneTransferPricing.valid ? stepOneTransferPricing.transfer : 0),
     [stepOneTransferPricing.transfer, stepOneTransferPricing.valid],
   );
-  /** Classic 40% OFF en paso 1 (solo visual; el cobro sigue el precio del flujo). */
-  const isStepOneClassicSeriesSelected = material === 'Classic';
-  const stepOneOriginalPriceAmount = useMemo(
-    () => (stepOneTransferPricing.valid ? Number(stepOneTransferPricing.transfer) || 0 : 0),
-    [stepOneTransferPricing.transfer, stepOneTransferPricing.valid],
-  );
-  const stepOneDiscountedPriceAmount = useMemo(
-    () => (
-      isStepOneClassicSeriesSelected
-        ? Math.round(stepOneOriginalPriceAmount * 0.6)
-        : stepOneOriginalPriceAmount
-    ),
-    [isStepOneClassicSeriesSelected, stepOneOriginalPriceAmount],
-  );
-  const stepOneFormattedDiscountedPriceAmount = useMemo(
-    () => formatARS(stepOneDiscountedPriceAmount),
-    [stepOneDiscountedPriceAmount],
-  );
   const formatStepOneDimension = useCallback((value) => {
     const numeric = Number(value);
     if (!Number.isFinite(numeric) || numeric <= 0) {
@@ -3902,27 +3884,6 @@ export default function Home() {
       minimumFractionDigits: 0,
     });
   }, [priceAmount]);
-  const isStepTwoClassicSeriesSelected = material === 'Classic';
-  const stepTwoOriginalPriceAmount = useMemo(() => {
-    const amount = Number(priceAmount);
-    return Number.isFinite(amount) && amount > 0 ? amount : 0;
-  }, [priceAmount]);
-  const stepTwoDiscountedPriceAmount = useMemo(
-    () => (
-      isStepTwoClassicSeriesSelected
-        ? Math.round(stepTwoOriginalPriceAmount * 0.6)
-        : stepTwoOriginalPriceAmount
-    ),
-    [isStepTwoClassicSeriesSelected, stepTwoOriginalPriceAmount],
-  );
-  const stepTwoFormattedOriginalPriceAmount = useMemo(
-    () => formatARS(stepTwoOriginalPriceAmount),
-    [stepTwoOriginalPriceAmount],
-  );
-  const stepTwoFormattedDiscountedPriceAmount = useMemo(
-    () => formatARS(stepTwoDiscountedPriceAmount),
-    [stepTwoDiscountedPriceAmount],
-  );
 
   const stepTwoQualityState = useMemo(() => {
     if (!hasImage) return null;
@@ -4958,26 +4919,7 @@ export default function Home() {
                     />
                     <div className={`${styles.stepOneFooterBar} ${isDarkMode ? styles.stepOneFooterBarDark : styles.stepOneFooterBarLight}`.trim()}>
                       <div className={styles.stepOneFooterPriceBlock}>
-                        {isStepOneClassicSeriesSelected ? (
-                          <>
-                            <span
-                              className={`${styles.stepOneFooterOriginalPrice} ${!isDarkMode ? styles.stepOneFooterOriginalPriceLight : ''}`.trim()}
-                            >
-                              $ {stepOneFormattedPriceAmount}
-                            </span>
-                            <span
-                              className={`${styles.stepOneFooterPrice} ${!isDarkMode ? styles.stepOneFooterPriceLight : ''}`.trim()}
-                            >
-                              $ {stepOneFormattedDiscountedPriceAmount}
-                            </span>
-                          </>
-                        ) : (
-                          <span
-                            className={`${styles.stepOneFooterPrice} ${!isDarkMode ? styles.stepOneFooterPriceLight : ''}`.trim()}
-                          >
-                            $ {stepOneFormattedPriceAmount}
-                          </span>
-                        )}
+                        <span className={`${styles.stepOneFooterPrice} ${!isDarkMode ? styles.stepOneFooterPriceLight : ''}`.trim()}>$ {stepOneFormattedPriceAmount}</span>
                         <span className={`${styles.stepOneFooterPriceCaption} ${!isDarkMode ? styles.stepOneFooterPriceCaptionLight : ''}`.trim()}>Total según configuración</span>
                       </div>
                       <button
@@ -5138,18 +5080,7 @@ export default function Home() {
                 <div className={`${styles.stepThreeDetailRow} ${styles.stepThreeDetailRowTotal}`.trim()}>
                   <span className={styles.stepThreeDetailLabel}>Total</span>
                   <span className={styles.stepThreeDetailValueTotal}>
-                    {isStepTwoClassicSeriesSelected ? (
-                      <span className={styles.stepThreeTotalPriceColumn}>
-                        <span className={styles.stepThreeTotalOriginalStrike}>
-                          $ {stepTwoFormattedOriginalPriceAmount}
-                        </span>
-                        <span className={styles.stepThreeTotalDiscountedLine}>
-                          $ {stepTwoFormattedDiscountedPriceAmount} (Abonando con transferencia)
-                        </span>
-                      </span>
-                    ) : (
-                      `$ ${formattedPriceAmount} (Abonando con transferencia)`
-                    )}
+                    {`$ ${formattedPriceAmount} (Abonando con transferencia)`}
                   </span>
                 </div>
               </div>
@@ -5628,14 +5559,7 @@ export default function Home() {
                 <div className={styles.stepTwoFooter} ref={stepTwoFooterRef}>
                   <div className={styles.stepTwoFooterTopRow}>
                     <div className={styles.stepTwoFooterPriceBlock}>
-                      {isStepTwoClassicSeriesSelected ? (
-                        <>
-                          <span className={styles.stepTwoFooterOriginalPrice}>$ {stepTwoFormattedOriginalPriceAmount}</span>
-                          <span className={styles.stepTwoFooterPrice}>$ {stepTwoFormattedDiscountedPriceAmount}</span>
-                        </>
-                      ) : (
-                        <span className={styles.stepTwoFooterPrice}>$ {formattedPriceAmount}</span>
-                      )}
+                      <span className={styles.stepTwoFooterPrice}>$ {formattedPriceAmount}</span>
                       <span className={styles.stepTwoFooterPriceCaption}>Total según configuración</span>
                       <span className={styles.stepTwoFooterSizeMaterialLine}>
                         {stepTwoFooterMobileSizeMaterialLine}
@@ -6035,14 +5959,7 @@ export default function Home() {
                       <div className={styles.stepTwoConfigFooter}>
                         <div className={styles.stepTwoConfigFooterPriceBlock}>
                           <p className={styles.stepTwoConfigFooterLabel}>Total</p>
-                          {isStepTwoClassicSeriesSelected ? (
-                            <>
-                              <p className={styles.stepTwoConfigFooterOriginalAmount}>$ {stepTwoFormattedOriginalPriceAmount}</p>
-                              <p className={styles.stepTwoConfigFooterAmount}>$ {stepTwoFormattedDiscountedPriceAmount}</p>
-                            </>
-                          ) : (
-                            <p className={styles.stepTwoConfigFooterAmount}>$ {formattedPriceAmount}</p>
-                          )}
+                          <p className={styles.stepTwoConfigFooterAmount}>$ {formattedPriceAmount}</p>
                         </div>
 
                         <div className={styles.stepTwoConfigActions}>

@@ -1891,20 +1891,6 @@ body.light .stepOneFooterBar:not(.stepOneFooterBarDark) {
   min-inline-size: 0;
 }
 
-.stepOneFooterOriginalPrice {
-  color: color-mix(in srgb, var(--nm-white) 70%, transparent);
-  font-family: Inter, var(--font-family), sans-serif;
-  font-size: 16px;
-  font-weight: 500;
-  line-height: 1.1;
-  text-decoration: line-through;
-  text-decoration-thickness: 1.5px;
-}
-
-.stepOneFooterOriginalPriceLight {
-  color: color-mix(in srgb, var(--nm-black) 60%, transparent);
-}
-
 .stepOneFooterPrice {
   color: var(--nm-accent-blue);
   font-family: Inter, var(--font-family), sans-serif;
@@ -2934,15 +2920,6 @@ body.light .stepTwoFooterPriceCaption {
   font-weight: 500;
   line-height: 1;
   letter-spacing: -0.04em;
-}
-
-.stepTwoFooterOriginalPrice {
-  color: var(--nm-text-subtle-dark);
-  font-size: 16px;
-  font-weight: 500;
-  line-height: 1.1;
-  text-decoration: line-through;
-  text-decoration-thickness: 1.5px;
 }
 
 .stepTwoFooterPriceCaption {
@@ -4092,17 +4069,6 @@ body.light .stepTwoContainColorLabel {
   white-space: nowrap;
 }
 
-.stepTwoConfigFooterOriginalAmount {
-  margin: 0;
-  color: var(--foreground-secondary);
-  font-size: var(--fs-sm);
-  font-weight: 500;
-  line-height: 1.1;
-  text-decoration: line-through;
-  text-decoration-thickness: 1.5px;
-  white-space: nowrap;
-}
-
 .stepTwoConfigSubmitButton {
   inline-size: 100%;
 }
@@ -4325,34 +4291,6 @@ body.light .stepTwoContainColorLabel {
   font-family: Inter, var(--font-family), sans-serif;
   font-size: 13px;
   font-style: normal;
-  font-weight: 400;
-  line-height: 19.5px;
-  text-align: right;
-}
-
-.stepThreeTotalPriceColumn {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
-  inline-size: 100%;
-}
-
-.stepThreeTotalOriginalStrike {
-  color: var(--foreground-secondary);
-  font-family: Inter, var(--font-family), sans-serif;
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 1.2;
-  text-decoration: line-through;
-  text-decoration-thickness: 1.5px;
-  white-space: nowrap;
-}
-
-.stepThreeTotalDiscountedLine {
-  color: var(--foreground);
-  font-family: Inter, var(--font-family), sans-serif;
-  font-size: 13px;
   font-weight: 400;
   line-height: 19.5px;
   text-align: right;
@@ -4732,11 +4670,6 @@ body.light .stepTwoContainColorLabel {
     border-radius: 22px;
     position: relative;
     z-index: 11;
-  }
-
-  .stepOneFooterOriginalPrice {
-    font-size: 14px;
-    line-height: 1.1;
   }
 
   .stepOneFooterPrice {
