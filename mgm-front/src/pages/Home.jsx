@@ -3501,8 +3501,6 @@ export default function Home() {
     }
     const selectedWidthProgress = Math.min(safeWidth / STEP_ONE_PREVIEW_REFERENCE_CM.w, 1);
     const selectedHeightProgress = Math.min(safeHeight / STEP_ONE_PREVIEW_REFERENCE_CM.h, 1);
-    const heroOffsetPx = Math.round((1 - selectedHeightProgress) * 56);
-    const blockShiftYPx = Math.round(selectedHeightProgress * -16);
     const measureOffsetMinPx = 12;
     const measureOffsetMaxPx = 20;
     const measureTrackReservePx = 20;
@@ -3553,8 +3551,6 @@ export default function Home() {
       '--step-one-layout-gap': `${layoutGapPx}px`,
       '--step-one-heading-gap': `${headingGapPx}px`,
       '--step-one-hero-gap': `${heroGapPx}px`,
-      '--step-one-hero-offset-top': `${heroOffsetPx}px`,
-      '--step-one-block-shift-y': `${blockShiftYPx}px`,
       '--step-one-size-gap': `${sizeSectionGapPx}px`,
       '--step-one-preview-stack-gap': `${previewStackGapPx}px`,
       '--step-one-preview-frame-margin-top': `${previewTopSpacingPx}px`,
