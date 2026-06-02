@@ -16,6 +16,7 @@ import SeoJsonLd from '../components/SeoJsonLd';
 import UploadStep from '../components/UploadStep';
 import Calculadora from '../components/Calculadora.jsx';
 import CustomSizeFields from '../components/CustomSizeFields.jsx';
+import ProSeriesPromoPrice from '../components/ProSeriesPromoPrice.jsx';
 import EditorCanvas from '../components/EditorCanvas';
 import ColorPopover from '../components/ColorPopover';
 import LoadingOverlay from '../components/LoadingOverlay';
@@ -3447,10 +3448,9 @@ export default function Home() {
     }),
     [activeSizeCm.h, activeSizeCm.w, material],
   );
-  const stepOneFormattedPriceAmount = useMemo(
-    () => formatARS(stepOneTransferPricing.valid ? stepOneTransferPricing.transfer : 0),
-    [stepOneTransferPricing.transfer, stepOneTransferPricing.valid],
-  );
+  const stepOneDisplayTransferPrice = useMemo(() => (
+    stepOneTransferPricing.valid ? Number(stepOneTransferPricing.transfer) || 0 : 0
+  ), [stepOneTransferPricing.transfer, stepOneTransferPricing.valid]);
   const formatStepOneDimension = useCallback((value) => {
     const numeric = Number(value);
     if (!Number.isFinite(numeric) || numeric <= 0) {
@@ -3872,13 +3872,9 @@ export default function Home() {
     }
     return previewDataUrl;
   }, []);
-  const formattedPriceAmount = useMemo(() => {
+  const editorDisplayTransferPrice = useMemo(() => {
     const amount = Number(priceAmount);
-    const safeAmount = Number.isFinite(amount) && amount > 0 ? amount : 0;
-    return safeAmount.toLocaleString('es-AR', {
-      maximumFractionDigits: 0,
-      minimumFractionDigits: 0,
-    });
+    return Number.isFinite(amount) && amount > 0 ? amount : 0;
   }, [priceAmount]);
 
   const stepTwoQualityState = useMemo(() => {
@@ -4915,7 +4911,12 @@ export default function Home() {
                     />
                     <div className={`${styles.stepOneFooterBar} ${isDarkMode ? styles.stepOneFooterBarDark : styles.stepOneFooterBarLight}`.trim()}>
                       <div className={styles.stepOneFooterPriceBlock}>
-                        <span className={`${styles.stepOneFooterPrice} ${!isDarkMode ? styles.stepOneFooterPriceLight : ''}`.trim()}>$ {stepOneFormattedPriceAmount}</span>
+                        <ProSeriesPromoPrice
+                          material={material}
+                          transferPrice={stepOneDisplayTransferPrice}
+                          variant="large"
+                          lightTheme={!isDarkMode}
+                        />
                         <span className={`${styles.stepOneFooterPriceCaption} ${!isDarkMode ? styles.stepOneFooterPriceCaptionLight : ''}`.trim()}>Total según configuración</span>
                       </div>
                       <button
@@ -5076,7 +5077,14 @@ export default function Home() {
                 <div className={`${styles.stepThreeDetailRow} ${styles.stepThreeDetailRowTotal}`.trim()}>
                   <span className={styles.stepThreeDetailLabel}>Total</span>
                   <span className={styles.stepThreeDetailValueTotal}>
-                    {`$ ${formattedPriceAmount} (Abonando con transferencia)`}
+                    <ProSeriesPromoPrice
+                      material={material}
+                      transferPrice={editorDisplayTransferPrice}
+                      variant="stepThree"
+                    />
+                    <span className={styles.stepThreeDetailTransferNote}>
+                      Abonando con transferencia
+                    </span>
                   </span>
                 </div>
               </div>
@@ -5555,7 +5563,11 @@ export default function Home() {
                 <div className={styles.stepTwoFooter} ref={stepTwoFooterRef}>
                   <div className={styles.stepTwoFooterTopRow}>
                     <div className={styles.stepTwoFooterPriceBlock}>
-                      <span className={styles.stepTwoFooterPrice}>$ {formattedPriceAmount}</span>
+                      <ProSeriesPromoPrice
+                        material={material}
+                        transferPrice={editorDisplayTransferPrice}
+                        variant="large"
+                      />
                       <span className={styles.stepTwoFooterPriceCaption}>Total según configuración</span>
                       <span className={styles.stepTwoFooterSizeMaterialLine}>
                         {stepTwoFooterMobileSizeMaterialLine}
@@ -5720,7 +5732,19 @@ export default function Home() {
                                       <span className={styles.stepTwoOptionTitle}>{option.label}</span>
                                       <span className={styles.stepTwoOptionDescription}>{option.measurementLabel}</span>
                                     </span>
-                                    <span className={styles.stepTwoOptionPrice}>{option.priceLabel}</span>
+                                    <span className={styles.stepTwoOptionPrice}>
+                                      {material === 'PRO' && option.price > 0 ? (
+                                        <ProSeriesPromoPrice
+                                          material="PRO"
+                                          transferPrice={option.price}
+                                          variant="compact"
+                                          inline
+                                          showBadge={false}
+                                        />
+                                      ) : (
+                                        option.priceLabel
+                                      )}
+                                    </span>
                                   </label>
                                 );
                               })}
@@ -5840,7 +5864,19 @@ export default function Home() {
                                       </span>
                                       <span className={styles.stepTwoOptionDescription}>{option.description}</span>
                                     </span>
-                                    <span className={styles.stepTwoOptionPrice}>{option.priceLabel}</span>
+                                    <span className={styles.stepTwoOptionPrice}>
+                                      {option.value === 'PRO' && option.totalPrice > 0 ? (
+                                        <ProSeriesPromoPrice
+                                          material="PRO"
+                                          transferPrice={option.totalPrice}
+                                          variant="compact"
+                                          inline
+                                          showBadge={false}
+                                        />
+                                      ) : (
+                                        option.priceLabel
+                                      )}
+                                    </span>
                                   </label>
                                 );
                               })}
@@ -5955,7 +5991,11 @@ export default function Home() {
                       <div className={styles.stepTwoConfigFooter}>
                         <div className={styles.stepTwoConfigFooterPriceBlock}>
                           <p className={styles.stepTwoConfigFooterLabel}>Total</p>
-                          <p className={styles.stepTwoConfigFooterAmount}>$ {formattedPriceAmount}</p>
+                          <ProSeriesPromoPrice
+                            material={material}
+                            transferPrice={editorDisplayTransferPrice}
+                            variant="medium"
+                          />
                         </div>
 
                         <div className={styles.stepTwoConfigActions}>
