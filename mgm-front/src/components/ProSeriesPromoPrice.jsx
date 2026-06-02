@@ -4,8 +4,8 @@ import { buildProSeriesPromoDisplay } from '../lib/proSeriesPromoDisplay.js';
 import styles from './ProSeriesPromoPrice.module.css';
 
 /**
- * Muestra precio tachado + 30% OFF solo para serie PRO.
- * No altera el monto de cobro (transferPrice); es presentación en front.
+ * PRO: tachado = precio real de transferencia; destacado = ese monto con 30% OFF visual.
+ * El cobro (transferPrice / Shopify) no cambia.
  */
 export default function ProSeriesPromoPrice({
   material,
@@ -22,9 +22,11 @@ export default function ProSeriesPromoPrice({
   );
 
   const formattedTransfer = useMemo(() => {
-    const amount = Math.round(Number(transferPrice) || 0);
+    const amount = promo
+      ? promo.displayPrice
+      : Math.round(Number(transferPrice) || 0);
     return amount > 0 ? formatARS(amount) : '0';
-  }, [transferPrice]);
+  }, [promo, transferPrice]);
 
   const formattedCompare = promo ? formatARS(promo.compareAt) : '';
 

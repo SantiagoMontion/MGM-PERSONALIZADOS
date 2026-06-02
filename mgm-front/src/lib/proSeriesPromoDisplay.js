@@ -7,24 +7,28 @@ export function isProSeriesMaterial(material) {
   return normalizeMaterialLabel(material) === 'PRO';
 }
 
-/** Precio "antes" tachado para mostrar 30% OFF visual; el cobro real sigue siendo transferPrice. */
-export function getProSeriesVisualComparePrice(transferPrice) {
+/**
+ * Precio que se muestra en pantalla con 30% OFF visual.
+ * El cobro real (transferencia / Shopify) sigue siendo `transferPrice`.
+ * Ej.: transfer 43.500 → se muestra 30.450.
+ */
+export function getProSeriesVisualDisplayPrice(transferPrice) {
   const transfer = Math.round(Number(transferPrice) || 0);
   if (transfer <= 0) return 0;
   const factor = 1 - PRO_SERIES_VISUAL_DISCOUNT_PERCENT / 100;
-  if (factor <= 0) return transfer;
-  return Math.round(transfer / factor);
+  return Math.round(transfer * factor);
 }
 
 export function buildProSeriesPromoDisplay(material, transferPrice) {
   if (!isProSeriesMaterial(material)) return null;
-  const transfer = Math.round(Number(transferPrice) || 0);
-  if (transfer <= 0) return null;
-  const compareAt = getProSeriesVisualComparePrice(transfer);
-  if (compareAt <= transfer) return null;
+  const actualTransfer = Math.round(Number(transferPrice) || 0);
+  if (actualTransfer <= 0) return null;
+  const displayPrice = getProSeriesVisualDisplayPrice(actualTransfer);
+  if (displayPrice <= 0 || displayPrice >= actualTransfer) return null;
   return {
-    transfer,
-    compareAt,
+    actualTransfer,
+    compareAt: actualTransfer,
+    displayPrice,
     discountLabel: `${PRO_SERIES_VISUAL_DISCOUNT_PERCENT}% OFF`,
   };
 }
