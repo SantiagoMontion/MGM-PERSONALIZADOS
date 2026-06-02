@@ -1532,19 +1532,20 @@ export async function createJobAndProduct(
     }
   }
 
-  if (!isPrivate && mode === 'checkout') {
+  if (mode === 'checkout' || isPrivate) {
     try {
       const expectedHandle =
         typeof productHandle === 'string' && productHandle.trim() ? productHandle.trim() : null;
       const pollResult = await waitForVariantAvailability(variantId, {
         expectedHandle,
-        verifyProductPublication: productId
+        verifyProductPublication: productId && !isPrivate
           ? () => verifyProductPublicationStatus(productId)
           : undefined,
       });
       if (pollResult?.timedOut) {
         warn('[createJobAndProduct] storefront_variant_poll_timed_out', {
           variantId: String(variantId).slice(0, 24),
+          isPrivate,
         });
       }
     } catch (pollErr) {
@@ -1770,15 +1771,20 @@ export async function createJobAndProduct(
           throw buildError('private_checkout_non_json');
         }
         const checkoutUrlFromResponse =
-          typeof ck.url === 'string' && ck.url.trim()
-            ? ck.url.trim()
+          typeof ck.checkoutUrl === 'string' && ck.checkoutUrl.trim()
+            ? ck.checkoutUrl.trim()
             : typeof ck.invoiceUrl === 'string' && ck.invoiceUrl.trim()
               ? ck.invoiceUrl.trim()
-              : typeof ck.checkoutUrl === 'string' && ck.checkoutUrl.trim()
-                ? ck.checkoutUrl.trim()
-                : '';
+              : typeof ck.url === 'string' && ck.url.trim()
+                ? ck.url.trim()
+                : typeof ck.webUrl === 'string' && ck.webUrl.trim()
+                  ? ck.webUrl.trim()
+                  : '';
         if (ck.ok === true && checkoutUrlFromResponse) {
           result.checkoutUrl = checkoutUrlFromResponse;
+          if (typeof ck.url === 'string' && ck.url.trim()) {
+            result.cartUrl = ck.url.trim();
+          }
           if (ck.draftOrderId) {
             result.draftOrderId = String(ck.draftOrderId);
           }
