@@ -4400,8 +4400,7 @@ export default function Home() {
       if (typeof flow?.set === 'function') {
         flow.set({ customerEmail: emailRaw });
       }
-      const submissionFlow = (typeof flow?.get === 'function' ? flow.get() : flow) || {};
-      const result = await createJobAndProduct('private', submissionFlow, {
+      const result = await createJobAndProduct('private', flow, {
         payloadOverrides: buildCommercePayloadOverrides(),
       });
       const checkoutUrl = resolveCheckoutTargetUrl(result);

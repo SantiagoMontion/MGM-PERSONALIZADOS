@@ -3682,8 +3682,6 @@ export default function Mockup() {
       return;
     }
 
-    let submissionFlow = flow;
-
     if (mode === 'private') {
       const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       let emailRaw = typeof flow.customerEmail === 'string' ? flow.customerEmail.trim() : '';
@@ -3710,7 +3708,6 @@ export default function Mockup() {
       if (emailRaw !== flow.customerEmail) {
         flow.set({ customerEmail: emailRaw });
       }
-      submissionFlow = { ...flow, customerEmail: emailRaw };
     }
 
     try {
@@ -3758,7 +3755,7 @@ export default function Mockup() {
         }
       }
       diag(`[${mode}-flow] create_job_and_product_start`);
-      const result = await runPublish(mode, submissionFlow, jobOptionsWithDiscount);
+      const result = await runPublish(mode, flow, jobOptionsWithDiscount);
       diag(`[${mode}-flow] create_job_and_product_success`, {
         keys: result && typeof result === 'object' ? Object.keys(result) : null,
       });

@@ -23,6 +23,13 @@ const IS_DEV = Boolean(
 const DEFAULT_STOREFRONT_API_VERSION = '2024-07';
 const PRIVATE_CHECKOUT_PATH = '/api/private/checkout';
 
+/** Solo persiste si el caller pasó el contexto de useFlow (tiene .set), no un snapshot plano. */
+function patchFlowState(flow: FlowState, partial: Partial<FlowState>) {
+  if (typeof flow?.set === 'function') {
+    flow.set(partial);
+  }
+}
+
 const RAW_LOG_COMMERCE = readEnv(['VITE_LOG_COMMERCE']);
 const SHOULD_LOG_COMMERCE = (() => {
   if (!RAW_LOG_COMMERCE) return false;
@@ -1482,7 +1489,7 @@ export async function createJobAndProduct(
     const warningMessagesPayload = collectedWarningMessages && collectedWarningMessages.length
       ? collectedWarningMessages
       : undefined;
-    flow.set({
+    patchFlowState(flow, {
       lastProduct: {
         productId,
         productUrl,
@@ -1868,7 +1875,7 @@ export async function createJobAndProduct(
     return result;
   } finally {
     if (productId || variantId || productHandle || productUrl || result.cartUrl || result.checkoutUrl) {
-      flow.set({
+      patchFlowState(flow, {
         lastProduct: {
           productId,
           variantId,
