@@ -3561,7 +3561,7 @@ export default function Mockup() {
       let directTarget = '';
       for (const candidate of jsonCandidates) {
         if (!candidate || typeof candidate !== 'object') continue;
-        for (const key of ['productUrl', 'checkoutUrl', 'url']) {
+        for (const key of ['checkoutUrl', 'url', 'cartUrl', 'productUrl']) {
           const value = typeof candidate?.[key] === 'string' ? candidate[key].trim() : '';
           if (value) {
             directTarget = value;
@@ -3617,10 +3617,16 @@ export default function Mockup() {
           ? `https://${SHOPIFY_DOMAIN}/products/${encodeURIComponent(handleFromResult)}`
           : null;
 
+      const cartUrlFromResult =
+        typeof result?.cartUrl === 'string' && result.cartUrl.trim()
+          ? result.cartUrl.trim()
+          : '';
+
       const targetUrl =
-        productUrlFromResult
+        cartUrlFromResult
         || checkoutUrlFromResult
         || genericUrlFromResult
+        || productUrlFromResult
         || fallbackFromHandle;
 
       if (!targetUrl) {

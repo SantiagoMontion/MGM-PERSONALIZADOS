@@ -22,6 +22,59 @@ const IS_DEV = Boolean(
 );
 const DEFAULT_STOREFRONT_API_VERSION = '2024-07';
 const PRIVATE_CHECKOUT_PATH = '/api/private/checkout';
+const CART_LINK_PATH = '/api/cart/link';
+
+function resolvePublicStoreBase(): string {
+  const fromEnv = readEnv([
+    'VITE_SHOPIFY_HOME_URL',
+    'VITE_SHOPIFY_PUBLIC_BASE',
+    'VITE_STOREFRONT_URL',
+  ]);
+  if (fromEnv) {
+    return /^https?:\/\//i.test(fromEnv)
+      ? fromEnv.replace(/\/+$/, '')
+      : `https://${fromEnv.replace(/\/+$/, '')}`;
+  }
+  return 'https://notmid.ar';
+}
+
+async function requestStorefrontCartLink(options: {
+  variantId: string;
+  quantity?: number;
+}): Promise<{ ok: boolean; cartUrl?: string; checkoutUrl?: string; strategy?: string }> {
+  const variantId = typeof options.variantId === 'string' ? options.variantId.trim() : '';
+  if (!variantId) return { ok: false };
+  const payload = {
+    variantId,
+    quantity: clampQuantity(options.quantity ?? 1),
+  };
+  const resp = await apiFetch(CART_LINK_PATH, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await resp.json().catch(() => null);
+  if (!resp.ok || !data || data.ok !== true) {
+    return { ok: false };
+  }
+  const cartUrl =
+    typeof data.url === 'string' && data.url.trim()
+      ? data.url.trim()
+      : typeof data.webUrl === 'string' && data.webUrl.trim()
+        ? data.webUrl.trim()
+        : '';
+  const checkoutUrl =
+    typeof data.checkoutUrl === 'string' && data.checkoutUrl.trim()
+      ? data.checkoutUrl.trim()
+      : undefined;
+  if (!cartUrl) return { ok: false };
+  return {
+    ok: true,
+    cartUrl,
+    checkoutUrl,
+    strategy: typeof data.strategy === 'string' ? data.strategy : undefined,
+  };
+}
 
 /** Solo persiste si el caller pasó el contexto de useFlow (tiene .set), no un snapshot plano. */
 function patchFlowState(flow: FlowState, partial: Partial<FlowState>) {
@@ -1539,7 +1592,7 @@ export async function createJobAndProduct(
     }
   }
 
-  if (mode === 'checkout' || isPrivate) {
+  if (mode === 'checkout' || mode === 'cart' || isPrivate) {
     try {
       const expectedHandle =
         typeof productHandle === 'string' && productHandle.trim() ? productHandle.trim() : null;
@@ -1552,6 +1605,7 @@ export async function createJobAndProduct(
       if (pollResult?.timedOut) {
         warn('[createJobAndProduct] storefront_variant_poll_timed_out', {
           variantId: String(variantId).slice(0, 24),
+          mode,
           isPrivate,
         });
       }
@@ -1635,6 +1689,44 @@ export async function createJobAndProduct(
     }
   } else {
     result.raw = publish ?? null;
+  }
+
+  if (mode === 'cart' && variantId) {
+    try {
+      const cartLinkResult = await requestStorefrontCartLink({ variantId, quantity: 1 });
+      if (cartLinkResult.ok && cartLinkResult.cartUrl) {
+        result.cartUrl = cartLinkResult.cartUrl;
+        if (cartLinkResult.checkoutUrl) {
+          result.checkoutUrl = cartLinkResult.checkoutUrl;
+        }
+        try {
+          diag('[createJobAndProduct] cart_link_ready', {
+            strategy: cartLinkResult.strategy || null,
+            variantId: String(variantId).slice(0, 24),
+          });
+        } catch {}
+      } else {
+        const fallbackCartUrl = buildCartPermalink(variantId, 1, {
+          baseUrl: resolvePublicStoreBase(),
+          returnTo: '/cart',
+        });
+        if (fallbackCartUrl) {
+          result.cartUrl = fallbackCartUrl;
+          warn('[createJobAndProduct] cart_link_fallback_permalink', {
+            variantId: String(variantId).slice(0, 24),
+          });
+        }
+      }
+    } catch (cartLinkErr) {
+      warn('[createJobAndProduct] cart_link_request_failed', cartLinkErr);
+      const fallbackCartUrl = buildCartPermalink(variantId, 1, {
+        baseUrl: resolvePublicStoreBase(),
+        returnTo: '/cart',
+      });
+      if (fallbackCartUrl) {
+        result.cartUrl = fallbackCartUrl;
+      }
+    }
   }
 
   if (isPrivate) {
