@@ -4300,27 +4300,18 @@ export default function Home() {
         discountCode: STEP_THREE_TRANSFER_DISCOUNT,
         payloadOverrides: buildCommercePayloadOverrides(),
       });
-      let targetUrl = safeStr(result?.cartUrl)
-        || resolveCheckoutTargetUrl(result);
-      if (!targetUrl) {
-        const snap = typeof flow?.get === 'function' ? flow.get() : flow;
-        targetUrl = safeStr(snap?.lastProduct?.cartUrl)
-          || resolveCheckoutTargetUrl(snap?.lastProduct || null);
-      }
-      if (!targetUrl) {
-        targetUrl = resolveProductPageTargetUrl(result);
-      }
+      let targetUrl = resolveProductPageTargetUrl(result);
       if (!targetUrl) {
         const snap = typeof flow?.get === 'function' ? flow.get() : flow;
         targetUrl = resolveProductPageTargetUrl(snap?.lastProduct || null);
       }
       if (!targetUrl) {
-        setErr('No se pudo abrir el carrito. Intentá nuevamente en unos segundos.');
+        setErr('No se pudo abrir la página del producto. Intentá nuevamente en unos segundos.');
         return;
       }
       if (!tryOpenCommerceTarget(targetUrl)) {
         if (!navigateSameTab(targetUrl)) {
-          setErr('No se pudo abrir el carrito. Intentá nuevamente.');
+          setErr('No se pudo abrir la página del producto. Intentá nuevamente.');
         }
       }
     } catch (cartError) {
