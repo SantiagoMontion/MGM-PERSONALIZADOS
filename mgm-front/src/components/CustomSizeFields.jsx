@@ -70,6 +70,22 @@ export default function CustomSizeFields({
     }
   };
 
+  const emitDimensionChange = (field, rawValue, { allowBelowMin = false } = {}) => {
+    const parsed = parseDimensionInput(rawValue);
+    const fallbackValue = field === 'w' ? size?.w : size?.h;
+    if (!Number.isFinite(parsed)) return false;
+
+    const { min, max } = getFieldBounds(field);
+    if (!allowBelowMin && parsed < min) return false;
+
+    const nextValue = clampValue(parsed, min, max);
+    const currentValue = toInteger(fallbackValue);
+    if (!Number.isFinite(currentValue) || currentValue !== nextValue) {
+      onChange?.({ [field]: nextValue });
+    }
+    return true;
+  };
+
   const commitSanitizedValue = (field, rawValue, { allowEmpty = false } = {}) => {
     if (disabled) return false;
 
@@ -87,13 +103,9 @@ export default function CustomSizeFields({
     const { min, max } = getFieldBounds(field);
     const nextValue = clampValue(parsed, min, max);
     const display = formatDisplayValue(nextValue);
-    const currentValue = toInteger(fallbackValue);
 
     syncFieldText(field, display);
-
-    if (!Number.isFinite(currentValue) || currentValue !== nextValue) {
-      onChange?.({ [field]: nextValue });
-    }
+    emitDimensionChange(field, rawValue, { allowBelowMin: true });
 
     return true;
   };
@@ -137,6 +149,9 @@ export default function CustomSizeFields({
     const nextValue = event.target.value;
     if (nextValue === '' || INTEGER_PATTERN.test(nextValue)) {
       syncFieldText(field, nextValue);
+      if (nextValue !== '') {
+        emitDimensionChange(field, nextValue);
+      }
       return;
     }
 
