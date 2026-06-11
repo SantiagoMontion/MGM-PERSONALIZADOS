@@ -30,10 +30,11 @@ export default function ProSeriesPromoPrice({
 
   const formattedCompare = promo ? formatARS(promo.compareAt) : '';
 
+  const variantClassName = styles[`variant${variant.charAt(0).toUpperCase()}${variant.slice(1)}`];
   const rootClassName = [
     styles.root,
     inline ? styles.rootInline : '',
-    styles[`variant${variant.charAt(0).toUpperCase()}${variant.slice(1)}`],
+    variantClassName,
     className,
   ]
     .filter(Boolean)
@@ -62,11 +63,13 @@ export default function ProSeriesPromoPrice({
 
   if (!promo) {
     return (
-      <span className={transferClassName}>
-        $
-        {' '}
-        {formattedTransfer}
-      </span>
+      <div className={rootClassName}>
+        <span className={transferClassName}>
+          $
+          {' '}
+          {formattedTransfer}
+        </span>
+      </div>
     );
   }
 
