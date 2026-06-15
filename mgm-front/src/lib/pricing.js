@@ -1,3 +1,9 @@
+import {
+  applyEquilibriumListPrice,
+  LIST_PRICE_EQUILIBRIUM_FACTOR,
+  roundToNearestFifty,
+} from '../../../lib/pricing/equilibrium.js';
+
 const ROLLO_DATA = {
   Pro: { width: 125, pricePerMeter: 36145, multiplier: 3.2, baselineArea: 0.26 },
   Clasic: { width: 140, pricePerMeter: 23820, multiplier: 2.7, baselineArea: 0.36 },
@@ -8,23 +14,34 @@ const STANDARD_SURCHARGE = 2000;
 const AREA_SURCHARGE_FACTOR = 5000;
 const BASE_MARKUP_FACTOR = 1.12;
 const INFLATION_MARKUP_FACTOR = 1.07;
-const NORMAL_PRICE_FACTOR = 1.25;
+/** Precio neto fijo Glasspad antes de markups históricos. */
 export const GLASSPAD_TRANSFER_PRICE = 130000;
-/** Base antes de ×1.12, redondeos a $500 y ×1.07 → precio transferencia final $72.000 */
+/** Precio neto fijo Ultra antes de markups históricos. */
 export const ULTRA_TRANSFER_PRICE = 60100;
+
+export { applyEquilibriumListPrice, LIST_PRICE_EQUILIBRIUM_FACTOR, roundToNearestFifty };
 
 const roundToNearest500 = (price) => Math.round(price / 500) * 500;
 const roundUpTo500 = (price) => Math.ceil(price / 500) * 500;
 
-function applyHistoricalAndInflationMarkup(baseTransferPrice) {
-  const transferWithBaseMarkup = Number(baseTransferPrice || 0) * BASE_MARKUP_FACTOR;
-  const roundedHistoricalTransfer = roundToNearest500(transferWithBaseMarkup);
-  const transferWithInflation = roundedHistoricalTransfer * INFLATION_MARKUP_FACTOR;
-  return roundToNearest500(transferWithInflation);
+function applyHistoricalAndInflationMarkup(baseNetPrice) {
+  const withBaseMarkup = Number(baseNetPrice || 0) * BASE_MARKUP_FACTOR;
+  const roundedHistorical = roundToNearest500(withBaseMarkup);
+  const withInflation = roundedHistorical * INFLATION_MARKUP_FACTOR;
+  return roundToNearest500(withInflation);
 }
 
-function deriveNormalPrice(transferPrice) {
-  return roundToNearest500(Number(transferPrice || 0) * NORMAL_PRICE_FACTOR);
+function buildListPricingResult({ valid, netBasePrice, mode, fixed }) {
+  const listPrice = applyEquilibriumListPrice(netBasePrice);
+  return {
+    valid,
+    transfer: listPrice,
+    normal: listPrice,
+    price: listPrice,
+    netBase: netBasePrice,
+    mode,
+    fixed,
+  };
 }
 
 export function formatARS(value) {
@@ -51,34 +68,33 @@ export function calculateTransferPricing({ width, height, material }) {
   const normalizedHeightCm = Number(height) || 0;
 
   if (mode === 'Glasspad') {
-    const transferPrice = GLASSPAD_TRANSFER_PRICE;
-    const roundedTransfer = applyHistoricalAndInflationMarkup(transferPrice);
-    const normalPrice = deriveNormalPrice(roundedTransfer);
-    return {
+    const netBasePrice = applyHistoricalAndInflationMarkup(GLASSPAD_TRANSFER_PRICE);
+    return buildListPricingResult({
       valid: true,
-      transfer: roundedTransfer,
-      normal: normalPrice,
+      netBasePrice,
       mode,
       fixed: true,
-    };
+    });
   }
 
   if (mode === 'Ultra') {
-    const transferPrice = ULTRA_TRANSFER_PRICE;
-    const roundedTransfer = applyHistoricalAndInflationMarkup(transferPrice);
-    const normalPrice = deriveNormalPrice(roundedTransfer);
-    return {
+    const netBasePrice = applyHistoricalAndInflationMarkup(ULTRA_TRANSFER_PRICE);
+    return buildListPricingResult({
       valid: true,
-      transfer: roundedTransfer,
-      normal: normalPrice,
+      netBasePrice,
       mode,
       fixed: true,
-    };
+    });
   }
 
   const rollo = ROLLO_DATA[mode];
   if (!rollo) {
-    return { valid: false, transfer: 0, normal: 0, mode, fixed: false };
+    return buildListPricingResult({
+      valid: false,
+      netBasePrice: 0,
+      mode,
+      fixed: false,
+    });
   }
 
   const { width: rolloWidth, pricePerMeter, multiplier, baselineArea } = rollo;
@@ -87,7 +103,12 @@ export function calculateTransferPricing({ width, height, material }) {
   const pieceHeightM = normalizedHeightCm / 100;
 
   if (pieceWidthM <= 0 || pieceHeightM <= 0) {
-    return { valid: true, transfer: 0, normal: 0, mode, fixed: false };
+    return buildListPricingResult({
+      valid: true,
+      netBasePrice: 0,
+      mode,
+      fixed: false,
+    });
   }
 
   const unitsHorizontal = Math.floor(rolloWidthM / pieceWidthM) * Math.floor(1 / pieceHeightM);
@@ -121,19 +142,16 @@ export function calculateTransferPricing({ width, height, material }) {
   }
 
   const basePriceRounded = roundUpTo500(baseFinalPrice + areaSurcharge);
-
-  const clientFinalPrice = Math.round(basePriceRounded * NORMAL_PRICE_FACTOR);
+  const clientFinalPrice = Math.round(basePriceRounded * 1.25);
   const transferBase = Math.round(clientFinalPrice * 0.8);
   const surcharge = STANDARD_SURCHARGE + (mode === 'Clasic' ? STANDARD_SURCHARGE : 0);
   const transferWithExtra = transferBase + surcharge;
-  const roundedTransfer = applyHistoricalAndInflationMarkup(transferWithExtra);
-  const normalPrice = deriveNormalPrice(roundedTransfer);
+  const netBasePrice = applyHistoricalAndInflationMarkup(transferWithExtra);
 
-  return {
+  return buildListPricingResult({
     valid: true,
-    transfer: roundedTransfer,
-    normal: normalPrice,
+    netBasePrice,
     mode,
     fixed: false,
-  };
+  });
 }

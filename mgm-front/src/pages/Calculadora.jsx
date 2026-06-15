@@ -109,7 +109,7 @@ const CalculadoraPage = () => {
       <div className={styles.content}>
         <h1 className={styles.title}>Calculadora de precios</h1>
         <p className={styles.subtitle}>
-          Ingresá las medidas en centímetros para obtener el precio con transferencia.
+          Ingresá las medidas en centímetros para obtener el precio final.
         </p>
 
         <form className={styles.form}>
@@ -172,7 +172,7 @@ const CalculadoraPage = () => {
         />
 
         <div className={styles.result}>
-          <h2 className={styles.resultTitle}>Precio con transferencia</h2>
+          <h2 className={styles.resultTitle}>Precio final</h2>
           <p className={styles.resultValue}>
             {transferPrice > 0 ? `$${priceFormatter.format(transferPrice)}` : 'Ingresá medidas válidas'}
           </p>

@@ -4,8 +4,7 @@ import { buildProSeriesPromoDisplay } from '../lib/proSeriesPromoDisplay.js';
 import styles from './ProSeriesPromoPrice.module.css';
 
 /**
- * PRO: tachado = precio real de transferencia; destacado = ese monto con 30% OFF visual.
- * El cobro (transferPrice / Shopify) no cambia.
+ * Muestra el precio de lista; PRO puede mostrar promo visual si está habilitada en proSeriesPromoDisplay.
  */
 export default function ProSeriesPromoPrice({
   material,

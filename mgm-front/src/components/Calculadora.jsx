@@ -39,8 +39,7 @@ const Calculadora = ({ width, height, material, setPrice, className, render }) =
 
   return (
     <div className={className}>
-      <p className="p-calcu">${formatARS(computed.normal)}</p>
-      <p className="minitext">20% OFF con transferencia: {formatARS(computed.transfer)}</p>
+      <p className="p-calcu">${formatARS(computed.transfer)}</p>
     </div>
   );
 };

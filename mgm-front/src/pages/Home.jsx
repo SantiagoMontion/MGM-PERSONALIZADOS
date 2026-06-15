@@ -291,8 +291,6 @@ const MOD_PREVIEW_RETRY_DIMENSIONS = [1024, 896, 768, 640];
 const STEP_TWO_UPLOAD_MESSAGE = 'Guardando tu diseño en alta resolución...';
 const STEP_TWO_UPLOAD_SUBTITLE = 'No cierres nada, esto puede demorar varios segundos.';
 const STEP_THREE_COMMERCE_PENDING_LABEL = 'Enviando...';
-/** Cupón mostrado en el total del paso 3 (transferencia). */
-const STEP_THREE_TRANSFER_DISCOUNT = 'TRANSFERENCIA';
 const STEP_THREE_ADD_TO_CART_LABEL = 'Agregar al carrito';
 const STEP_THREE_CHECKOUT_BUTTON_LABEL = 'Finalizar compra';
 const STEP_ONE_PREVIEW_MAX_WIDTH_PX = 551;
@@ -4297,7 +4295,6 @@ export default function Home() {
     try {
       syncFlowEditorSelection();
       const result = await createJobAndProduct('cart', flow, {
-        discountCode: STEP_THREE_TRANSFER_DISCOUNT,
         payloadOverrides: buildCommercePayloadOverrides(),
       });
       let targetUrl = resolveProductPageTargetUrl(result);
@@ -4342,7 +4339,6 @@ export default function Home() {
     try {
       syncFlowEditorSelection();
       const result = await createJobAndProduct('checkout', flow, {
-        discountCode: STEP_THREE_TRANSFER_DISCOUNT,
         payloadOverrides: buildCommercePayloadOverrides(),
       });
       const checkoutUrl = resolveCheckoutTargetUrl(result);
@@ -5083,9 +5079,6 @@ export default function Home() {
                       transferPrice={editorDisplayTransferPrice}
                       variant="stepThree"
                     />
-                    <span className={styles.stepThreeDetailTransferNote}>
-                      Abonando con transferencia
-                    </span>
                   </span>
                 </div>
               </div>

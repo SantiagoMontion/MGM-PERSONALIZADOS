@@ -1,6 +1,7 @@
 import { normalizeMaterialLabel } from './material.js';
 
-/** Solo UI: no modifica precios enviados a Shopify ni el cálculo de transferencia. */
+/** Solo UI: no modifica precios enviados a Shopify ni el cálculo de lista. */
+export const PRO_SERIES_VISUAL_PROMO_ENABLED = false;
 export const PRO_SERIES_VISUAL_DISCOUNT_PERCENT = 30;
 
 export function isProSeriesMaterial(material) {
@@ -9,8 +10,7 @@ export function isProSeriesMaterial(material) {
 
 /**
  * Precio que se muestra en pantalla con 30% OFF visual.
- * El cobro real (transferencia / Shopify) sigue siendo `transferPrice`.
- * Ej.: transfer 43.500 → se muestra 30.450.
+ * El precio real de cobro / Shopify sigue siendo `transferPrice` (precio de lista).
  */
 export function getProSeriesVisualDisplayPrice(transferPrice) {
   const transfer = Math.round(Number(transferPrice) || 0);
@@ -20,6 +20,7 @@ export function getProSeriesVisualDisplayPrice(transferPrice) {
 }
 
 export function buildProSeriesPromoDisplay(material, transferPrice) {
+  if (!PRO_SERIES_VISUAL_PROMO_ENABLED) return null;
   if (!isProSeriesMaterial(material)) return null;
   const actualTransfer = Math.round(Number(transferPrice) || 0);
   if (actualTransfer <= 0) return null;
