@@ -1,6 +1,8 @@
 import {
   applyEquilibriumListPrice,
   LIST_PRICE_EQUILIBRIUM_FACTOR,
+  PRO_SERIES_NET_LIST_FACTOR,
+  resolveCustomerPriceFromNetBase,
   roundToNearestFifty,
 } from '../../../lib/pricing/equilibrium.js';
 
@@ -19,7 +21,13 @@ export const GLASSPAD_TRANSFER_PRICE = 130000;
 /** Precio neto fijo Ultra antes de markups históricos. */
 export const ULTRA_TRANSFER_PRICE = 60100;
 
-export { applyEquilibriumListPrice, LIST_PRICE_EQUILIBRIUM_FACTOR, roundToNearestFifty };
+export {
+  applyEquilibriumListPrice,
+  LIST_PRICE_EQUILIBRIUM_FACTOR,
+  PRO_SERIES_NET_LIST_FACTOR,
+  resolveCustomerPriceFromNetBase,
+  roundToNearestFifty,
+};
 
 const roundToNearest500 = (price) => Math.round(price / 500) * 500;
 const roundUpTo500 = (price) => Math.ceil(price / 500) * 500;
@@ -32,12 +40,14 @@ function applyHistoricalAndInflationMarkup(baseNetPrice) {
 }
 
 function buildListPricingResult({ valid, netBasePrice, mode, fixed }) {
-  const listPrice = applyEquilibriumListPrice(netBasePrice);
+  const { customerPrice } = resolveCustomerPriceFromNetBase(netBasePrice, {
+    isProSeries: mode === 'Pro',
+  });
   return {
     valid,
-    transfer: listPrice,
-    normal: listPrice,
-    price: listPrice,
+    transfer: customerPrice,
+    normal: customerPrice,
+    price: customerPrice,
     netBase: netBasePrice,
     mode,
     fixed,
