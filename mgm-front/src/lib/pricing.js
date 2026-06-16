@@ -4,6 +4,7 @@ import {
   PRO_SERIES_NET_LIST_FACTOR,
   resolveCustomerPriceFromNetBase,
   roundToNearestFifty,
+  ULTRA_FINAL_LIST_PRICE,
 } from '../../../lib/pricing/equilibrium.js';
 
 const ROLLO_DATA = {
@@ -27,6 +28,7 @@ export {
   PRO_SERIES_NET_LIST_FACTOR,
   resolveCustomerPriceFromNetBase,
   roundToNearestFifty,
+  ULTRA_FINAL_LIST_PRICE,
 };
 
 const roundToNearest500 = (price) => Math.round(price / 500) * 500;
@@ -39,15 +41,17 @@ function applyHistoricalAndInflationMarkup(baseNetPrice) {
   return roundToNearest500(withInflation);
 }
 
-function buildListPricingResult({ valid, netBasePrice, mode, fixed }) {
-  const { customerPrice } = resolveCustomerPriceFromNetBase(netBasePrice, {
-    isProSeries: mode === 'Pro',
-  });
+function buildListPricingResult({ valid, netBasePrice, mode, fixed, customerPrice }) {
+  const resolvedCustomerPrice = Number.isFinite(Number(customerPrice)) && Number(customerPrice) > 0
+    ? Math.round(Number(customerPrice))
+    : resolveCustomerPriceFromNetBase(netBasePrice, {
+      isProSeries: mode === 'Pro',
+    }).customerPrice;
   return {
     valid,
-    transfer: customerPrice,
-    normal: customerPrice,
-    price: customerPrice,
+    transfer: resolvedCustomerPrice,
+    normal: resolvedCustomerPrice,
+    price: resolvedCustomerPrice,
     netBase: netBasePrice,
     mode,
     fixed,
@@ -94,6 +98,7 @@ export function calculateTransferPricing({ width, height, material }) {
       netBasePrice,
       mode,
       fixed: true,
+      customerPrice: ULTRA_FINAL_LIST_PRICE,
     });
   }
 
