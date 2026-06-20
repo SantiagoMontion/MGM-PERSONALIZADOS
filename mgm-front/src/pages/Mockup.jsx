@@ -96,6 +96,19 @@ const resolveStraightEdgesFromFlow = (flow, materialLabel) => {
   return shapeCandidates.includes('rect') || shapeCandidates.includes('straight_rect');
 };
 
+const resolveCircularFromFlow = (flow, materialLabel) => {
+  if (isFixedPad49x42Material(materialLabel)) return false;
+  if (flow?.isCircular === true || flow?.options?.isCircular === true) return true;
+  const shapeCandidates = [
+    flow?.shape,
+    flow?.options?.shape,
+    flow?.editorState?.shape,
+  ]
+    .map((candidate) => safeStr(candidate).toLowerCase())
+    .filter(Boolean);
+  return shapeCandidates.includes('circle');
+};
+
 // NO mezclar material con productType.
 // productType = mousepad/glasspad (tipo de producto).
 // material = Classic/PRO/Glasspad (tarifa/título).
@@ -162,6 +175,7 @@ const extractFlowBasics = (flow) => {
     || safeStr(flow?.editorState?.designName)
     || 'Personalizado';
   const straightEdges = resolveStraightEdgesFromFlow(flow, mat);
+  const isCircular = resolveCircularFromFlow(flow, mat);
 
   return {
     productType,
@@ -170,6 +184,7 @@ const extractFlowBasics = (flow) => {
     heightCm: Number.isFinite(heightCm) && heightCm > 0 ? heightCm : NaN,
     designName,
     straightEdges,
+    isCircular,
   };
 };
 
@@ -560,11 +575,12 @@ export async function ensureMockupUrlInFlow(flow, input) {
   const image = await imgFromDataUrl(sourceDataUrl);
   const dpi = Number(state?.approxDpi ?? input?.dpi ?? 300);
   const basics = extractFlowBasics(state);
-  const { productType, mat, widthCm, heightCm, designName } = basics;
+  const { productType, mat, widthCm, heightCm, designName, isCircular } = basics;
   const isStraightEdges = Boolean(
     (input?.straightEdges === true || input?.options?.straightEdges === true || basics.straightEdges === true)
     && isStraightEdgesMaterial(mat),
   );
+  const mockupShape = isCircular ? 'circle' : 'rounded_rect';
   const printDpi = Number(state?.printDpi ?? state?.approxDpi ?? input?.dpi ?? 300);
   const pxToCmFromRaw = (px) => {
     const pxValue = Number(px);
@@ -614,10 +630,14 @@ export async function ensureMockupUrlInFlow(flow, input) {
     heightCm: Number.isFinite(heightRounded) && heightRounded > 0 ? heightRounded : undefined,
     dpi,
     material: mat,
+    shape: mockupShape,
+    isCircular,
   };
   const mockupBlob = await renderMockup1080(image, {
     material: mat,
     approxDpi: dpi,
+    shape: mockupShape,
+    isCircular,
     composition,
     radiusPx: isStraightEdges ? 0 : undefined,
   });
@@ -3057,6 +3077,10 @@ export default function Mockup() {
     }
     return Boolean(mockupImageSrc);
   }, [mockupImageSrc]);
+  const isCircularMockupPreview = useMemo(
+    () => resolveCircularFromFlow(flowStateForPurchase, extractFlowBasics(flowStateForPurchase).mat),
+    [flowStateForPurchase],
+  );
   const purchaseLocked = !(hasPrintFullResDataUrl || hasPersistedMockupPublicUrl);
 
   const handleMissingPrintDataError = (err, bridgeRid = null) => {
@@ -4765,9 +4789,11 @@ export default function Mockup() {
 
         {SHOW_LEGACY_PREVIEW ? (
           <div
-            className={`${styles.previewWrapper} ${
-              hasMockupImage ? styles.previewWithImage : ''
-            }`}
+            className={[
+              styles.previewWrapper,
+              hasMockupImage ? styles.previewWithImage : '',
+              hasMockupImage && isCircularMockupPreview ? styles.previewWrapperCircular : '',
+            ].filter(Boolean).join(' ')}
           >
             <h1
               className={`${styles.previewTitle} ${
@@ -4781,7 +4807,7 @@ export default function Mockup() {
                 <img
                   key={mockupImageSrc || 'placeholder'}
                   src={mockupImageSrc}
-                  className={styles.mockupImage}
+                  className={`${styles.mockupImage} ${isCircularMockupPreview ? styles.mockupImageCircular : ''}`.trim()}
                   alt="Vista previa de tu mousepad personalizado"
                 />
               ) : null}

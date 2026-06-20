@@ -5047,7 +5047,10 @@ export default function Home() {
             </>
           ) : isStepReview ? (
             <div className={styles.stepThreeLayout}>
-              <div className={styles.stepThreePreviewCard} ref={headingRef}>
+              <div
+                className={`${styles.stepThreePreviewCard} ${isCircular && !isFixedPad49x42Material(material) ? styles.stepThreePreviewCardCircular : ''}`.trim()}
+                ref={headingRef}
+              >
                 {stepThreePreviewSrc ? (
                   <StepThreeMockupPreview
                     frameClassName={`${styles.stepThreePreviewFrame} ${isCircular && !isFixedPad49x42Material(material) ? styles.stepThreePreviewFrameCircular : ''}`.trim()}

@@ -59,6 +59,17 @@
   background: var(--surface-strong);
 }
 
+.previewWrapperCircular,
+.previewWrapperCircular.previewWithImage {
+  inline-size: min(100%, 420px);
+  min-block-size: 0;
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  background: transparent;
+  border-color: color-mix(in srgb, var(--stroke) 65%, transparent);
+  overflow: hidden;
+}
+
 .previewTitle {
   margin: 0;
   font-size: clamp(2rem, 5vw, 3.125rem);
@@ -97,6 +108,16 @@
   box-shadow: var(--shadow);
   margin-top: -15%;
   z-index: 0;
+}
+
+.mockupImageCircular {
+  inline-size: 100%;
+  block-size: 100%;
+  max-inline-size: none;
+  margin-top: 0;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: none;
 }
 
 .ctaRow {

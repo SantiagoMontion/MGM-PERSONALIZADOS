@@ -22,7 +22,11 @@ export default function ProSeriesPromoPrice({
     [material, transferPrice],
   );
   const alfombraPromo = useMemo(
-    () => buildAlfombraPromoDisplay(material, { short: variant === 'compact' }),
+    () => buildAlfombraPromoDisplay(material, {
+      short: variant === 'compact',
+      drawerFooter: variant === 'medium',
+      stepThree: variant === 'stepThree',
+    }),
     [material, variant],
   );
 
@@ -72,6 +76,8 @@ export default function ProSeriesPromoPrice({
 
   const alfombraHeadlineClassName = [
     styles.alfombraPromoHeadline,
+    alfombraPromo?.drawerFooter ? styles.alfombraPromoHeadlineDrawerFooter : '',
+    alfombraPromo?.stepThree ? styles.alfombraPromoHeadlineStepThree : '',
     lightTheme ? styles.alfombraPromoHeadlineLight : '',
   ]
     .filter(Boolean)

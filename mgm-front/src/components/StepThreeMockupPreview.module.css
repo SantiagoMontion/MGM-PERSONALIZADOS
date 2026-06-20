@@ -12,6 +12,12 @@
   margin-inline: auto;
 }
 
+.cropHostCircular {
+  block-size: 100%;
+  overflow: hidden;
+  border-radius: inherit;
+}
+
 .imgLoose {
   display: block;
   inline-size: 100%;
@@ -20,6 +26,11 @@
   object-fit: contain;
   object-position: center;
   vertical-align: middle;
+}
+
+.imgCircular {
+  block-size: 100%;
+  object-fit: cover;
 }
 
 .imgTight {

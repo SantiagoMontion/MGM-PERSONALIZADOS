@@ -168,12 +168,24 @@ export default function StepThreeMockupPreview({
   const looseImgStyle = !useTight
     ? maxHeightStyle
     : undefined;
+  const circularHostClassName = [
+    useTight ? styles.cropHostTight : styles.cropHostLoose,
+    isCircular ? styles.cropHostCircular : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+  const circularImgClassName = [
+    useTight ? styles.imgTight : styles.imgLoose,
+    isCircular ? styles.imgCircular : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   return (
     <div className={frameClassName}>
       <div
         ref={wrapRef}
-        className={useTight ? styles.cropHostTight : styles.cropHostLoose}
+        className={circularHostClassName}
         style={tightHostStyle}
       >
         {src ? (
@@ -181,7 +193,7 @@ export default function StepThreeMockupPreview({
             key={`${imageKey || ''}-${src}-${useTight ? 't' : 'l'}-${isCircular ? 'c' : 'r'}`}
             src={src}
             alt={alt}
-            className={useTight ? styles.imgTight : styles.imgLoose}
+            className={circularImgClassName}
             draggable={false}
             style={
               useTight

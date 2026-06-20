@@ -4229,6 +4229,11 @@ body.light .stepTwoContainColorLabel {
   background: transparent;
 }
 
+.stepThreePreviewCardCircular {
+  display: flex;
+  justify-content: center;
+}
+
 /* Mismo ancho que .stepThreeDetailsCard; el recorte al diseño lo hace StepThreeMockupPreview (canvas alpha). */
 .stepThreePreviewFrame {
   overflow: hidden;
@@ -4244,16 +4249,14 @@ body.light .stepTwoContainColorLabel {
 }
 
 .stepThreePreviewFrameCircular {
-  background-color: color-mix(in srgb, var(--surface-secondary) 72%, var(--background));
-  background-image: var(--nm-canvas-grid-dark);
-  background-size: 16px 16px;
-  border-color: color-mix(in srgb, var(--border-default) 65%, transparent);
-}
-
-html.light .stepThreePreviewFrameCircular,
-body.light .stepThreePreviewFrameCircular {
-  background-color: color-mix(in srgb, var(--surface-secondary) 88%, white);
-  background-image: var(--nm-canvas-grid-light);
+  inline-size: min(100%, 420px);
+  max-inline-size: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  margin-inline: auto;
+  background: transparent;
+  border: calc(var(--space-1) / 4) solid color-mix(in srgb, var(--border-default) 65%, transparent);
+  box-shadow: none;
 }
 
 .stepThreePreviewFallback {
