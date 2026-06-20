@@ -18,6 +18,7 @@ import Calculadora from '../components/Calculadora.jsx';
 import CustomSizeFields from '../components/CustomSizeFields.jsx';
 import ProSeriesPromoPrice from '../components/ProSeriesPromoPrice.jsx';
 import { PRO_SERIES_PRICE_CAPTION, PRO_SERIES_STEP_THREE_NOTE } from '../lib/proSeriesPromoDisplay.js';
+import { DEFAULT_PRICE_CAPTION } from '../lib/alfombraPromoDisplay.js';
 import EditorCanvas from '../components/EditorCanvas';
 import ColorPopover from '../components/ColorPopover';
 import LoadingOverlay from '../components/LoadingOverlay';
@@ -2490,25 +2491,31 @@ export default function Home() {
       const mockupStart = tnow();
       const mockupPromise = (async () => {
         let newMockupBlob = null;
-        const mockupRadiusPx = isStraightEdgesAvailable && !isCircular && isStraightEdges
+        const mockupIsCircular = isCircular && !isFixedPad49x42Material(material);
+        const mockupRadiusPx = isStraightEdgesAvailable && !mockupIsCircular && isStraightEdges
           ? 0
           : (Number(import.meta.env?.VITE_MOCKUP_PAD_RADIUS_PX) || 8);
+        const mockupRenderOptions = {
+          composition: {
+            widthPx: masterWidthExact,
+            heightPx: masterHeightExact,
+            widthCm: flowState?.widthCm || activeWcm,
+            heightCm: flowState?.heightCm || activeHcm,
+            widthMm: masterWidthMm,
+            heightMm: masterHeightMm,
+            dpi: dpiForMockup,
+            shape: mockupIsCircular ? 'circle' : 'rounded_rect',
+            isCircular: mockupIsCircular,
+          },
+          material: flowState?.material || material,
+          options: { material: flowState?.material || material },
+          materialLabel: flowState?.material || material,
+          shape: mockupIsCircular ? 'circle' : 'rounded_rect',
+          isCircular: mockupIsCircular,
+          radiusPx: mockupRadiusPx,
+        };
         try {
-          newMockupBlob = await generateMockupOffthread(pdfSourceBlob, {
-            composition: {
-              widthPx: masterWidthExact,
-              heightPx: masterHeightExact,
-              widthCm: flowState?.widthCm || activeWcm,
-              heightCm: flowState?.heightCm || activeHcm,
-              widthMm: masterWidthMm,
-              heightMm: masterHeightMm,
-              dpi: dpiForMockup,
-            },
-            material: flowState?.material || material,
-            options: { material: flowState?.material || material },
-            materialLabel: flowState?.material || material,
-            radiusPx: mockupRadiusPx,
-          });
+          newMockupBlob = await generateMockupOffthread(pdfSourceBlob, mockupRenderOptions);
         } catch (_) {
           newMockupBlob = null;
         }
@@ -2519,17 +2526,13 @@ export default function Home() {
               material,
               materialLabel: material,
               approxDpi: dpiForMockup,
+              ...mockupRenderOptions,
               composition: {
-                widthPx: masterWidthExact,
-                heightPx: masterHeightExact,
+                ...mockupRenderOptions.composition,
                 widthCm: activeWcm,
                 heightCm: activeHcm,
-                widthMm: masterWidthMm,
-                heightMm: masterHeightMm,
-                dpi: dpiForMockup,
                 material,
               },
-              radiusPx: mockupRadiusPx,
             });
           } catch (mockupErr) {
             warn('[mockup] renderMockup1080 failed', mockupErr);
@@ -4916,7 +4919,7 @@ export default function Home() {
                           lightTheme={!isDarkMode}
                         />
                         <span className={`${styles.stepOneFooterPriceCaption} ${!isDarkMode ? styles.stepOneFooterPriceCaptionLight : ''}`.trim()}>
-                          {material === 'PRO' ? PRO_SERIES_PRICE_CAPTION : 'Total según configuración'}
+                          {material === 'PRO' ? PRO_SERIES_PRICE_CAPTION : DEFAULT_PRICE_CAPTION}
                         </span>
                       </div>
                       <button
@@ -5047,10 +5050,11 @@ export default function Home() {
               <div className={styles.stepThreePreviewCard} ref={headingRef}>
                 {stepThreePreviewSrc ? (
                   <StepThreeMockupPreview
-                    frameClassName={styles.stepThreePreviewFrame}
+                    frameClassName={`${styles.stepThreePreviewFrame} ${isCircular && !isFixedPad49x42Material(material) ? styles.stepThreePreviewFrameCircular : ''}`.trim()}
                     src={stepThreePreviewSrc}
                     alt={`Vista previa de ${trimmedDesignName || 'tu diseño'}`}
                     imageKey={designHashState || ''}
+                    isCircular={isCircular && !isFixedPad49x42Material(material)}
                   />
                 ) : (
                   <div className={styles.stepThreePreviewFrame}>
@@ -5314,7 +5318,7 @@ export default function Home() {
                             onReplaceSettled={() => setIsReplacing(false)}
                             editorRootClassName={styles.stepTwoCanvasRoot}
                             lienzoClassName={styles.stepTwoCanvasLienzo}
-                            canvasWrapperClassName={`${styles.stepTwoCanvasWrapper} ${isStraightEdgesAvailable && !isCircular && isStraightEdges ? styles.stepTwoCanvasWrapperRecto : ''}`.trim()}
+                            canvasWrapperClassName={`${styles.stepTwoCanvasWrapper} ${isCircular ? styles.stepTwoCanvasWrapperCircular : ''} ${isStraightEdgesAvailable && !isCircular && isStraightEdges ? styles.stepTwoCanvasWrapperRecto : ''}`.trim()}
                             allowCanvasPan={false}
                             onUnmountCleanup={handleStepTwoEditorUnmount}
                             onImageDragStart={handleStepTwoImageDragStart}
@@ -5571,7 +5575,7 @@ export default function Home() {
                         variant="large"
                       />
                       <span className={styles.stepTwoFooterPriceCaption}>
-                        {material === 'PRO' ? PRO_SERIES_PRICE_CAPTION : 'Total según configuración'}
+                        {material === 'PRO' ? PRO_SERIES_PRICE_CAPTION : DEFAULT_PRICE_CAPTION}
                       </span>
                       <span className={styles.stepTwoFooterSizeMaterialLine}>
                         {stepTwoFooterMobileSizeMaterialLine}

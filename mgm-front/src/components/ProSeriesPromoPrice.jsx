@@ -22,8 +22,8 @@ export default function ProSeriesPromoPrice({
     [material, transferPrice],
   );
   const alfombraPromo = useMemo(
-    () => buildAlfombraPromoDisplay(material),
-    [material],
+    () => buildAlfombraPromoDisplay(material, { short: variant === 'compact' }),
+    [material, variant],
   );
 
   const listPrice = Math.round(Number(transferPrice) || 0);

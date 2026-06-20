@@ -6,6 +6,79 @@
 const CANVAS_SIZE = 1080;
 const RADIUS_PX = 18;
 
+function roundRectPath(ctx, x, y, w, h, r) {
+  const rr = Math.max(0, Math.min(r, Math.min(w, h) / 2));
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.lineTo(x + w - rr, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + rr);
+  ctx.lineTo(x + w, y + h - rr);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
+  ctx.lineTo(x + rr, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - rr);
+  ctx.lineTo(x, y + rr);
+  ctx.quadraticCurveTo(x, y, x + rr, y);
+  ctx.closePath();
+}
+
+export function resolveMockupShape(options) {
+  const opts = options && typeof options === 'object' ? options : {};
+  const composition = opts.composition && typeof opts.composition === 'object'
+    ? opts.composition
+    : {};
+  const shape = String(
+    opts.shape
+    ?? composition.shape
+    ?? opts.productShape
+    ?? '',
+  ).trim().toLowerCase();
+  if (shape === 'circle') return 'circle';
+  if (opts.isCircular === true || composition.isCircular === true) return 'circle';
+  return 'rounded_rect';
+}
+
+export function clipMockupPadPath(ctx, x, y, w, h, radiusPx, shape = 'rounded_rect') {
+  if (shape === 'circle') {
+    ctx.beginPath();
+    ctx.arc(x + w / 2, y + h / 2, Math.min(w, h) / 2, 0, Math.PI * 2);
+    ctx.closePath();
+    return;
+  }
+  roundRectPath(ctx, x, y, w, h, radiusPx);
+}
+
+/**
+ * Compone el diseño sobre lienzo 1080×1080.
+ * Circular: sin fondo blanco ni borde cuadrado; PNG con transparencia fuera del círculo.
+ */
+export function drawMockupComposite(ctx, drawable, placement, options = {}) {
+  const { x, y, targetW, targetH, radiusPx } = placement || {};
+  const shape = resolveMockupShape(options);
+  const isCircle = shape === 'circle';
+
+  ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+
+  ctx.save();
+  clipMockupPadPath(ctx, x, y, targetW, targetH, radiusPx, shape);
+  if (!isCircle) {
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fill();
+  }
+  ctx.clip();
+  ctx.drawImage(drawable, x, y, targetW, targetH);
+  ctx.restore();
+
+  if (!isCircle) {
+    ctx.beginPath();
+    clipMockupPadPath(ctx, x, y, targetW, targetH, radiusPx, shape);
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = '#d1d5db';
+    ctx.stroke();
+  }
+}
+
 function getEnv() {
   return (typeof import.meta !== 'undefined' && import.meta.env) || {};
 }

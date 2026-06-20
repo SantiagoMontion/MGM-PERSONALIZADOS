@@ -47,10 +47,15 @@ function scanOpaqueBounds(imageData, width, height, sampleStep) {
 }
 
 /**
- * Vista previa paso 3: mismo ancho que el contenedor, recorte visual de márgenes transparentes
- * leyendo alpha en canvas (no sube otra imagen).
+ * Vista previa paso 3: recorte visual de márgenes transparentes sin upscale (evita pixelado).
  */
-export default function StepThreeMockupPreview({ src, alt, frameClassName, imageKey }) {
+export default function StepThreeMockupPreview({
+  src,
+  alt,
+  frameClassName,
+  imageKey,
+  isCircular = false,
+}) {
   const wrapRef = useRef(null);
   const [tight, setTight] = useState(null);
   const [looseFallback, setLooseFallback] = useState(false);
@@ -72,13 +77,22 @@ export default function StepThreeMockupPreview({ src, alt, frameClassName, image
       const nw = img.naturalWidth;
       const nh = img.naturalHeight;
       if (!nw || !nh) return;
+
+      if (isCircular) {
+        setTight({ nw, nh, minX: 0, minY: 0, cw: nw, ch: nh });
+        setLooseFallback(true);
+        return;
+      }
+
       try {
         const canvas = document.createElement('canvas');
         canvas.width = nw;
         canvas.height = nh;
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        const ctx = canvas.getContext('2d', { willReadFrequently: true, alpha: true });
+        if (!ctx) throw new Error('canvas_context_unavailable');
+        ctx.clearRect(0, 0, nw, nh);
         ctx.drawImage(img, 0, 0);
-        const step = Math.max(1, Math.floor(Math.max(nw, nh) / 720));
+        const step = Math.max(1, Math.floor(Math.max(nw, nh) / 1080));
         const imageData = ctx.getImageData(0, 0, nw, nh);
         const { minX, minY, cw, ch } = scanOpaqueBounds(imageData, nw, nh, step);
         setTight({ nw, nh, minX, minY, cw, ch });
@@ -98,7 +112,7 @@ export default function StepThreeMockupPreview({ src, alt, frameClassName, image
     return () => {
       cancelled = true;
     };
-  }, [src, imageKey]);
+  }, [isCircular, src, imageKey]);
 
   useLayoutEffect(() => {
     const host = wrapRef.current;
@@ -115,12 +129,12 @@ export default function StepThreeMockupPreview({ src, alt, frameClassName, image
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
-    const updateMaxHeight = () => {
+    const updateViewportMetrics = () => {
       setMaxPreviewHeightPx(resolveMaxPreviewHeightPx());
     };
-    updateMaxHeight();
-    window.addEventListener('resize', updateMaxHeight);
-    return () => window.removeEventListener('resize', updateMaxHeight);
+    updateViewportMetrics();
+    window.addEventListener('resize', updateViewportMetrics);
+    return () => window.removeEventListener('resize', updateViewportMetrics);
   }, []);
 
   let renderW = availableW;
@@ -131,9 +145,18 @@ export default function StepThreeMockupPreview({ src, alt, frameClassName, image
       renderW = Math.round(maxPreviewHeightPx * ratio);
     }
   }
-  const effectiveW = Math.max(0, Math.min(availableW, renderW));
-  const scale = tight && effectiveW > 0 ? effectiveW / tight.cw : 0;
-  const useTight = Boolean(tight && scale > 0 && !looseFallback);
+  let effectiveW = Math.max(0, Math.min(availableW, renderW));
+
+  const preferLoose = isCircular
+    || looseFallback
+    || Boolean(tight && effectiveW > 0 && effectiveW > tight.cw * 1.02);
+  let useTight = false;
+  let scale = 0;
+
+  if (tight && effectiveW > 0 && !preferLoose) {
+    scale = effectiveW / tight.cw;
+    useTight = scale > 0;
+  }
   const maxHeightStyle = { maxHeight: `${maxPreviewHeightPx}px` };
   const tightHostStyle = useTight
     ? {
@@ -143,9 +166,7 @@ export default function StepThreeMockupPreview({ src, alt, frameClassName, image
       }
     : maxHeightStyle;
   const looseImgStyle = !useTight
-    ? {
-        ...maxHeightStyle,
-      }
+    ? maxHeightStyle
     : undefined;
 
   return (
@@ -157,7 +178,7 @@ export default function StepThreeMockupPreview({ src, alt, frameClassName, image
       >
         {src ? (
           <img
-            key={`${imageKey || ''}-${src}-${useTight ? 't' : 'l'}`}
+            key={`${imageKey || ''}-${src}-${useTight ? 't' : 'l'}-${isCircular ? 'c' : 'r'}`}
             src={src}
             alt={alt}
             className={useTight ? styles.imgTight : styles.imgLoose}
@@ -166,10 +187,10 @@ export default function StepThreeMockupPreview({ src, alt, frameClassName, image
               useTight
                 ? {
                     position: 'absolute',
-                    left: -tight.minX * scale,
-                    top: -tight.minY * scale,
-                    width: tight.nw * scale,
-                    height: tight.nh * scale,
+                    left: `${-tight.minX * scale}px`,
+                    top: `${-tight.minY * scale}px`,
+                    width: `${tight.nw * scale}px`,
+                    height: `${tight.nh * scale}px`,
                   }
                 : looseImgStyle
             }

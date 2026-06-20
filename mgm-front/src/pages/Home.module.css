@@ -2529,6 +2529,18 @@ body.light [class*='stepOneSecondaryAction'] svg {
   border-radius: 0 !important;
 }
 
+.stepTwoCanvasWrapperCircular {
+  background-color: color-mix(in srgb, var(--surface-secondary) 72%, var(--background));
+  background-image: var(--nm-canvas-grid-dark);
+  background-size: 16px 16px;
+}
+
+html.light .stepTwoCanvasWrapperCircular,
+body.light .stepTwoCanvasWrapperCircular {
+  background-color: color-mix(in srgb, var(--surface-secondary) 88%, white);
+  background-image: var(--nm-canvas-grid-light);
+}
+
 .stepTwoCanvasWrapper :global(.konvajs-content),
 .stepTwoCanvasWrapper :global(canvas) {
   display: block;
@@ -4229,6 +4241,19 @@ body.light .stepTwoContainColorLabel {
   box-shadow:
     0 var(--space-2) var(--space-8) color-mix(in srgb, var(--overlay) 28%, transparent),
     0 var(--space-1) var(--space-3) color-mix(in srgb, var(--border-default) 75%, transparent);
+}
+
+.stepThreePreviewFrameCircular {
+  background-color: color-mix(in srgb, var(--surface-secondary) 72%, var(--background));
+  background-image: var(--nm-canvas-grid-dark);
+  background-size: 16px 16px;
+  border-color: color-mix(in srgb, var(--border-default) 65%, transparent);
+}
+
+html.light .stepThreePreviewFrameCircular,
+body.light .stepThreePreviewFrameCircular {
+  background-color: color-mix(in srgb, var(--surface-secondary) 88%, white);
+  background-image: var(--nm-canvas-grid-light);
 }
 
 .stepThreePreviewFallback {

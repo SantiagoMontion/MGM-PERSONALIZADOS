@@ -68,6 +68,23 @@ const drawRoundedPath = (ctx, w, h, radius) => {
   ctx.closePath();
 };
 
+const drawCirclePath = (ctx, w, h, inset = 0) => {
+  const cx = w / 2;
+  const cy = h / 2;
+  const radius = Math.max(0, Math.min(w, h) / 2 - inset);
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.closePath();
+};
+
+const clipPadPath = (ctx, w, h, { isCircular = false, radius = 0 } = {}) => {
+  if (isCircular) {
+    drawCirclePath(ctx, w, h, 0);
+    return;
+  }
+  drawRoundedPath(ctx, w, h, radius);
+};
+
 const readViewportSize = (element, fallback = {}) => {
   const rect = element?.getBoundingClientRect?.();
   const fallbackWidth = Number(fallback?.width ?? fallback?.w);
@@ -2047,7 +2064,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       pad_px: getPadRectPx(),
       rotate_deg,
       fit_mode: mode,
-      bg_hex: bgColor,
+      bg_hex: isCircular && mode !== "contain" ? null : bgColor,
       shape: isCircular ? "circle" : "rounded_rect",
       w_cm: wCm,
       h_cm: hCm,
@@ -2060,6 +2077,10 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
   const padRectPx = getPadRectPx();
   const exportScale = padRectPx.w / wCm;
+  const exportBackgroundFill = mode === "contain"
+    ? bgColor
+    : (isCircular ? "transparent" : defaultBgColor);
+  const shouldRenderExportBackground = mode === "contain" || !isCircular;
   const shouldRenderCanvas = showCanvas && Boolean(resolvedImageUrl);
   const canUndo = historyCounts.undo > 0;
   const canRedo = historyCounts.redo > 0;
@@ -2174,8 +2195,11 @@ const EditorCanvas = forwardRef(function EditorCanvas(
           const cleanCanvas = document.createElement('canvas');
           cleanCanvas.width = width;
           cleanCanvas.height = height;
-          const cleanCtx = cleanCanvas.getContext('2d');
-          cleanCtx.drawImage(img, 0, 0, width, height);
+          const cleanCtx = cleanCanvas.getContext('2d', { alpha: true });
+          if (cleanCtx) {
+            cleanCtx.clearRect(0, 0, width, height);
+            cleanCtx.drawImage(img, 0, 0, width, height);
+          }
           const reencoded = await encodeCanvasAsPng(cleanCanvas);
           if (reencoded.info?.ok && reencoded.blob) {
             blob = reencoded.blob;
@@ -2268,8 +2292,9 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         const canvas = document.createElement('canvas');
         canvas.width = targetW;
         canvas.height = targetH;
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext('2d', { alpha: true });
         if (!ctx) return blob;
+        ctx.clearRect(0, 0, targetW, targetH);
         ctx.drawImage(img, 0, 0, targetW, targetH);
         const scaled = await new Promise((resolve) =>
           canvas.toBlob((b) => resolve(b), 'image/png', 0.92),
@@ -2335,7 +2360,9 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         crop_px: { left, top, width, height },
         rotate_deg: ((imgTx.rotation_deg % 360) + 360) % 360,
         fit_mode: mode,
-        bg: mode === "contain" ? bgColor : defaultBgColor,
+        bg: isCircular
+          ? (mode === "contain" ? bgColor : "transparent")
+          : (mode === "contain" ? bgColor : defaultBgColor),
         canvas_px: {
           w: Math.round(workW / cmPerPx),
           h: Math.round(workH / cmPerPx),
@@ -2591,7 +2618,9 @@ const EditorCanvas = forwardRef(function EditorCanvas(
         flipY: imgTx.flipY,
       },
       mode,
-      background: mode === "contain" ? bgColor : defaultBgColor,
+      background: isCircular
+        ? (mode === "contain" ? bgColor : "transparent")
+        : (mode === "contain" ? bgColor : defaultBgColor),
       corner_radius_cm: cornerRadiusCm,
       shape: isCircular ? "circle" : "rounded_rect",
     });
@@ -2698,7 +2727,10 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
               {/* Mesa de trabajo (gris) con borde redondeado SIEMPRE */}
               <Group
-                clipFunc={(ctx) => drawRoundedPath(ctx, workCm.w, workCm.h, previewCornerRadiusCm)}
+                clipFunc={(ctx) => clipPadPath(ctx, workCm.w, workCm.h, {
+                  isCircular,
+                  radius: previewCornerRadiusCm,
+                })}
               >
               <Rect
                 x={0}
@@ -2713,7 +2745,10 @@ const EditorCanvas = forwardRef(function EditorCanvas(
             {/* Si 'contain': pintamos el color de fondo SIEMPRE debajo del arte (tambiÃ©n al deseleccionar) */}
             {mode === "contain" && (
               <Group
-                clipFunc={(ctx) => drawRoundedPath(ctx, workCm.w, workCm.h, previewCornerRadiusCm)}
+                clipFunc={(ctx) => clipPadPath(ctx, workCm.w, workCm.h, {
+                  isCircular,
+                  radius: previewCornerRadiusCm,
+                })}
               >
                 <Rect
                   x={0}
@@ -2732,7 +2767,10 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               (shouldShowTransformerOverlay ? (
                 <>
                   <Group
-                    clipFunc={(ctx) => drawRoundedPath(ctx, workCm.w, workCm.h, previewCornerRadiusCm)}
+                    clipFunc={(ctx) => clipPadPath(ctx, workCm.w, workCm.h, {
+                      isCircular,
+                      radius: previewCornerRadiusCm,
+                    })}
                   >
                     <KonvaImage
                       ref={imgRef}
@@ -2867,7 +2905,10 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                 </>
                 ) : (
                   <Group
-                    clipFunc={(ctx) => drawRoundedPath(ctx, workCm.w, workCm.h, previewCornerRadiusCm)}
+                    clipFunc={(ctx) => clipPadPath(ctx, workCm.w, workCm.h, {
+                      isCircular,
+                      radius: previewCornerRadiusCm,
+                    })}
                   >
                     <Rect
                       x={0}
@@ -2952,13 +2993,18 @@ const EditorCanvas = forwardRef(function EditorCanvas(
             <Shape
               sceneFunc={(ctx, shape) => {
                 ctx.save();
-                ctx.translate(previewOutlineInsetCm, previewOutlineInsetCm);
-                drawRoundedPath(
-                  ctx,
-                  Math.max(0, workCm.w - previewOutlineInsetCm * 2),
-                  Math.max(0, workCm.h - previewOutlineInsetCm - previewOutlineBottomInsetCm),
-                  previewCornerRadiusCm,
-                );
+                if (isCircular) {
+                  const inset = previewOutlineStrokeCm * 1.45;
+                  drawCirclePath(ctx, workCm.w, workCm.h, inset);
+                } else {
+                  ctx.translate(previewOutlineInsetCm, previewOutlineInsetCm);
+                  drawRoundedPath(
+                    ctx,
+                    Math.max(0, workCm.w - previewOutlineInsetCm * 2),
+                    Math.max(0, workCm.h - previewOutlineInsetCm - previewOutlineBottomInsetCm),
+                    previewCornerRadiusCm,
+                  );
+                }
                 ctx.strokeStyle = previewOutlineColor;
                 ctx.lineWidth = shape.strokeWidth();
                 ctx.lineJoin = 'round';
@@ -2974,7 +3020,10 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               sceneFunc={(ctx, shape) => {
                 ctx.save();
                 ctx.setLineDash([]);
-                drawRoundedPath(ctx, workCm.w, workCm.h, previewCornerRadiusCm);
+                clipPadPath(ctx, workCm.w, workCm.h, {
+                  isCircular,
+                  radius: previewCornerRadiusCm,
+                });
                 ctx.strokeStyle = "transparent";
                 ctx.lineWidth = shape.strokeWidth();
                 ctx.stroke();
@@ -2982,6 +3031,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               }}
               strokeWidth={0.04}
             />
+            {!isCircular ? (
             <Shape
               sceneFunc={(ctx, shape) => {
                 ctx.save();
@@ -3003,6 +3053,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               }}
               strokeWidth={0.04}
             />
+            ) : null}
             </Layer>
           </Stage>
           <Stage
@@ -3014,23 +3065,21 @@ const EditorCanvas = forwardRef(function EditorCanvas(
             <Layer>
               <Group
                 ref={padGroupRef}
-                clipFunc={(ctx) =>
-                  drawRoundedPath(
-                    ctx,
-                    padRectPx.w,
-                    padRectPx.h,
-                    isCircular ? padRectPx.w / 2 : padRectPx.radius_px,
-                  )
-                }
+                clipFunc={(ctx) => clipPadPath(ctx, padRectPx.w, padRectPx.h, {
+                  isCircular,
+                  radius: isCircular ? padRectPx.w / 2 : padRectPx.radius_px,
+                })}
               >
-                <Rect
-                  x={0}
-                  y={0}
-                  width={padRectPx.w}
-                  height={padRectPx.h}
-                  fill={mode === "contain" ? bgColor : defaultBgColor}
-                  listening={false}
-                />
+                {shouldRenderExportBackground ? (
+                  <Rect
+                    x={0}
+                    y={0}
+                    width={padRectPx.w}
+                    height={padRectPx.h}
+                    fill={exportBackgroundFill}
+                    listening={false}
+                  />
+                ) : null}
                 {imgEl && imgBaseCm && (
                   <KonvaImage
                     image={imgEl}
