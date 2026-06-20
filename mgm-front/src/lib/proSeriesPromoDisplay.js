@@ -1,22 +1,25 @@
 import { normalizeMaterialLabel } from './material.js';
+import { roundDownToNearestFifty } from '../../../lib/pricing/equilibrium.js';
 
 /** Solo UI: no modifica precios enviados a Shopify ni el cálculo de lista. */
-export const PRO_SERIES_VISUAL_PROMO_ENABLED = false;
+export const PRO_SERIES_VISUAL_PROMO_ENABLED = true;
 export const PRO_SERIES_VISUAL_DISCOUNT_PERCENT = 30;
+export const PRO_SERIES_PRICE_CAPTION = '30% OFF Se aplica solo cuando agregas al carrito';
+export const PRO_SERIES_STEP_THREE_NOTE = 'Se aplica solo cuando agregues tu producto al carrito';
 
 export function isProSeriesMaterial(material) {
   return normalizeMaterialLabel(material) === 'PRO';
 }
 
 /**
- * Precio que se muestra en pantalla con 30% OFF visual.
- * El precio real de cobro / Shopify sigue siendo `transferPrice` (precio de lista).
+ * Precio visual con 30% OFF (solo pantalla).
+ * El precio real de cobro / Shopify sigue siendo `transferPrice`.
  */
 export function getProSeriesVisualDisplayPrice(transferPrice) {
   const transfer = Math.round(Number(transferPrice) || 0);
   if (transfer <= 0) return 0;
   const factor = 1 - PRO_SERIES_VISUAL_DISCOUNT_PERCENT / 100;
-  return Math.round(transfer * factor);
+  return roundDownToNearestFifty(transfer * factor);
 }
 
 export function buildProSeriesPromoDisplay(material, transferPrice) {

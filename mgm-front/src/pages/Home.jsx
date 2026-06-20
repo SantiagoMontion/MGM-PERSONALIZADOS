@@ -17,6 +17,7 @@ import UploadStep from '../components/UploadStep';
 import Calculadora from '../components/Calculadora.jsx';
 import CustomSizeFields from '../components/CustomSizeFields.jsx';
 import ProSeriesPromoPrice from '../components/ProSeriesPromoPrice.jsx';
+import { PRO_SERIES_PRICE_CAPTION, PRO_SERIES_STEP_THREE_NOTE } from '../lib/proSeriesPromoDisplay.js';
 import EditorCanvas from '../components/EditorCanvas';
 import ColorPopover from '../components/ColorPopover';
 import LoadingOverlay from '../components/LoadingOverlay';
@@ -4914,7 +4915,9 @@ export default function Home() {
                           variant="large"
                           lightTheme={!isDarkMode}
                         />
-                        <span className={`${styles.stepOneFooterPriceCaption} ${!isDarkMode ? styles.stepOneFooterPriceCaptionLight : ''}`.trim()}>Total según configuración</span>
+                        <span className={`${styles.stepOneFooterPriceCaption} ${!isDarkMode ? styles.stepOneFooterPriceCaptionLight : ''}`.trim()}>
+                          {material === 'PRO' ? PRO_SERIES_PRICE_CAPTION : 'Total según configuración'}
+                        </span>
                       </div>
                       <button
                         type="button"
@@ -5079,6 +5082,11 @@ export default function Home() {
                       transferPrice={editorDisplayTransferPrice}
                       variant="stepThree"
                     />
+                    {material === 'PRO' ? (
+                      <span className={styles.stepThreeDetailTransferNote}>
+                        {PRO_SERIES_STEP_THREE_NOTE}
+                      </span>
+                    ) : null}
                   </span>
                 </div>
               </div>
@@ -5562,7 +5570,9 @@ export default function Home() {
                         transferPrice={editorDisplayTransferPrice}
                         variant="large"
                       />
-                      <span className={styles.stepTwoFooterPriceCaption}>Total según configuración</span>
+                      <span className={styles.stepTwoFooterPriceCaption}>
+                        {material === 'PRO' ? PRO_SERIES_PRICE_CAPTION : 'Total según configuración'}
+                      </span>
                       <span className={styles.stepTwoFooterSizeMaterialLine}>
                         {stepTwoFooterMobileSizeMaterialLine}
                       </span>
@@ -5727,9 +5737,9 @@ export default function Home() {
                                       <span className={styles.stepTwoOptionDescription}>{option.measurementLabel}</span>
                                     </span>
                                     <span className={styles.stepTwoOptionPrice}>
-                                      {material === 'PRO' && option.price > 0 ? (
+                                      {(material === 'PRO' || material === 'Alfombra') && option.price > 0 ? (
                                         <ProSeriesPromoPrice
-                                          material="PRO"
+                                          material={material}
                                           transferPrice={option.price}
                                           variant="compact"
                                           inline
@@ -5859,9 +5869,9 @@ export default function Home() {
                                       <span className={styles.stepTwoOptionDescription}>{option.description}</span>
                                     </span>
                                     <span className={styles.stepTwoOptionPrice}>
-                                      {option.value === 'PRO' && option.totalPrice > 0 ? (
+                                      {(option.value === 'PRO' || option.value === 'Alfombra') && option.totalPrice > 0 ? (
                                         <ProSeriesPromoPrice
-                                          material="PRO"
+                                          material={option.value}
                                           transferPrice={option.totalPrice}
                                           variant="compact"
                                           inline

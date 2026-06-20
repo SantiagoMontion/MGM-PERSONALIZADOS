@@ -4,6 +4,7 @@ import {
   PRO_SERIES_NET_LIST_FACTOR,
   resolveCustomerPriceFromNetBase,
   roundToNearestFifty,
+  roundDownToNearestFifty,
   ULTRA_FINAL_LIST_PRICE,
 } from '../../../lib/pricing/equilibrium.js';
 
@@ -28,6 +29,7 @@ export {
   PRO_SERIES_NET_LIST_FACTOR,
   resolveCustomerPriceFromNetBase,
   roundToNearestFifty,
+  roundDownToNearestFifty,
   ULTRA_FINAL_LIST_PRICE,
 };
 

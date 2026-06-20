@@ -1,10 +1,12 @@
 import { useMemo } from 'react';
 import { formatARS } from '../lib/pricing.js';
+import { buildAlfombraPromoDisplay } from '../lib/alfombraPromoDisplay.js';
 import { buildProSeriesPromoDisplay } from '../lib/proSeriesPromoDisplay.js';
 import styles from './ProSeriesPromoPrice.module.css';
 
 /**
- * Muestra el precio de lista; PRO puede mostrar promo visual si está habilitada en proSeriesPromoDisplay.
+ * Precio de lista con promos visuales por material (PRO 30% OFF, Alfombra 2x1).
+ * No altera el monto enviado a Shopify (`transferPrice`).
  */
 export default function ProSeriesPromoPrice({
   material,
@@ -13,19 +15,26 @@ export default function ProSeriesPromoPrice({
   lightTheme = false,
   inline = false,
   className = '',
-  showBadge = true,
+  showBadge = false,
 }) {
   const promo = useMemo(
     () => buildProSeriesPromoDisplay(material, transferPrice),
     [material, transferPrice],
   );
+  const alfombraPromo = useMemo(
+    () => buildAlfombraPromoDisplay(material),
+    [material],
+  );
 
-  const formattedTransfer = useMemo(() => {
+  const listPrice = Math.round(Number(transferPrice) || 0);
+  const formattedListPrice = listPrice > 0 ? formatARS(listPrice) : '0';
+
+  const formattedPromoPrice = useMemo(() => {
     const amount = promo
       ? promo.displayPrice
-      : Math.round(Number(transferPrice) || 0);
+      : listPrice;
     return amount > 0 ? formatARS(amount) : '0';
-  }, [promo, transferPrice]);
+  }, [listPrice, promo]);
 
   const formattedCompare = promo ? formatARS(promo.compareAt) : '';
 
@@ -34,6 +43,7 @@ export default function ProSeriesPromoPrice({
     styles.root,
     inline ? styles.rootInline : '',
     variantClassName,
+    alfombraPromo ? styles.rootAlfombra : '',
     className,
   ]
     .filter(Boolean)
@@ -60,13 +70,33 @@ export default function ProSeriesPromoPrice({
     .filter(Boolean)
     .join(' ');
 
+  const alfombraHeadlineClassName = [
+    styles.alfombraPromoHeadline,
+    lightTheme ? styles.alfombraPromoHeadlineLight : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  if (alfombraPromo) {
+    return (
+      <div className={rootClassName}>
+        <span className={transferClassName}>
+          $
+          {' '}
+          {formattedListPrice}
+        </span>
+        <span className={alfombraHeadlineClassName}>{alfombraPromo.headline}</span>
+      </div>
+    );
+  }
+
   if (!promo) {
     return (
       <div className={rootClassName}>
         <span className={transferClassName}>
           $
           {' '}
-          {formattedTransfer}
+          {formattedListPrice}
         </span>
       </div>
     );
@@ -86,7 +116,7 @@ export default function ProSeriesPromoPrice({
         <span className={transferClassName}>
           $
           {' '}
-          {formattedTransfer}
+          {formattedPromoPrice}
         </span>
       </div>
     </div>
