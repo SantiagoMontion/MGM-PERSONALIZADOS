@@ -62,7 +62,7 @@ import {
   projectNameContainsForbiddenWord,
   PROJECT_NAME_FORBIDDEN_WORDS_MESSAGE,
 } from '../../../lib/_lib/projectNameForbiddenWords.js';
-import { assignLeavingHostedApp } from '@/lib/navigateHosted.js';
+import { assignLeavingHostedApp, navigateCommerceForCart } from '@/lib/navigateHosted.js';
 
 const MAX_IMAGE_MB = MAX_IMAGE_MB_BASE; // proviene de VITE_MAX_IMAGE_MB (default 30MB)
 const MAX_IMAGE_BYTES = MAX_IMAGE_MB * 1024 * 1024;
@@ -4310,10 +4310,15 @@ export default function Home() {
         setErr('No se pudo abrir la página del producto. Intentá nuevamente en unos segundos.');
         return;
       }
-      if (!tryOpenCommerceTarget(targetUrl)) {
-        if (!navigateSameTab(targetUrl)) {
-          setErr('No se pudo abrir la página del producto. Intentá nuevamente.');
-        }
+      const cartNavigation = navigateCommerceForCart(targetUrl, {
+        onNewTabOpened: () => {
+          setConfigOpen(false);
+          setToolsDrawerOpen(false);
+          dispatchStep({ type: 'RESTORE_EDIT', hasImage: Boolean(uploaded) });
+        },
+      });
+      if (!cartNavigation) {
+        setErr('No se pudo abrir la página del producto. Intentá nuevamente.');
       }
     } catch (cartError) {
       error('[home-step-three-cart] failed', cartError);
@@ -4322,7 +4327,15 @@ export default function Home() {
     } finally {
       setStepThreeCommerceAction(null);
     }
-  }, [buildCommercePayloadOverrides, busy, flow, stepThreeCommerceAction, syncFlowEditorSelection]);
+  }, [
+    buildCommercePayloadOverrides,
+    busy,
+    dispatchStep,
+    flow,
+    stepThreeCommerceAction,
+    syncFlowEditorSelection,
+    uploaded,
+  ]);
 
   const openStepThreeCheckoutPrompt = useCallback(() => {
     if (busy || stepThreeCommerceAction) return;

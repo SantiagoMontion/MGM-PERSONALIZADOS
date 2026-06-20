@@ -18,7 +18,7 @@ import { bytesToMB, formatHeavyImageToastMessage } from '@/lib/imageLimits.js';
 import { MAX_IMAGE_MB, MAX_IMAGE_BYTES } from '../lib/imageSizeLimit.js';
 import { isTouchDevice } from '@/lib/device.ts';
 import { isFixedPad49x42Material } from '@/lib/material.js';
-import { assignLeavingHostedApp } from '@/lib/navigateHosted.js';
+import { assignLeavingHostedApp, navigateCommerceForCart } from '@/lib/navigateHosted.js';
 
 const safeStr = (v) => (typeof v === 'string' ? v : '').trim();
 
@@ -3349,6 +3349,7 @@ export default function Mockup() {
     const {
       preserveLastProduct = false,
       lastProductOverride = null,
+      skipNavigate = false,
     } = options;
     const lastProductToPreserve = preserveLastProduct
       ? lastProductOverride || flow.lastProduct || null
@@ -3368,14 +3369,20 @@ export default function Mockup() {
     }
     setCartStatus('idle');
     setBusy(false);
-    flow.reset();
+    if (!skipNavigate) {
+      flow.reset();
+      if (lastProductToPreserve) {
+        flow.set({ lastProduct: lastProductToPreserve });
+      }
+      try {
+        navigate('/', { replace: true });
+      } catch (navErr) {
+        warn('[mockup] cart_success_navigate_failed', navErr);
+      }
+      return;
+    }
     if (lastProductToPreserve) {
       flow.set({ lastProduct: lastProductToPreserve });
-    }
-    try {
-      navigate('/', { replace: true });
-    } catch (navErr) {
-      warn('[mockup] cart_success_navigate_failed', navErr);
     }
   }
 
@@ -3533,11 +3540,13 @@ export default function Mockup() {
         baseOptions.reuseLastProduct = true;
         const reusableTarget = resolveReusableTarget('cart');
         if (reusableTarget) {
-          const opened = openCommerceTarget(reusableTarget);
-          didOpenTarget = opened || didOpenTarget;
-          if (opened) {
+          const navigation = navigateCommerceForCart(reusableTarget, {
+            onNewTabOpened: () => jumpHomeAndClean(flow),
+          });
+          if (navigation) {
+            didOpenTarget = navigation === 'new-tab';
             finalizeCartSuccess('Abrimos tu producto existente para evitar duplicados.', {
-              skipNavigate: true,
+              skipNavigate: didOpenTarget,
               preserveLastProduct: true,
             });
             setCartStatus('idle');
@@ -3585,7 +3594,7 @@ export default function Mockup() {
       let directTarget = '';
       for (const candidate of jsonCandidates) {
         if (!candidate || typeof candidate !== 'object') continue;
-        for (const key of ['checkoutUrl', 'url', 'cartUrl', 'productUrl']) {
+        for (const key of ['productUrl', 'url', 'checkoutUrl', 'cartUrl']) {
           const value = typeof candidate?.[key] === 'string' ? candidate[key].trim() : '';
           if (value) {
             directTarget = value;
@@ -3597,7 +3606,9 @@ export default function Mockup() {
         }
       }
       if (directTarget) {
-        didOpenTarget = openCommerceTarget(directTarget) || didOpenTarget;
+        navigateCommerceForCart(directTarget, {
+          onNewTabOpened: () => jumpHomeAndClean(flow),
+        });
         setCartStatus('idle');
         return;
       }
@@ -3605,9 +3616,10 @@ export default function Mockup() {
       const SHOPIFY_DOMAIN = import.meta.env.VITE_SHOPIFY_DOMAIN || '';
       const tgt = pickCommerceTarget(result, SHOPIFY_DOMAIN);
       if (tgt) {
-        const opened = openCommerceTarget(tgt);
-        didOpenTarget = opened || didOpenTarget;
-        if (opened) {
+        const navigation = navigateCommerceForCart(tgt, {
+          onNewTabOpened: () => jumpHomeAndClean(flow),
+        });
+        if (navigation) {
           setCartStatus('idle');
           return;
         }
@@ -3647,11 +3659,11 @@ export default function Mockup() {
           : '';
 
       const targetUrl =
-        cartUrlFromResult
-        || checkoutUrlFromResult
+        productUrlFromResult
+        || fallbackFromHandle
         || genericUrlFromResult
-        || productUrlFromResult
-        || fallbackFromHandle;
+        || cartUrlFromResult
+        || checkoutUrlFromResult;
 
       if (!targetUrl) {
         const missingTargetError = new Error('Missing target url');
@@ -3669,18 +3681,27 @@ export default function Mockup() {
           target: targetUrl,
         };
         diag('[publish/add-to-cart]', navigationPayload);
-        const opened = openCommerceTarget(targetUrl);
-        didOpenTarget = opened || didOpenTarget;
-        if (!opened) {
+        const navigation = navigateCommerceForCart(targetUrl, {
+          onNewTabOpened: () => {
+            jumpHomeAndClean(flow);
+          },
+        });
+        if (!navigation) {
           const navigationError = new Error('navigation_failed');
           navigationError.reason = 'navigation_failed';
           throw navigationError;
         }
+        didOpenTarget = navigation === 'new-tab';
       }
 
-      finalizeCartSuccess('Abrimos la página del producto para que lo agregues al carrito.', {
-        skipNavigate: didOpenTarget,
-      });
+      finalizeCartSuccess(
+        didOpenTarget
+          ? 'Abrimos tu producto en otra pestaña. Podés seguir editando acá.'
+          : 'Abrimos la página del producto para que lo agregues al carrito.',
+        {
+          skipNavigate: didOpenTarget,
+        },
+      );
       return;
     } catch (err) {
       error('[cart-flow] create_job_and_product_failed', err);
@@ -4376,27 +4397,46 @@ export default function Mockup() {
     });
 
     setToast(null);
-    const bridgeRid = generateBridgeRid();
-    clearBridgeKey(bridgeRid);
-    window.location.assign(`/bridge?rid=${encodeURIComponent(bridgeRid)}`);
     setCartStatus('creating');
     try {
       try {
         await ensureMockupUrlInFlow(flow);
       } catch (err) {
-        if (handleMissingPrintDataError(err, bridgeRid)) {
+        if (handleMissingPrintDataError(err)) {
           return null;
         }
         throw err;
       }
       const overrides = { ...buildOverridesFromUi('cart'), private: false };
       const result = await buyDirect('cart', overrides, { autoOpen: false });
-      const outcome = finalizePurchase(result, flow, bridgeRid, 'No se pudo abrir el producto. Intenta de nuevo.', 'cart');
-      return outcome;
+      const targetUrl = resolveOpenUrl('cart', result);
+      if (!isHttpUrl(targetUrl)) {
+        const fallbackMessage = 'No se pudo abrir el producto. Intenta de nuevo.';
+        toastErr(fallbackMessage);
+        setToast({ message: fallbackMessage });
+        return null;
+      }
+      const navigation = navigateCommerceForCart(targetUrl, {
+        onNewTabOpened: () => {
+          jumpHomeAndClean(flow);
+        },
+      });
+      if (!navigation) {
+        const fallbackMessage = 'No se pudo abrir el producto. Intenta de nuevo.';
+        toastErr(fallbackMessage);
+        setToast({ message: fallbackMessage });
+        return null;
+      }
+      if (navigation === 'new-tab') {
+        setToast({
+          message: 'Abrimos tu producto en otra pestaña. Podés seguir editando acá.',
+          tone: 'success',
+        });
+      }
+      return { ok: true, url: targetUrl };
     } catch (err) {
       warn('[cart] error', err);
       const fallbackMessage = 'Ocurrió un error al agregar al carrito.';
-      publishBridgeError(bridgeRid, fallbackMessage);
       toastErr(fallbackMessage);
       setToast({ message: fallbackMessage });
     } finally {
