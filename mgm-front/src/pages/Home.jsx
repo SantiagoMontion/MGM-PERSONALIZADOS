@@ -294,7 +294,8 @@ const STEP_TWO_UPLOAD_MESSAGE = 'Guardando tu diseño en alta resolución...';
 const STEP_TWO_UPLOAD_SUBTITLE = 'No cierres nada, esto puede demorar varios segundos.';
 const STEP_THREE_COMMERCE_PENDING_LABEL = 'Enviando...';
 const STEP_THREE_ADD_TO_CART_LABEL = 'Agregar al carrito';
-const STEP_THREE_CHECKOUT_BUTTON_LABEL = 'Finalizar compra';
+const STEP_THREE_PRIVATE_CART_LABEL = 'Agregar al carrito (PRIVADO)';
+const STEP_THREE_PRIVATE_CART_NOTE = '*Luego de 7 minutos se oculta';
 const STEP_ONE_PREVIEW_MAX_WIDTH_PX = 551;
 const SKIP_MASTER_UPLOAD = String(import.meta.env?.VITE_SKIP_MASTER_UPLOAD || '0') === '1';
 const MOCKUP_BUCKET = String(import.meta.env?.VITE_MOCKUP_UPLOAD_BUCKET || 'preview');
@@ -1205,8 +1206,6 @@ export default function Home() {
   const [ackLowError, setAckLowError] = useState(false);
   const ackCheckboxRef = useRef(null);
   const ackLowErrorDescriptionId = useId();
-  const stepThreeCheckoutTitleId = useId();
-  const stepThreeCheckoutDescId = useId();
   const [mockupUrl, setMockupUrl] = useState(null);
   const [mockupBlob, setMockupBlob] = useState(null);
   const [reviewPreviewUrl, setReviewPreviewUrl] = useState(null);
@@ -1215,11 +1214,8 @@ export default function Home() {
   const [err, setErr] = useState('');
   const [moderationNotice, setModerationNotice] = useState('');
   const [busy, setBusy] = useState(false);
-  /** Paso 3: null | 'cart' | 'checkout-public' | 'checkout-private' mientras corre createJobAndProduct */
+  /** Paso 3: null | 'cart' | 'private-cart' mientras corre createJobAndProduct */
   const [stepThreeCommerceAction, setStepThreeCommerceAction] = useState(null);
-  const [stepThreeCheckoutPromptOpen, setStepThreeCheckoutPromptOpen] = useState(false);
-  const stepThreeCheckoutModalRef = useRef(null);
-  const stepThreeCheckoutFirstButtonRef = useRef(null);
   const [reviewExitBusy, setReviewExitBusy] = useState(false);
   const [isReplacing, setIsReplacing] = useState(false);
   const [masterPublicUrl, setMasterPublicUrl] = useState(null);
@@ -4200,6 +4196,17 @@ export default function Home() {
     heightCm: Math.round(Number(activeSizeCm?.h) || 0) || undefined,
   }), [activeSizeCm?.h, activeSizeCm?.w, material]);
 
+  const buildPrivateCommercePayloadOverrides = useCallback(() => ({
+    ...buildCommercePayloadOverrides(),
+    private: true,
+    visibility: 'private',
+    mode: 'private',
+    checkoutType: 'private',
+    metafields: [
+      { namespace: 'custom', key: 'private', type: 'boolean', value: 'true' },
+    ],
+  }), [buildCommercePayloadOverrides]);
+
   const openStepThreeReview = useCallback(() => {
     syncFlowEditorSelection();
     captureReviewPreview();
@@ -4337,134 +4344,50 @@ export default function Home() {
     uploaded,
   ]);
 
-  const openStepThreeCheckoutPrompt = useCallback(() => {
+  const handleReviewAddPrivateToCart = useCallback(async () => {
     if (busy || stepThreeCommerceAction) return;
     setErr('');
-    setStepThreeCheckoutPromptOpen(true);
-  }, [busy, stepThreeCommerceAction]);
-
-  const closeStepThreeCheckoutPrompt = useCallback(() => {
-    if (stepThreeCommerceAction) return;
-    setStepThreeCheckoutPromptOpen(false);
-  }, [stepThreeCommerceAction]);
-
-  const handleStepThreeCheckoutPublic = useCallback(async () => {
-    if (busy || stepThreeCommerceAction) return;
-    setErr('');
-    setStepThreeCheckoutPromptOpen(false);
-    setStepThreeCommerceAction('checkout-public');
+    setStepThreeCommerceAction('private-cart');
     try {
       syncFlowEditorSelection();
-      const result = await createJobAndProduct('checkout', flow, {
-        payloadOverrides: buildCommercePayloadOverrides(),
+      const result = await createJobAndProduct('cart', flow, {
+        payloadOverrides: buildPrivateCommercePayloadOverrides(),
       });
-      const checkoutUrl = resolveCheckoutTargetUrl(result);
-      if (!checkoutUrl) {
-        setErr('No se pudo abrir el checkout. Intentá nuevamente.');
+      let targetUrl = resolveProductPageTargetUrl(result);
+      if (!targetUrl) {
+        const snap = typeof flow?.get === 'function' ? flow.get() : flow;
+        targetUrl = resolveProductPageTargetUrl(snap?.lastProduct || null);
+      }
+      if (!targetUrl) {
+        setErr('No se pudo abrir la página del producto privado. Intentá nuevamente en unos segundos.');
         return;
       }
-      if (!tryOpenCommerceTarget(checkoutUrl)) {
-        setErr('No se pudo abrir el checkout. Intentá nuevamente.');
+      const cartNavigation = navigateCommerceForCart(targetUrl, {
+        onNewTabOpened: () => {
+          setConfigOpen(false);
+          setToolsDrawerOpen(false);
+          dispatchStep({ type: 'RESTORE_EDIT', hasImage: Boolean(uploaded) });
+        },
+      });
+      if (!cartNavigation) {
+        setErr('No se pudo abrir la página del producto privado. Intentá nuevamente.');
       }
-    } catch (checkoutError) {
-      error('[home-step-three-checkout-public] failed', checkoutError);
-      maybeShowHeavyImageToastFromError(checkoutError);
-      setErr(resolveCheckoutErrorMessage(checkoutError));
+    } catch (cartError) {
+      error('[home-step-three-private-cart] failed', cartError);
+      maybeShowHeavyImageToastFromError(cartError);
+      setErr(resolveCheckoutErrorMessage(cartError));
     } finally {
       setStepThreeCommerceAction(null);
     }
-  }, [buildCommercePayloadOverrides, busy, flow, stepThreeCommerceAction, syncFlowEditorSelection]);
-
-  const handleStepThreeCheckoutPrivate = useCallback(async () => {
-    if (busy || stepThreeCommerceAction) return;
-    setErr('');
-
-    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    const flowState = (typeof flow?.get === 'function' ? flow.get() : flow) || {};
-    let emailRaw = typeof flowState.customerEmail === 'string' ? flowState.customerEmail.trim() : '';
-
-    if (!emailPattern.test(emailRaw)) {
-      if (typeof window === 'undefined') {
-        setErr('Ingresá un correo electrónico válido para comprar en privado.');
-        return;
-      }
-      const promptDefault = typeof flowState.customerEmail === 'string' ? flowState.customerEmail : '';
-      const provided = window.prompt(
-        'Ingresá tu correo electrónico para continuar con la compra privada:',
-        promptDefault,
-      );
-      if (provided == null) {
-        return;
-      }
-      const normalized = provided.trim();
-      if (!emailPattern.test(normalized)) {
-        window.alert('Ingresá un correo electrónico válido para comprar en privado.');
-        return;
-      }
-      emailRaw = normalized;
-    }
-
-    if (emailRaw !== flowState.customerEmail && typeof flow?.set === 'function') {
-      flow.set({ customerEmail: emailRaw });
-    }
-
-    setStepThreeCheckoutPromptOpen(false);
-    setStepThreeCommerceAction('checkout-private');
-    try {
-      syncFlowEditorSelection();
-      if (typeof flow?.set === 'function') {
-        flow.set({ customerEmail: emailRaw });
-      }
-      const result = await createJobAndProduct('private', flow, {
-        payloadOverrides: buildCommercePayloadOverrides(),
-      });
-      const checkoutUrl = resolveCheckoutTargetUrl(result);
-      if (!checkoutUrl) {
-        setErr('No se pudo abrir el checkout privado. Intentá nuevamente.');
-        return;
-      }
-      if (!tryOpenCommerceTarget(checkoutUrl)) {
-        setErr('No se pudo abrir el checkout privado. Intentá nuevamente.');
-      }
-    } catch (checkoutError) {
-      error('[home-step-three-checkout-private] failed', checkoutError);
-      maybeShowHeavyImageToastFromError(checkoutError);
-      setErr(resolveCheckoutErrorMessage(checkoutError));
-    } finally {
-      setStepThreeCommerceAction(null);
-    }
-  }, [buildCommercePayloadOverrides, busy, flow, stepThreeCommerceAction, syncFlowEditorSelection]);
-
-  useEffect(() => {
-    if (!stepThreeCheckoutPromptOpen) return;
-    const t = window.setTimeout(() => {
-      try {
-        stepThreeCheckoutFirstButtonRef.current?.focus?.();
-      } catch (focusErr) {
-        warn('[home-step-three-checkout-prompt] focus_failed', focusErr);
-      }
-    }, 0);
-    return () => window.clearTimeout(t);
-  }, [stepThreeCheckoutPromptOpen]);
-
-  useEffect(() => {
-    if (!stepThreeCheckoutPromptOpen) return;
-    function handleKeyDown(event) {
-      if (event.key === 'Escape' || event.key === 'Esc') {
-        if (stepThreeCommerceAction) return;
-        event.preventDefault();
-        setStepThreeCheckoutPromptOpen(false);
-      }
-    }
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [stepThreeCheckoutPromptOpen, stepThreeCommerceAction]);
-
-  useEffect(() => {
-    if (!isStepReview) {
-      setStepThreeCheckoutPromptOpen(false);
-    }
-  }, [isStepReview]);
+  }, [
+    buildPrivateCommercePayloadOverrides,
+    busy,
+    dispatchStep,
+    flow,
+    stepThreeCommerceAction,
+    syncFlowEditorSelection,
+    uploaded,
+  ]);
 
   const stepTwoEditorFitMode = safeStr(layout?.mode, 'cover');
   const stepTwoCircularToggleLabel = isCircular ? 'Volver a rectangular' : 'Lienzo circular';
@@ -5152,7 +5075,6 @@ export default function Home() {
                   disabled={
                     busy
                     || Boolean(stepThreeCommerceAction)
-                    || stepThreeCheckoutPromptOpen
                   }
                 >
                   {stepThreeCommerceAction === 'cart'
@@ -5162,19 +5084,20 @@ export default function Home() {
                 <button
                   type="button"
                   className={styles.stepThreePrimaryButton}
-                  onClick={openStepThreeCheckoutPrompt}
+                  onClick={() => {
+                    void handleReviewAddPrivateToCart();
+                  }}
                   disabled={
                     busy
                     || Boolean(stepThreeCommerceAction)
-                    || stepThreeCheckoutPromptOpen
                   }
                 >
-                  {stepThreeCommerceAction === 'checkout-public'
-                    || stepThreeCommerceAction === 'checkout-private'
+                  {stepThreeCommerceAction === 'private-cart'
                     ? STEP_THREE_COMMERCE_PENDING_LABEL
-                    : STEP_THREE_CHECKOUT_BUTTON_LABEL}
+                    : STEP_THREE_PRIVATE_CART_LABEL}
                 </button>
               </div>
+              <p className={styles.stepThreePrivateCartNote}>{STEP_THREE_PRIVATE_CART_NOTE}</p>
 
               <button
                 type="button"
@@ -5183,7 +5106,6 @@ export default function Home() {
                 disabled={
                   Boolean(stepThreeCommerceAction)
                   || reviewExitBusy
-                  || stepThreeCheckoutPromptOpen
                 }
               >
                 <span className={styles.stepTwoBackIcon} aria-hidden="true">
@@ -5200,79 +5122,6 @@ export default function Home() {
                 </span>
                 <span>Volver al editor</span>
               </button>
-
-              {stepThreeCheckoutPromptOpen ? (
-                <div
-                  role="presentation"
-                  className={styles.stepThreeCheckoutModalBackdrop}
-                  onClick={() => {
-                    if (stepThreeCommerceAction) return;
-                    closeStepThreeCheckoutPrompt();
-                  }}
-                >
-                  <div
-                    role="dialog"
-                    aria-modal="true"
-                    aria-labelledby={stepThreeCheckoutTitleId}
-                    aria-describedby={stepThreeCheckoutDescId}
-                    ref={stepThreeCheckoutModalRef}
-                    className={styles.stepThreeCheckoutModalCard}
-                    onClick={(event) => event.stopPropagation()}
-                  >
-                    <button
-                      type="button"
-                      onClick={closeStepThreeCheckoutPrompt}
-                      disabled={Boolean(stepThreeCommerceAction)}
-                      aria-label="Cerrar"
-                      className={styles.stepThreeCheckoutModalClose}
-                    >
-                      ×
-                    </button>
-                    <h2 id={stepThreeCheckoutTitleId} className={styles.stepThreeCheckoutModalTitle}>
-                      Elegí cómo publicar tu diseño
-                    </h2>
-                    <p id={stepThreeCheckoutDescId} className={styles.stepThreeCheckoutModalDescription}>
-                      📣 Público: visible en la tienda.
-                      <br />
-                      <br />
-                      🔒 Privado: solo vos lo verás.
-                    </p>
-                    <div className={styles.stepThreeCheckoutModalActions}>
-                      <button
-                        ref={stepThreeCheckoutFirstButtonRef}
-                        type="button"
-                        className={styles.stepThreeCheckoutModalPrimary}
-                        disabled={
-                          busy
-                          || Boolean(stepThreeCommerceAction)
-                        }
-                        onClick={() => {
-                          void handleStepThreeCheckoutPublic();
-                        }}
-                      >
-                        {stepThreeCommerceAction === 'checkout-public'
-                          ? 'Procesando…'
-                          : 'Comprar público'}
-                      </button>
-                      <button
-                        type="button"
-                        className={styles.stepThreeCheckoutModalSecondary}
-                        disabled={
-                          busy
-                          || Boolean(stepThreeCommerceAction)
-                        }
-                        onClick={() => {
-                          void handleStepThreeCheckoutPrivate();
-                        }}
-                      >
-                        {stepThreeCommerceAction === 'checkout-private'
-                          ? 'Procesando…'
-                          : 'Comprar en privado'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
             </div>
           ) : (
             <div className={styles.stepTwoLayout} style={stepTwoCanvasStyle}>

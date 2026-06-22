@@ -4373,6 +4373,15 @@ body.light .stepTwoContainColorLabel {
   box-sizing: border-box;
 }
 
+.stepThreePrivateCartNote {
+  margin: 0 0 var(--space-3);
+  text-align: center;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: var(--foreground-muted);
+  opacity: 0.92;
+}
+
 .stepThreeSecondaryButton,
 .stepThreePrimaryButton {
   flex: 1 1 0;

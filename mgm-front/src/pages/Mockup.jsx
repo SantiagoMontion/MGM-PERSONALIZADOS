@@ -1467,19 +1467,12 @@ export default function Mockup() {
   ]);
   const [busy, setBusy] = useState(false);
   const [cartStatus, setCartStatus] = useState('idle');
-  const [publicBusy, setPublicBusy] = useState(false);
-  const [privateBusy, setPrivateBusy] = useState(false);
-  const [buyBtnBusy, setBuyBtnBusy] = useState(false);
+  const [privateCartBtnBusy, setPrivateCartBtnBusy] = useState(false);
   const [cartBtnBusy, setCartBtnBusy] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [toast, setToast] = useState(null);
-  const [isBuyPromptOpen, setBuyPromptOpen] = useState(false);
-  const buyNowButtonRef = useRef(null);
-  const modalRef = useRef(null);
-  const firstActionButtonRef = useRef(null);
   const isPublishingRef = useRef(false);
   const createJobPromiseRef = useRef(null);
-  const wasModalOpenedRef = useRef(false);
   const successToastTimeoutRef = useRef(null);
 
   const acquirePublishingLock = useCallback(() => {
@@ -2833,20 +2826,6 @@ export default function Mockup() {
   }
   }, []);
 
-  const withBuyBtnSpin = useCallback((fn) => {
-    return async (...args) => {
-      if (isPublishingRef.current) {
-        return;
-      }
-      setBuyBtnBusy(true);
-      try {
-        return await fn(...args);
-      } finally {
-        setBuyBtnBusy(false);
-      }
-    };
-  }, []);
-
   const withCartBtnSpin = useCallback((fn) => {
     return async (...args) => {
       if (cartBtnBusy || isPublishingRef.current) {
@@ -2861,11 +2840,23 @@ export default function Mockup() {
     };
   }, [cartBtnBusy]);
 
+  const withPrivateCartBtnSpin = useCallback((fn) => {
+    return async (...args) => {
+      if (privateCartBtnBusy || isPublishingRef.current) {
+        return;
+      }
+      setPrivateCartBtnBusy(true);
+      try {
+        return await fn(...args);
+      } finally {
+        setPrivateCartBtnBusy(false);
+      }
+    };
+  }, [privateCartBtnBusy]);
+
   const cartButtonLabel = CART_STATUS_LABELS[cartStatus] || CART_STATUS_LABELS.idle;
   const cartBusy = cartStatus !== 'idle';
   const cartInteractionBusy = cartBtnBusy || cartBusy;
-  const buyPromptTitleId = 'buy-choice-title';
-  const buyPromptDescriptionId = 'buy-choice-description';
   useEffect(() => {
     if (typeof document === 'undefined') return;
     if (!frontTitle) return;
@@ -3211,77 +3202,7 @@ export default function Mockup() {
     }
     setCartStatus('idle');
     setBusy(false);
-    setBuyPromptOpen(false);
-    wasModalOpenedRef.current = false;
   }, [flow.mockupUrl, toast?.persist]);
-
-  useEffect(() => {
-    if (!isBuyPromptOpen) return;
-    wasModalOpenedRef.current = true;
-    const timer = setTimeout(() => {
-      try {
-        firstActionButtonRef.current?.focus?.();
-      } catch (focusErr) {
-        warn('[buy-prompt-focus]', focusErr);
-      }
-    }, 0);
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [isBuyPromptOpen]);
-
-  useEffect(() => {
-    if (isBuyPromptOpen) return;
-    if (!wasModalOpenedRef.current) return;
-    try {
-      buyNowButtonRef.current?.focus?.();
-    } catch (focusErr) {
-      warn('[buy-prompt-return-focus]', focusErr);
-    }
-  }, [isBuyPromptOpen]);
-
-  useEffect(() => {
-    if (!isBuyPromptOpen) return;
-    function handleKeyDown(event) {
-      if (event.key === 'Escape' || event.key === 'Esc') {
-        if (busy) return;
-        event.preventDefault();
-        setBuyPromptOpen(false);
-        return;
-      }
-      if (event.key !== 'Tab') return;
-      const container = modalRef.current;
-      if (!container) return;
-      const focusable = Array.from(container.querySelectorAll('button:not([disabled])'));
-      if (focusable.length === 0) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      const active = document.activeElement;
-      if (event.shiftKey) {
-        if (active === first || !container.contains(active)) {
-          event.preventDefault();
-          try {
-            last.focus();
-          } catch (focusErr) {
-            warn('[buy-prompt-trap-focus]', focusErr);
-          }
-        }
-      } else {
-        if (active === last) {
-          event.preventDefault();
-          try {
-            first.focus();
-          } catch (focusErr) {
-            warn('[buy-prompt-trap-focus]', focusErr);
-          }
-        }
-      }
-    }
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isBuyPromptOpen, busy]);
 
   useEffect(() => {
     return () => {
@@ -3762,11 +3683,6 @@ export default function Mockup() {
     }
 
     try {
-      if (mode === 'checkout') {
-        setPublicBusy(true);
-      } else if (mode === 'private') {
-        setPrivateBusy(true);
-      }
       setBusy(true);
       let jobOptions = options && typeof options === 'object' ? { ...options } : {};
       if (mode === 'private') {
@@ -4252,11 +4168,6 @@ export default function Mockup() {
       error(`[${mode}-flow] create_job_and_product_failed`, err);
       showFriendlyError(error, { scope: `${mode}-flow` });
     } finally {
-      if (mode === 'checkout') {
-        setPublicBusy(false);
-      } else if (mode === 'private') {
-        setPrivateBusy(false);
-      }
       setBusy(false);
     }
   }
@@ -4371,6 +4282,7 @@ export default function Mockup() {
       return {
         ...baseOverrides,
         private: true,
+        visibility: 'private',
         mode: 'private',
         checkoutType: 'private',
         metafields: [
@@ -4441,6 +4353,67 @@ export default function Mockup() {
       setToast({ message: fallbackMessage });
     } finally {
       setCartStatus('idle');
+      releasePublishingLock();
+    }
+  }
+
+  async function onPrivateCartClick() {
+    if (busy || privateCartBtnBusy || cartInteractionBusy || purchaseLocked || isPublishingRef.current) return;
+    if (!acquirePublishingLock()) return;
+
+    debugTrackFire('cta_click_private_cart', rid);
+    trackEvent('cta_click_private_cart', {
+      rid,
+      design_slug: designSlug,
+      product_id: lastProductId,
+      variant_id: lastVariantId,
+      cta_type: 'private_cart',
+      product_handle: lastProduct?.productHandle,
+    });
+
+    setToast(null);
+    try {
+      try {
+        await ensureMockupUrlInFlow(flow);
+      } catch (err) {
+        if (handleMissingPrintDataError(err)) {
+          return null;
+        }
+        throw err;
+      }
+      const overrides = { ...buildOverridesFromUi('private'), visibility: 'private' };
+      const result = await buyDirect('cart', overrides, { autoOpen: false });
+      const targetUrl = resolveOpenUrl('cart', result);
+      if (!isHttpUrl(targetUrl)) {
+        const fallbackMessage = 'No se pudo abrir el producto privado. Intenta de nuevo.';
+        toastErr(fallbackMessage);
+        setToast({ message: fallbackMessage });
+        return null;
+      }
+      const navigation = navigateCommerceForCart(targetUrl, {
+        onNewTabOpened: () => {
+          jumpHomeAndClean(flow);
+        },
+      });
+      if (!navigation) {
+        const fallbackMessage = 'No se pudo abrir el producto privado. Intenta de nuevo.';
+        toastErr(fallbackMessage);
+        setToast({ message: fallbackMessage });
+        return null;
+      }
+      if (navigation === 'new-tab') {
+        setToast({
+          message: 'Abrimos tu producto privado en otra pestaña. Podés seguir editando acá.',
+          tone: 'success',
+        });
+      }
+      return { ok: true, url: targetUrl };
+    } catch (err) {
+      warn('[private-cart] error', err);
+      const fallbackMessage = 'Ocurrió un error al agregar al carrito privado.';
+      toastErr(fallbackMessage);
+      setToast({ message: fallbackMessage });
+    } finally {
       releasePublishingLock();
     }
   }
@@ -4616,126 +4589,6 @@ export default function Mockup() {
     }
   }
 
-  async function onCheckoutPublicClick() {
-    if (busy || buyBtnBusy || publicBusy || purchaseLocked || isPublishingRef.current) return null;
-    if (!acquirePublishingLock()) return null;
-
-    setBuyBtnBusy(true);
-    setPublicBusy(true);
-    setBusy(true);
-
-    const bridgeRid = generateBridgeRid();
-    clearBridgeKey(bridgeRid);
-    window.location.assign(`/bridge?rid=${encodeURIComponent(bridgeRid)}`);
-
-    try {
-      setBuyPromptOpen(false);
-      await ensureMockupPublicReady(flow);
-      try {
-        await ensureMockupUrlInFlow(flow);
-      } catch (err) {
-        if (handleMissingPrintDataError(err, bridgeRid)) {
-          return null;
-        }
-        throw err;
-      }
-      const baseOverrides = buildOverridesFromUi('checkout') || {};
-      const flowState = (typeof flow?.get === 'function' ? flow.get() : flow) || {};
-      const flowBasics = extractFlowBasics(flowState);
-      const widthCmResolved = Number(baseOverrides?.widthCm ?? flowBasics?.widthCm);
-      const heightCmResolved = Number(baseOverrides?.heightCm ?? flowBasics?.heightCm);
-      const overrides = {
-        ...baseOverrides,
-        options: {
-          ...(typeof baseOverrides.options === 'object' && baseOverrides.options ? baseOverrides.options : {}),
-        },
-        widthCm: Number.isFinite(widthCmResolved) && widthCmResolved > 0
-          ? Math.round(widthCmResolved)
-          : undefined,
-        heightCm: Number.isFinite(heightCmResolved) && heightCmResolved > 0
-          ? Math.round(heightCmResolved)
-          : undefined,
-        visibility: 'public',
-      };
-      const result = await buyDirect('checkout', { ...overrides, private: false }, { autoOpen: false });
-      return finalizePurchase(result, flow, bridgeRid, 'No se pudo abrir el checkout. Intenta nuevamente.', 'checkout');
-    } catch (err) {
-      error('[checkout-public-flow]', err);
-      const heavyShown = maybeShowHeavyImageToastFromError(err);
-      const fallbackMessage = heavyShown ? 'La imagen es muy pesada.' : 'Ocurrió un error al procesar el checkout.';
-      publishBridgeError(bridgeRid, fallbackMessage);
-      setToast({ message: fallbackMessage });
-      return null;
-    } finally {
-      setPublicBusy(false);
-      setBusy(false);
-      setBuyBtnBusy(false);
-      releasePublishingLock();
-    }
-  }
-
-  async function onCheckoutPrivateClick() {
-    if (busy || buyBtnBusy || privateBusy || purchaseLocked || isPublishingRef.current) return null;
-    if (!acquirePublishingLock()) return null;
-
-    setBuyBtnBusy(true);
-    setPrivateBusy(true);
-    setBusy(true);
-
-    const bridgeRid = generateBridgeRid();
-    clearBridgeKey(bridgeRid);
-    window.location.assign(`/bridge?rid=${encodeURIComponent(bridgeRid)}`);
-
-    try {
-      setBuyPromptOpen(false);
-      await ensureMockupPublicReady(flow);
-      try {
-        await ensureMockupUrlInFlow(flow);
-      } catch (err) {
-        if (handleMissingPrintDataError(err, bridgeRid)) {
-          return null;
-        }
-        throw err;
-      }
-      const baseOverrides = buildOverridesFromUi('private') || {};
-      const flowState = (typeof flow?.get === 'function' ? flow.get() : flow) || {};
-      const flowBasics = extractFlowBasics(flowState);
-      const widthCmResolved = Number(baseOverrides?.widthCm ?? flowBasics?.widthCm);
-      const heightCmResolved = Number(baseOverrides?.heightCm ?? flowBasics?.heightCm);
-      const overrides = {
-        ...baseOverrides,
-        options: {
-          ...(typeof baseOverrides.options === 'object' && baseOverrides.options ? baseOverrides.options : {}),
-        },
-        widthCm: Number.isFinite(widthCmResolved) && widthCmResolved > 0
-          ? Math.round(widthCmResolved)
-          : undefined,
-        heightCm: Number.isFinite(heightCmResolved) && heightCmResolved > 0
-          ? Math.round(heightCmResolved)
-          : undefined,
-        visibility: 'private',
-      };
-      const result = await buyDirect(
-        'checkout',
-        { ...overrides, private: true, mode: 'private', checkoutType: 'private' },
-        { autoOpen: false },
-      );
-      return finalizePurchase(result, flow, bridgeRid, 'No se pudo abrir el checkout privado. Proba de nuevo.', 'checkout');
-    } catch (err) {
-      error('[checkout-private-flow]', err);
-      const heavyShown = maybeShowHeavyImageToastFromError(err);
-      const fallbackMessage = heavyShown ? 'La imagen es muy pesada.' : 'Ocurrió un error al procesar el checkout privado.';
-      publishBridgeError(bridgeRid, fallbackMessage);
-      setToast({ message: fallbackMessage });
-      return null;
-    } finally {
-      setPrivateBusy(false);
-      setBusy(false);
-      setBuyBtnBusy(false);
-      releasePublishingLock();
-    }
-  }
-
   async function handleDownloadPdf() {
     const preferredSource =
       typeof flow.fileOriginalUrl === 'string' && flow.fileOriginalUrl.trim()
@@ -4895,20 +4748,17 @@ export default function Mockup() {
             <CtaButton
               className={`${styles.ctaButton} ${styles.ctaButtonPrimary1}`}
               type="button"
-              label="Comprar ahora"
-              busyLabel="Procesando…"
-              isBusy={buyBtnBusy}
-              disabled={busy || buyBtnBusy || purchaseLocked || isPublishing}
-              buttonRef={buyNowButtonRef}
-              ariaLabel="Comprar ahora"
-              onClick={() => {
-                if (busy || buyBtnBusy || purchaseLocked || isPublishingRef.current) return;
-                setBuyPromptOpen(true);
-              }}
+              label="Agregar al carrito (PRIVADO)"
+              busyLabel="Agregando…"
+              isBusy={privateCartBtnBusy}
+              disabled={busy || privateCartBtnBusy || cartInteractionBusy || purchaseLocked || isPublishing}
+              ariaLabel="Agregar al carrito privado"
+              onClick={withPrivateCartBtnSpin(onPrivateCartClick)}
             />
             <p className={styles.ctaHint}>
-              Finalizá tu compra para que tu creación <br></br>se haga realidad ✨
+              Solo vos lo ves en la tienda <br></br> para regalar o comprar en secreto 🔒
             </p>
+            <p className={styles.ctaHintNote}>*Luego de 7 minutos se oculta</p>
           </div>
         </div>
         <section className={styles.communitySection}>
@@ -4943,28 +4793,6 @@ export default function Mockup() {
 </div>
           
         </section>
-        <button
-          type="button"
-          disabled={busy || buyBtnBusy || privateBusy || purchaseLocked || isPublishing}
-          className={styles.hiddenButton}
-          onClick={() => {
-            if (busy || buyBtnBusy || privateBusy || purchaseLocked || isPublishingRef.current) return;
-            debugTrackFire('cta_click_private', rid);
-            trackEvent('cta_click_private', {
-              rid,
-              design_slug: designSlug,
-              product_id: lastProductId,
-              variant_id: lastVariantId,
-              cta_type: 'private',
-              product_handle: lastProduct?.productHandle,
-            });
-            onCheckoutPrivateClick();
-          }}
-          aria-hidden="true"
-          tabIndex={-1}
-        >
-          Comprar en privado
-        </button>
         <button
           type="button"
           disabled={busy}
@@ -5012,88 +4840,6 @@ export default function Mockup() {
       </section>
       
 
-      {isBuyPromptOpen ? (
-        <div
-          role="presentation"
-          className={styles.modalBackdrop}
-          onClick={() => {
-            if (busy) return;
-            setBuyPromptOpen(false);
-          }}
-        >
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={buyPromptTitleId}
-            aria-describedby={buyPromptDescriptionId}
-            ref={modalRef}
-            className={styles.modalCard}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <button
-              type="button"
-              onClick={() => {
-                if (busy) return;
-                setBuyPromptOpen(false);
-              }}
-              disabled={busy}
-              aria-label="Cerrar"
-              className={styles.modalClose}
-            >
-              ×
-            </button>
-            <h2 id={buyPromptTitleId} className={styles.modalTitle}>
-              Elegí cómo publicar tu diseño
-            </h2>
-            <p id={buyPromptDescriptionId} className={styles.modalDescription}>
-              📣 Público: visible en la tienda. <br></br><br></br>🔒 Privado: solo vos lo verás.
-            </p>
-            <div className={styles.modalActions}>
-              <CtaButton
-                buttonRef={firstActionButtonRef}
-                className={styles.modalPrimary}
-                label="Comprar público"
-                busyLabel="Procesando…"
-                isBusy={publicBusy}
-                disabled={busy || buyBtnBusy || purchaseLocked || isPublishing}
-                onClick={withBuyBtnSpin(async () => {
-                  if (busy || publicBusy || buyBtnBusy || purchaseLocked || isPublishingRef.current) return;
-                  debugTrackFire('cta_click_public', rid);
-                  trackEvent('cta_click_public', {
-                    rid,
-                    design_slug: designSlug,
-                    product_id: lastProductId,
-                    variant_id: lastVariantId,
-                    cta_type: 'public',
-                    product_handle: lastProduct?.productHandle,
-                  });
-                  return onCheckoutPublicClick();
-                })}
-              />
-              <CtaButton
-                className={styles.modalSecondary}
-                label="Comprar en privado"
-                busyLabel="Procesando…"
-                isBusy={privateBusy}
-                disabled={busy || buyBtnBusy || purchaseLocked || isPublishing}
-                onClick={withBuyBtnSpin(async () => {
-                  if (busy || privateBusy || buyBtnBusy || purchaseLocked || isPublishingRef.current) return;
-                  debugTrackFire('cta_click_private', rid);
-                  trackEvent('cta_click_private', {
-                    rid,
-                    design_slug: designSlug,
-                    product_id: lastProductId,
-                    variant_id: lastVariantId,
-                    cta_type: 'private',
-                    product_handle: lastProduct?.productHandle,
-                  });
-                  return onCheckoutPrivateClick();
-                })}
-              />
-            </div>
-          </div>
-        </div>
-      ) : null}
       {toast ? (
         <Toast
           message={toast.message}
