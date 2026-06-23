@@ -4472,8 +4472,12 @@ body.light .stepTwoContainColorLabel {
     justify-content: flex-start;
     padding: 0 var(--space-4);
     gap: 0;
+    min-block-size: auto;
     overflow-x: hidden;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: auto;
+    touch-action: pan-y;
   }
 
   .pageStepEdit {
@@ -4488,8 +4492,8 @@ body.light .stepTwoContainColorLabel {
   .sectionOneStepUpload {
     justify-content: flex-start;
     align-items: stretch;
-    flex: 1 1 auto;
-    min-block-size: 100%;
+    flex: 0 0 auto;
+    min-block-size: auto;
   }
 
   .sectionOneStepEdit {
@@ -4500,11 +4504,11 @@ body.light .stepTwoContainColorLabel {
   .sectionOneInnerStepUpload {
     display: flex;
     flex-direction: column;
-    flex: 1 1 auto;
+    flex: 0 0 auto;
     justify-content: flex-start;
     align-items: stretch;
     gap: var(--space-2);
-    min-block-size: 100%;
+    min-block-size: auto;
     margin-block: 0;
     transform: none;
   }
@@ -4545,8 +4549,8 @@ body.light .stepTwoContainColorLabel {
   }
 
   .stepOneLayout {
-    flex: 1 1 auto;
-    min-block-size: 0;
+    flex: 0 0 auto;
+    min-block-size: auto;
     width: 100%;
     align-items: stretch;
     justify-content: flex-start;
@@ -4573,11 +4577,11 @@ body.light .stepTwoContainColorLabel {
   }
 
   .stepOneCanvasFrame {
-    flex: 1 1 auto;
+    flex: 0 0 auto;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
-    min-block-size: 0;
+    justify-content: flex-start;
+    min-block-size: auto;
     width: 100%;
     padding: 0;
     margin: 0;
@@ -4586,17 +4590,17 @@ body.light .stepTwoContainColorLabel {
   }
 
   .stepOneCanvasStage {
-    flex: 1 1 auto;
+    flex: 0 0 auto;
     width: 100%;
-    min-block-size: 100%;
+    min-block-size: auto;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
   }
 
   .stepOnePreviewStack {
-    flex: 1 1 auto;
+    flex: 0 0 auto;
     width: 100%;
-    min-block-size: min(280px, 42svh);
+    min-block-size: auto;
     gap: 0;
     justify-content: flex-start;
   }
@@ -4606,14 +4610,14 @@ body.light .stepTwoContainColorLabel {
   }
 
   .stepOnePreviewBody {
-    flex: 1 1 auto;
+    flex: 0 0 auto;
     flex-direction: column;
     align-items: center;
     justify-content: flex-start;
     gap: var(--space-3);
-    min-block-size: min(260px, 40svh);
+    min-block-size: auto;
     overflow: visible;
-    padding-block: var(--space-1) calc(var(--space-2) + 156px);
+    padding-block: var(--space-1) var(--space-2);
   }
 
   /* En móvil, evitamos "saltos" visuales del paso 1 cuando cambia la barra del navegador al hacer scroll. */
@@ -4700,6 +4704,7 @@ body.light .stepTwoContainColorLabel {
 
   .stepOneActions {
     position: static;
+    flex: 0 0 auto;
     inset-block-end: auto;
     z-index: auto;
     inline-size: 100%;
