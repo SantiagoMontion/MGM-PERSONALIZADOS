@@ -1813,7 +1813,7 @@ export default function Home() {
         finalSize = getDefaultDropdownSizeForMaterial(nextMaterial);
         nextModeValue = 'standard';
       } else if (mode === 'custom') {
-        finalSize = applyCircularConstraint(size, nextMaterial);
+        finalSize = clampSizeForMaterial(size, nextMaterial);
         nextModeValue = 'custom';
       } else {
         const candidateSize = stored && isSizeAllowedForMaterial(stored, nextMaterial)
@@ -1851,6 +1851,9 @@ export default function Home() {
       return;
     }
     if (next.mode && next.mode !== mode) {
+      if (next.mode === 'custom') {
+        setIsCircular(false);
+      }
       setMode(next.mode);
       if (next.mode === 'standard' && typeof next.w === 'number' && typeof next.h === 'number') {
         const normalized = applyCircularConstraint({ w: next.w, h: next.h });
@@ -1865,14 +1868,20 @@ export default function Home() {
         w: typeof next.w === 'number' ? next.w : size.w,
         h: typeof next.h === 'number' ? next.h : size.h,
       };
-      if (isCircular && !isFixedPad49x42Material(material)) {
-        if (typeof next.w === 'number' && typeof next.h !== 'number') {
-          nextSize.h = next.w;
-        } else if (typeof next.h === 'number' && typeof next.w !== 'number') {
-          nextSize.w = next.h;
+      const isCustomEdit = next.mode === 'custom' || mode === 'custom';
+      let normalized;
+      if (isCustomEdit) {
+        normalized = clampSizeForMaterial(nextSize, material);
+      } else {
+        if (isCircular && !isFixedPad49x42Material(material)) {
+          if (typeof next.w === 'number' && typeof next.h !== 'number') {
+            nextSize.h = next.w;
+          } else if (typeof next.h === 'number' && typeof next.w !== 'number') {
+            nextSize.w = next.h;
+          }
         }
+        normalized = applyCircularConstraint(nextSize);
       }
-      const normalized = applyCircularConstraint(nextSize);
       setSize(normalized);
       if (!isFixedPad49x42Material(material)) {
         lastSize.current[material] = normalized;
@@ -1881,8 +1890,24 @@ export default function Home() {
   }, [applyCircularConstraint, clampSizeForMaterial, isCircular, material, mode, size]);
 
   const handleCustomSizeChange = useCallback((nextSize) => {
-    handleSizeChange({ mode: 'custom', ...nextSize });
-  }, [handleSizeChange]);
+    didHydrateEditorSelectionRef.current = true;
+    if (isCircular) {
+      setIsCircular(false);
+    }
+    setMode('custom');
+    setSize((prev) => {
+      const mergedSize = {
+        w: typeof nextSize?.w === 'number' ? nextSize.w : prev.w,
+        h: typeof nextSize?.h === 'number' ? nextSize.h : prev.h,
+      };
+      const normalized = clampSizeForMaterial(mergedSize, material);
+      if (!isFixedPad49x42Material(material)) {
+        lastRectSizeRef.current[material] = normalized;
+        lastSize.current[material] = normalized;
+      }
+      return normalized;
+    });
+  }, [clampSizeForMaterial, isCircular, material]);
 
 
   const handleToggleCircular = useCallback(() => {
@@ -1932,7 +1957,7 @@ export default function Home() {
 
 
   useEffect(() => {
-    if (!isCircular || isFixedPad49x42Material(material)) return;
+    if (!isCircular || isFixedPad49x42Material(material) || mode === 'custom') return;
     const squared = normalizeCircularSizeForMaterial(size);
     if (squared.w !== size.w || squared.h !== size.h) {
       setSize(squared);
@@ -1940,7 +1965,7 @@ export default function Home() {
         lastSize.current[material] = squared;
       }
     }
-  }, [isCircular, material, normalizeCircularSizeForMaterial, size]);
+  }, [isCircular, material, mode, normalizeCircularSizeForMaterial, size]);
 
 
   function handleDesignNameChange(event) {
@@ -3748,6 +3773,9 @@ export default function Home() {
     if (!option) return;
     if (option.isCustom) {
       setStepOneCustomSizePanelOpen(true);
+      if (isCircular) {
+        setIsCircular(false);
+      }
       handleSizeChange({ mode: 'custom' });
       setStepOneSizeMenuOpen(false);
       return;
@@ -3756,7 +3784,7 @@ export default function Home() {
     setStepOneCustomSizePanelOpen(false);
     handleSizeChange({ mode: 'standard', w: option.w, h: option.h });
     setStepOneSizeMenuOpen(false);
-  }, [handleSizeChange]);
+  }, [handleSizeChange, isCircular]);
 
   const handleStepOneMaterialSelect = useCallback((nextMaterial) => {
     if (!nextMaterial) return;

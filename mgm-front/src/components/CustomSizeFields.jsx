@@ -44,12 +44,16 @@ export default function CustomSizeFields({
   const [hText, setHText] = useState(() => formatDisplayValue(size?.h));
   const wInputRef = useRef(null);
   const hInputRef = useRef(null);
+  const wFocusedRef = useRef(false);
+  const hFocusedRef = useRef(false);
 
   useEffect(() => {
+    if (wFocusedRef.current) return;
     setWText(formatDisplayValue(size?.w));
   }, [size?.w]);
 
   useEffect(() => {
+    if (hFocusedRef.current) return;
     setHText(formatDisplayValue(size?.h));
   }, [size?.h]);
 
@@ -70,19 +74,42 @@ export default function CustomSizeFields({
     }
   };
 
-  const emitDimensionChange = (field, rawValue, { allowBelowMin = false } = {}) => {
+  const readCommittedFieldValue = (field, text) => {
+    const parsed = parseDimensionInput(text);
+    const { min, max } = getFieldBounds(field);
+    const fallback = toInteger(field === 'w' ? size?.w : size?.h);
+
+    if (!Number.isFinite(parsed)) {
+      return Number.isFinite(fallback) ? fallback : min;
+    }
+
+    if (parsed < min) {
+      return Number.isFinite(fallback) ? fallback : min;
+    }
+
+    return clampValue(parsed, min, max);
+  };
+
+  const emitFullSizeChange = (field, rawValue) => {
     const parsed = parseDimensionInput(rawValue);
-    const fallbackValue = field === 'w' ? size?.w : size?.h;
     if (!Number.isFinite(parsed)) return false;
 
     const { min, max } = getFieldBounds(field);
-    if (!allowBelowMin && parsed < min) return false;
+    const nextActiveValue = clampValue(parsed, min, max);
+    const nextW = field === 'w'
+      ? nextActiveValue
+      : readCommittedFieldValue('w', wText);
+    const nextH = field === 'h'
+      ? nextActiveValue
+      : readCommittedFieldValue('h', hText);
 
-    const nextValue = clampValue(parsed, min, max);
-    const currentValue = toInteger(fallbackValue);
-    if (!Number.isFinite(currentValue) || currentValue !== nextValue) {
-      onChange?.({ [field]: nextValue });
+    const currentW = toInteger(size?.w);
+    const currentH = toInteger(size?.h);
+    if (currentW === nextW && currentH === nextH) {
+      return true;
     }
+
+    onChange?.({ w: nextW, h: nextH });
     return true;
   };
 
@@ -105,7 +132,7 @@ export default function CustomSizeFields({
     const display = formatDisplayValue(nextValue);
 
     syncFieldText(field, display);
-    emitDimensionChange(field, rawValue, { allowBelowMin: true });
+    emitFullSizeChange(field, rawValue);
 
     return true;
   };
@@ -113,6 +140,23 @@ export default function CustomSizeFields({
   const commitField = (field) => {
     const currentText = field === 'w' ? wText : hText;
     commitSanitizedValue(field, currentText);
+  };
+
+  const handleFocus = (field) => () => {
+    if (field === 'w') {
+      wFocusedRef.current = true;
+      return;
+    }
+    hFocusedRef.current = true;
+  };
+
+  const handleBlur = (field) => () => {
+    if (field === 'w') {
+      wFocusedRef.current = false;
+    } else {
+      hFocusedRef.current = false;
+    }
+    commitField(field);
   };
 
   const handleKeyDown = (field, ref) => (event) => {
@@ -149,9 +193,6 @@ export default function CustomSizeFields({
     const nextValue = event.target.value;
     if (nextValue === '' || INTEGER_PATTERN.test(nextValue)) {
       syncFieldText(field, nextValue);
-      if (nextValue !== '') {
-        emitDimensionChange(field, nextValue);
-      }
       return;
     }
 
@@ -189,7 +230,8 @@ export default function CustomSizeFields({
               value={wText}
               onChange={handleFieldChange('w')}
               onPaste={handleFieldPaste('w')}
-              onBlur={() => commitField('w')}
+              onFocus={handleFocus('w')}
+              onBlur={handleBlur('w')}
               onKeyDown={handleKeyDown('w', wInputRef)}
               inputMode="numeric"
               pattern="[0-9]*"
@@ -209,7 +251,8 @@ export default function CustomSizeFields({
               value={hText}
               onChange={handleFieldChange('h')}
               onPaste={handleFieldPaste('h')}
-              onBlur={() => commitField('h')}
+              onFocus={handleFocus('h')}
+              onBlur={handleBlur('h')}
               onKeyDown={handleKeyDown('h', hInputRef)}
               inputMode="numeric"
               pattern="[0-9]*"
