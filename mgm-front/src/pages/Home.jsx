@@ -3985,6 +3985,9 @@ export default function Home() {
       });
       const transfer = pricing.valid ? Number(pricing.transfer) || 0 : 0;
       const priceLabel = formatFrontendDisplayPriceLabel(transfer, option.value);
+      return {
+        ...option,
+        totalPrice: transfer,
         priceLabel,
       };
     })

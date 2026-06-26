@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { formatARS } from '../lib/pricing.js';
 import {
   applyFrontendDisplayPriceMarkup,
-  resolveFrontendShippingCaptionForProduct,
+  resolveFrontendShippingCaption,
 } from '../lib/frontendDisplayPricing.js';
 import { buildAlfombraPromoDisplay } from '../lib/alfombraPromoDisplay.js';
 import { buildProSeriesPromoDisplay } from '../lib/proSeriesPromoDisplay.js';
@@ -52,14 +52,12 @@ export default function ProSeriesPromoPrice({
 
   const formattedCompare = promo ? formatARS(promo.compareAt) : '';
 
+  const displayedCustomerPrice = promo?.displayPrice > 0 ? promo.displayPrice : listPrice;
+
   const shippingCaption = useMemo(() => {
     if (!showFreeShippingCaption) return null;
-    return resolveFrontendShippingCaptionForProduct(
-      material,
-      transferPrice,
-      promo?.displayPrice,
-    );
-  }, [material, promo?.displayPrice, showFreeShippingCaption, transferPrice]);
+    return resolveFrontendShippingCaption(displayedCustomerPrice);
+  }, [displayedCustomerPrice, showFreeShippingCaption]);
 
   const variantClassName = styles[`variant${variant.charAt(0).toUpperCase()}${variant.slice(1)}`];
   const rootClassName = [
