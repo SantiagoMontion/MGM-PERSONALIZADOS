@@ -6,6 +6,19 @@
   min-inline-size: 0;
 }
 
+.priceStack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-inline-size: 0;
+}
+
+.variantStepThree.priceStack,
+.priceStackStepThree {
+  align-items: flex-end;
+}
+
 .rootInline {
   flex-direction: row;
   flex-wrap: wrap;
@@ -196,4 +209,27 @@
 .variantCompact .badge {
   font-size: 10px;
   padding: 1px 6px;
+}
+
+.freeShippingCaption {
+  color: var(--nm-on-dark-60, rgba(255, 255, 255, 0.6));
+  font-family: Inter, var(--font-family), sans-serif;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.25;
+  letter-spacing: 0.02em;
+}
+
+.freeShippingCaptionLight {
+  color: color-mix(in srgb, var(--nm-black, #000) 65%, transparent);
+}
+
+.freeShippingCaptionStepThree {
+  color: var(--foreground-secondary);
+  text-align: right;
+}
+
+.variantLarge + .freeShippingCaption,
+.priceStack > .freeShippingCaption {
+  margin-block-start: 1px;
 }

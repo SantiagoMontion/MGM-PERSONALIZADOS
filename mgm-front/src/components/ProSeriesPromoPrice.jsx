@@ -1,12 +1,16 @@
 import { useMemo } from 'react';
 import { formatARS } from '../lib/pricing.js';
+import {
+  applyFrontendDisplayPriceMarkup,
+  FRONTEND_DISPLAY_SHIPPING_CAPTION,
+} from '../lib/frontendDisplayPricing.js';
 import { buildAlfombraPromoDisplay } from '../lib/alfombraPromoDisplay.js';
 import { buildProSeriesPromoDisplay } from '../lib/proSeriesPromoDisplay.js';
 import styles from './ProSeriesPromoPrice.module.css';
 
 /**
  * Precio de lista con promos visuales por material (PRO 30% OFF, Alfombra 2x1).
- * No altera el monto enviado a Shopify (`transferPrice`).
+ * Aplica +15% solo en pantalla; `transferPrice` sigue siendo el monto real para Shopify.
  */
 export default function ProSeriesPromoPrice({
   material,
@@ -16,10 +20,16 @@ export default function ProSeriesPromoPrice({
   inline = false,
   className = '',
   showBadge = false,
+  showFreeShippingCaption = false,
 }) {
+  const displayTransferPrice = useMemo(
+    () => applyFrontendDisplayPriceMarkup(transferPrice),
+    [transferPrice],
+  );
+
   const promo = useMemo(
-    () => buildProSeriesPromoDisplay(material, transferPrice),
-    [material, transferPrice],
+    () => buildProSeriesPromoDisplay(material, displayTransferPrice),
+    [displayTransferPrice, material],
   );
   const alfombraPromo = useMemo(
     () => buildAlfombraPromoDisplay(material, {
@@ -30,7 +40,7 @@ export default function ProSeriesPromoPrice({
     [material, variant],
   );
 
-  const listPrice = Math.round(Number(transferPrice) || 0);
+  const listPrice = Math.round(Number(displayTransferPrice) || 0);
   const formattedListPrice = listPrice > 0 ? formatARS(listPrice) : '0';
 
   const formattedPromoPrice = useMemo(() => {
@@ -83,33 +93,38 @@ export default function ProSeriesPromoPrice({
     .filter(Boolean)
     .join(' ');
 
-  if (alfombraPromo) {
-    return (
-      <div className={rootClassName}>
-        <span className={transferClassName}>
-          $
-          {' '}
-          {formattedListPrice}
-        </span>
-        <span className={alfombraHeadlineClassName}>{alfombraPromo.headline}</span>
-      </div>
-    );
-  }
+  const freeShippingClassName = [
+    styles.freeShippingCaption,
+    lightTheme ? styles.freeShippingCaptionLight : '',
+    variant === 'stepThree' ? styles.freeShippingCaptionStepThree : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
 
-  if (!promo) {
-    return (
-      <div className={rootClassName}>
-        <span className={transferClassName}>
-          $
-          {' '}
-          {formattedListPrice}
-        </span>
-      </div>
-    );
-  }
+  const priceStackClassName = [
+    styles.priceStack,
+    variant === 'stepThree' ? styles.priceStackStepThree : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
 
-  return (
-    <div className={rootClassName}>
+  const priceBody = alfombraPromo ? (
+    <>
+      <span className={transferClassName}>
+        $
+        {' '}
+        {formattedListPrice}
+      </span>
+      <span className={alfombraHeadlineClassName}>{alfombraPromo.headline}</span>
+    </>
+  ) : !promo ? (
+    <span className={transferClassName}>
+      $
+      {' '}
+      {formattedListPrice}
+    </span>
+  ) : (
+    <>
       {showBadge ? (
         <span className={badgeClassName}>{promo.discountLabel}</span>
       ) : null}
@@ -125,6 +140,17 @@ export default function ProSeriesPromoPrice({
           {formattedPromoPrice}
         </span>
       </div>
+    </>
+  );
+
+  return (
+    <div className={priceStackClassName}>
+      <div className={rootClassName}>
+        {priceBody}
+      </div>
+      {showFreeShippingCaption ? (
+        <span className={freeShippingClassName}>{FRONTEND_DISPLAY_SHIPPING_CAPTION}</span>
+      ) : null}
     </div>
   );
 }

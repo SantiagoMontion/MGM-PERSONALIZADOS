@@ -42,6 +42,7 @@ import {
   normalizeMaterialLabel,
 } from '../lib/material.js';
 import { calculateTransferPricing, formatARS } from '../lib/pricing.js';
+import { formatFrontendDisplayPriceLabel } from '../lib/frontendDisplayPricing.js';
 
 import {
   intrinsicImageQualityLevel,
@@ -3965,7 +3966,7 @@ export default function Home() {
         material,
       });
       const transfer = pricing.valid ? Number(pricing.transfer) || 0 : 0;
-      const priceLabel = transfer > 0 ? `$${formatARS(transfer)}` : '—';
+      const priceLabel = formatFrontendDisplayPriceLabel(transfer);
       return {
         ...option,
         price: transfer,
@@ -3983,7 +3984,7 @@ export default function Home() {
         material: option.value,
       });
       const transfer = pricing.valid ? Number(pricing.transfer) || 0 : 0;
-      const priceLabel = transfer > 0 ? `$${formatARS(transfer)}` : '—';
+      const priceLabel = formatFrontendDisplayPriceLabel(transfer);
       return {
         ...option,
         totalPrice: transfer,
@@ -4881,6 +4882,7 @@ export default function Home() {
                           transferPrice={stepOneDisplayTransferPrice}
                           variant="large"
                           lightTheme={!isDarkMode}
+                          showFreeShippingCaption
                         />
                         <span className={`${styles.stepOneFooterPriceCaption} ${!isDarkMode ? styles.stepOneFooterPriceCaptionLight : ''}`.trim()}>
                           {material === 'PRO' ? PRO_SERIES_PRICE_CAPTION : DEFAULT_PRICE_CAPTION}
@@ -5052,6 +5054,7 @@ export default function Home() {
                       material={material}
                       transferPrice={editorDisplayTransferPrice}
                       variant="stepThree"
+                      showFreeShippingCaption
                     />
                     {material === 'PRO' ? (
                       <span className={styles.stepThreeDetailTransferNote}>
