@@ -1,5 +1,8 @@
 import { normalizeMaterialLabel } from './material.js';
-import { roundDownToNearestFifty } from '../../../lib/pricing/equilibrium.js';
+import {
+  applyProSeriesCartDiscount,
+  resolveProSeriesDisplayPricing,
+} from './frontendDisplayPricing.js';
 
 /** Solo UI: no modifica precios enviados a Shopify ni el cálculo de lista. */
 export const PRO_SERIES_VISUAL_PROMO_ENABLED = true;
@@ -12,27 +15,24 @@ export function isProSeriesMaterial(material) {
 }
 
 /**
- * Precio visual con 30% OFF (solo pantalla).
- * El precio real de cobro / Shopify sigue siendo `transferPrice`.
+ * Precio visual en carrito PRO: 30% OFF sobre lista con +15%.
+ * `listPrice` debe ser el monto ya marcado (no el transfer de Shopify).
  */
-export function getProSeriesVisualDisplayPrice(transferPrice) {
-  const transfer = Math.round(Number(transferPrice) || 0);
-  if (transfer <= 0) return 0;
-  const factor = 1 - PRO_SERIES_VISUAL_DISCOUNT_PERCENT / 100;
-  return roundDownToNearestFifty(transfer * factor);
+export function getProSeriesVisualDisplayPrice(listPrice) {
+  return applyProSeriesCartDiscount(listPrice);
 }
 
-export function buildProSeriesPromoDisplay(material, transferPrice) {
+export function buildProSeriesPromoDisplay(material, shopifyTransferPrice) {
   if (!PRO_SERIES_VISUAL_PROMO_ENABLED) return null;
   if (!isProSeriesMaterial(material)) return null;
-  const actualTransfer = Math.round(Number(transferPrice) || 0);
-  if (actualTransfer <= 0) return null;
-  const displayPrice = getProSeriesVisualDisplayPrice(actualTransfer);
-  if (displayPrice <= 0 || displayPrice >= actualTransfer) return null;
+
+  const { shopify, listPrice, cartPrice } = resolveProSeriesDisplayPricing(shopifyTransferPrice);
+  if (shopify <= 0 || listPrice <= 0 || cartPrice <= 0 || cartPrice >= listPrice) return null;
+
   return {
-    actualTransfer,
-    compareAt: actualTransfer,
-    displayPrice,
+    shopifyTransfer: shopify,
+    compareAt: listPrice,
+    displayPrice: cartPrice,
     discountLabel: `${PRO_SERIES_VISUAL_DISCOUNT_PERCENT}% OFF`,
   };
 }

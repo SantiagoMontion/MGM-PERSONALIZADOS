@@ -1,17 +1,96 @@
 import { formatARS } from './pricing.js';
+import { normalizeMaterialLabel } from './material.js';
 
 /** Recargo visual solo en UI; no modifica `priceTransfer` / Shopify. */
+export const FRONTEND_DISPLAY_PRICE_MARKUP_PERCENT = 15;
 export const FRONTEND_DISPLAY_PRICE_MARKUP = 1.15;
+
+/** Descuento de carrito PRO (solo visual; Shopify lo aplica al agregar). */
+export const PRO_SERIES_CART_DISCOUNT_PERCENT = 30;
 
 export const FRONTEND_DISPLAY_SHIPPING_CAPTION = 'Envío GRATIS a Domicilio';
 
-export function applyFrontendDisplayPriceMarkup(transferPrice) {
-  const base = Math.round(Number(transferPrice) || 0);
+/** Monto mínimo del producto para mostrar envío gratis (precio que ve el cliente). */
+export const FRONTEND_FREE_SHIPPING_MINIMUM = 35000;
+
+/**
+ * Lista con +15% sobre el precio que va a Shopify.
+ * Usa aritmética entera para evitar drift de float (ej. 45.650 → 52.498).
+ */
+export function applyFrontendDisplayPriceMarkup(shopifyTransferPrice) {
+  const base = Math.round(Number(shopifyTransferPrice) || 0);
   if (base <= 0) return 0;
-  return Math.round(base * FRONTEND_DISPLAY_PRICE_MARKUP);
+  return Math.round((base * (100 + FRONTEND_DISPLAY_PRICE_MARKUP_PERCENT)) / 100);
 }
 
-export function formatFrontendDisplayPriceLabel(transferPrice) {
-  const displayPrice = applyFrontendDisplayPriceMarkup(transferPrice);
+/**
+ * Precio en carrito PRO: 30% OFF sobre la lista con recargo (+15%).
+ * Coincide con Shopify: floor(lista × 0,70).
+ */
+export function applyProSeriesCartDiscount(listPrice) {
+  const list = Math.round(Number(listPrice) || 0);
+  if (list <= 0) return 0;
+  return Math.floor((list * (100 - PRO_SERIES_CART_DISCOUNT_PERCENT)) / 100);
+}
+
+/**
+ * Cadena completa PRO para UI:
+ * shopify → ×1,15 lista → ×0,70 carrito.
+ */
+export function resolveProSeriesDisplayPricing(shopifyTransferPrice) {
+  const shopify = Math.round(Number(shopifyTransferPrice) || 0);
+  if (shopify <= 0) {
+    return { shopify: 0, listPrice: 0, cartPrice: 0 };
+  }
+  const listPrice = applyFrontendDisplayPriceMarkup(shopify);
+  const cartPrice = applyProSeriesCartDiscount(listPrice);
+  return { shopify, listPrice, cartPrice };
+}
+
+/**
+ * Precio que ve el cliente en pantalla según material:
+ * - PRO: lista +15% y luego 30% OFF (carrito)
+ * - Resto: lista +15%
+ */
+export function resolveEffectiveCustomerDisplayPrice(material, shopifyTransferPrice) {
+  const shopify = Math.round(Number(shopifyTransferPrice) || 0);
+  if (shopify <= 0) return 0;
+
+  if (normalizeMaterialLabel(material) === 'PRO') {
+    return resolveProSeriesDisplayPricing(shopify).cartPrice;
+  }
+
+  return applyFrontendDisplayPriceMarkup(shopify);
+}
+
+export function formatFrontendDisplayPriceLabel(transferPrice, material = null) {
+  const displayPrice = material
+    ? resolveEffectiveCustomerDisplayPrice(material, transferPrice)
+    : applyFrontendDisplayPriceMarkup(transferPrice);
   return displayPrice > 0 ? `$${formatARS(displayPrice)}` : '—';
+}
+
+/**
+ * Leyenda de envío según el precio que ve el cliente (lista o carrito PRO).
+ * > $35.000 → envío gratis; si no, cuánto falta para llegar.
+ */
+export function resolveFrontendShippingCaption(customerPrice) {
+  const price = Math.round(Number(customerPrice) || 0);
+  if (price <= 0) return null;
+
+  if (price > FRONTEND_FREE_SHIPPING_MINIMUM) {
+    return {
+      qualifies: true,
+      lines: [FRONTEND_DISPLAY_SHIPPING_CAPTION],
+    };
+  }
+
+  const remaining = FRONTEND_FREE_SHIPPING_MINIMUM - price;
+  return {
+    qualifies: false,
+    lines: [
+      `Te falta $${formatARS(remaining)} para envío gratis,`,
+      'podés sumar más productos en la tienda',
+    ],
+  };
 }

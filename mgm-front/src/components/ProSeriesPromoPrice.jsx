@@ -2,7 +2,8 @@ import { useMemo } from 'react';
 import { formatARS } from '../lib/pricing.js';
 import {
   applyFrontendDisplayPriceMarkup,
-  FRONTEND_DISPLAY_SHIPPING_CAPTION,
+  resolveEffectiveCustomerDisplayPrice,
+  resolveFrontendShippingCaption,
 } from '../lib/frontendDisplayPricing.js';
 import { buildAlfombraPromoDisplay } from '../lib/alfombraPromoDisplay.js';
 import { buildProSeriesPromoDisplay } from '../lib/proSeriesPromoDisplay.js';
@@ -28,8 +29,8 @@ export default function ProSeriesPromoPrice({
   );
 
   const promo = useMemo(
-    () => buildProSeriesPromoDisplay(material, displayTransferPrice),
-    [displayTransferPrice, material],
+    () => buildProSeriesPromoDisplay(material, transferPrice),
+    [transferPrice, material],
   );
   const alfombraPromo = useMemo(
     () => buildAlfombraPromoDisplay(material, {
@@ -51,6 +52,16 @@ export default function ProSeriesPromoPrice({
   }, [listPrice, promo]);
 
   const formattedCompare = promo ? formatARS(promo.compareAt) : '';
+
+  const effectiveCustomerPrice = useMemo(
+    () => resolveEffectiveCustomerDisplayPrice(material, transferPrice),
+    [material, transferPrice],
+  );
+
+  const shippingCaption = useMemo(() => {
+    if (!showFreeShippingCaption) return null;
+    return resolveFrontendShippingCaption(effectiveCustomerPrice);
+  }, [effectiveCustomerPrice, showFreeShippingCaption]);
 
   const variantClassName = styles[`variant${variant.charAt(0).toUpperCase()}${variant.slice(1)}`];
   const rootClassName = [
@@ -148,8 +159,14 @@ export default function ProSeriesPromoPrice({
       <div className={rootClassName}>
         {priceBody}
       </div>
-      {showFreeShippingCaption ? (
-        <span className={freeShippingClassName}>{FRONTEND_DISPLAY_SHIPPING_CAPTION}</span>
+      {shippingCaption ? (
+        <span className={freeShippingClassName}>
+          {shippingCaption.lines.map((line) => (
+            <span key={line} className={styles.freeShippingCaptionLine}>
+              {line}
+            </span>
+          ))}
+        </span>
       ) : null}
     </div>
   );

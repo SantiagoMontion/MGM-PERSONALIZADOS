@@ -212,12 +212,18 @@
 }
 
 .freeShippingCaption {
+  display: flex;
+  flex-direction: column;
   color: var(--nm-on-dark-60, rgba(255, 255, 255, 0.6));
   font-family: Inter, var(--font-family), sans-serif;
   font-size: 10px;
   font-weight: 500;
   line-height: 1.25;
   letter-spacing: 0.02em;
+}
+
+.freeShippingCaptionLine {
+  display: block;
 }
 
 .freeShippingCaptionLight {

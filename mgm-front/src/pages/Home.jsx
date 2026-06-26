@@ -3966,7 +3966,7 @@ export default function Home() {
         material,
       });
       const transfer = pricing.valid ? Number(pricing.transfer) || 0 : 0;
-      const priceLabel = formatFrontendDisplayPriceLabel(transfer);
+      const priceLabel = formatFrontendDisplayPriceLabel(transfer, material);
       return {
         ...option,
         price: transfer,
@@ -3984,10 +3984,7 @@ export default function Home() {
         material: option.value,
       });
       const transfer = pricing.valid ? Number(pricing.transfer) || 0 : 0;
-      const priceLabel = formatFrontendDisplayPriceLabel(transfer);
-      return {
-        ...option,
-        totalPrice: transfer,
+      const priceLabel = formatFrontendDisplayPriceLabel(transfer, option.value);
         priceLabel,
       };
     })
@@ -5469,6 +5466,8 @@ export default function Home() {
                         material={material}
                         transferPrice={editorDisplayTransferPrice}
                         variant="large"
+                        lightTheme={!isDarkMode}
+                        showFreeShippingCaption
                       />
                       <span className={styles.stepTwoFooterPriceCaption}>
                         {material === 'PRO' ? PRO_SERIES_PRICE_CAPTION : DEFAULT_PRICE_CAPTION}
@@ -5637,7 +5636,7 @@ export default function Home() {
                                       <span className={styles.stepTwoOptionDescription}>{option.measurementLabel}</span>
                                     </span>
                                     <span className={styles.stepTwoOptionPrice}>
-                                      {(material === 'PRO' || material === 'Alfombra') && option.price > 0 ? (
+                                      {option.price > 0 ? (
                                         <ProSeriesPromoPrice
                                           material={material}
                                           transferPrice={option.price}
@@ -5646,7 +5645,7 @@ export default function Home() {
                                           showBadge={false}
                                         />
                                       ) : (
-                                        option.priceLabel
+                                        '—'
                                       )}
                                     </span>
                                   </label>
@@ -5769,7 +5768,7 @@ export default function Home() {
                                       <span className={styles.stepTwoOptionDescription}>{option.description}</span>
                                     </span>
                                     <span className={styles.stepTwoOptionPrice}>
-                                      {(option.value === 'PRO' || option.value === 'Alfombra') && option.totalPrice > 0 ? (
+                                      {option.totalPrice > 0 ? (
                                         <ProSeriesPromoPrice
                                           material={option.value}
                                           transferPrice={option.totalPrice}
@@ -5778,7 +5777,7 @@ export default function Home() {
                                           showBadge={false}
                                         />
                                       ) : (
-                                        option.priceLabel
+                                        '—'
                                       )}
                                     </span>
                                   </label>
@@ -5899,6 +5898,7 @@ export default function Home() {
                             material={material}
                             transferPrice={editorDisplayTransferPrice}
                             variant="medium"
+                            showFreeShippingCaption
                           />
                         </div>
 

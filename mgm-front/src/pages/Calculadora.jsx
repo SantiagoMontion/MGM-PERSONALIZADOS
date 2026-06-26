@@ -1,12 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import Calculadora from '../components/Calculadora.jsx';
+import ProSeriesPromoPrice from '../components/ProSeriesPromoPrice.jsx';
 import { CUSTOM_PAD_MIN_DIMENSION_CM } from '../lib/material.js';
 import styles from './Calculadora.module.css';
-
-const priceFormatter = new Intl.NumberFormat('es-AR', {
-  minimumFractionDigits: 0,
-  maximumFractionDigits: 0,
-});
 
 const CalculadoraPage = () => {
   const [width, setWidth] = useState('');
@@ -173,9 +169,19 @@ const CalculadoraPage = () => {
 
         <div className={styles.result}>
           <h2 className={styles.resultTitle}>Precio final</h2>
-          <p className={styles.resultValue}>
-            {transferPrice > 0 ? `$${priceFormatter.format(transferPrice)}` : 'Ingresá medidas válidas'}
-          </p>
+          <div className={styles.resultValue}>
+            {transferPrice > 0 ? (
+              <ProSeriesPromoPrice
+                material={material}
+                transferPrice={transferPrice}
+                variant="large"
+                lightTheme
+                showFreeShippingCaption
+              />
+            ) : (
+              'Ingresá medidas válidas'
+            )}
+          </div>
           <p className={styles.resultDetails}>
             ({`${material || 'Classic'} / ${width || '--'}x${height || '--'}`})
           </p>
