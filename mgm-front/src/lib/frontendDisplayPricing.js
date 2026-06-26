@@ -71,9 +71,34 @@ export function formatFrontendDisplayPriceLabel(transferPrice, material = null) 
 }
 
 /**
- * Leyenda de envío según el precio que ve el cliente (lista o carrito PRO).
+ * Monto contra el que se evalúa envío gratis.
+ * Si hay promo PRO visible, usa el precio de carrito (no la lista tachada).
+ */
+export function resolveFrontendShippingBasisPrice(material, shopifyTransferPrice, promoCartPrice = null) {
+  const promoPrice = Math.round(Number(promoCartPrice) || 0);
+  if (promoPrice > 0) {
+    return promoPrice;
+  }
+  return resolveEffectiveCustomerDisplayPrice(material, shopifyTransferPrice);
+}
+
+/**
+ * Leyenda de envío según el precio que paga el cliente (carrito PRO o lista +15%).
  * > $35.000 → envío gratis; si no, cuánto falta para llegar.
  */
+export function resolveFrontendShippingCaptionForProduct(
+  material,
+  shopifyTransferPrice,
+  promoCartPrice = null,
+) {
+  const basisPrice = resolveFrontendShippingBasisPrice(
+    material,
+    shopifyTransferPrice,
+    promoCartPrice,
+  );
+  return resolveFrontendShippingCaption(basisPrice);
+}
+
 export function resolveFrontendShippingCaption(customerPrice) {
   const price = Math.round(Number(customerPrice) || 0);
   if (price <= 0) return null;
