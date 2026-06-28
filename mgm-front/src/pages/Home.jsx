@@ -17,7 +17,6 @@ import UploadStep from '../components/UploadStep';
 import Calculadora from '../components/Calculadora.jsx';
 import CustomSizeFields from '../components/CustomSizeFields.jsx';
 import ProSeriesPromoPrice from '../components/ProSeriesPromoPrice.jsx';
-import { PRO_SERIES_PRICE_CAPTION, PRO_SERIES_STEP_THREE_NOTE } from '../lib/proSeriesPromoDisplay.js';
 import { DEFAULT_PRICE_CAPTION } from '../lib/alfombraPromoDisplay.js';
 import EditorCanvas from '../components/EditorCanvas';
 import ColorPopover from '../components/ColorPopover';
@@ -4885,7 +4884,7 @@ export default function Home() {
                           showFreeShippingCaption
                         />
                         <span className={`${styles.stepOneFooterPriceCaption} ${!isDarkMode ? styles.stepOneFooterPriceCaptionLight : ''}`.trim()}>
-                          {material === 'PRO' ? PRO_SERIES_PRICE_CAPTION : DEFAULT_PRICE_CAPTION}
+                          {DEFAULT_PRICE_CAPTION}
                         </span>
                       </div>
                       <button
@@ -5056,11 +5055,6 @@ export default function Home() {
                       variant="stepThree"
                       showFreeShippingCaption
                     />
-                    {material === 'PRO' ? (
-                      <span className={styles.stepThreeDetailTransferNote}>
-                        {PRO_SERIES_STEP_THREE_NOTE}
-                      </span>
-                    ) : null}
                   </span>
                 </div>
               </div>
@@ -5473,7 +5467,7 @@ export default function Home() {
                         showFreeShippingCaption
                       />
                       <span className={styles.stepTwoFooterPriceCaption}>
-                        {material === 'PRO' ? PRO_SERIES_PRICE_CAPTION : DEFAULT_PRICE_CAPTION}
+                        {DEFAULT_PRICE_CAPTION}
                       </span>
                       <span className={styles.stepTwoFooterSizeMaterialLine}>
                         {stepTwoFooterMobileSizeMaterialLine}

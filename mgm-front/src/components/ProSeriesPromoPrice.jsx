@@ -9,7 +9,7 @@ import { buildProSeriesPromoDisplay } from '../lib/proSeriesPromoDisplay.js';
 import styles from './ProSeriesPromoPrice.module.css';
 
 /**
- * Precio de lista con promos visuales por material (PRO 30% OFF, Alfombra 2x1).
+ * Precio de lista con promos visuales por material (Alfombra 2x1).
  * Aplica +15% solo en pantalla; `transferPrice` sigue siendo el monto real para Shopify.
  */
 export default function ProSeriesPromoPrice({

@@ -1,5 +1,4 @@
 import { formatARS } from './pricing.js';
-import { normalizeMaterialLabel } from './material.js';
 
 /** Recargo visual solo en UI; no modifica `priceTransfer` / Shopify. */
 export const FRONTEND_DISPLAY_PRICE_MARKUP_PERCENT = 15;
@@ -47,19 +46,10 @@ export function resolveProSeriesDisplayPricing(shopifyTransferPrice) {
   return { shopify, listPrice, cartPrice };
 }
 
-/**
- * Precio que ve el cliente en pantalla según material:
- * - PRO: lista +15% y luego 30% OFF (carrito)
- * - Resto: lista +15%
- */
+/** Precio que ve el cliente en pantalla: lista +15% (todos los materiales). */
 export function resolveEffectiveCustomerDisplayPrice(material, shopifyTransferPrice) {
   const shopify = Math.round(Number(shopifyTransferPrice) || 0);
   if (shopify <= 0) return 0;
-
-  if (normalizeMaterialLabel(material) === 'PRO') {
-    return resolveProSeriesDisplayPricing(shopify).cartPrice;
-  }
-
   return applyFrontendDisplayPriceMarkup(shopify);
 }
 

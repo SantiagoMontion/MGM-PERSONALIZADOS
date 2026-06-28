@@ -5,7 +5,7 @@ import {
 } from './frontendDisplayPricing.js';
 
 /** Solo UI: no modifica precios enviados a Shopify ni el cálculo de lista. */
-export const PRO_SERIES_VISUAL_PROMO_ENABLED = true;
+export const PRO_SERIES_VISUAL_PROMO_ENABLED = false;
 export const PRO_SERIES_VISUAL_DISCOUNT_PERCENT = 30;
 export const PRO_SERIES_PRICE_CAPTION = '30% OFF Se aplica solo cuando agregas al carrito';
 export const PRO_SERIES_STEP_THREE_NOTE = 'Se aplica solo cuando agregues tu producto al carrito';
