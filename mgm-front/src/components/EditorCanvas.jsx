@@ -2077,6 +2077,9 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
   const padRectPx = getPadRectPx();
   const exportScale = padRectPx.w / wCm;
+  const exportClipRadiusPx = isCircular
+    ? padRectPx.w / 2
+    : Math.round(previewPadCornerRadiusCm * exportScale);
   const exportBackgroundFill = mode === "contain"
     ? bgColor
     : (isCircular ? "transparent" : defaultBgColor);
@@ -3067,7 +3070,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
                 ref={padGroupRef}
                 clipFunc={(ctx) => clipPadPath(ctx, padRectPx.w, padRectPx.h, {
                   isCircular,
-                  radius: isCircular ? padRectPx.w / 2 : padRectPx.radius_px,
+                  radius: exportClipRadiusPx,
                 })}
               >
                 {shouldRenderExportBackground ? (

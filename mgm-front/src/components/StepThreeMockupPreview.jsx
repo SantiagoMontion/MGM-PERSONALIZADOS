@@ -55,6 +55,7 @@ export default function StepThreeMockupPreview({
   frameClassName,
   imageKey,
   isCircular = false,
+  disableTightCrop = false,
 }) {
   const wrapRef = useRef(null);
   const [tight, setTight] = useState(null);
@@ -78,7 +79,7 @@ export default function StepThreeMockupPreview({
       const nh = img.naturalHeight;
       if (!nw || !nh) return;
 
-      if (isCircular) {
+      if (isCircular || disableTightCrop) {
         setTight({ nw, nh, minX: 0, minY: 0, cw: nw, ch: nh });
         setLooseFallback(true);
         return;
@@ -112,7 +113,7 @@ export default function StepThreeMockupPreview({
     return () => {
       cancelled = true;
     };
-  }, [isCircular, src, imageKey]);
+  }, [disableTightCrop, isCircular, src, imageKey]);
 
   useLayoutEffect(() => {
     const host = wrapRef.current;

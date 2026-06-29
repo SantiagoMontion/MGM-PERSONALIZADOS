@@ -2230,6 +2230,15 @@ export default function Home() {
         return false;
       }
 
+      try {
+        const editorPreviewDataUrl = await blobToDataUrl(designBlob);
+        if (editorPreviewDataUrl) {
+          setReviewPreviewUrl(editorPreviewDataUrl);
+        }
+      } catch (previewErr) {
+        warn('[handleContinue] review preview dataURL failed', previewErr);
+      }
+
       const pdfSourceBlob = designBlob;
       const pdfSourceMime = pdfSourceBlob?.type || 'image/png';
 
@@ -3882,21 +3891,28 @@ export default function Home() {
     handleStepOnePickedFile(file);
   }, [handleStepOnePickedFile]);
 
-  const captureReviewPreview = useCallback(() => {
+  const captureReviewPreview = useCallback(async () => {
     const editor = canvasRef.current;
-    if (!editor) return null;
-    const devicePixelRatio = typeof window !== 'undefined' && Number.isFinite(window.devicePixelRatio)
-      ? window.devicePixelRatio
-      : 1.5;
-    const pixelRatio = Math.min(Math.max(devicePixelRatio, 1), 2);
-    const previewDataUrl =
-      editor.exportPadDataURL?.(pixelRatio)
-      || editor.exportPreviewDataURL?.()
-      || null;
-    if (previewDataUrl) {
-      setReviewPreviewUrl(previewDataUrl);
+    if (!editor?.exportPadAsBlob) return null;
+    try {
+      const blob = await editor.exportPadAsBlob({ maxDimension: 2048 });
+      if (!blob?.size) return null;
+      const previewDataUrl = await blobToDataUrl(blob);
+      if (previewDataUrl) {
+        setReviewPreviewUrl(previewDataUrl);
+      }
+      return previewDataUrl;
+    } catch (err) {
+      warn('[captureReviewPreview] export failed', err);
+      const fallbackDataUrl =
+        editor.exportPadDataURL?.(Math.min(Math.max(window.devicePixelRatio || 1, 1), 2))
+        || editor.exportPreviewDataURL?.()
+        || null;
+      if (fallbackDataUrl) {
+        setReviewPreviewUrl(fallbackDataUrl);
+      }
+      return fallbackDataUrl;
     }
-    return previewDataUrl;
   }, []);
   const editorDisplayTransferPrice = useMemo(() => {
     const amount = Number(priceAmount);
@@ -4027,9 +4043,9 @@ export default function Home() {
     return raw;
   }, [flow?.mockupPublicUrl]);
   const stepThreePreviewSrc =
-    stepThreeMockupPublicSrc
+    reviewPreviewUrl
+    || stepThreeMockupPublicSrc
     || mockupUrl
-    || reviewPreviewUrl
     || editorImageUrl
     || uploaded?.canonical_url
     || uploaded?.file_original_url
@@ -4235,9 +4251,9 @@ export default function Home() {
     ],
   }), [buildCommercePayloadOverrides]);
 
-  const openStepThreeReview = useCallback(() => {
+  const openStepThreeReview = useCallback(async () => {
     syncFlowEditorSelection();
-    captureReviewPreview();
+    await captureReviewPreview();
     setConfigOpen(false);
     setToolsDrawerOpen(false);
     dispatchStep({ type: 'REVIEW' });
@@ -4502,12 +4518,12 @@ export default function Home() {
     event.preventDefault();
     if (!validateStepTwoSelection()) return;
     if (SKIP_STEP2_CONTINUE_UPLOAD) {
-      openStepThreeReview();
+      await openStepThreeReview();
       return;
     }
     const uploadOk = await handleContinue();
     if (!uploadOk) return;
-    openStepThreeReview();
+    await openStepThreeReview();
   };
 
   return (
@@ -5023,6 +5039,7 @@ export default function Home() {
                     alt={`Vista previa de ${trimmedDesignName || 'tu diseño'}`}
                     imageKey={designHashState || ''}
                     isCircular={isCircular && !isFixedPad49x42Material(material)}
+                    disableTightCrop
                   />
                 ) : (
                   <div className={styles.stepThreePreviewFrame}>
