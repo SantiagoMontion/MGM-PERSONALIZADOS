@@ -61,7 +61,7 @@ function formatMeasurement(width, height) {
   return `${normalize(w)}x${normalize(h)} cm`;
 }
 
-function computePrintRowFields(row) {
+function computePrintRowFields(row, gateToken = '') {
   const key = row.id || row.path || row.fileName;
   const measurement = formatMeasurement(row.widthCm, row.heightCm);
   const filename = row.fileName || row.name || 'archivo.pdf';
@@ -79,12 +79,19 @@ function computePrintRowFields(row) {
       }
     }
   }
+  if (!downloadHref && row.id) {
+    const params = new URLSearchParams({ id: String(row.id) });
+    if (gateToken) params.set('gate', gateToken);
+    downloadHref = `/api/prints/download?${params.toString()}`;
+  }
   const previewSrc = isUsableImageSrc(row?.previewUrl) ? row.previewUrl : null;
   return { key, measurement, filename, downloadHref, previewSrc };
 }
 
 function buildDownloadUrl(publicUrl, filename) {
-  const url = new URL(publicUrl);
+  const url = /^https?:\/\//i.test(publicUrl)
+    ? new URL(publicUrl)
+    : new URL(publicUrl, typeof window !== 'undefined' ? window.location.origin : 'http://localhost');
   if (!url.searchParams.has('download')) {
     url.searchParams.set('download', filename || '');
   }
@@ -558,7 +565,7 @@ export default function Busqueda() {
             <tbody>
               {hasResults ? (
                 normalizedResults.map((row) => {
-                  const { key, measurement, filename, downloadHref, previewSrc } = computePrintRowFields(row);
+                  const { key, measurement, filename, downloadHref, previewSrc } = computePrintRowFields(row, gateToken);
                   if (import.meta.env?.DEV) {
                     diag('[prints] preview', {
                       name: row.fileName || row.name,
@@ -613,7 +620,7 @@ export default function Busqueda() {
         <ul className={styles.cardList} role="list" aria-label="Lista de PDFs">
           {hasResults ? (
             normalizedResults.map((row) => {
-              const { key, measurement, filename, downloadHref, previewSrc } = computePrintRowFields(row);
+              const { key, measurement, filename, downloadHref, previewSrc } = computePrintRowFields(row, gateToken);
               const material = row.material || '-';
               const sizeStr = formatBytes(row.sizeBytes ?? row.size);
               return (

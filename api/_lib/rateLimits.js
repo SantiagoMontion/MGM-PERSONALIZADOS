@@ -14,6 +14,7 @@ const RATE_LIMITS = new Map([
   ['GET outputs/search', { limit: 30, windowMs: 60_000 }],
   ['POST prints/upload', { limit: 12, windowMs: 60_000 }],
   ['GET prints/search', { limit: 30, windowMs: 60_000 }],
+  ['GET prints/download', { limit: 60, windowMs: 60_000 }],
   ['GET prints/preview', { limit: 60, windowMs: 60_000 }],
   ['POST shopify-webhook', { limit: 60, windowMs: 60_000 }],
 ]);
