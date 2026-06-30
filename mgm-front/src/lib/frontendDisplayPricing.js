@@ -1,10 +1,14 @@
 import { formatARS } from './pricing.js';
+import {
+  SHOPIFY_LIST_MARKUP_PERCENT as FRONTEND_DISPLAY_PRICE_MARKUP_PERCENT,
+  SHOPIFY_LIST_ROUND_UNIT as FRONTEND_DISPLAY_PRICE_ROUND_UNIT,
+  applyShopifyListPriceMarkup,
+} from '../../../lib/pricing/shopifyListPrice.js';
 
-/** Recargo visual solo en UI; no modifica `priceTransfer` / Shopify. */
-export const FRONTEND_DISPLAY_PRICE_MARKUP_PERCENT = 15;
+/** Recargo de lista (+15%) y redondeo a $500; mismo monto en UI y Shopify. */
+export { FRONTEND_DISPLAY_PRICE_MARKUP_PERCENT };
 export const FRONTEND_DISPLAY_PRICE_MARKUP = 1.15;
-/** Redondeo de lista: múltiplos de $500 tras aplicar +15%. */
-export const FRONTEND_DISPLAY_PRICE_ROUND_UNIT = 500;
+export { FRONTEND_DISPLAY_PRICE_ROUND_UNIT };
 
 /** Descuento de carrito PRO (solo visual; Shopify lo aplica al agregar). */
 export const PRO_SERIES_CART_DISCOUNT_PERCENT = 30;
@@ -14,17 +18,13 @@ export const FRONTEND_DISPLAY_SHIPPING_CAPTION = 'Envío GRATIS a Domicilio';
 /** Monto mínimo del producto para mostrar envío gratis (precio que ve el cliente). */
 export const FRONTEND_FREE_SHIPPING_MINIMUM = 35000;
 
-/**
- * Lista con +15% sobre el precio que va a Shopify, redondeada al múltiplo de $500 más cercano:
- * redondear((precio_original × 1,15) / 500) × 500
- */
-export function applyFrontendDisplayPriceMarkup(shopifyTransferPrice) {
-  const base = Math.round(Number(shopifyTransferPrice) || 0);
-  if (base <= 0) return 0;
-  const markedUp = Math.round((base * (100 + FRONTEND_DISPLAY_PRICE_MARKUP_PERCENT)) / 100);
-  const unit = FRONTEND_DISPLAY_PRICE_ROUND_UNIT;
-  return Math.round(markedUp / unit) * unit;
+/** Precio de lista final (Shopify + pantalla) a partir del base de calculadora. */
+export function applyFrontendDisplayPriceMarkup(basePrice) {
+  return applyShopifyListPriceMarkup(basePrice);
 }
+
+/** Alias explícito para payloads / checkout. */
+export const resolveShopifyListPrice = applyShopifyListPriceMarkup;
 
 /**
  * Precio en carrito PRO: 30% OFF sobre la lista con recargo (+15%).
@@ -38,42 +38,46 @@ export function applyProSeriesCartDiscount(listPrice) {
 
 /**
  * Cadena completa PRO para UI:
- * shopify → ×1,15 lista → ×0,70 carrito.
+ * base → ×1,15 redondeado lista → ×0,70 carrito.
  */
-export function resolveProSeriesDisplayPricing(shopifyTransferPrice) {
-  const shopify = Math.round(Number(shopifyTransferPrice) || 0);
-  if (shopify <= 0) {
+export function resolveProSeriesDisplayPricing(basePrice) {
+  const base = Math.round(Number(basePrice) || 0);
+  if (base <= 0) {
     return { shopify: 0, listPrice: 0, cartPrice: 0 };
   }
-  const listPrice = applyFrontendDisplayPriceMarkup(shopify);
+  const listPrice = applyShopifyListPriceMarkup(base);
   const cartPrice = applyProSeriesCartDiscount(listPrice);
-  return { shopify, listPrice, cartPrice };
+  return { shopify: base, listPrice, cartPrice };
 }
 
-/** Precio que ve el cliente en pantalla: lista +15% (todos los materiales). */
-export function resolveEffectiveCustomerDisplayPrice(material, shopifyTransferPrice) {
-  const shopify = Math.round(Number(shopifyTransferPrice) || 0);
-  if (shopify <= 0) return 0;
-  return applyFrontendDisplayPriceMarkup(shopify);
+/** Precio que ve el cliente y se publica en Shopify. */
+export function resolveEffectiveCustomerDisplayPrice(material, basePrice) {
+  void material;
+  const base = Math.round(Number(basePrice) || 0);
+  if (base <= 0) return 0;
+  return applyShopifyListPriceMarkup(base);
 }
 
-export function formatFrontendDisplayPriceLabel(transferPrice, material = null) {
-  const displayPrice = material
-    ? resolveEffectiveCustomerDisplayPrice(material, transferPrice)
-    : applyFrontendDisplayPriceMarkup(transferPrice);
-  return displayPrice > 0 ? `$${formatARS(displayPrice)}` : '—';
+/** Formatea lista final; acepta base de calculadora o precio ya resuelto si `alreadyResolved`. */
+export function formatFrontendDisplayPriceLabel(price, material = null, { alreadyResolved = false } = {}) {
+  const resolved = alreadyResolved
+    ? Math.round(Number(price) || 0)
+    : (material
+      ? resolveEffectiveCustomerDisplayPrice(material, price)
+      : applyShopifyListPriceMarkup(price));
+  return resolved > 0 ? `$${formatARS(resolved)}` : '—';
 }
 
 /**
  * Monto contra el que se evalúa envío gratis.
  * Si hay promo PRO visible, usa el precio de carrito (no la lista tachada).
  */
-export function resolveFrontendShippingBasisPrice(material, shopifyTransferPrice, promoCartPrice = null) {
+export function resolveFrontendShippingBasisPrice(material, basePrice, promoCartPrice = null) {
   const promoPrice = Math.round(Number(promoCartPrice) || 0);
   if (promoPrice > 0) {
     return promoPrice;
   }
-  return resolveEffectiveCustomerDisplayPrice(material, shopifyTransferPrice);
+  return resolveEffectiveCustomerDisplayPrice(material, basePrice);
 }
 
 /**
@@ -82,12 +86,12 @@ export function resolveFrontendShippingBasisPrice(material, shopifyTransferPrice
  */
 export function resolveFrontendShippingCaptionForProduct(
   material,
-  shopifyTransferPrice,
+  basePrice,
   promoCartPrice = null,
 ) {
   const basisPrice = resolveFrontendShippingBasisPrice(
     material,
-    shopifyTransferPrice,
+    basePrice,
     promoCartPrice,
   );
   return resolveFrontendShippingCaption(basisPrice);

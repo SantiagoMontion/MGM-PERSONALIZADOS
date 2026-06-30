@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo } from 'react';
 import { calculateTransferPricing, formatARS, mapPricingMaterial } from '../lib/pricing.js';
+import { applyFrontendDisplayPriceMarkup } from '../lib/frontendDisplayPricing.js';
 
 const Calculadora = ({ width, height, material, setPrice, className, render }) => {
   const mode = mapPricingMaterial(material);
@@ -15,11 +16,16 @@ const Calculadora = ({ width, height, material, setPrice, className, render }) =
     [mode, normalizedHeightCm, normalizedWidthCm],
   );
 
+  const shopifyListPrice = useMemo(
+    () => (computed.valid ? applyFrontendDisplayPriceMarkup(computed.transfer) : 0),
+    [computed.transfer, computed.valid],
+  );
+
   useEffect(() => {
     if (typeof setPrice === 'function') {
-      setPrice(computed.valid ? computed.transfer : 0);
+      setPrice(shopifyListPrice);
     }
-  }, [computed, setPrice]);
+  }, [setPrice, shopifyListPrice]);
 
   if (!computed.valid && mode !== 'Glasspad' && mode !== 'Ultra') {
     return <p>Modo no válido</p>;
@@ -27,8 +33,8 @@ const Calculadora = ({ width, height, material, setPrice, className, render }) =
 
   const payload = {
     valid: computed.valid,
-    transfer: computed.transfer,
-    normal: computed.normal,
+    transfer: shopifyListPrice,
+    normal: shopifyListPrice,
     format: formatARS,
     className,
   };
@@ -39,7 +45,7 @@ const Calculadora = ({ width, height, material, setPrice, className, render }) =
 
   return (
     <div className={className}>
-      <p className="p-calcu">${formatARS(computed.transfer)}</p>
+      <p className="p-calcu">${formatARS(shopifyListPrice)}</p>
     </div>
   );
 };

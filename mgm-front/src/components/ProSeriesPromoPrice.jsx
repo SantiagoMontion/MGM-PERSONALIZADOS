@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import { formatARS } from '../lib/pricing.js';
 import {
-  applyFrontendDisplayPriceMarkup,
   resolveFrontendShippingCaption,
 } from '../lib/frontendDisplayPricing.js';
 import { buildAlfombraPromoDisplay } from '../lib/alfombraPromoDisplay.js';
@@ -10,7 +9,7 @@ import styles from './ProSeriesPromoPrice.module.css';
 
 /**
  * Precio de lista con promos visuales por material (Alfombra 2x1).
- * Aplica +15% solo en pantalla; `transferPrice` sigue siendo el monto real para Shopify.
+ * `transferPrice` es el precio final de lista (+15% redondeado) que va a Shopify.
  */
 export default function ProSeriesPromoPrice({
   material,
@@ -22,14 +21,12 @@ export default function ProSeriesPromoPrice({
   showBadge = false,
   showFreeShippingCaption = false,
 }) {
-  const displayTransferPrice = useMemo(
-    () => applyFrontendDisplayPriceMarkup(transferPrice),
-    [transferPrice],
-  );
+  const listPrice = Math.round(Number(transferPrice) || 0);
+  const formattedListPrice = listPrice > 0 ? formatARS(listPrice) : '0';
 
   const promo = useMemo(
-    () => buildProSeriesPromoDisplay(material, transferPrice),
-    [transferPrice, material],
+    () => buildProSeriesPromoDisplay(material, listPrice),
+    [listPrice, material],
   );
   const alfombraPromo = useMemo(
     () => buildAlfombraPromoDisplay(material, {
@@ -39,9 +36,6 @@ export default function ProSeriesPromoPrice({
     }),
     [material, variant],
   );
-
-  const listPrice = Math.round(Number(displayTransferPrice) || 0);
-  const formattedListPrice = listPrice > 0 ? formatARS(listPrice) : '0';
 
   const formattedPromoPrice = useMemo(() => {
     const amount = promo

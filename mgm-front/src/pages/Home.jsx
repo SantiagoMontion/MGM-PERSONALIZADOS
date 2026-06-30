@@ -41,7 +41,7 @@ import {
   normalizeMaterialLabel,
 } from '../lib/material.js';
 import { calculateTransferPricing, formatARS } from '../lib/pricing.js';
-import { formatFrontendDisplayPriceLabel } from '../lib/frontendDisplayPricing.js';
+import { applyFrontendDisplayPriceMarkup, formatFrontendDisplayPriceLabel } from '../lib/frontendDisplayPricing.js';
 
 import {
   intrinsicImageQualityLevel,
@@ -3480,9 +3480,11 @@ export default function Home() {
     }),
     [activeSizeCm.h, activeSizeCm.w, material],
   );
-  const stepOneDisplayTransferPrice = useMemo(() => (
-    stepOneTransferPricing.valid ? Number(stepOneTransferPricing.transfer) || 0 : 0
-  ), [stepOneTransferPricing.transfer, stepOneTransferPricing.valid]);
+  const stepOneDisplayTransferPrice = useMemo(() => {
+    if (!stepOneTransferPricing.valid) return 0;
+    const base = Number(stepOneTransferPricing.transfer) || 0;
+    return applyFrontendDisplayPriceMarkup(base);
+  }, [stepOneTransferPricing.transfer, stepOneTransferPricing.valid]);
   const formatStepOneDimension = useCallback((value) => {
     const numeric = Number(value);
     if (!Number.isFinite(numeric) || numeric <= 0) {
@@ -3981,10 +3983,11 @@ export default function Home() {
         material,
       });
       const transfer = pricing.valid ? Number(pricing.transfer) || 0 : 0;
-      const priceLabel = formatFrontendDisplayPriceLabel(transfer, material);
+      const listPrice = applyFrontendDisplayPriceMarkup(transfer);
+      const priceLabel = formatFrontendDisplayPriceLabel(listPrice, material, { alreadyResolved: true });
       return {
         ...option,
-        price: transfer,
+        price: listPrice,
         priceLabel,
         measurementLabel: option.measurementLabel || formatSizeLabel(option),
       };
@@ -3999,10 +4002,11 @@ export default function Home() {
         material: option.value,
       });
       const transfer = pricing.valid ? Number(pricing.transfer) || 0 : 0;
-      const priceLabel = formatFrontendDisplayPriceLabel(transfer, option.value);
+      const listPrice = applyFrontendDisplayPriceMarkup(transfer);
+      const priceLabel = formatFrontendDisplayPriceLabel(listPrice, option.value, { alreadyResolved: true });
       return {
         ...option,
-        totalPrice: transfer,
+        totalPrice: listPrice,
         priceLabel,
       };
     })

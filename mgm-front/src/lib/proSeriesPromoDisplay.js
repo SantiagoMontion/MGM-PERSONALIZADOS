@@ -1,8 +1,5 @@
 import { normalizeMaterialLabel } from './material.js';
-import {
-  applyProSeriesCartDiscount,
-  resolveProSeriesDisplayPricing,
-} from './frontendDisplayPricing.js';
+import { applyProSeriesCartDiscount } from './frontendDisplayPricing.js';
 
 /** Solo UI: no modifica precios enviados a Shopify ni el cálculo de lista. */
 export const PRO_SERIES_VISUAL_PROMO_ENABLED = false;
@@ -15,23 +12,24 @@ export function isProSeriesMaterial(material) {
 }
 
 /**
- * Precio visual en carrito PRO: 30% OFF sobre lista con +15%.
- * `listPrice` debe ser el monto ya marcado (no el transfer de Shopify).
+ * Precio visual en carrito PRO: 30% OFF sobre lista final (+15% redondeada).
  */
 export function getProSeriesVisualDisplayPrice(listPrice) {
   return applyProSeriesCartDiscount(listPrice);
 }
 
-export function buildProSeriesPromoDisplay(material, shopifyTransferPrice) {
+/** @param {number} listPrice Precio de lista final (ya con +15% y redondeo). */
+export function buildProSeriesPromoDisplay(material, listPrice) {
   if (!PRO_SERIES_VISUAL_PROMO_ENABLED) return null;
   if (!isProSeriesMaterial(material)) return null;
 
-  const { shopify, listPrice, cartPrice } = resolveProSeriesDisplayPricing(shopifyTransferPrice);
-  if (shopify <= 0 || listPrice <= 0 || cartPrice <= 0 || cartPrice >= listPrice) return null;
+  const resolvedList = Math.round(Number(listPrice) || 0);
+  const cartPrice = applyProSeriesCartDiscount(resolvedList);
+  if (resolvedList <= 0 || cartPrice <= 0 || cartPrice >= resolvedList) return null;
 
   return {
-    shopifyTransfer: shopify,
-    compareAt: listPrice,
+    shopifyTransfer: resolvedList,
+    compareAt: resolvedList,
     displayPrice: cartPrice,
     discountLabel: `${PRO_SERIES_VISUAL_DISCOUNT_PERCENT}% OFF`,
   };
