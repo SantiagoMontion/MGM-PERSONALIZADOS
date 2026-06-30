@@ -22,3 +22,17 @@
   flex: 1;
   min-block-size: 0;
 }
+
+@media (max-width: 767px) {
+  .main {
+    flex: none;
+    min-block-size: auto;
+    overflow: visible;
+  }
+
+  .main > * {
+    flex: none;
+    min-block-size: auto;
+    overflow: visible;
+  }
+}

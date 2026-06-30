@@ -3,6 +3,8 @@ import { formatARS } from './pricing.js';
 /** Recargo visual solo en UI; no modifica `priceTransfer` / Shopify. */
 export const FRONTEND_DISPLAY_PRICE_MARKUP_PERCENT = 15;
 export const FRONTEND_DISPLAY_PRICE_MARKUP = 1.15;
+/** Redondeo de lista: múltiplos de $500 tras aplicar +15%. */
+export const FRONTEND_DISPLAY_PRICE_ROUND_UNIT = 500;
 
 /** Descuento de carrito PRO (solo visual; Shopify lo aplica al agregar). */
 export const PRO_SERIES_CART_DISCOUNT_PERCENT = 30;
@@ -13,13 +15,15 @@ export const FRONTEND_DISPLAY_SHIPPING_CAPTION = 'Envío GRATIS a Domicilio';
 export const FRONTEND_FREE_SHIPPING_MINIMUM = 35000;
 
 /**
- * Lista con +15% sobre el precio que va a Shopify.
- * Usa aritmética entera para evitar drift de float (ej. 45.650 → 52.498).
+ * Lista con +15% sobre el precio que va a Shopify, redondeada al múltiplo de $500 más cercano:
+ * redondear((precio_original × 1,15) / 500) × 500
  */
 export function applyFrontendDisplayPriceMarkup(shopifyTransferPrice) {
   const base = Math.round(Number(shopifyTransferPrice) || 0);
   if (base <= 0) return 0;
-  return Math.round((base * (100 + FRONTEND_DISPLAY_PRICE_MARKUP_PERCENT)) / 100);
+  const markedUp = Math.round((base * (100 + FRONTEND_DISPLAY_PRICE_MARKUP_PERCENT)) / 100);
+  const unit = FRONTEND_DISPLAY_PRICE_ROUND_UNIT;
+  return Math.round(markedUp / unit) * unit;
 }
 
 /**

@@ -4468,24 +4468,47 @@ body.light .stepTwoContainColorLabel {
 }
 
 @media (max-width: 767px) {
+  /* Scroll nativo del documento: evita contenedores anidados que capturan el touch. */
+  .page,
+  .pageStepUpload,
+  .pageStepEdit,
+  .pageStepReview {
+    flex: none;
+    min-block-size: auto;
+    max-block-size: none;
+    block-size: auto;
+    overflow: visible;
+    touch-action: pan-y;
+  }
+
+  .sectionOne,
+  .sectionOneInner,
+  .sectionOneStepUpload,
+  .sectionOneStepEdit,
+  .sectionOneStepReview,
+  .sectionOneInnerStepUpload,
+  .sectionOneInnerStepEdit,
+  .sectionOneInnerStepReview {
+    flex: none;
+    min-block-size: auto;
+    overflow: visible;
+  }
+
+  .stepThreeLayout {
+    flex: none;
+    max-block-size: none;
+    overflow: visible;
+    overscroll-behavior-y: auto;
+  }
+
   .pageStepUpload {
     justify-content: flex-start;
     padding: 0 var(--space-4);
     gap: 0;
-    min-block-size: auto;
-    overflow-x: hidden;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior-y: auto;
-    touch-action: pan-y;
   }
 
   .pageStepEdit {
-    min-block-size: 100vh;
     height: auto;
-    overflow-x: hidden;
-    overflow-y: auto;
-    touch-action: pan-y;
     padding-inline: 0;
   }
 

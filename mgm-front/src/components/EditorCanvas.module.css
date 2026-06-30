@@ -608,7 +608,7 @@
   background: transparent;
   position: relative;
   cursor: default;
-  touch-action: none;
+  touch-action: pan-y;
 }
 
 .canvasWrapperTouchDrag {

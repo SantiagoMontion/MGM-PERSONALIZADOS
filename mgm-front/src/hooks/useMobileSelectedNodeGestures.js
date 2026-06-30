@@ -23,7 +23,10 @@ export function useMobileSelectedNodeGestures(stageRef, getSelectedNode) {
 
     const preventInteraction = (e) => {
       disableNodeDrag();
-      e?.evt?.preventDefault?.();
+      // Solo en touchstart: no bloquear touchmove/touchend para no interferir el scroll del documento.
+      if (e?.type === 'touchstart') {
+        e?.evt?.preventDefault?.();
+      }
     };
 
     stage.on('touchstart', preventInteraction);

@@ -73,6 +73,22 @@ body {
   overscroll-behavior: none;
 }
 
+@media (max-width: 767px) {
+  html,
+  body {
+    overscroll-behavior: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  #root {
+    min-height: 100dvh;
+    height: auto;
+    overflow: visible;
+  }
+}
+
 /* En Shopify embed, permitir encadenamiento de scroll con la pagina host */
 html.mgm-shopify-embed,
 html.mgm-shopify-embed body {
