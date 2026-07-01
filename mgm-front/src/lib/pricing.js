@@ -7,6 +7,7 @@ import {
   roundDownToNearestFifty,
   ULTRA_FINAL_LIST_PRICE,
 } from '../../../lib/pricing/equilibrium.js';
+import { applyProSmallSizePremiumOverClassic } from '../../../lib/pricing/proSmallSizePremium.js';
 
 const ROLLO_DATA = {
   Pro: { width: 125, pricePerMeter: 36145, multiplier: 3.2, baselineArea: 0.26 },
@@ -79,6 +80,21 @@ export function mapPricingMaterial(material) {
 }
 
 export function calculateTransferPricing({ width, height, material }) {
+  const result = calculateTransferPricingCore({ width, height, material });
+  if (result.mode !== 'Pro') return result;
+
+  return applyProSmallSizePremiumOverClassic(
+    result,
+    width,
+    height,
+    (w, h) => {
+      const classic = calculateTransferPricingCore({ width: w, height: h, material: 'Clasic' });
+      return classic.valid ? classic.transfer : 0;
+    },
+  );
+}
+
+function calculateTransferPricingCore({ width, height, material }) {
   const mode = mapPricingMaterial(material);
   const normalizedWidthCm = Number(width) || 0;
   const normalizedHeightCm = Number(height) || 0;
