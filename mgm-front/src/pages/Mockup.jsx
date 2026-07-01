@@ -4748,7 +4748,7 @@ export default function Mockup() {
             <CtaButton
               className={`${styles.ctaButton} ${styles.ctaButtonPrimary1}`}
               type="button"
-              label="Agregar al carrito (PRIVADO)"
+              label="Agregar al carrito (Privado)"
               busyLabel="Agregando…"
               isBusy={privateCartBtnBusy}
               disabled={busy || privateCartBtnBusy || cartInteractionBusy || purchaseLocked || isPublishing}

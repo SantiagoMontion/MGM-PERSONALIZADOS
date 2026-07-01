@@ -294,7 +294,7 @@ const STEP_TWO_UPLOAD_MESSAGE = 'Guardando tu diseño en alta resolución...';
 const STEP_TWO_UPLOAD_SUBTITLE = 'No cierres nada, esto puede demorar varios segundos.';
 const STEP_THREE_COMMERCE_PENDING_LABEL = 'Enviando...';
 const STEP_THREE_ADD_TO_CART_LABEL = 'Agregar al carrito';
-const STEP_THREE_PRIVATE_CART_LABEL = 'Agregar al carrito (PRIVADO)';
+const STEP_THREE_PRIVATE_CART_LABEL = 'Agregar al carrito (Privado)';
 const STEP_THREE_PRIVATE_CART_NOTE = '*Luego de 7 minutos se oculta';
 const STEP_ONE_PREVIEW_MAX_WIDTH_PX = 551;
 const SKIP_MASTER_UPLOAD = String(import.meta.env?.VITE_SKIP_MASTER_UPLOAD || '0') === '1';
@@ -5127,23 +5127,25 @@ export default function Home() {
                     ? STEP_THREE_COMMERCE_PENDING_LABEL
                     : STEP_THREE_ADD_TO_CART_LABEL}
                 </button>
-                <button
-                  type="button"
-                  className={styles.stepThreePrimaryButton}
-                  onClick={() => {
-                    void handleReviewAddPrivateToCart();
-                  }}
-                  disabled={
-                    busy
-                    || Boolean(stepThreeCommerceAction)
-                  }
-                >
-                  {stepThreeCommerceAction === 'private-cart'
-                    ? STEP_THREE_COMMERCE_PENDING_LABEL
-                    : STEP_THREE_PRIVATE_CART_LABEL}
-                </button>
+                <div className={styles.stepThreePrivateCartColumn}>
+                  <button
+                    type="button"
+                    className={styles.stepThreePrimaryButton}
+                    onClick={() => {
+                      void handleReviewAddPrivateToCart();
+                    }}
+                    disabled={
+                      busy
+                      || Boolean(stepThreeCommerceAction)
+                    }
+                  >
+                    {stepThreeCommerceAction === 'private-cart'
+                      ? STEP_THREE_COMMERCE_PENDING_LABEL
+                      : STEP_THREE_PRIVATE_CART_LABEL}
+                  </button>
+                  <p className={styles.stepThreePrivateCartNote}>{STEP_THREE_PRIVATE_CART_NOTE}</p>
+                </div>
               </div>
-              <p className={styles.stepThreePrivateCartNote}>{STEP_THREE_PRIVATE_CART_NOTE}</p>
 
               <button
                 type="button"

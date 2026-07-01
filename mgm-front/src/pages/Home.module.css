@@ -4373,9 +4373,24 @@ body.light .stepTwoContainColorLabel {
   box-sizing: border-box;
 }
 
+.stepThreePrivateCartColumn {
+  flex: 1 1 0;
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-1);
+}
+
+.stepThreePrivateCartColumn .stepThreePrimaryButton {
+  flex: 0 0 auto;
+  inline-size: 100%;
+}
+
 .stepThreePrivateCartNote {
-  margin: 0 0 var(--space-3);
-  text-align: center;
+  margin: 0;
+  padding-inline: var(--space-1);
+  text-align: right;
   font-size: 0.72rem;
   line-height: 1.35;
   color: var(--foreground-muted);
@@ -5302,16 +5317,18 @@ body.light .stepTwoContainColorLabel {
     gap: var(--space-3);
   }
 
+  .stepThreePrivateCartColumn {
+    order: -1;
+    flex: 0 0 auto;
+    inline-size: 100%;
+  }
+
   .stepThreeSecondaryButton,
   .stepThreePrimaryButton {
     flex: 0 0 auto;
     inline-size: 100%;
     min-inline-size: 0;
     border-radius: var(--radius-full);
-  }
-
-  .stepThreePrimaryButton {
-    order: -1;
   }
 
   .stepThreeSecondaryButton {
