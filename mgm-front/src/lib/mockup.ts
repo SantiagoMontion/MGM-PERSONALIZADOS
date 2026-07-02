@@ -104,7 +104,7 @@ export async function renderMockup1080(
     import.meta.env?.VITE_REF_MIN_CM,
   ) || 20;
   const GLASS_FIXED_LONG_PX = Number(import.meta.env?.VITE_MOCKUP_GLASSPAD_FIXED_LONG_PX) || 700;
-  const RADIUS_PX = Number(import.meta.env?.VITE_MOCKUP_PAD_RADIUS_PX) || 8;
+  const RADIUS_PX = 0;
 
   function roundRectPath(
     ctx: CanvasRenderingContext2D,

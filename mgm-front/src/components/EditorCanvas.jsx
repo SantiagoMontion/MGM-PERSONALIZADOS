@@ -2061,11 +2061,11 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       canvas_px,
       src_px: { w: imgEl.naturalWidth, h: imgEl.naturalHeight },
       place_px,
-      pad_px: getPadRectPx(),
+      pad_px: { ...getPadRectPx(), radius_px: 0 },
       rotate_deg,
       fit_mode: mode,
-      bg_hex: isCircular && mode !== "contain" ? null : bgColor,
-      shape: isCircular ? "circle" : "rounded_rect",
+      bg_hex: mode === "contain" ? bgColor : defaultBgColor,
+      shape: "rounded_rect",
       w_cm: wCm,
       h_cm: hCm,
       bleed_mm: bleedMm,
@@ -2077,14 +2077,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
   const padRectPx = getPadRectPx();
   const exportScale = padRectPx.w / wCm;
-  /** Impresión / Supabase: esquinas rectas. El radio de preview es solo visual en el editor. */
-  const exportClipRadiusPx = isCircular
-    ? padRectPx.w / 2
-    : Math.round(cornerRadiusCm * exportScale);
-  const exportBackgroundFill = mode === "contain"
-    ? bgColor
-    : (isCircular ? "transparent" : defaultBgColor);
-  const shouldRenderExportBackground = mode === "contain" || !isCircular;
+  const exportBackgroundFill = mode === "contain" ? bgColor : defaultBgColor;
+  const shouldRenderExportBackground = true;
   const shouldRenderCanvas = showCanvas && Boolean(resolvedImageUrl);
   const canUndo = historyCounts.undo > 0;
   const canRedo = historyCounts.redo > 0;
@@ -3070,8 +3064,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               <Group
                 ref={padGroupRef}
                 clipFunc={(ctx) => clipPadPath(ctx, padRectPx.w, padRectPx.h, {
-                  isCircular,
-                  radius: exportClipRadiusPx,
+                  isCircular: false,
+                  radius: 0,
                 })}
               >
                 {shouldRenderExportBackground ? (

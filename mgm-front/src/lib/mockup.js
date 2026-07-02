@@ -1,5 +1,6 @@
 import {
   CANVAS_SIZE,
+  applyStraightStorageOptions,
   drawMockupComposite,
   getMockupPadRect1080,
 } from './mockupPadPlacement.js';
@@ -12,6 +13,10 @@ export async function renderMockup1080(imageOrOptions, maybeOptions) {
     image = opts?.composition?.canvas || opts?.composition?.image || opts?.image;
   }
 
+  const options = opts?.straightStorage === true
+    ? opts
+    : applyStraightStorageOptions(opts || {});
+
   const canvas = document.createElement('canvas');
   canvas.width = CANVAS_SIZE;
   canvas.height = CANVAS_SIZE;
@@ -23,7 +28,6 @@ export async function renderMockup1080(imageOrOptions, maybeOptions) {
     return emptyBlob || new Blob([], { type: 'image/png' });
   }
 
-  const options = opts || {};
   const drawSource = options?.composition?.canvas || options?.composition?.image || image;
   let drawable = drawSource;
 
