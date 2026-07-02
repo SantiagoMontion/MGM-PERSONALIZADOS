@@ -531,8 +531,8 @@ export async function ensureMockupUrl(flow: FlowState): Promise<EnsureMockupUrlR
     mockupBlob = await renderMockup1080(image, {
       material: regenMat,
       approxDpi: dpi,
-      shape: 'rounded_rect',
-      isCircular: false,
+      shape: regenShape,
+      isCircular: regenShape === 'circle',
       composition: {
         widthPx: masterWidthPx,
         heightPx: masterHeightPx,
@@ -542,11 +542,10 @@ export async function ensureMockupUrl(flow: FlowState): Promise<EnsureMockupUrlR
         heightMm: regenHcm > 0 ? regenHcm * 10 : undefined,
         dpi,
         material: regenMat,
-        shape: 'rounded_rect',
-        isCircular: false,
+        shape: regenShape,
+        isCircular: regenShape === 'circle',
       },
-      radiusPx: 0,
-      straightStorage: true,
+      radiusPx: regenStraightEdges ? 0 : undefined,
     });
   }
 

@@ -4,30 +4,7 @@
  */
 
 const CANVAS_SIZE = 1080;
-const RADIUS_PX = 0;
-
-/** Opciones para mockups/archivos guardados: sin curvas ni recorte circular. */
-export function applyStraightStorageOptions(options = {}) {
-  const base = options && typeof options === 'object' ? options : {};
-  const composition = base.composition && typeof base.composition === 'object'
-    ? {
-        ...base.composition,
-        shape: 'rounded_rect',
-        isCircular: false,
-        radiusPx: 0,
-        radius_px: 0,
-      }
-    : base.composition;
-  return {
-    ...base,
-    shape: 'rounded_rect',
-    isCircular: false,
-    radiusPx: 0,
-    radius_px: 0,
-    composition,
-    straightStorage: true,
-  };
-}
+const RADIUS_PX = 18;
 
 function roundRectPath(ctx, x, y, w, h, r) {
   const rr = Math.max(0, Math.min(r, Math.min(w, h) / 2));

@@ -2521,6 +2521,10 @@ export default function Home() {
       const mockupStart = tnow();
       const mockupPromise = (async () => {
         let newMockupBlob = null;
+        const mockupIsCircular = isCircular && !isFixedPad49x42Material(material);
+        const mockupRadiusPx = isStraightEdgesAvailable && !mockupIsCircular && isStraightEdges
+          ? 0
+          : (Number(import.meta.env?.VITE_MOCKUP_PAD_RADIUS_PX) || 8);
         const mockupRenderOptions = {
           composition: {
             widthPx: masterWidthExact,
@@ -2530,16 +2534,15 @@ export default function Home() {
             widthMm: masterWidthMm,
             heightMm: masterHeightMm,
             dpi: dpiForMockup,
-            shape: 'rounded_rect',
-            isCircular: false,
+            shape: mockupIsCircular ? 'circle' : 'rounded_rect',
+            isCircular: mockupIsCircular,
           },
           material: flowState?.material || material,
           options: { material: flowState?.material || material },
           materialLabel: flowState?.material || material,
-          shape: 'rounded_rect',
-          isCircular: false,
-          radiusPx: 0,
-          straightStorage: true,
+          shape: mockupIsCircular ? 'circle' : 'rounded_rect',
+          isCircular: mockupIsCircular,
+          radiusPx: mockupRadiusPx,
         };
         try {
           newMockupBlob = await generateMockupOffthread(pdfSourceBlob, mockupRenderOptions);

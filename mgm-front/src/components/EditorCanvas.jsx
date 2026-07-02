@@ -2061,11 +2061,11 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       canvas_px,
       src_px: { w: imgEl.naturalWidth, h: imgEl.naturalHeight },
       place_px,
-      pad_px: { ...getPadRectPx(), radius_px: 0 },
+      pad_px: getPadRectPx(),
       rotate_deg,
       fit_mode: mode,
-      bg_hex: mode === "contain" ? bgColor : defaultBgColor,
-      shape: "rounded_rect",
+      bg_hex: isCircular && mode !== "contain" ? null : bgColor,
+      shape: isCircular ? "circle" : "rounded_rect",
       w_cm: wCm,
       h_cm: hCm,
       bleed_mm: bleedMm,
@@ -2077,6 +2077,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
   const padRectPx = getPadRectPx();
   const exportScale = padRectPx.w / wCm;
+  /** Solo Supabase (exportPadAsBlob): recto. Preview/mockup siguen con bordes en el editor. */
   const exportBackgroundFill = mode === "contain" ? bgColor : defaultBgColor;
   const shouldRenderExportBackground = true;
   const shouldRenderCanvas = showCanvas && Boolean(resolvedImageUrl);

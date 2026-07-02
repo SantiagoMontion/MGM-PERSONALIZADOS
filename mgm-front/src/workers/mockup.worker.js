@@ -2,7 +2,7 @@
 // Entrada: { cmd:'mockup', buffer:ArrayBuffer, opts }
 // Salida:  { ok:true, type:'mockup', buffer:ArrayBuffer }
 
-import { CANVAS_SIZE, applyStraightStorageOptions, drawMockupComposite, getMockupPadRect1080 } from '../lib/mockupPadPlacement.js';
+import { CANVAS_SIZE, drawMockupComposite, getMockupPadRect1080 } from '../lib/mockupPadPlacement.js';
 
 self.onmessage = async (event) => {
   const { cmd, buffer, opts } = event.data || {};
@@ -13,10 +13,7 @@ self.onmessage = async (event) => {
   try {
     const blob = new Blob([buffer]);
     const image = await createImageBitmap(blob);
-    const options = opts?.straightStorage === true
-      ? (opts || {})
-      : applyStraightStorageOptions(opts || {});
-    const placement = getMockupPadRect1080(options, image.width, image.height);
+    const placement = getMockupPadRect1080(opts || {}, image.width, image.height);
     if (!placement) {
       self.postMessage({ ok: false, type: 'mockup' });
       return;
@@ -26,7 +23,7 @@ self.onmessage = async (event) => {
     const ctx = offscreen.getContext('2d', { desynchronized: true, alpha: true });
     if (!ctx) throw new Error('2d context unavailable');
 
-    drawMockupComposite(ctx, image, placement, options);
+    drawMockupComposite(ctx, image, placement, opts || {});
 
     try {
       image.close();
