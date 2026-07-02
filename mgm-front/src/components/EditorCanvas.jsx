@@ -2077,9 +2077,10 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
   const padRectPx = getPadRectPx();
   const exportScale = padRectPx.w / wCm;
+  /** Impresión / Supabase: esquinas rectas. El radio de preview es solo visual en el editor. */
   const exportClipRadiusPx = isCircular
     ? padRectPx.w / 2
-    : Math.round(previewPadCornerRadiusCm * exportScale);
+    : Math.round(cornerRadiusCm * exportScale);
   const exportBackgroundFill = mode === "contain"
     ? bgColor
     : (isCircular ? "transparent" : defaultBgColor);
