@@ -36,8 +36,61 @@
 
         function applyIframeHeight(height) {
           if (!Number.isFinite(height) || height <= 0) return;
+          var nextHeight = Math.ceil(height);
+          if (hasDynamicHeight && Math.abs(nextHeight - iframe.offsetHeight) < 2) return;
           hasDynamicHeight = true;
-          iframe.style.height = Math.ceil(height) + 'px';
+          iframe.style.height = nextHeight + 'px';
+        }
+
+        function normalizeWheelDelta(delta, deltaMode) {
+          var magnitude = Number(delta) || 0;
+          if (deltaMode === 1) return magnitude * 16;
+          if (deltaMode === 2) {
+            var viewport = window.innerHeight || document.documentElement.clientHeight || 800;
+            return magnitude * viewport;
+          }
+          return magnitude;
+        }
+
+        var pendingWheelX = 0;
+        var pendingWheelY = 0;
+        var wheelFrameId = 0;
+        var maxWheelStepPx = 120;
+
+        function flushWheelScroll() {
+          wheelFrameId = 0;
+          if (pendingWheelX === 0 && pendingWheelY === 0) return;
+
+          var scrollTarget = document.scrollingElement || document.documentElement;
+          if (!scrollTarget) {
+            pendingWheelX = 0;
+            pendingWheelY = 0;
+            return;
+          }
+
+          if (typeof scrollTarget.scrollBy === 'function') {
+            scrollTarget.scrollBy({
+              top: pendingWheelY,
+              left: pendingWheelX,
+              behavior: 'auto',
+            });
+          } else {
+            scrollTarget.scrollTop += pendingWheelY;
+            scrollTarget.scrollLeft += pendingWheelX;
+          }
+
+          pendingWheelX = 0;
+          pendingWheelY = 0;
+        }
+
+        function queueWheelScroll(deltaX, deltaY) {
+          var clampedX = Math.sign(deltaX) * Math.min(Math.abs(deltaX), maxWheelStepPx);
+          var clampedY = Math.sign(deltaY) * Math.min(Math.abs(deltaY), maxWheelStepPx);
+          pendingWheelX += clampedX;
+          pendingWheelY += clampedY;
+          if (!wheelFrameId) {
+            wheelFrameId = window.requestAnimationFrame(flushWheelScroll);
+          }
         }
 
         window.addEventListener('message', function (event) {
@@ -52,24 +105,10 @@
           }
 
           if (data.type === 'mgm:embed:wheel') {
-            var deltaY = Number(data.deltaY) || 0;
-            var deltaX = Number(data.deltaX) || 0;
+            var deltaY = normalizeWheelDelta(Number(data.deltaY) || 0, Number(data.deltaMode) || 0);
+            var deltaX = normalizeWheelDelta(Number(data.deltaX) || 0, Number(data.deltaMode) || 0);
             if (deltaY === 0 && deltaX === 0) return;
-
-            var scrollTarget = document.scrollingElement || document.documentElement;
-            if (!scrollTarget) return;
-
-            if (typeof scrollTarget.scrollBy === 'function') {
-              scrollTarget.scrollBy({
-                top: deltaY,
-                left: deltaX,
-                behavior: 'auto',
-              });
-              return;
-            }
-
-            scrollTarget.scrollTop += deltaY;
-            scrollTarget.scrollLeft += deltaX;
+            queueWheelScroll(deltaX, deltaY);
           }
         });
       })();

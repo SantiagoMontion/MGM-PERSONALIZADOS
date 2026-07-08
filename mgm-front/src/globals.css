@@ -149,6 +149,15 @@ html.mgm-shopify-embed [class*="stepThreeLayout"] {
   height: auto !important;
 }
 
+html.mgm-shopify-embed [class*="pageHeadingStepUpload"] {
+  padding-block-start: var(--space-4) !important;
+}
+
+html.mgm-shopify-embed [class*="stepOneFooterBar"],
+html.mgm-shopify-embed [class*="stepOneActions"] {
+  margin-block-end: 0 !important;
+}
+
 #root {
   min-height: 100dvh;
   background-color: var(--background);
