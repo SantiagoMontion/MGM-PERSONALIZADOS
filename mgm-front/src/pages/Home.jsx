@@ -3550,7 +3550,7 @@ export default function Home() {
     const figureHeightPx = scaledHeightPx + measureRowSpacePx;
     const previewWrapperMaxHeightPx = Math.round(STEP_ONE_PREVIEW_REFERENCE_CM.h * referenceScale) + (measureOffsetMaxPx + measureTrackReservePx);
     const previewWrapperMaxWidthPx = STEP_ONE_PREVIEW_MAX_WIDTH_PX;
-    const layoutMinHeightPx = previewWrapperMaxHeightPx + 220;
+    const layoutMinHeightPx = shopifyEmbed ? 0 : previewWrapperMaxHeightPx + 220;
     const layoutGapPx = Math.max(10, Math.round(16 - (selectedHeightProgress * 6)));
     const headingGapPx = Math.max(4, Math.round(10 - (selectedHeightProgress * 6)));
     const heroGapPx = Math.max(0, Math.round(4 - (selectedHeightProgress * 3)));
@@ -3593,7 +3593,7 @@ export default function Home() {
       '--step-one-preview-reference-ratio': `${STEP_ONE_PREVIEW_REFERENCE_CM.w} / ${STEP_ONE_PREVIEW_REFERENCE_CM.h}`,
       '--step-one-selected-ratio': `${safeWidth} / ${safeHeight}`,
     };
-  }, [activeSizeCm?.h, activeSizeCm?.w, isStepOneMobileViewport, stepOneCanvasBackgroundColor]);
+  }, [activeSizeCm?.h, activeSizeCm?.w, isStepOneMobileViewport, shopifyEmbed, stepOneCanvasBackgroundColor]);
   const stepTwoCanvasStyle = useMemo(() => {
     const widthValue = Number(activeSizeCm?.w);
     const heightValue = Number(activeSizeCm?.h);
@@ -3737,7 +3737,7 @@ export default function Home() {
       ),
       '--step-two-preview-bundle-margin-top': `${previewFrameLiftPx}px`,
       '--step-two-preview-frame-margin-top': `${previewFrameMarginTopPx}px`,
-      ...(is100cmHeightDesktop
+      ...(is100cmHeightDesktop && !shopifyEmbed
         ? {
           '--step-two-back-rail-margin-block-start': '20px',
           '--step-two-back-rail-margin-block-end': '0px',
@@ -3763,6 +3763,7 @@ export default function Home() {
   }, [
     activeSizeCm?.h,
     activeSizeCm?.w,
+    shopifyEmbed,
     stepTwoViewportMetrics.footerHeight,
     stepTwoViewportMetrics.frameTop,
     stepTwoViewportMetrics.frameWidth,

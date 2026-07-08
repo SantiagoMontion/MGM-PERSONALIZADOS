@@ -136,7 +136,10 @@ export default function App() {
     || location.pathname.startsWith('/resultados');
 
     return (
-      <div className={styles.container}>
+      <div
+        className={styles.container}
+        id={shopifyEmbed ? 'mgm-embed-measure-root' : undefined}
+      >
         <SeoJsonLd />
         {!shopifyEmbed && <MobileAdvisoryBanner />}
         <ProgressHeader
@@ -158,6 +161,7 @@ export default function App() {
           />
         </main>
         {shouldShowFooter && <Footer />}
+        {shopifyEmbed ? <div id="mgm-embed-measure-end" aria-hidden="true" /> : null}
       </div>
     );
 }

@@ -15,7 +15,7 @@
     {% assign iframe_src = iframe_src | strip %}
     <iframe
       class="mgm-personalizados-iframe"
-      data-mgm-min-height="{{ iframe_height }}"
+      data-mgm-initial-height="{{ iframe_height }}"
       src="{{ iframe_src | escape }}"
       title="{{ iframe_title | escape }}"
       loading="eager"
@@ -27,21 +27,50 @@
         var iframe = document.querySelector('.mgm-personalizados-iframe');
         if (!iframe) return;
 
-        var minHeight = parseInt(iframe.getAttribute('data-mgm-min-height'), 10);
-        if (!Number.isFinite(minHeight) || minHeight <= 0) {
-          minHeight = 920;
+        var initialHeight = parseInt(iframe.getAttribute('data-mgm-initial-height'), 10);
+        if (!Number.isFinite(initialHeight) || initialHeight <= 0) {
+          initialHeight = 920;
+        }
+
+        var hasDynamicHeight = false;
+
+        function applyIframeHeight(height) {
+          if (!Number.isFinite(height) || height <= 0) return;
+          hasDynamicHeight = true;
+          iframe.style.height = Math.ceil(height) + 'px';
         }
 
         window.addEventListener('message', function (event) {
           if (!event || event.source !== iframe.contentWindow) return;
 
           var data = event.data;
-          if (!data || data.type !== 'mgm:embed:resize' || data.source !== 'mgm-personalizados') return;
+          if (!data || data.source !== 'mgm-personalizados') return;
 
-          var height = Number(data.height);
-          if (!Number.isFinite(height) || height <= 0) return;
+          if (data.type === 'mgm:embed:resize') {
+            applyIframeHeight(Number(data.height));
+            return;
+          }
 
-          iframe.style.height = Math.max(minHeight, Math.ceil(height)) + 'px';
+          if (data.type === 'mgm:embed:wheel') {
+            var deltaY = Number(data.deltaY) || 0;
+            var deltaX = Number(data.deltaX) || 0;
+            if (deltaY === 0 && deltaX === 0) return;
+
+            var scrollTarget = document.scrollingElement || document.documentElement;
+            if (!scrollTarget) return;
+
+            if (typeof scrollTarget.scrollBy === 'function') {
+              scrollTarget.scrollBy({
+                top: deltaY,
+                left: deltaX,
+                behavior: 'auto',
+              });
+              return;
+            }
+
+            scrollTarget.scrollTop += deltaY;
+            scrollTarget.scrollLeft += deltaX;
+          }
         });
       })();
     </script>
@@ -68,7 +97,7 @@
       "max": 1400,
       "step": 20,
       "unit": "px",
-      "label": "Alto mínimo del iframe",
+      "label": "Alto inicial del iframe",
       "default": 920
     },
     {

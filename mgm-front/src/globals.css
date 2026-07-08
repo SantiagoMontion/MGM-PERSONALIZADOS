@@ -124,8 +124,29 @@ html.mgm-shopify-embed [class*="pageStepReview"] {
   overflow-y: visible !important;
   max-block-size: none !important;
   min-block-size: 0 !important;
+  min-height: 0 !important;
   block-size: auto !important;
+  height: auto !important;
   touch-action: pan-y;
+}
+
+html.mgm-shopify-embed [class*="sectionOneInnerStepUpload"],
+html.mgm-shopify-embed [class*="sectionOneStepUpload"],
+html.mgm-shopify-embed [class*="sectionOneStepEdit"],
+html.mgm-shopify-embed [class*="sectionOneStepReview"],
+html.mgm-shopify-embed [class*="sectionOneInnerStepEdit"],
+html.mgm-shopify-embed [class*="sectionOneInnerStepReview"],
+html.mgm-shopify-embed [class*="stepTwoLayout"],
+html.mgm-shopify-embed [class*="stepTwoWorkspace"],
+html.mgm-shopify-embed [class*="stepTwoPreviewFrame"],
+html.mgm-shopify-embed [class*="stepTwoPreviewBundle"],
+html.mgm-shopify-embed [class*="stepThreeLayout"] {
+  min-block-size: 0 !important;
+  min-height: 0 !important;
+  max-block-size: none !important;
+  max-height: none !important;
+  block-size: auto !important;
+  height: auto !important;
 }
 
 #root {
