@@ -98,16 +98,34 @@ body {
   }
 }
 
-/* En Shopify embed, permitir encadenamiento de scroll con la pagina host */
+/* En Shopify embed, el scroll lo maneja la pagina host (no el iframe). */
 html.mgm-shopify-embed,
 html.mgm-shopify-embed body {
   overscroll-behavior: auto;
+  overflow: visible !important;
+  overflow-x: clip !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  -webkit-overflow-scrolling: auto;
+  touch-action: pan-y;
+}
+
+html.mgm-shopify-embed #root {
+  min-height: 0 !important;
+  height: auto !important;
+  overflow: visible !important;
 }
 
 html.mgm-shopify-embed [class*="pageStepUpload"],
 html.mgm-shopify-embed [class*="pageStepEdit"],
 html.mgm-shopify-embed [class*="pageStepReview"] {
+  overflow: visible !important;
   overflow-y: visible !important;
+  max-block-size: none !important;
+  min-block-size: 0 !important;
+  block-size: auto !important;
+  touch-action: pan-y;
 }
 
 #root {

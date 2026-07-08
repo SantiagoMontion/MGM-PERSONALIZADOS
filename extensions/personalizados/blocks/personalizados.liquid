@@ -14,13 +14,37 @@
     {% capture iframe_src %}{{ base_url }}{% if base_url contains '?' %}&{% else %}?{% endif %}mgm_embed=1&shop={{ shop.permanent_domain | url_encode }}{% endcapture %}
     {% assign iframe_src = iframe_src | strip %}
     <iframe
-  class="mgm-personalizados-iframe"
-  src="{{ iframe_src | escape }}"
-  title="{{ iframe_title | escape }}"
-  loading="lazy"
-  referrerpolicy="strict-origin-when-cross-origin"
-  style="width: 100%; height: {{ iframe_height }}px; border: 0; display: block;"
-></iframe>
+      class="mgm-personalizados-iframe"
+      data-mgm-min-height="{{ iframe_height }}"
+      src="{{ iframe_src | escape }}"
+      title="{{ iframe_title | escape }}"
+      loading="eager"
+      referrerpolicy="strict-origin-when-cross-origin"
+      style="width: 100%; height: {{ iframe_height }}px; border: 0; display: block; overflow: hidden;"
+    ></iframe>
+    <script>
+      (function () {
+        var iframe = document.querySelector('.mgm-personalizados-iframe');
+        if (!iframe) return;
+
+        var minHeight = parseInt(iframe.getAttribute('data-mgm-min-height'), 10);
+        if (!Number.isFinite(minHeight) || minHeight <= 0) {
+          minHeight = 920;
+        }
+
+        window.addEventListener('message', function (event) {
+          if (!event || event.source !== iframe.contentWindow) return;
+
+          var data = event.data;
+          if (!data || data.type !== 'mgm:embed:resize' || data.source !== 'mgm-personalizados') return;
+
+          var height = Number(data.height);
+          if (!Number.isFinite(height) || height <= 0) return;
+
+          iframe.style.height = Math.max(minHeight, Math.ceil(height)) + 'px';
+        });
+      })();
+    </script>
   {% endif %}
 </div>
 

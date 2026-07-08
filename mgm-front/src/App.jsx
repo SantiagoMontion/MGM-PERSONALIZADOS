@@ -5,6 +5,7 @@ import SeoJsonLd from './components/SeoJsonLd';
 import Footer from './components/Footer';
 import MobileAdvisoryBanner from './components/MobileAdvisoryBanner';
 import ProgressHeader from './components/ProgressHeader';
+import { bindShopifyEmbedResize, scheduleShopifyEmbedResize } from './lib/shopifyEmbedResize';
 
 const SHOPIFY_EMBED_STORAGE_KEY = 'mgm_shopify_embed';
 
@@ -97,6 +98,7 @@ export default function App() {
     const root = window.document.documentElement;
     const body = window.document.body;
     root.classList.toggle('mgm-shopify-embed', shopifyEmbed);
+    body.classList.toggle('mgm-shopify-embed', shopifyEmbed);
     const nextTheme = isDarkMode ? 'dark' : 'light';
 
     root.classList.remove('dark', 'light');
@@ -106,6 +108,16 @@ export default function App() {
     root.style.colorScheme = nextTheme;
     window.localStorage.setItem(APP_THEME_STORAGE_KEY, nextTheme);
   }, [isDarkMode, shopifyEmbed]);
+
+  useEffect(() => {
+    if (!shopifyEmbed) return undefined;
+    return bindShopifyEmbedResize();
+  }, [shopifyEmbed]);
+
+  useEffect(() => {
+    if (!shopifyEmbed) return;
+    scheduleShopifyEmbedResize();
+  }, [location.pathname, shopifyEmbed, currentStep]);
 
   useEffect(() => {
     if (typeof document === 'undefined') return;
