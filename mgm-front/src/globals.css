@@ -89,6 +89,15 @@ body {
   }
 }
 
+@media (pointer: coarse) {
+  html,
+  body {
+    overscroll-behavior: auto;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
 /* En Shopify embed, permitir encadenamiento de scroll con la pagina host */
 html.mgm-shopify-embed,
 html.mgm-shopify-embed body {

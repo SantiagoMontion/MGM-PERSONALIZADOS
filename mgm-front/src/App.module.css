@@ -23,7 +23,7 @@
   min-block-size: 0;
 }
 
-@media (max-width: 767px) {
+@media (max-width: 960px) {
   .main {
     flex: none;
     min-block-size: auto;

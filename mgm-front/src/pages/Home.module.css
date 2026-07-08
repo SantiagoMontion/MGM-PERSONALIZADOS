@@ -1197,6 +1197,7 @@
   width: min(100%, var(--step-one-layout-max-width, calc(var(--space-24) * 8)));
   margin: 0 auto;
   transition: gap 0.22s ease, width 0.22s ease;
+  touch-action: pan-y;
 }
 
 .stepOneLayoutCustom {
@@ -1486,6 +1487,7 @@
   inline-size: 100%;
   min-block-size: 0;
   transition: transform 0.22s ease, gap 0.22s ease;
+  touch-action: pan-y;
 }
 
 .stepOnePreviewBody {
@@ -1496,6 +1498,7 @@
   gap: var(--space-3);
   inline-size: 100%;
   min-block-size: 0;
+  touch-action: pan-y;
 }
 
 .stepOneCustomSizeFields {
@@ -1599,6 +1602,7 @@
   padding: 0;
   box-sizing: border-box;
   margin: var(--step-one-preview-frame-margin-top, 0px) 0 var(--step-one-preview-frame-margin-bottom, 0px);
+  touch-action: pan-y;
 }
 
 .stepOneCanvasStage {
@@ -1608,6 +1612,7 @@
   gap: 0;
   inline-size: 100%;
   max-inline-size: 100%;
+  touch-action: pan-y;
 }
 
 .stepOneCanvasViewport {
@@ -1624,6 +1629,7 @@
   padding: var(--space-2) 0 0;
   box-sizing: border-box;
   overflow: visible;
+  touch-action: pan-y;
 }
 
 .stepOneCanvasFigure {
@@ -1634,6 +1640,7 @@
   margin: auto;
   overflow: visible;
   transition: inline-size 0.22s ease, block-size 0.22s ease;
+  touch-action: pan-y;
 }
 
 .stepOneCanvasShell {
@@ -1659,6 +1666,7 @@
     0 var(--space-2) var(--space-8) color-mix(in srgb, var(--overlay) 46%, transparent),
     0 var(--space-1) var(--space-3) color-mix(in srgb, var(--border-default) 78%, transparent);
   transition: border-color 0.2s ease, background 0.2s ease;
+  touch-action: pan-y;
 }
 
 .stepOneCanvasShellActive {
@@ -4482,7 +4490,7 @@ body.light .stepTwoContainColorLabel {
   }
 }
 
-@media (max-width: 767px) {
+@media (max-width: 960px) {
   /* Scroll nativo del documento: evita contenedores anidados que capturan el touch. */
   .page,
   .pageStepUpload,
@@ -4507,6 +4515,7 @@ body.light .stepTwoContainColorLabel {
     flex: none;
     min-block-size: auto;
     overflow: visible;
+    touch-action: pan-y;
   }
 
   .stepThreeLayout {
@@ -4514,8 +4523,11 @@ body.light .stepTwoContainColorLabel {
     max-block-size: none;
     overflow: visible;
     overscroll-behavior-y: auto;
+    touch-action: pan-y;
   }
+}
 
+@media (max-width: 767px) {
   .pageStepUpload {
     justify-content: flex-start;
     padding: 0 var(--space-4);
@@ -4917,6 +4929,7 @@ body.light .stepTwoContainColorLabel {
     gap: var(--space-2);
     padding-block-start: 6px;
     padding-block-end: 0;
+    touch-action: pan-y;
   }
 
   .stepTwoWorkspace {
@@ -4930,6 +4943,7 @@ body.light .stepTwoContainColorLabel {
     gap: 8px;
     padding-block-end: calc(120px + var(--safe-area-bottom));
     box-sizing: border-box;
+    touch-action: pan-y;
   }
 
   .stepTwoTopBar {
@@ -4997,6 +5011,7 @@ body.light .stepTwoContainColorLabel {
     max-inline-size: 100%;
     /* La fila de medida (p. ej. «100 CM») es absolute bajo el lienzo: reservar hueco para no superponer el caption */
     padding-block-end: calc(var(--step-two-measure-offset, 12px) + 22px);
+    touch-action: pan-y;
   }
 
   .stepTwoActionsRail {

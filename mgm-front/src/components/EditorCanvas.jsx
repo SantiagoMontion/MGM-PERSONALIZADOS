@@ -311,7 +311,9 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const glassOverlayRef = useRef(null);
   const [wrapSize, setWrapSize] = useState({ w: 960, h: 540 });
   const isTouch = useMemo(() => isTouchDevice(), []);
-  const isTouchImageDragEnabled = isTouch && !allowCanvasPan;
+  const enableTouchImageReposition = isTouch && !allowCanvasPan;
+  const [isMobileImageDragActive, setIsMobileImageDragActive] = useState(false);
+  const mobileImageDragRef = useRef(false);
   const hasAdjustedViewRef = useRef(false);
   useEffect(() => {
     if (!isTouch) return undefined;
@@ -334,8 +336,9 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     };
 
     const applyTouchInteractionMode = () => {
-      container.style.pointerEvents = "auto";
-      container.style.touchAction = isTouchImageDragEnabled ? "none" : "pan-y";
+      const captureTouchOnKonva = isMobileImageDragActive;
+      container.style.pointerEvents = captureTouchOnKonva ? "auto" : "none";
+      container.style.touchAction = captureTouchOnKonva ? "none" : "pan-y";
       getCanvases().forEach((c) => {
         if (!previousCanvasStyles.has(c)) {
           previousCanvasStyles.set(c, {
@@ -343,8 +346,8 @@ const EditorCanvas = forwardRef(function EditorCanvas(
             touchAction: c.style.touchAction,
           });
         }
-        c.style.pointerEvents = isTouchImageDragEnabled ? "auto" : "none";
-        c.style.touchAction = isTouchImageDragEnabled ? "none" : "pan-y";
+        c.style.pointerEvents = captureTouchOnKonva ? "auto" : "none";
+        c.style.touchAction = captureTouchOnKonva ? "none" : "pan-y";
       });
     };
 
@@ -362,7 +365,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       observer.disconnect();
       restore();
     };
-  }, [isTouch, isTouchImageDragEnabled]);
+  }, [isTouch, isMobileImageDragActive]);
   useEffect(() => {
     const ro = new ResizeObserver(() => {
       const viewport = readViewportSize(wrapRef.current, { width: 600, height: 360 });
@@ -584,17 +587,83 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     isPanningRef.current = false;
   };
   const onStageTouchStart = (e) => {
+    if (!allowCanvasPan) return;
     e?.evt?.preventDefault?.();
     onStageMouseDown(e);
   };
   const onStageTouchMove = (e) => {
+    if (!allowCanvasPan) return;
     e?.evt?.preventDefault?.();
     onStageMouseMove(e);
   };
   const onStageTouchEnd = (e) => {
+    if (!allowCanvasPan) return;
     e?.evt?.preventDefault?.();
     endPan();
   };
+
+  const releaseMobileImageDrag = useCallback(() => {
+    if (!mobileImageDragRef.current) return;
+    mobileImageDragRef.current = false;
+    setIsMobileImageDragActive(false);
+    try {
+      imgRef.current?.stopDrag?.();
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const handleWrapperTouchStart = useCallback((event) => {
+    if (!enableTouchImageReposition || mobileImageDragRef.current) return;
+    const touch = event.touches?.[0];
+    const stage = stageRef.current;
+    const imageNode = imgRef.current;
+    if (!touch || !stage || !imageNode) return;
+
+    const container = stage.container();
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+
+    const pointer = {
+      x: ((touch.clientX - rect.left) / rect.width) * stage.width(),
+      y: ((touch.clientY - rect.top) / rect.height) * stage.height(),
+    };
+    const hitTarget = stage.getIntersection(pointer);
+    if (!isTargetOnImageOrTransformer(hitTarget)) return;
+
+    mobileImageDragRef.current = true;
+    setIsMobileImageDragActive(true);
+    window.requestAnimationFrame(() => {
+      try {
+        imageNode.startDrag();
+      } catch {
+        releaseMobileImageDrag();
+      }
+    });
+  }, [enableTouchImageReposition, releaseMobileImageDrag]);
+
+  useEffect(() => {
+    const wrapper = wrapRef.current;
+    if (!wrapper || !isTouch) return undefined;
+
+    const handleTouchMove = (event) => {
+      if (!mobileImageDragRef.current) return;
+      event.preventDefault();
+    };
+
+    wrapper.addEventListener("touchstart", handleWrapperTouchStart, { passive: true });
+    wrapper.addEventListener("touchmove", handleTouchMove, { passive: false });
+    wrapper.addEventListener("touchend", releaseMobileImageDrag, { passive: true });
+    wrapper.addEventListener("touchcancel", releaseMobileImageDrag, { passive: true });
+
+    return () => {
+      wrapper.removeEventListener("touchstart", handleWrapperTouchStart);
+      wrapper.removeEventListener("touchmove", handleTouchMove);
+      wrapper.removeEventListener("touchend", releaseMobileImageDrag);
+      wrapper.removeEventListener("touchcancel", releaseMobileImageDrag);
+    };
+  }, [handleWrapperTouchStart, isTouch, releaseMobileImageDrag]);
 
   const handleCenterCanvas = useCallback(() => {
     const stage = stageRef.current;
@@ -2553,7 +2622,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   };
   const wrapperClassName = [
     styles.canvasWrapper,
-    isTouchImageDragEnabled ? styles.canvasWrapperTouchDrag : '',
+    isMobileImageDragActive ? styles.canvasWrapperTouchDrag : '',
     isPanningRef.current ? styles.grabbing : '',
     isPickingColor ? styles.picking : '',
     !shouldRenderCanvas ? styles.canvasWrapperInactive : '',
@@ -2562,7 +2631,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
     .filter(Boolean)
     .join(' ');
   const showReplacingOverlay = isReplacing;
-  const isImageDraggable = mode !== "stretch" && (!isTouch || isTouchImageDragEnabled);
+  const isImageDraggable = mode !== "stretch" && (!isTouch || enableTouchImageReposition);
   const imageDragBoundFunc =
     isImageDraggable && mode === "cover" ? dragBoundFunc : undefined;
   const editorRootClasses = [styles.editorRoot, editorRootClassName || '']
@@ -2698,17 +2767,17 @@ const EditorCanvas = forwardRef(function EditorCanvas(
           onMouseMove={onStageMouseMove}
           onMouseUp={endPan}
           onMouseLeave={endPan}
-          onTouchStart={isTouchImageDragEnabled ? onStageTouchStart : undefined}
-          onTouchMove={isTouchImageDragEnabled ? onStageTouchMove : undefined}
-          onTouchEnd={isTouchImageDragEnabled ? onStageTouchEnd : undefined}
-          onTouchCancel={isTouchImageDragEnabled ? onStageTouchEnd : undefined}
+          onTouchStart={isTouch && allowCanvasPan ? onStageTouchStart : undefined}
+          onTouchMove={isTouch && allowCanvasPan ? onStageTouchMove : undefined}
+          onTouchEnd={isTouch && allowCanvasPan ? onStageTouchEnd : undefined}
+          onTouchCancel={isTouch && allowCanvasPan ? onStageTouchEnd : undefined}
             style={{
               display: shouldRenderCanvas ? 'block' : 'none',
               width: '100%',
               height: '100%',
               maxWidth: 'none',
               background: 'transparent',
-              touchAction: isTouchImageDragEnabled ? 'none' : 'auto',
+              touchAction: isMobileImageDragActive ? 'none' : 'pan-y',
             }}
           >
             <Layer>
@@ -3097,7 +3166,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
               </Group>
             </Layer>
           </Stage>
-          {isTouch && !isTouchImageDragEnabled && (
+          {isTouch && !enableTouchImageReposition && !isMobileImageDragActive && (
             <div className={styles.touchScrollOverlay} aria-hidden="true" />
           )}
           {!showReplacingOverlay && resolvedImageUrl && imgStatus !== "loaded" && (
