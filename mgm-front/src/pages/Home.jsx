@@ -295,7 +295,7 @@ const STEP_TWO_UPLOAD_SUBTITLE = 'No cierres nada, esto puede demorar varios seg
 const STEP_THREE_COMMERCE_PENDING_LABEL = 'Enviando...';
 const STEP_THREE_ADD_TO_CART_LABEL = 'Agregar al carrito';
 const STEP_THREE_PRIVATE_CART_LABEL = 'Agregar al carrito (Privado)';
-const STEP_THREE_PRIVATE_CART_NOTE = '*Luego de 7 minutos se oculta';
+const STEP_THREE_PRIVATE_CART_NOTE = '*Después de 7 minutos se oculta de la tienda';
 const STEP_ONE_PREVIEW_MAX_WIDTH_PX = 551;
 const SKIP_MASTER_UPLOAD = String(import.meta.env?.VITE_SKIP_MASTER_UPLOAD || '0') === '1';
 const MOCKUP_BUCKET = String(import.meta.env?.VITE_MOCKUP_UPLOAD_BUCKET || 'preview');

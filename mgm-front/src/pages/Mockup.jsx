@@ -4758,7 +4758,7 @@ export default function Mockup() {
             <p className={styles.ctaHint}>
               Solo vos lo ves en la tienda <br></br> para regalar o comprar en secreto 🔒
             </p>
-            <p className={styles.ctaHintNote}>*Luego de 7 minutos se oculta</p>
+            <p className={styles.ctaHintNote}>*Después de 7 minutos se oculta de la tienda</p>
           </div>
         </div>
         <section className={styles.communitySection}>

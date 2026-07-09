@@ -4398,7 +4398,7 @@ body.light .stepTwoContainColorLabel {
 .stepThreePrivateCartNote {
   margin: 0;
   padding-inline: var(--space-1);
-  text-align: right;
+  text-align: center;
   font-size: 0.72rem;
   line-height: 1.35;
   color: var(--foreground-muted);
