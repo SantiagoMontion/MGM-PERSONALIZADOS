@@ -57,7 +57,11 @@ import { useFlow } from '@/state/flow.js';
 import { isTouchDevice } from '@/lib/device.ts';
 import { getMaxImageMb, bytesToMB, formatHeavyImageToastMessage } from '@/lib/imageLimits.js';
 import { MAX_IMAGE_MB as MAX_IMAGE_MB_BASE } from '../lib/imageSizeLimit.js';
-import { createJobAndProduct, pickCommerceTarget } from '@/lib/shopify.ts';
+import {
+  buildCartPermalink,
+  createJobAndProduct,
+  pickCommerceTarget,
+} from '@/lib/shopify.ts';
 import { parseSupabasePublicStorageUrl } from '@/lib/supabaseUrl.ts';
 import {
   projectNameContainsForbiddenWord,
@@ -1004,6 +1008,72 @@ const resolveProductPageTargetUrl = (result) => {
   return null;
 };
 
+/**
+ * Agrega la variante al carrito de Shopify y vuelve a la ficha del producto.
+ * Usa /cart/VARIANT:1?return_to=/products/HANDLE (misma tienda = cookie de carrito correcta).
+ */
+const resolveAddToCartThenProductUrl = (result) => {
+  if (!result || typeof result !== 'object') return null;
+
+  const productUrl = resolveProductPageTargetUrl(result);
+  const variantId =
+    result?.variantIdNumeric
+    || result?.variantId
+    || result?.raw?.variantIdNumeric
+    || result?.raw?.variantId
+    || result?.meta?.variantId
+    || null;
+
+  if (!variantId) return productUrl;
+
+  let baseUrl;
+  let returnTo = '/';
+  if (productUrl) {
+    try {
+      const parsed = new URL(productUrl);
+      baseUrl = parsed.origin;
+      returnTo = `${parsed.pathname}${parsed.search || ''}` || '/';
+    } catch {
+      // Si productUrl no es absoluto, usamos path relativo si parece de producto.
+      if (productUrl.startsWith('/')) {
+        returnTo = productUrl;
+      }
+    }
+  } else {
+    const handleRaw =
+      safeStr(result?.productHandle)
+      || safeStr(result?.handle)
+      || safeStr(result?.raw?.productHandle)
+      || safeStr(result?.raw?.handle);
+    if (handleRaw) {
+      let handle = handleRaw.replace(/^\/+/, '').replace(/\/+$/, '');
+      handle = safeReplace(handle, /^products\//i, '');
+      if (handle) returnTo = `/products/${encodeURIComponent(handle)}`;
+    }
+  }
+
+  if (!baseUrl) {
+    const domainRaw = safeStr(import.meta.env?.VITE_SHOPIFY_DOMAIN)
+      || safeStr(import.meta.env?.VITE_SHOPIFY_HOME_URL)
+      || safeStr(import.meta.env?.VITE_SHOPIFY_PUBLIC_BASE);
+    if (domainRaw) {
+      try {
+        baseUrl = /^https?:\/\//i.test(domainRaw)
+          ? new URL(domainRaw).origin
+          : `https://${domainRaw.replace(/\/+$/, '').split('/')[0]}`;
+      } catch {
+        baseUrl = undefined;
+      }
+    }
+  }
+
+  const cartThenProduct = buildCartPermalink(variantId, 1, {
+    ...(baseUrl ? { baseUrl } : {}),
+    returnTo,
+  });
+  return cartThenProduct || productUrl;
+};
+
 /** Abre destino de tienda/checkout en la pestaña real (sale del iframe del tema si hace falta). */
 function navigateSameTab(url) {
   const trimmed = safeStr(url);
@@ -1226,6 +1296,7 @@ export default function Home() {
   const [pdfPublicUrl, setPdfPublicUrl] = useState(null);
   const canvasRef = useRef(null);
   const designNameInputRef = useRef(null);
+  const designNameInteractAtRef = useRef(0);
   const didHydrateDesignNameRef = useRef(false);
   const pageRef = useRef(null);
   const stepOneFileInputRef = useRef(null);
@@ -3293,14 +3364,32 @@ export default function Home() {
     if (typeof document === 'undefined') return undefined;
     if (!configOpen) return undefined;
 
+    const isEditableField = (node) => {
+      if (!node || typeof node !== 'object') return false;
+      const tag = typeof node.tagName === 'string' ? node.tagName.toLowerCase() : '';
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return true;
+      if (node.isContentEditable) return true;
+      return false;
+    };
+
     const handlePointerDown = (event) => {
-      if (!configDropdownRef.current) return;
-      if (configDropdownRef.current.contains(event.target)) return;
+      const drawer = configDropdownRef.current;
+      if (!drawer) return;
+      // Toque dentro del drawer: no cerrar.
+      if (drawer.contains(event.target)) return;
+      // En móvil, al reabrir el teclado el primer toque a veces cae "afuera"
+      // (backdrop / body) aunque el usuario solo quiere seguir escribiendo.
+      const active = document.activeElement;
+      if (drawer.contains(active) && isEditableField(active)) return;
+      if (isEditableField(event.target)) return;
+      // Tras blur del nombre (teclado que se cierra), ignorar toques fantasma un momento.
+      const recentlyEditingName = Date.now() - (designNameInteractAtRef.current || 0) < 700;
+      if (recentlyEditingName) return;
       setConfigOpen(false);
     };
 
-    document.addEventListener('pointerdown', handlePointerDown);
-    return () => document.removeEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('pointerdown', handlePointerDown, true);
+    return () => document.removeEventListener('pointerdown', handlePointerDown, true);
   }, [configOpen]);
 
   useEffect(() => {
@@ -4092,7 +4181,20 @@ export default function Home() {
   );
 
   const toggleConfigSection = useCallback((section) => {
-    setOpenConfigSection((current) => (current === section ? null : section));
+    setOpenConfigSection((current) => {
+      // No colapsar "Nombre del proyecto" si el input sigue enfocado:
+      // en móvil un segundo toque para editar a veces pega en el accordion.
+      if (
+        current === section
+        && section === STEP_TWO_DRAWER_SECTIONS.project
+        && typeof document !== 'undefined'
+        && designNameInputRef.current
+        && document.activeElement === designNameInputRef.current
+      ) {
+        return current;
+      }
+      return current === section ? null : section;
+    });
   }, []);
 
   const handleStepTwoSizeOptionSelect = useCallback((optionId) => {
@@ -4165,6 +4267,37 @@ export default function Home() {
 
   const handleStepTwoCloseConfig = useCallback(() => {
     setConfigOpen(false);
+  }, []);
+
+  const handleStepTwoConfigBackdropClick = useCallback((event) => {
+    // Solo el click directo en el backdrop (no hijos).
+    if (event.currentTarget !== event.target) return;
+    const drawer = configDropdownRef.current;
+    const active = typeof document !== 'undefined' ? document.activeElement : null;
+    // Si el teclado móvil está abierto sobre el nombre, no cerrar por un toque fantasma.
+    if (
+      drawer
+      && active
+      && drawer.contains(active)
+      && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')
+    ) {
+      return;
+    }
+    if (Date.now() - (designNameInteractAtRef.current || 0) < 700) return;
+    setConfigOpen(false);
+  }, []);
+
+  const markDesignNameInteraction = useCallback(() => {
+    designNameInteractAtRef.current = Date.now();
+  }, []);
+
+  const handleDesignNameKeyDown = useCallback((event) => {
+    // Enter / "Listo" del teclado móvil no debe enviar el form ni cerrar el drawer.
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      event.stopPropagation();
+      event.currentTarget.blur();
+    }
   }, []);
 
   const validateStepTwoSelection = useCallback(() => {
@@ -4365,13 +4498,13 @@ export default function Home() {
       const result = await createJobAndProduct('cart', flow, {
         payloadOverrides: buildCommercePayloadOverrides(),
       });
-      let targetUrl = resolveProductPageTargetUrl(result);
+      let targetUrl = resolveAddToCartThenProductUrl(result);
       if (!targetUrl) {
         const snap = typeof flow?.get === 'function' ? flow.get() : flow;
-        targetUrl = resolveProductPageTargetUrl(snap?.lastProduct || null);
+        targetUrl = resolveAddToCartThenProductUrl(snap?.lastProduct || null);
       }
       if (!targetUrl) {
-        setErr('No se pudo abrir la página del producto. Intentá nuevamente en unos segundos.');
+        setErr('No se pudo agregar al carrito. Intentá nuevamente en unos segundos.');
         return;
       }
       const cartNavigation = navigateCommerceForCart(targetUrl, {
@@ -4382,7 +4515,7 @@ export default function Home() {
         },
       });
       if (!cartNavigation) {
-        setErr('No se pudo abrir la página del producto. Intentá nuevamente.');
+        setErr('No se pudo agregar al carrito. Intentá nuevamente.');
       }
     } catch (cartError) {
       error('[home-step-three-cart] failed', cartError);
@@ -4410,13 +4543,13 @@ export default function Home() {
       const result = await createJobAndProduct('cart', flow, {
         payloadOverrides: buildPrivateCommercePayloadOverrides(),
       });
-      let targetUrl = resolveProductPageTargetUrl(result);
+      let targetUrl = resolveAddToCartThenProductUrl(result);
       if (!targetUrl) {
         const snap = typeof flow?.get === 'function' ? flow.get() : flow;
-        targetUrl = resolveProductPageTargetUrl(snap?.lastProduct || null);
+        targetUrl = resolveAddToCartThenProductUrl(snap?.lastProduct || null);
       }
       if (!targetUrl) {
-        setErr('No se pudo abrir la página del producto privado. Intentá nuevamente en unos segundos.');
+        setErr('No se pudo agregar el producto privado al carrito. Intentá nuevamente en unos segundos.');
         return;
       }
       const cartNavigation = navigateCommerceForCart(targetUrl, {
@@ -4427,7 +4560,7 @@ export default function Home() {
         },
       });
       if (!cartNavigation) {
-        setErr('No se pudo abrir la página del producto privado. Intentá nuevamente.');
+        setErr('No se pudo agregar el producto privado al carrito. Intentá nuevamente.');
       }
     } catch (cartError) {
       error('[home-step-three-private-cart] failed', cartError);
@@ -5576,7 +5709,7 @@ export default function Home() {
               {configOpen && (
                 <div
                   className={`${styles.stepTwoDrawerBackdrop} ${styles.stepTwoConfigDrawerBackdrop}`.trim()}
-                  onClick={handleStepTwoCloseConfig}
+                  onClick={handleStepTwoConfigBackdropClick}
                   role="presentation"
                 >
                   <div
@@ -5860,7 +5993,17 @@ export default function Home() {
                                   placeholder="Ej: Nubes y cielo rosa"
                                   value={designName}
                                   onChange={handleDesignNameChange}
+                                  onFocus={markDesignNameInteraction}
+                                  onBlur={markDesignNameInteraction}
+                                  onPointerDown={(event) => {
+                                    markDesignNameInteraction();
+                                    event.stopPropagation();
+                                  }}
+                                  onClick={(event) => event.stopPropagation()}
+                                  onKeyDown={handleDesignNameKeyDown}
                                   disabled={!hasImage}
+                                  autoComplete="off"
+                                  enterKeyHint="done"
                                   aria-invalid={resolvedDesignNameError ? 'true' : 'false'}
                                   aria-describedby={resolvedDesignNameError ? 'design-name-help design-name-error' : 'design-name-help'}
                                 />
