@@ -10,6 +10,7 @@ import {
   useState,
   useId,
 } from 'react';
+import { flushSync } from 'react-dom';
 import { useOutletContext } from 'react-router-dom';
 import SeoJsonLd from '../components/SeoJsonLd';
 
@@ -2187,8 +2188,16 @@ export default function Home() {
       return false;
     }
     try {
-      setModerationNotice('');
-      setBusy(true);
+      // Pintar el overlay YA: sin flushSync, exportPadAsBlob congela el hilo
+      // antes de que React muestre "Guardando tu diseño...".
+      flushSync(() => {
+        setModerationNotice('');
+        setBusy(true);
+        setConfigOpen(false);
+        setToolsDrawerOpen(false);
+      });
+      await nextPaint(2);
+
       const flowState = (typeof flow?.get === 'function' ? flow.get() : flow) || {};
       const maxImageMb = getMaxImageMb();
       const notifyTooHeavy = (actualMB) => {
@@ -2221,7 +2230,6 @@ export default function Home() {
           return false;
         }
       }
-      await nextPaint(2);
       const designBlob = await canvasRef.current.exportPadAsBlob?.({
         maxDimension: 4000,
       });
@@ -5927,9 +5935,9 @@ export default function Home() {
                           <button
                             type="submit"
                             className={`${styles.stepTwoPrimaryButton} ${styles.stepTwoConfigSubmitButton}`.trim()}
-                            disabled={isPublishing || !canConfirmStepTwoConfig}
+                            disabled={busy || isPublishing || !canConfirmStepTwoConfig}
                           >
-                            Confirmar selección
+                            {busy ? 'Guardando…' : 'Confirmar selección'}
                           </button>
                         </div>
                       </div>
