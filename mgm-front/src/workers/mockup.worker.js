@@ -1,4 +1,4 @@
-// Genera mockup 1080×1080 en Worker con OffscreenCanvas
+// Genera mockup CANVAS_SIZE×CANVAS_SIZE (2048) en Worker con OffscreenCanvas
 // Entrada: { cmd:'mockup', buffer:ArrayBuffer, opts }
 // Salida:  { ok:true, type:'mockup', buffer:ArrayBuffer }
 

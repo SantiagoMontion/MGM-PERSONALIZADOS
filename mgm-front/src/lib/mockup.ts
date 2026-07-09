@@ -67,15 +67,15 @@ export async function renderMockup1080(
 
   options = options ?? maybeOptions ?? {};
 
-  const CANVAS_SIZE = 1080;
+  const CANVAS_SIZE = 2048;
   const CLASSIC_MAX_LONG_PX = Number(
     import.meta.env?.VITE_MOCKUP_CLASSIC_MAX_LONG_PX ??
     import.meta.env?.VITE_MOCKUP_MAX_LONG_PX,
-  ) || 990;
+  ) || 1880;
   const CLASSIC_MIN_LONG_PX = Number(
     import.meta.env?.VITE_MOCKUP_CLASSIC_MIN_LONG_PX ??
     import.meta.env?.VITE_MOCKUP_MIN_LONG_PX,
-  ) || 400;
+  ) || 760;
   const CLASSIC_REF_MAX_LONG_CM = Number(
     import.meta.env?.VITE_CLASSIC_REF_MAX_LONG_CM ??
     import.meta.env?.VITE_REF_MAX_CM_CLASSIC ??
@@ -89,12 +89,12 @@ export async function renderMockup1080(
     import.meta.env?.VITE_MOCKUP_GLASSPAD_MAX_LONG_PX ??
     import.meta.env?.VITE_MOCKUP_GLASS_MAX_LONG_PX ??
     import.meta.env?.VITE_MOCKUP_MAX_LONG_PX,
-  ) || 860;
+  ) || 1630;
   const GLASS_MIN_LONG_PX = Number(
     import.meta.env?.VITE_MOCKUP_GLASSPAD_MIN_LONG_PX ??
     import.meta.env?.VITE_MOCKUP_GLASS_MIN_LONG_PX ??
     import.meta.env?.VITE_MOCKUP_MIN_LONG_PX,
-  ) || 420;
+  ) || 800;
   const GLASS_REF_MAX_LONG_CM = Number(
     import.meta.env?.VITE_GLASSPAD_REF_MAX_LONG_CM ??
     import.meta.env?.VITE_REF_MAX_CM_GLASS,
@@ -103,8 +103,8 @@ export async function renderMockup1080(
     import.meta.env?.VITE_GLASSPAD_REF_MIN_LONG_CM ??
     import.meta.env?.VITE_REF_MIN_CM,
   ) || 20;
-  const GLASS_FIXED_LONG_PX = Number(import.meta.env?.VITE_MOCKUP_GLASSPAD_FIXED_LONG_PX) || 700;
-  const RADIUS_PX = Number(import.meta.env?.VITE_MOCKUP_PAD_RADIUS_PX) || 8;
+  const GLASS_FIXED_LONG_PX = Number(import.meta.env?.VITE_MOCKUP_GLASSPAD_FIXED_LONG_PX) || 1330;
+  const RADIUS_PX = Number(import.meta.env?.VITE_MOCKUP_PAD_RADIUS_PX) || 16;
 
   function roundRectPath(
     ctx: CanvasRenderingContext2D,

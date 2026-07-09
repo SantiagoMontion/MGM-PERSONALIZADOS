@@ -2524,7 +2524,7 @@ export default function Home() {
         const mockupIsCircular = isCircular && !isFixedPad49x42Material(material);
         const mockupRadiusPx = isStraightEdgesAvailable && !mockupIsCircular && isStraightEdges
           ? 0
-          : (Number(import.meta.env?.VITE_MOCKUP_PAD_RADIUS_PX) || 8);
+          : (Number(import.meta.env?.VITE_MOCKUP_PAD_RADIUS_PX) || 34);
         const mockupRenderOptions = {
           composition: {
             widthPx: masterWidthExact,

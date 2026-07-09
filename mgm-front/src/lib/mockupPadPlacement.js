@@ -1,10 +1,13 @@
 /**
- * Rectángulo del pad (proporción real del diseño exportado) dentro del lienzo 1080×1080.
+ * Rectángulo del pad (proporción real del diseño exportado) dentro del lienzo de mockup.
  * Compartido por `mockup.js` y `mockup.worker.js` para no distorsionar el arte del Konva.
+ *
+ * 2048²: calidad buena para Shopify (antes 1080² dejaba pads chicos ~690px y se veían pixelados).
  */
 
-const CANVAS_SIZE = 1080;
-const RADIUS_PX = 18;
+const CANVAS_SIZE = 2048;
+/** Radio de esquinas escalado con el canvas (antes 18 @ 1080). */
+const RADIUS_PX = 34;
 
 function roundRectPath(ctx, x, y, w, h, r) {
   const rr = Math.max(0, Math.min(r, Math.min(w, h) / 2));
@@ -48,7 +51,7 @@ export function clipMockupPadPath(ctx, x, y, w, h, radiusPx, shape = 'rounded_re
 }
 
 /**
- * Compone el diseño sobre lienzo 1080×1080.
+ * Compone el diseño sobre el lienzo de mockup (CANVAS_SIZE²).
  * Circular: sin fondo blanco ni borde cuadrado; PNG con transparencia fuera del círculo.
  */
 export function drawMockupComposite(ctx, drawable, placement, options = {}) {
@@ -166,7 +169,8 @@ export function getMockupPadRect1080(opts, fallbackImageW, fallbackImageH) {
     if (Number.isFinite(cm) && cm > 0) return cm * 10;
     return 1400;
   })();
-  const refPixels = Number(env.VITE_MOCKUP_REF_PIXELS) || 1180;
+  // Escala del pad: ~2240 @ 2048 canvas ≈ misma proporción que 1180 @ 1080.
+  const refPixels = Number(env.VITE_MOCKUP_REF_PIXELS) || 2240;
   const pixelsPerMm = refPixels / Math.max(1, refMaxMm);
 
   let targetW = Math.max(1, wMm * pixelsPerMm);
