@@ -58,7 +58,7 @@ import { isTouchDevice } from '@/lib/device.ts';
 import { getMaxImageMb, bytesToMB, formatHeavyImageToastMessage } from '@/lib/imageLimits.js';
 import { MAX_IMAGE_MB as MAX_IMAGE_MB_BASE } from '../lib/imageSizeLimit.js';
 import {
-  buildCartPermalink,
+  buildCartAddUrl,
   createJobAndProduct,
   pickCommerceTarget,
 } from '@/lib/shopify.ts';
@@ -1010,7 +1010,7 @@ const resolveProductPageTargetUrl = (result) => {
 
 /**
  * Agrega la variante al carrito de Shopify y vuelve a la ficha del producto.
- * Usa /cart/VARIANT:1?return_to=/products/HANDLE (misma tienda = cookie de carrito correcta).
+ * Usa /cart/add (NO /cart/VARIANT:1, que en muchos temas manda a checkout).
  */
 const resolveAddToCartThenProductUrl = (result) => {
   if (!result || typeof result !== 'object') return null;
@@ -1067,7 +1067,8 @@ const resolveAddToCartThenProductUrl = (result) => {
     }
   }
 
-  const cartThenProduct = buildCartPermalink(variantId, 1, {
+  // /cart/add respeta return_to y NO fuerza checkout (a diferencia de /cart/id:qty).
+  const cartThenProduct = buildCartAddUrl(variantId, 1, {
     ...(baseUrl ? { baseUrl } : {}),
     returnTo,
   });
