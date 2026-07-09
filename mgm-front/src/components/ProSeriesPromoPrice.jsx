@@ -4,11 +4,13 @@ import {
   resolveFrontendShippingCaption,
 } from '../lib/frontendDisplayPricing.js';
 import { buildAlfombraPromoDisplay } from '../lib/alfombraPromoDisplay.js';
-import { buildProSeriesPromoDisplay } from '../lib/proSeriesPromoDisplay.js';
+import { buildSiteWidePromoDisplay } from '../lib/siteWidePromoDisplay.js';
 import styles from './ProSeriesPromoPrice.module.css';
 
 /**
- * Precio de lista con promos visuales por material (Alfombra 2x1).
+ * Precio de lista con promos visuales:
+ * - Alfombra: 2x1 (sin tachado)
+ * - Resto: 20% OFF (lista tachada + precio nuevo más grande debajo)
  * `transferPrice` es el precio final de lista (+15% redondeado) que va a Shopify.
  */
 export default function ProSeriesPromoPrice({
@@ -18,14 +20,14 @@ export default function ProSeriesPromoPrice({
   lightTheme = false,
   inline = false,
   className = '',
-  showBadge = false,
+  showBadge = true,
   showFreeShippingCaption = false,
 }) {
   const listPrice = Math.round(Number(transferPrice) || 0);
   const formattedListPrice = listPrice > 0 ? formatARS(listPrice) : '0';
 
   const promo = useMemo(
-    () => buildProSeriesPromoDisplay(material, listPrice),
+    () => buildSiteWidePromoDisplay(material, listPrice),
     [listPrice, material],
   );
   const alfombraPromo = useMemo(
@@ -59,6 +61,7 @@ export default function ProSeriesPromoPrice({
     inline ? styles.rootInline : '',
     variantClassName,
     alfombraPromo ? styles.rootAlfombra : '',
+    promo ? styles.rootPromoStack : '',
     className,
   ]
     .filter(Boolean)
@@ -129,7 +132,7 @@ export default function ProSeriesPromoPrice({
       {showBadge ? (
         <span className={badgeClassName}>{promo.discountLabel}</span>
       ) : null}
-      <div className={styles.priceRow}>
+      <div className={styles.priceColumn}>
         <span className={compareClassName}>
           $
           {' '}
