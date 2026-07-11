@@ -1,10 +1,14 @@
 import { getDeviceCategory } from './device';
 
-const RAW_API_BASE = typeof import.meta.env.VITE_API_BASE === 'string'
+const PROD_API_BASE = 'https://mgm-api.vercel.app/api';
+
+const RAW_API_BASE = typeof import.meta.env.VITE_API_BASE === 'string' && import.meta.env.VITE_API_BASE.trim()
   ? import.meta.env.VITE_API_BASE
-  : typeof import.meta.env.VITE_API_URL === 'string'
+  : typeof import.meta.env.VITE_API_URL === 'string' && import.meta.env.VITE_API_URL.trim()
     ? import.meta.env.VITE_API_URL
-    : '';
+    : import.meta.env.PROD
+      ? PROD_API_BASE
+      : '';
 
 const API_BASE = RAW_API_BASE.trim().replace(/\/+$/, '');
 const TRACK_ENDPOINT = API_BASE ? `${API_BASE}/track` : '/api/track';
@@ -193,42 +197,23 @@ export function trackEvent(eventName: string, data?: Record<string, any>) {
 
     const debugEnabled = resolveDebugEnabled();
     const endpoint = debugEnabled ? `${TRACK_ENDPOINT}?echo=1` : TRACK_ENDPOINT;
-
-    if (!debugEnabled && typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
-      const params = new URLSearchParams();
-      for (const [key, value] of Object.entries(payload)) {
-        if (value == null) continue;
-        if (typeof value === 'object') {
-          try {
-            params.append(key, JSON.stringify(value));
-          } catch {
-            continue;
-          }
-        } else {
-          params.append(key, String(value));
-        }
-      }
-      const sent = navigator.sendBeacon(TRACK_ENDPOINT, params);
-      if (debugEnabled) {
-        console.debug('[track]', { event: eventName, rid, sent });
-      }
-      return;
-    }
-
     const bodyJson = JSON.stringify(payload);
+
     fetch(endpoint, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'Content-Type': 'application/json' },
       body: bodyJson,
       keepalive: true,
     })
       .then(async (response) => {
         if (!debugEnabled) return;
         let diagId: string | null = null;
+        let reason: string | null = null;
         try {
           const cloned = response.clone();
           const json = await cloned.json();
           diagId = json?.diagId ?? json?.diag_id ?? null;
+          reason = json?.reason ?? null;
         } catch {
           diagId = null;
         }
@@ -237,6 +222,7 @@ export function trackEvent(eventName: string, data?: Record<string, any>) {
           rid,
           status: response.status,
           diagId,
+          reason,
         });
       })
       .catch((error) => {
@@ -245,7 +231,7 @@ export function trackEvent(eventName: string, data?: Record<string, any>) {
           event: eventName,
           rid,
           status: 'error',
-          error: error?.message || String(error),
+          error: error instanceof Error ? error.message : String(error),
         });
       });
   } catch {

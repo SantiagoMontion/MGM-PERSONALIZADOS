@@ -25,6 +25,7 @@ import printsSearch from '../api-routes/prints/search.js';
 import printsDownload from '../api-routes/prints/download.js';
 import printsUpload from '../api-routes/prints/upload.js';
 import analyticsDashboard from '../api-routes/analytics/dashboard.js';
+import trackRoute from '../api-routes/track.js';
 import privateCheckout from '../api-routes/private/checkout/index.js';
 import seoCheckout from '../api-routes/seo/checkout.js';
 import seoEditor from '../api-routes/seo/editor.js';
@@ -65,6 +66,7 @@ const ROUTES = new Map([
   ['GET /api/prints/download', printsDownload],
   ['POST /api/prints/upload', printsUpload],
   ['GET /api/analytics/dashboard', analyticsDashboard],
+  ['POST /api/track', trackRoute],
   ['POST /api/private/checkout', privateCheckout],
   ['GET /api/seo/checkout', seoCheckout],
   ['GET /api/seo/editor', seoEditor],
