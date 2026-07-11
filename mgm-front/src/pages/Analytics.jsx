@@ -28,8 +28,6 @@ const dashboardEndpoints = [
   '/api/analytics/dashboard',
 ];
 
-const FUNNEL_ORDER = ['visit', 'upload', 'edit', 'continue', 'review', 'cart', 'purchase'];
-
 const EVENT_LABELS = {
   page_view: 'Vista de página',
   site_visit: 'Visita al sitio',
@@ -229,57 +227,22 @@ function DeviceSplit({ devices }) {
   );
 }
 
-function FunnelPanel({ homeFunnel }) {
-  const baseline = homeFunnel.visit?.rids || 0;
+function MaterialSizePanel({ combos }) {
+  if (!combos?.length) {
+    return (
+      <EmptyState
+        title="Sin combinaciones todavía"
+        text="Se registran al subir imagen, confirmar diseño o agregar al carrito."
+      />
+    );
+  }
 
   return (
-    <div className={styles.funnelList}>
-      {FUNNEL_ORDER.map((key) => {
-        const stage = homeFunnel[key];
-        if (!stage) return null;
-
-        const widthPct = baseline > 0
-          ? Math.max(2, (stage.rids / baseline) * 100)
-          : 0;
-
-        const rate = stage.rate_from_visit
-          ?? stage.rate_from_upload
-          ?? stage.rate_from_edit
-          ?? stage.rate_from_continue
-          ?? stage.rate_from_review
-          ?? stage.rate_from_cart
-          ?? null;
-
-        const dropOff = stage.drop_off_from_visit
-          ?? stage.drop_off_from_upload
-          ?? stage.drop_off_from_edit
-          ?? stage.drop_off_from_continue
-          ?? stage.drop_off_from_review
-          ?? null;
-
-        return (
-          <div key={key} className={styles.funnelStep}>
-            <div className={styles.funnelStepHead}>
-              <span className={styles.funnelStepLabel}>{stage.label}</span>
-              <span className={styles.funnelStepCount}>{formatNumber(stage.rids)}</span>
-            </div>
-            <div className={styles.funnelBarTrack}>
-              <div className={styles.funnelBarFill} style={{ width: `${widthPct}%` }} />
-            </div>
-            <div className={styles.funnelStepMeta}>
-              {rate != null ? (
-                <span>Avance <strong>{formatPercentage(rate)}</strong></span>
-              ) : null}
-              {dropOff != null && dropOff > 0 ? (
-                <span className={styles.funnelDrop}>
-                  Abandono <strong>{formatPercentage(dropOff)}</strong>
-                </span>
-              ) : null}
-            </div>
-          </div>
-        );
-      })}
-    </div>
+    <RankList
+      items={combos}
+      labelKey="label"
+      valueKey="count"
+    />
   );
 }
 
@@ -442,11 +405,11 @@ export default function AnalyticsPage() {
   };
 
   const summary = data?.summary ?? {};
-  const homeFunnel = data?.home_funnel ?? {};
   const dailyVisits = Array.isArray(data?.daily_visits) ? data.daily_visits : [];
   const eventBreakdown = Array.isArray(data?.event_breakdown) ? data.event_breakdown : [];
   const topMaterials = Array.isArray(data?.top_materials) ? data.top_materials : [];
-  const topPaths = Array.isArray(data?.top_paths) ? data.top_paths : [];
+  const topSizes = Array.isArray(data?.top_sizes) ? data.top_sizes : [];
+  const topMaterialSizes = Array.isArray(data?.top_material_sizes) ? data.top_material_sizes : [];
   const devices = data?.devices ?? null;
   const lastEvents = Array.isArray(data?.last_events) ? data.last_events : [];
 
@@ -629,13 +592,13 @@ export default function AnalyticsPage() {
                     </div>
                   </section>
 
-                  <section className={styles.panel} aria-labelledby="funnel-title">
+                  <section className={styles.panel} aria-labelledby="material-size-title">
                     <div className={styles.panelHeader}>
-                      <h2 id="funnel-title" className={styles.panelTitle}>Embudo Home</h2>
-                      <p className={styles.panelHint}>Paso a paso del personalizador</p>
+                      <h2 id="material-size-title" className={styles.panelTitle}>Medida y material más pedido</h2>
+                      <p className={styles.panelHint}>Combinaciones más elegidas</p>
                     </div>
                     <div className={styles.panelBody}>
-                      <FunnelPanel homeFunnel={homeFunnel} />
+                      <MaterialSizePanel combos={topMaterialSizes} />
                     </div>
                   </section>
                 </div>
@@ -659,20 +622,20 @@ export default function AnalyticsPage() {
                   </div>
                 </section>
 
-                <section className={styles.panel} aria-labelledby="paths-title">
+                <section className={styles.panel} aria-labelledby="sizes-title">
                   <div className={styles.panelHeader}>
-                    <h2 id="paths-title" className={styles.panelTitle}>Páginas visitadas</h2>
+                    <h2 id="sizes-title" className={styles.panelTitle}>Medidas elegidas</h2>
+                    <p className={styles.panelHint}>Tamaños más usados</p>
                   </div>
                   <div className={styles.panelBody}>
-                    {topPaths.length ? (
+                    {topSizes.length ? (
                       <RankList
-                        items={topPaths}
-                        labelKey="path"
-                        valueKey="views"
-                        code
+                        items={topSizes}
+                        labelKey="size"
+                        valueKey="count"
                       />
                     ) : (
-                      <EmptyState title="Sin rutas" text="Se registran con cada vista de página." />
+                      <EmptyState title="Sin medidas" text="Se registran al elegir tamaño en el personalizador." />
                     )}
                   </div>
                 </section>
