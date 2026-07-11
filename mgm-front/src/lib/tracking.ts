@@ -12,7 +12,7 @@ const recentEvents = new Map<string, number>();
 function resolveTrackingEnabled(): boolean {
   const raw = import.meta.env?.VITE_TRACKING_ENABLED;
   if (raw == null || String(raw).trim() === '') {
-    return Boolean(import.meta.env?.DEV);
+    return true;
   }
   const normalized = String(raw).trim().toLowerCase();
   return normalized !== '0' && normalized !== 'false';

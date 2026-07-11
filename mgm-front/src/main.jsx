@@ -11,6 +11,7 @@ import DevRenderPreview from './pages/DevRenderPreview.jsx';
 import DevCanvasPreview from './pages/DevCanvasPreview.jsx';
 import Mockup from './pages/Mockup.jsx';
 import CalculadoraPage from './pages/Calculadora.jsx';
+import Analytics from './pages/Analytics.jsx';
 import AdminAnalyticsPage from './pages/AdminAnalytics.jsx';
 import MousepadsPersonalizados from './pages/MousepadsPersonalizados.jsx';
 import ComoFunciona from './pages/ComoFunciona.jsx';
@@ -51,6 +52,7 @@ const routes = [
       { path: '/preguntas-frecuentes', element: <PreguntasFrecuentes /> },
       { path: '/tutorial', element: <Tutorial /> },
       { path: '/busqueda', element: <Busqueda /> },
+      { path: '/analytics', element: <Analytics /> },
       { path: '/confirm', element: <Confirm /> },
       { path: '/mockup', element: <Mockup /> },
       { path: '/bridge', element: <Bridge /> },

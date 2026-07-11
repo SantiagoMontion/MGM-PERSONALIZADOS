@@ -182,7 +182,7 @@ const withTimeout = (promise, ms, onTimeout) => new Promise((resolve, reject) =>
 import { apiFetch, postJSON, getResolvedApiUrl } from '@/lib/api.js';
 import { resolveIconAsset } from '@/lib/iconRegistry.js';
 import { sha256Hex } from '@/lib/hash.js';
-import { trackEvent } from '@/lib/tracking';
+import { trackEvent, ensureTrackingRid } from '@/lib/tracking';
 
 const STEP_TWO_TOOL_ICON_SOURCES = {
   centerHorizontal: resolveIconAsset('centrado_V.svg'),
@@ -1493,6 +1493,16 @@ export default function Home() {
   }, [currentStep, hasImage]);
 
   useEffect(() => {
+    const rid = ensureTrackingRid();
+    if (!rid) return;
+    if (currentStep === HOME_STEP.edit) {
+      trackEvent('home_step_edit', { rid, extra: { step: 2 } });
+    } else if (currentStep === HOME_STEP.review) {
+      trackEvent('home_step_review', { rid, extra: { step: 3 } });
+    }
+  }, [currentStep]);
+
+  useEffect(() => {
     if (isStepUpload || isStepReview || !hasImage) {
       setConfigOpen(false);
       setToolsDrawerOpen(false);
@@ -1766,7 +1776,21 @@ export default function Home() {
     setConfigOpen(Boolean(info?.openConfig));
     setToolsDrawerOpen(false);
     dispatchStep({ type: 'EDIT', hasImage: true });
-  }, [flow, setUploaded]);
+    try {
+      const rid = ensureTrackingRid();
+      if (rid) {
+        trackEvent('home_image_uploaded', {
+          rid,
+          extra: {
+            material,
+            width_cm: activeSizeCm?.w,
+            height_cm: activeSizeCm?.h,
+            replacing: Boolean(info?.isReplacing),
+          },
+        });
+      }
+    } catch {}
+  }, [activeSizeCm?.h, activeSizeCm?.w, flow, material, setUploaded]);
 
   useEffect(() => () => {
     if (mockupUrlRef.current && mockupUrlRef.current.startsWith('blob:')) {
@@ -4233,12 +4257,20 @@ export default function Home() {
   }, [handleSizeChange]);
 
   const handleReturnToUpload = useCallback(() => {
+    try {
+      const rid = ensureTrackingRid();
+      if (rid) trackEvent('home_restart', { rid });
+    } catch {}
     handleClearImage();
     dispatchStep({ type: 'RESET' });
   }, [handleClearImage]);
 
   const handleStepTwoOpenReplace = useCallback(() => {
     setErr('');
+    try {
+      const rid = ensureTrackingRid();
+      if (rid) trackEvent('click_replace_image', { rid });
+    } catch {}
     stepTwoFileInputRef.current?.click();
   }, []);
 
@@ -4254,6 +4286,10 @@ export default function Home() {
   const handleStepTwoOpenTools = useCallback(() => {
     setConfigOpen(false);
     setToolsDrawerOpen(true);
+    try {
+      const rid = ensureTrackingRid();
+      if (rid) trackEvent('home_tools_open', { rid });
+    } catch {}
   }, []);
 
   const handleStepTwoCloseTools = useCallback(() => {
@@ -4264,6 +4300,10 @@ export default function Home() {
     setToolsDrawerOpen(false);
     setOpenConfigSection(STEP_TWO_DRAWER_SECTIONS.project);
     setConfigOpen(true);
+    try {
+      const rid = ensureTrackingRid();
+      if (rid) trackEvent('home_config_open', { rid });
+    } catch {}
   }, []);
 
   const handleStepTwoCloseConfig = useCallback(() => {
@@ -4404,6 +4444,15 @@ export default function Home() {
     setConfigOpen(false);
     setToolsDrawerOpen(false);
     dispatchStep({ type: 'REVIEW' });
+    try {
+      const rid = ensureTrackingRid();
+      if (rid) {
+        trackEvent('home_step_review', {
+          rid,
+          extra: { step: 3, source: 'confirm' },
+        });
+      }
+    } catch {}
   }, [captureReviewPreview, syncFlowEditorSelection]);
 
   const handleReturnToEditor = useCallback(() => {
@@ -4411,6 +4460,10 @@ export default function Home() {
     setErr('');
     setConfigOpen(false);
     setToolsDrawerOpen(false);
+    try {
+      const rid = ensureTrackingRid();
+      if (rid) trackEvent('home_return_editor', { rid });
+    } catch {}
 
     const run = async () => {
       setReviewExitBusy(true);
@@ -4508,6 +4561,16 @@ export default function Home() {
         setErr('No se pudo agregar al carrito. Intentá nuevamente en unos segundos.');
         return;
       }
+      try {
+        const rid = ensureTrackingRid();
+        if (rid) {
+          trackEvent('home_add_to_cart', {
+            rid,
+            cta_type: 'cart',
+            extra: { material, width_cm: activeSizeCm?.w, height_cm: activeSizeCm?.h },
+          });
+        }
+      } catch {}
       const cartNavigation = navigateCommerceForCart(targetUrl, {
         onNewTabOpened: () => {
           setConfigOpen(false);
@@ -4526,10 +4589,13 @@ export default function Home() {
       setStepThreeCommerceAction(null);
     }
   }, [
+    activeSizeCm?.h,
+    activeSizeCm?.w,
     buildCommercePayloadOverrides,
     busy,
     dispatchStep,
     flow,
+    material,
     stepThreeCommerceAction,
     syncFlowEditorSelection,
     uploaded,
@@ -4553,6 +4619,16 @@ export default function Home() {
         setErr('No se pudo agregar el producto privado al carrito. Intentá nuevamente en unos segundos.');
         return;
       }
+      try {
+        const rid = ensureTrackingRid();
+        if (rid) {
+          trackEvent('home_add_private_cart', {
+            rid,
+            cta_type: 'private',
+            extra: { material, width_cm: activeSizeCm?.w, height_cm: activeSizeCm?.h },
+          });
+        }
+      } catch {}
       const cartNavigation = navigateCommerceForCart(targetUrl, {
         onNewTabOpened: () => {
           setConfigOpen(false);
@@ -4571,10 +4647,13 @@ export default function Home() {
       setStepThreeCommerceAction(null);
     }
   }, [
+    activeSizeCm?.h,
+    activeSizeCm?.w,
     buildPrivateCommercePayloadOverrides,
     busy,
     dispatchStep,
     flow,
+    material,
     stepThreeCommerceAction,
     syncFlowEditorSelection,
     uploaded,

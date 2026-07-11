@@ -6,6 +6,7 @@ import Footer from './components/Footer';
 import MobileAdvisoryBanner from './components/MobileAdvisoryBanner';
 import ProgressHeader from './components/ProgressHeader';
 import { bindShopifyEmbedResize, scheduleShopifyEmbedResize } from './lib/shopifyEmbedResize';
+import { trackEvent, ensureTrackingRid } from '@/lib/tracking';
 
 const SHOPIFY_EMBED_STORAGE_KEY = 'mgm_shopify_embed';
 
@@ -113,6 +114,27 @@ export default function App() {
     if (!shopifyEmbed) return undefined;
     return bindShopifyEmbedResize();
   }, [shopifyEmbed]);
+
+  useEffect(() => {
+    const rid = ensureTrackingRid();
+    if (!rid) return;
+    trackEvent('page_view', {
+      rid,
+      extra: { path: location.pathname },
+    });
+    try {
+      const visitKey = 'mgm_site_visit_sent';
+      if (!window.sessionStorage.getItem(visitKey)) {
+        window.sessionStorage.setItem(visitKey, '1');
+        trackEvent('site_visit', {
+          rid,
+          extra: { path: location.pathname },
+        });
+      }
+    } catch {
+      // ignore storage errors
+    }
+  }, [location.pathname]);
 
   useEffect(() => {
     if (!shopifyEmbed) return;

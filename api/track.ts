@@ -16,6 +16,19 @@ const ALLOWED_EVENTS = new Set<string>([
   'cta_click_private',
   'cta_click_cart',
   'purchase_completed',
+  'page_view',
+  'site_visit',
+  'home_image_uploaded',
+  'home_step_edit',
+  'home_step_review',
+  'continue_design',
+  'home_config_open',
+  'home_tools_open',
+  'home_add_to_cart',
+  'home_add_private_cart',
+  'home_return_editor',
+  'home_restart',
+  'click_replace_image',
 ]);
 
 let cachedClient: SupabaseClient | null = null;
