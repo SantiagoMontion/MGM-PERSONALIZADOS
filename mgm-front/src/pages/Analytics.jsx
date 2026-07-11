@@ -208,6 +208,7 @@ export default function AnalyticsPage() {
   const eventBreakdown = Array.isArray(data?.event_breakdown) ? data.event_breakdown : [];
   const topMaterials = Array.isArray(data?.top_materials) ? data.top_materials : [];
   const topPaths = Array.isArray(data?.top_paths) ? data.top_paths : [];
+  const devices = data?.devices ?? null;
   const lastEvents = Array.isArray(data?.last_events) ? data.last_events : [];
   const maxDailyVisitors = dailyVisits.reduce((max, row) => Math.max(max, row.visitors ?? 0), 0) || 1;
 
@@ -302,6 +303,42 @@ export default function AnalyticsPage() {
                     <span className={styles.cardHint}>Conversión total: {formatPercentage(summary.completion_rate)}</span>
                   </article>
                 </div>
+              </section>
+
+              <section className={styles.section}>
+                <h2 className={styles.sectionTitle}>Dispositivos</h2>
+                {devices?.total > 0 ? (
+                  <div className={styles.deviceGrid}>
+                    <article className={styles.deviceCard}>
+                      <span className={styles.deviceLabel}>Celular</span>
+                      <p className={styles.devicePercent}>{formatPercentage(devices.mobile?.percent)}</p>
+                      <span className={styles.deviceCount}>
+                        {formatNumber(devices.mobile?.visitors)} visitantes
+                      </span>
+                      <div className={styles.deviceBarTrack}>
+                        <div
+                          className={`${styles.deviceBar} ${styles.deviceBarMobile}`.trim()}
+                          style={{ width: `${Math.max(devices.mobile?.percent || 0, 4)}%` }}
+                        />
+                      </div>
+                    </article>
+                    <article className={styles.deviceCard}>
+                      <span className={styles.deviceLabel}>PC</span>
+                      <p className={styles.devicePercent}>{formatPercentage(devices.desktop?.percent)}</p>
+                      <span className={styles.deviceCount}>
+                        {formatNumber(devices.desktop?.visitors)} visitantes
+                      </span>
+                      <div className={styles.deviceBarTrack}>
+                        <div
+                          className={`${styles.deviceBar} ${styles.deviceBarDesktop}`.trim()}
+                          style={{ width: `${Math.max(devices.desktop?.percent || 0, 4)}%` }}
+                        />
+                      </div>
+                    </article>
+                  </div>
+                ) : (
+                  <p className={styles.empty}>Sin datos de dispositivos en este período.</p>
+                )}
               </section>
 
               <section className={styles.section}>

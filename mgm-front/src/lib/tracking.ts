@@ -1,4 +1,4 @@
-const RAW_API_BASE = typeof import.meta.env.VITE_API_BASE === 'string'
+import { getDeviceCategory } from './device';
   ? import.meta.env.VITE_API_BASE
   : typeof import.meta.env.VITE_API_URL === 'string'
     ? import.meta.env.VITE_API_URL
@@ -182,7 +182,10 @@ export function trackEvent(eventName: string, data?: Record<string, any>) {
       cta_type: ctaType,
       design_slug: designSlug,
       product_handle: productHandle,
-      extra: buildExtraPayload(data),
+      extra: {
+        ...(buildExtraPayload(data) || {}),
+        device_type: getDeviceCategory(),
+      },
       origin: typeof location !== 'undefined' && location ? location.origin : undefined,
     };
 

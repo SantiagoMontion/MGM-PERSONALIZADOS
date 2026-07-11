@@ -20,8 +20,11 @@ type TrackEventRow = {
   cta_type: string | null;
   design_slug: string | null;
   extra: Record<string, unknown> | null;
+  user_agent: string | null;
   created_at: string | null;
 };
+
+type DeviceCategory = 'mobile' | 'desktop';
 
 const VISIT_EVENTS = new Set(['page_view', 'site_visit']);
 const HOME_UPLOAD = 'home_image_uploaded';
@@ -81,6 +84,46 @@ function toDateKey(iso: string | null): string | null {
   return parsed.toISOString().slice(0, 10);
 }
 
+function classifyDevice(
+  extra: Record<string, unknown> | null,
+  userAgent: string | null | undefined,
+): DeviceCategory {
+  const fromExtra = readExtraString(extra, 'device_type');
+  if (fromExtra === 'mobile' || fromExtra === 'desktop') {
+    return fromExtra;
+  }
+
+  const ua = typeof userAgent === 'string' ? userAgent : '';
+  if (!ua) return 'desktop';
+
+  if (/Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|iPad|Tablet|PlayBook|Silk/i.test(ua)) {
+    return 'mobile';
+  }
+
+  return 'desktop';
+}
+
+function buildDeviceBreakdown(deviceByRid: Map<string, DeviceCategory>) {
+  let mobile = 0;
+  let desktop = 0;
+  for (const device of deviceByRid.values()) {
+    if (device === 'mobile') mobile += 1;
+    else desktop += 1;
+  }
+  const total = mobile + desktop;
+  return {
+    total,
+    mobile: {
+      visitors: mobile,
+      percent: formatRate(mobile, total),
+    },
+    desktop: {
+      visitors: desktop,
+      percent: formatRate(desktop, total),
+    },
+  };
+}
+
 function emptyDashboard(fromIso: string, toIso: string, diagId: string, warning?: string) {
   return {
     ok: true,
@@ -104,6 +147,11 @@ function emptyDashboard(fromIso: string, toIso: string, diagId: string, warning?
     event_breakdown: [],
     top_materials: [],
     top_paths: [],
+    devices: {
+      total: 0,
+      mobile: { visitors: 0, percent: 0 },
+      desktop: { visitors: 0, percent: 0 },
+    },
     last_events: [],
   };
 }
@@ -172,7 +220,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const { data, error } = await supabase
       .from('track_events')
-      .select('rid, event_name, cta_type, design_slug, extra, created_at')
+      .select('rid, event_name, cta_type, design_slug, extra, user_agent, created_at')
       .gte('created_at', fromIso)
       .lte('created_at', toIso)
       .order('created_at', { ascending: false })
@@ -208,6 +256,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const dailyMap = new Map<string, { visitors: Set<string>; pageViews: number }>();
     const materialCounts = new Map<string, number>();
     const pathCounts = new Map<string, number>();
+    const deviceByRid = new Map<string, DeviceCategory>();
 
     for (const row of rows) {
       const rid = normalizeRid(row?.rid);
@@ -223,6 +272,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       if (VISIT_EVENTS.has(eventName) && rid) {
         visitSet.add(rid);
+        if (!deviceByRid.has(rid)) {
+          deviceByRid.set(rid, classifyDevice(row.extra, row.user_agent));
+        }
         const dateKey = toDateKey(row.created_at);
         if (dateKey) {
           if (!dailyMap.has(dateKey)) {
@@ -344,6 +396,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .slice(0, 10)
       .map(([path, views]) => ({ path, views }));
 
+    const devices = buildDeviceBreakdown(deviceByRid);
+
     const lastEvents = rows.slice(0, 50).map((row) => ({
       rid: row.rid,
       event_name: row.event_name,
@@ -377,6 +431,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       event_breakdown: eventBreakdown,
       top_materials: topMaterials,
       top_paths: topPaths,
+      devices,
       last_events: lastEvents,
     }, corsDecision);
   } catch (error) {
