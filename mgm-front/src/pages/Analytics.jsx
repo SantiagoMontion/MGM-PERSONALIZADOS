@@ -28,6 +28,30 @@ const dashboardEndpoints = [
   '/api/analytics/dashboard',
 ];
 
+const FUNNEL_ORDER = ['visit', 'upload', 'edit', 'continue', 'review', 'cart', 'purchase'];
+
+const EVENT_LABELS = {
+  page_view: 'Vista de página',
+  site_visit: 'Visita al sitio',
+  home_image_uploaded: 'Subió imagen',
+  home_step_edit: 'Paso edición',
+  home_step_review: 'Paso revisión',
+  continue_design: 'Confirmó diseño',
+  home_config_open: 'Abrió configuración',
+  home_tools_open: 'Abrió herramientas',
+  home_add_to_cart: 'Agregó al carrito',
+  home_add_private_cart: 'Compra privada',
+  home_return_editor: 'Volvió al editor',
+  home_restart: 'Reinició flujo',
+  click_replace_image: 'Reemplazó imagen',
+  mockup_view: 'Vista mockup',
+  view_purchase_options: 'Opciones de compra',
+  cta_click_cart: 'CTA carrito',
+  cta_click_public: 'CTA público',
+  cta_click_private: 'CTA privado',
+  purchase_completed: 'Compra completada',
+};
+
 function formatNumber(value) {
   if (typeof value !== 'number' || Number.isNaN(value)) return '0';
   return value.toLocaleString('es-AR');
@@ -42,7 +66,12 @@ function formatWindowDate(value) {
   if (!value) return '';
   const parsed = new Date(value);
   if (Number.isNaN(parsed.valueOf())) return '';
-  return parsed.toLocaleString('es-AR');
+  return parsed.toLocaleString('es-AR', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 function formatShortDate(value) {
@@ -52,7 +81,223 @@ function formatShortDate(value) {
   return parsed.toLocaleDateString('es-AR', { day: '2-digit', month: 'short' });
 }
 
-const FUNNEL_ORDER = ['visit', 'upload', 'edit', 'continue', 'review', 'cart', 'purchase'];
+function humanizeEvent(name) {
+  if (typeof name !== 'string' || !name) return '—';
+  return EVENT_LABELS[name] || name.replace(/_/g, ' ');
+}
+
+function RefreshIcon({ spinning }) {
+  return (
+    <svg
+      className={`${styles.refreshIcon} ${spinning ? styles.refreshIconSpin : ''}`.trim()}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      aria-hidden="true"
+    >
+      <path d="M21 12a9 9 0 1 1-2.64-6.36" strokeLinecap="round" />
+      <path d="M21 3v6h-6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function EmptyState({ title, text }) {
+  return (
+    <div className={styles.emptyState}>
+      <div className={styles.emptyIcon} aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <path d="M4 19V5M4 19h16M8 15v-4M12 15V9M16 15v-6" strokeLinecap="round" />
+        </svg>
+      </div>
+      <p className={styles.emptyTitle}>{title}</p>
+      <p className={styles.emptyText}>{text}</p>
+    </div>
+  );
+}
+
+function LoadingSkeleton() {
+  return (
+    <>
+      <div className={styles.skeletonGrid} aria-hidden="true">
+        {Array.from({ length: 5 }).map((_, index) => (
+          <div key={index} className={styles.skeletonCard} />
+        ))}
+      </div>
+      <div className={styles.skeletonPanel} aria-hidden="true" />
+      <div className={styles.skeletonPanel} aria-hidden="true" />
+    </>
+  );
+}
+
+function KpiCard({ label, value, meta, metaTone }) {
+  return (
+    <article className={styles.kpiCard}>
+      <span className={styles.kpiLabel}>{label}</span>
+      <p className={styles.kpiValue}>{value}</p>
+      {meta ? (
+        <span
+          className={`${styles.kpiMeta} ${metaTone === 'positive' ? styles.kpiMetaPositive : ''}`.trim()}
+        >
+          {meta}
+        </span>
+      ) : null}
+    </article>
+  );
+}
+
+function DailyChart({ rows }) {
+  const maxVisitors = rows.reduce((max, row) => Math.max(max, row.visitors ?? 0), 0) || 1;
+
+  return (
+    <div className={styles.barChart} role="img" aria-label="Gráfico de visitantes por día">
+      {rows.map((row) => {
+        const heightPct = Math.max(4, ((row.visitors ?? 0) / maxVisitors) * 100);
+        return (
+          <div key={row.date} className={styles.barColumn}>
+            <span className={styles.barValue}>{formatNumber(row.visitors)}</span>
+            <div className={styles.barTrack}>
+              <div
+                className={styles.barFill}
+                style={{ height: `${heightPct}%` }}
+                title={`${row.visitors} visitantes · ${row.page_views} vistas`}
+              />
+            </div>
+            <span className={styles.barLabel}>{formatShortDate(row.date)}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function DeviceIcon({ type }) {
+  if (type === 'mobile') {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+        <rect x="7" y="2" width="10" height="20" rx="2" />
+        <path d="M11 18h2" strokeLinecap="round" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+      <rect x="3" y="5" width="18" height="12" rx="2" />
+      <path d="M8 20h8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function DeviceSplit({ devices }) {
+  if (!devices?.total) {
+    return (
+      <EmptyState
+        title="Sin datos de dispositivos"
+        text="Cuando haya visitas, verás el reparto entre celular y PC."
+      />
+    );
+  }
+
+  const items = [
+    { key: 'mobile', label: 'Celular', data: devices.mobile, barClass: styles.deviceBarMobile },
+    { key: 'desktop', label: 'PC', data: devices.desktop, barClass: styles.deviceBarDesktop },
+  ];
+
+  return (
+    <div className={styles.deviceRow}>
+      {items.map((item) => (
+        <div key={item.key} className={styles.deviceItem}>
+          <div className={styles.deviceIcon}>
+            <DeviceIcon type={item.key} />
+          </div>
+          <div className={styles.deviceInfo}>
+            <span className={styles.deviceName}>{item.label}</span>
+            <div className={styles.deviceBarTrack}>
+              <div
+                className={`${styles.deviceBarFill} ${item.barClass}`.trim()}
+                style={{ width: `${Math.max(item.data?.percent || 0, 2)}%` }}
+              />
+            </div>
+          </div>
+          <div className={styles.deviceStat}>
+            <span className={styles.devicePercent}>{formatPercentage(item.data?.percent)}</span>
+            <span className={styles.deviceCount}>{formatNumber(item.data?.visitors)} visitas</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function FunnelPanel({ homeFunnel }) {
+  const baseline = homeFunnel.visit?.rids || 0;
+
+  return (
+    <div className={styles.funnelList}>
+      {FUNNEL_ORDER.map((key) => {
+        const stage = homeFunnel[key];
+        if (!stage) return null;
+
+        const widthPct = baseline > 0
+          ? Math.max(2, (stage.rids / baseline) * 100)
+          : 0;
+
+        const rate = stage.rate_from_visit
+          ?? stage.rate_from_upload
+          ?? stage.rate_from_edit
+          ?? stage.rate_from_continue
+          ?? stage.rate_from_review
+          ?? stage.rate_from_cart
+          ?? null;
+
+        const dropOff = stage.drop_off_from_visit
+          ?? stage.drop_off_from_upload
+          ?? stage.drop_off_from_edit
+          ?? stage.drop_off_from_continue
+          ?? stage.drop_off_from_review
+          ?? null;
+
+        return (
+          <div key={key} className={styles.funnelStep}>
+            <div className={styles.funnelStepHead}>
+              <span className={styles.funnelStepLabel}>{stage.label}</span>
+              <span className={styles.funnelStepCount}>{formatNumber(stage.rids)}</span>
+            </div>
+            <div className={styles.funnelBarTrack}>
+              <div className={styles.funnelBarFill} style={{ width: `${widthPct}%` }} />
+            </div>
+            <div className={styles.funnelStepMeta}>
+              {rate != null ? (
+                <span>Avance <strong>{formatPercentage(rate)}</strong></span>
+              ) : null}
+              {dropOff != null && dropOff > 0 ? (
+                <span className={styles.funnelDrop}>
+                  Abandono <strong>{formatPercentage(dropOff)}</strong>
+                </span>
+              ) : null}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function RankList({ items, valueKey, labelKey, code }) {
+  return (
+    <ol className={styles.rankList}>
+      {items.map((row, index) => (
+        <li key={row[labelKey] ?? index} className={styles.rankItem}>
+          <span className={styles.rankIndex}>{index + 1}</span>
+          <span className={`${styles.rankLabel} ${code ? styles.codeCell : ''}`.trim()}>
+            {code ? row[labelKey] : row[labelKey]}
+          </span>
+          <strong className={styles.rankValue}>{formatNumber(row[valueKey])}</strong>
+        </li>
+      ))}
+    </ol>
+  );
+}
 
 export default function AnalyticsPage() {
   const [gateReady, setGateReady] = useState(false);
@@ -189,10 +434,9 @@ export default function AnalyticsPage() {
     setPasswordValue('');
   }
 
-  const handleRangeChange = (event) => {
-    const value = Number(event.target.value);
-    if (Number.isNaN(value) || value === rangeDays) return;
-    setRangeDays(value);
+  const handleRangeChange = (days) => {
+    if (days === rangeDays) return;
+    setRangeDays(days);
     setData(null);
     setError('');
   };
@@ -205,7 +449,6 @@ export default function AnalyticsPage() {
   const topPaths = Array.isArray(data?.top_paths) ? data.top_paths : [];
   const devices = data?.devices ?? null;
   const lastEvents = Array.isArray(data?.last_events) ? data.last_events : [];
-  const maxDailyVisitors = dailyVisits.reduce((max, row) => Math.max(max, row.visitors ?? 0), 0) || 1;
 
   return (
     <div className={styles.page}>
@@ -213,285 +456,250 @@ export default function AnalyticsPage() {
         <title>Analytics · NOTMID</title>
       </Helmet>
 
-      <header className={styles.header}>
-        <h1 className={styles.title}>Analytics del personalizador</h1>
-        <p className={styles.subtitle}>
-          Visitas, pasos del flujo, abandonos, clics y conversiones.
-        </p>
-      </header>
+      <div className={styles.topBar}>
+        <div className={styles.topBarMain}>
+          <p className={styles.eyebrow}>NOTMID · Métricas</p>
+          <h1 className={styles.title}>Analytics del personalizador</h1>
+          <p className={styles.subtitle}>
+            Visitas, embudo, abandonos, dispositivos y conversiones en tiempo real.
+          </p>
+        </div>
+
+        {hasAccess ? (
+          <div className={styles.topBarActions}>
+            <div className={styles.periodGroup} role="group" aria-label="Período de análisis">
+              {RANGE_OPTIONS.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  className={`${styles.periodBtn} ${rangeDays === option ? styles.periodBtnActive : ''}`.trim()}
+                  onClick={() => handleRangeChange(option)}
+                  disabled={isLoading}
+                  aria-pressed={rangeDays === option}
+                >
+                  {option}d
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              className={styles.refreshBtn}
+              onClick={loadAll}
+              disabled={isLoading}
+              aria-busy={isLoading}
+            >
+              <RefreshIcon spinning={isLoading} />
+              <span>{isLoading ? 'Actualizando…' : 'Actualizar'}</span>
+            </button>
+          </div>
+        ) : null}
+      </div>
 
       {hasAccess ? (
         <>
-          <div className={styles.toolbar}>
-            <label className={styles.rangeLabel} htmlFor="analytics-range">
-              Período
-              <select
-                id="analytics-range"
-                className={styles.rangeSelect}
-                value={rangeDays}
-                onChange={handleRangeChange}
-              >
-                {RANGE_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
-                    Últimos {option} días
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button
-              type="button"
-              className={styles.secondaryButton}
-              onClick={loadAll}
-              disabled={isLoading}
-            >
-              Actualizar
-            </button>
-          </div>
-
           {error ? (
-            <div className={styles.errorBox}>
+            <div className={`${styles.alert} ${styles.alertError}`.trim()} role="alert">
               <span>{error}</span>
-              <button type="button" className={styles.secondaryButton} onClick={loadAll}>
+              <button type="button" className={styles.refreshBtn} onClick={loadAll}>
                 Reintentar
               </button>
             </div>
           ) : null}
 
-          {isLoading && !data ? <p className={styles.status}>Cargando métricas…</p> : null}
+          {isLoading && !data ? <LoadingSkeleton /> : null}
 
           {data?.ok ? (
             <>
               {data.warning === 'track_events_unavailable' ? (
-                <p className={styles.warningBox}>
+                <div className={`${styles.alert} ${styles.alertWarning}`.trim()} role="status">
                   {typeof data.warning_detail === 'string' && data.warning_detail ? (
                     <>
-                      La API no puede leer <code>track_events</code>
-                      {' '}
-                      en Supabase:
+                      La API no puede leer <code>track_events</code> en Supabase:
                       {' '}
                       <code>{data.warning_detail}</code>
-                      . Corré en SQL Editor los permisos de la migración
-                      {' '}
-                      <code>20260711120000_track_events.sql</code>
-                      {' '}
-                      (GRANT + NOTIFY) y recargá.
                     </>
                   ) : (
                     <>
-                      La tabla de eventos aún no está accesible desde la API. Corré la migración
+                      La tabla de eventos no está accesible. Corré la migración
                       {' '}
                       <code>20260711120000_track_events.sql</code>
-                      {' '}
-                      para empezar a guardar datos.
                     </>
                   )}
-                </p>
+                </div>
               ) : null}
 
-              <section className={styles.section}>
-                <h2 className={styles.sectionTitle}>Resumen</h2>
-                <div className={styles.cards}>
-                  <article className={styles.card}>
-                    <span className={styles.cardLabel}>Visitantes únicos</span>
-                    <p className={styles.cardValue}>{formatNumber(summary.unique_visitors)}</p>
-                  </article>
-                  <article className={styles.card}>
-                    <span className={styles.cardLabel}>Subieron imagen</span>
-                    <p className={styles.cardValue}>{formatNumber(summary.uploads)}</p>
-                    <span className={styles.cardHint}>Tasa: {formatPercentage(summary.upload_rate)}</span>
-                  </article>
-                  <article className={styles.card}>
-                    <span className={styles.cardLabel}>Llegaron a revisión</span>
-                    <p className={styles.cardValue}>{formatNumber(summary.reached_review)}</p>
-                  </article>
-                  <article className={styles.card}>
-                    <span className={styles.cardLabel}>Agregaron al carrito</span>
-                    <p className={styles.cardValue}>{formatNumber(summary.added_to_cart)}</p>
-                    <span className={styles.cardHint}>Desde revisión: {formatPercentage(summary.cart_rate)}</span>
-                  </article>
-                  <article className={styles.card}>
-                    <span className={styles.cardLabel}>Compras</span>
-                    <p className={styles.cardValue}>{formatNumber(summary.purchases)}</p>
-                    <span className={styles.cardHint}>Conversión total: {formatPercentage(summary.completion_rate)}</span>
-                  </article>
+              <section aria-label="Indicadores clave">
+                <div className={styles.kpiGrid}>
+                  <KpiCard
+                    label="Visitantes únicos"
+                    value={formatNumber(summary.unique_visitors)}
+                  />
+                  <KpiCard
+                    label="Subieron imagen"
+                    value={formatNumber(summary.uploads)}
+                    meta={`Tasa ${formatPercentage(summary.upload_rate)}`}
+                    metaTone="positive"
+                  />
+                  <KpiCard
+                    label="Llegaron a revisión"
+                    value={formatNumber(summary.reached_review)}
+                  />
+                  <KpiCard
+                    label="Agregaron al carrito"
+                    value={formatNumber(summary.added_to_cart)}
+                    meta={`Desde revisión ${formatPercentage(summary.cart_rate)}`}
+                  />
+                  <KpiCard
+                    label="Compras"
+                    value={formatNumber(summary.purchases)}
+                    meta={`Conversión ${formatPercentage(summary.completion_rate)}`}
+                    metaTone="positive"
+                  />
                 </div>
               </section>
 
-              <section className={styles.section}>
-                <h2 className={styles.sectionTitle}>Dispositivos</h2>
-                {devices?.total > 0 ? (
-                  <div className={styles.deviceGrid}>
-                    <article className={styles.deviceCard}>
-                      <span className={styles.deviceLabel}>Celular</span>
-                      <p className={styles.devicePercent}>{formatPercentage(devices.mobile?.percent)}</p>
-                      <span className={styles.deviceCount}>
-                        {formatNumber(devices.mobile?.visitors)} visitantes
-                      </span>
-                      <div className={styles.deviceBarTrack}>
-                        <div
-                          className={`${styles.deviceBar} ${styles.deviceBarMobile}`.trim()}
-                          style={{ width: `${Math.max(devices.mobile?.percent || 0, 4)}%` }}
+              <div className={styles.mainGrid}>
+                <div className={styles.stack}>
+                  <section className={styles.panel} aria-labelledby="chart-visits-title">
+                    <div className={styles.panelHeader}>
+                      <h2 id="chart-visits-title" className={styles.panelTitle}>Visitas por día</h2>
+                      <p className={styles.panelHint}>Visitantes únicos por fecha</p>
+                    </div>
+                    <div className={styles.panelBody}>
+                      {dailyVisits.length ? (
+                        <DailyChart rows={dailyVisits} />
+                      ) : (
+                        <EmptyState
+                          title="Sin visitas en este período"
+                          text="Abrí el personalizador en otra pestaña para generar la primera visita."
+                        />
+                      )}
+                    </div>
+                  </section>
+
+                  <section className={styles.panel} aria-labelledby="events-title">
+                    <div className={styles.panelHeader}>
+                      <h2 id="events-title" className={styles.panelTitle}>Eventos más frecuentes</h2>
+                      <p className={styles.panelHint}>Top 20 por volumen</p>
+                    </div>
+                    {eventBreakdown.length ? (
+                      <div className={styles.tableScroll}>
+                        <table className={styles.table}>
+                          <thead>
+                            <tr>
+                              <th>Evento</th>
+                              <th className={styles.tableNum}>Total</th>
+                              <th className={styles.tableNum}>Sesiones</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {eventBreakdown.slice(0, 20).map((row) => (
+                              <tr key={row.event_name}>
+                                <td>
+                                  <span>{humanizeEvent(row.event_name)}</span>
+                                  <br />
+                                  <span className={styles.codeCell}>{row.event_name}</span>
+                                </td>
+                                <td className={styles.tableNum}>{formatNumber(row.count)}</td>
+                                <td className={styles.tableNum}>{formatNumber(row.unique_rids)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className={styles.panelBody}>
+                        <EmptyState
+                          title="Sin eventos registrados"
+                          text="Los eventos aparecen cuando alguien usa el personalizador."
                         />
                       </div>
-                    </article>
-                    <article className={styles.deviceCard}>
-                      <span className={styles.deviceLabel}>PC</span>
-                      <p className={styles.devicePercent}>{formatPercentage(devices.desktop?.percent)}</p>
-                      <span className={styles.deviceCount}>
-                        {formatNumber(devices.desktop?.visitors)} visitantes
-                      </span>
-                      <div className={styles.deviceBarTrack}>
-                        <div
-                          className={`${styles.deviceBar} ${styles.deviceBarDesktop}`.trim()}
-                          style={{ width: `${Math.max(devices.desktop?.percent || 0, 4)}%` }}
-                        />
-                      </div>
-                    </article>
-                  </div>
-                ) : (
-                  <p className={styles.empty}>Sin datos de dispositivos en este período.</p>
-                )}
-              </section>
-
-              <section className={styles.section}>
-                <h2 className={styles.sectionTitle}>Visitas por día</h2>
-                {dailyVisits.length ? (
-                  <div className={styles.chart}>
-                    {dailyVisits.map((row) => (
-                      <div key={row.date} className={styles.chartRow}>
-                        <span className={styles.chartLabel}>{formatShortDate(row.date)}</span>
-                        <div className={styles.chartBarTrack}>
-                          <div
-                            className={styles.chartBar}
-                            style={{ width: `${Math.max(4, (row.visitors / maxDailyVisitors) * 100)}%` }}
-                            title={`${row.visitors} visitantes · ${row.page_views} vistas`}
-                          />
-                        </div>
-                        <span className={styles.chartValue}>{formatNumber(row.visitors)}</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className={styles.empty}>Sin visitas registradas en este período.</p>
-                )}
-              </section>
-
-              <section className={styles.section}>
-                <h2 className={styles.sectionTitle}>Funnel del personalizador (Home)</h2>
-                <div className={styles.funnelList}>
-                  {FUNNEL_ORDER.map((key) => {
-                    const stage = homeFunnel[key];
-                    if (!stage) return null;
-                    const dropOff = stage.drop_off_from_visit
-                      ?? stage.drop_off_from_upload
-                      ?? stage.drop_off_from_edit
-                      ?? stage.drop_off_from_continue
-                      ?? stage.drop_off_from_review
-                      ?? null;
-                    const rate = stage.rate_from_visit
-                      ?? stage.rate_from_upload
-                      ?? stage.rate_from_edit
-                      ?? stage.rate_from_continue
-                      ?? stage.rate_from_review
-                      ?? stage.rate_from_cart
-                      ?? null;
-                    return (
-                      <div key={key} className={styles.funnelItem}>
-                        <div className={styles.funnelHead}>
-                          <span className={styles.funnelLabel}>{stage.label}</span>
-                          <span className={styles.funnelCount}>{formatNumber(stage.rids)} sesiones</span>
-                        </div>
-                        {rate != null ? (
-                          <span className={styles.funnelMeta}>Avance: {formatPercentage(rate)}</span>
-                        ) : null}
-                        {dropOff != null && dropOff > 0 ? (
-                          <span className={styles.funnelDrop}>Abandono: {formatPercentage(dropOff)}</span>
-                        ) : null}
-                      </div>
-                    );
-                  })}
+                    )}
+                  </section>
                 </div>
-              </section>
 
-              <section className={styles.section}>
-                <h2 className={styles.sectionTitle}>Eventos más frecuentes</h2>
-                {eventBreakdown.length ? (
-                  <div className={styles.tableWrap}>
-                    <table className={styles.table}>
-                      <thead>
-                        <tr>
-                          <th>Evento</th>
-                          <th>Total</th>
-                          <th>Sesiones únicas</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {eventBreakdown.slice(0, 20).map((row) => (
-                          <tr key={row.event_name}>
-                            <td><code>{row.event_name}</code></td>
-                            <td>{formatNumber(row.count)}</td>
-                            <td>{formatNumber(row.unique_rids)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                <div className={styles.stack}>
+                  <section className={styles.panel} aria-labelledby="devices-title">
+                    <div className={styles.panelHeader}>
+                      <h2 id="devices-title" className={styles.panelTitle}>Dispositivos</h2>
+                      <p className={styles.panelHint}>Celular vs PC</p>
+                    </div>
+                    <div className={styles.panelBody}>
+                      <DeviceSplit devices={devices} />
+                    </div>
+                  </section>
+
+                  <section className={styles.panel} aria-labelledby="funnel-title">
+                    <div className={styles.panelHeader}>
+                      <h2 id="funnel-title" className={styles.panelTitle}>Embudo Home</h2>
+                      <p className={styles.panelHint}>Paso a paso del personalizador</p>
+                    </div>
+                    <div className={styles.panelBody}>
+                      <FunnelPanel homeFunnel={homeFunnel} />
+                    </div>
+                  </section>
+                </div>
+              </div>
+
+              <div className={styles.splitGrid}>
+                <section className={styles.panel} aria-labelledby="materials-title">
+                  <div className={styles.panelHeader}>
+                    <h2 id="materials-title" className={styles.panelTitle}>Materiales</h2>
                   </div>
-                ) : (
-                  <p className={styles.empty}>Sin eventos todavía.</p>
-                )}
-              </section>
-
-              <div className={styles.twoCol}>
-                <section className={styles.section}>
-                  <h2 className={styles.sectionTitle}>Materiales más elegidos</h2>
-                  {topMaterials.length ? (
-                    <ul className={styles.simpleList}>
-                      {topMaterials.map((row) => (
-                        <li key={row.material}>
-                          <span>{row.material}</span>
-                          <strong>{formatNumber(row.count)}</strong>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className={styles.empty}>Sin datos de materiales.</p>
-                  )}
+                  <div className={styles.panelBody}>
+                    {topMaterials.length ? (
+                      <RankList
+                        items={topMaterials}
+                        labelKey="material"
+                        valueKey="count"
+                      />
+                    ) : (
+                      <EmptyState title="Sin materiales" text="Se registran al subir o confirmar diseño." />
+                    )}
+                  </div>
                 </section>
 
-                <section className={styles.section}>
-                  <h2 className={styles.sectionTitle}>Páginas más visitadas</h2>
-                  {topPaths.length ? (
-                    <ul className={styles.simpleList}>
-                      {topPaths.map((row) => (
-                        <li key={row.path}>
-                          <span><code>{row.path}</code></span>
-                          <strong>{formatNumber(row.views)}</strong>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className={styles.empty}>Sin rutas registradas.</p>
-                  )}
+                <section className={styles.panel} aria-labelledby="paths-title">
+                  <div className={styles.panelHeader}>
+                    <h2 id="paths-title" className={styles.panelTitle}>Páginas visitadas</h2>
+                  </div>
+                  <div className={styles.panelBody}>
+                    {topPaths.length ? (
+                      <RankList
+                        items={topPaths}
+                        labelKey="path"
+                        valueKey="views"
+                        code
+                      />
+                    ) : (
+                      <EmptyState title="Sin rutas" text="Se registran con cada vista de página." />
+                    )}
+                  </div>
                 </section>
               </div>
 
-              <section className={styles.section}>
-                <h2 className={styles.sectionTitle}>Últimos eventos</h2>
+              <section className={styles.panel} aria-labelledby="recent-title">
+                <div className={styles.panelHeader}>
+                  <h2 id="recent-title" className={styles.panelTitle}>Actividad reciente</h2>
+                  <p className={styles.panelHint}>Últimos 50 eventos</p>
+                </div>
                 {lastEvents.length ? (
-                  <div className={styles.tableWrap}>
+                  <div className={styles.tableScroll}>
                     <table className={styles.table}>
                       <thead>
                         <tr>
                           <th>Evento</th>
-                          <th>RID</th>
+                          <th>Sesión</th>
                           <th>Fecha</th>
                         </tr>
                       </thead>
                       <tbody>
                         {lastEvents.map((row, index) => (
                           <tr key={`${row.rid}-${row.created_at}-${index}`}>
-                            <td><code>{row.event_name}</code></td>
-                            <td className={styles.ridCell}>{row.rid || '—'}</td>
+                            <td>{humanizeEvent(row.event_name)}</td>
+                            <td className={`${styles.codeCell} ${styles.ridCell}`.trim()}>
+                              {row.rid || '—'}
+                            </td>
                             <td>{formatWindowDate(row.created_at)}</td>
                           </tr>
                         ))}
@@ -499,14 +707,25 @@ export default function AnalyticsPage() {
                     </table>
                   </div>
                 ) : (
-                  <p className={styles.empty}>Sin actividad reciente.</p>
+                  <div className={styles.panelBody}>
+                    <EmptyState title="Sin actividad reciente" text="Los eventos nuevos aparecen acá al instante." />
+                  </div>
                 )}
               </section>
 
-              <p className={styles.meta}>
-                {lastUpdated ? `Actualizado: ${lastUpdated.toLocaleString('es-AR')}` : null}
-                {data.from && data.to ? ` · Ventana: ${formatWindowDate(data.from)} → ${formatWindowDate(data.to)}` : null}
-              </p>
+              <footer className={styles.footerMeta}>
+                {lastUpdated ? (
+                  <span className={styles.liveDot}>
+                    Actualizado {lastUpdated.toLocaleString('es-AR')}
+                  </span>
+                ) : null}
+                {data.from && data.to ? (
+                  <span>
+                    Período: {formatWindowDate(data.from)} → {formatWindowDate(data.to)}
+                  </span>
+                ) : null}
+                <span>Auto-refresh cada 60 s</span>
+              </footer>
             </>
           ) : null}
         </>
