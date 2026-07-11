@@ -22,9 +22,16 @@ const rawApiBase = typeof import.meta.env.VITE_API_BASE === 'string'
     ? import.meta.env.VITE_API_URL
     : '';
 const sanitizedApiBase = rawApiBase.trim().replace(/\/+$/, '');
-const dashboardEndpoint = sanitizedApiBase
-  ? `${sanitizedApiBase}/analytics/dashboard`
-  : '/api/analytics/dashboard';
+
+const dashboardEndpoints = Array.from(
+  new Set(
+    [
+      '/api/analytics/dashboard',
+      sanitizedApiBase ? `${sanitizedApiBase}/analytics/dashboard` : null,
+      'https://mgm-api.vercel.app/api/analytics/dashboard',
+    ].filter(Boolean),
+  ),
+);
 
 function formatNumber(value) {
   if (typeof value !== 'number' || Number.isNaN(value)) return '0';
@@ -87,37 +94,54 @@ export default function AnalyticsPage() {
     setIsLoading(true);
     setError('');
 
+    const fromIso = windowRange?.fromIso ?? '';
+    const toIso = windowRange?.toIso ?? '';
+    let lastErrorMessage = 'No se pudieron cargar los datos.';
+
     try {
-      const fromIso = windowRange?.fromIso ?? '';
-      const toIso = windowRange?.toIso ?? '';
-      const url = `${dashboardEndpoint}?from=${encodeURIComponent(fromIso)}&to=${encodeURIComponent(toIso)}`;
-      const response = await fetch(url, {
-        headers: {
-          Accept: 'application/json',
-          'X-Prints-Gate': gateToken,
-        },
-      });
+      for (const endpoint of dashboardEndpoints) {
+        try {
+          const url = `${endpoint}?from=${encodeURIComponent(fromIso)}&to=${encodeURIComponent(toIso)}`;
+          const response = await fetch(url, {
+            headers: {
+              Accept: 'application/json',
+              'X-Prints-Gate': gateToken,
+            },
+          });
 
-      const text = await response.text();
-      const json = text ? JSON.parse(text) : null;
+          const text = await response.text();
+          let json = null;
+          try {
+            json = text ? JSON.parse(text) : null;
+          } catch {
+            json = null;
+          }
 
-      if (response.status === 401) {
-        clearGate();
-        setHasAccess(false);
-        setGateToken('');
-        setAuthError('La sesión expiró. Volvé a ingresar.');
-        setData(null);
-        return;
+          if (response.status === 401) {
+            clearGate();
+            setHasAccess(false);
+            setGateToken('');
+            setAuthError('La sesión expiró. Volvé a ingresar.');
+            setData(null);
+            return;
+          }
+
+          if (response.ok && json?.ok) {
+            setData(json);
+            setLastUpdated(new Date());
+            setError('');
+            return;
+          }
+
+          lastErrorMessage = typeof json?.error === 'string'
+            ? json.error
+            : `Error ${response.status || 'desconocido'} al cargar analytics`;
+        } catch (err) {
+          lastErrorMessage = err instanceof Error ? err.message : 'Error de conexión';
+        }
       }
 
-      if (response.ok && json?.ok) {
-        setData(json);
-        setLastUpdated(new Date());
-        setError('');
-        return;
-      }
-
-      setError(typeof json?.error === 'string' ? json.error : 'No se pudieron cargar los datos.');
+      setError(lastErrorMessage);
       setData(null);
     } catch (err) {
       console.error('[analytics] fetch_failed', err);
@@ -241,6 +265,16 @@ export default function AnalyticsPage() {
 
           {data?.ok ? (
             <>
+              {data.warning === 'track_events_unavailable' ? (
+                <p className={styles.warningBox}>
+                  La tabla de eventos aún no está en Supabase. Corré la migración
+                  {' '}
+                  <code>20260711120000_track_events.sql</code>
+                  {' '}
+                  para empezar a guardar datos.
+                </p>
+              ) : null}
+
               <section className={styles.section}>
                 <h2 className={styles.sectionTitle}>Resumen</h2>
                 <div className={styles.cards}>

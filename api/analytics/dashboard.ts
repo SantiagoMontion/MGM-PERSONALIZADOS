@@ -2,8 +2,13 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import getSupabaseAdmin from '../../lib/_lib/supabaseAdmin.js';
 import { createDiagId, logApiError } from '../_lib/diag.js';
-import { getAllowedOriginsFromEnv, resolveCorsDecision } from '../_lib/cors.ts';
-import { ANALYTICS_CORS_HEADERS, verifyAnalyticsAccess } from '../_lib/analyticsAuth.ts';
+import {
+  applyCorsHeaders,
+  ensureCors,
+  handlePreflight,
+  respondCorsDenied,
+} from '../_lib/cors.ts';
+import { verifyAnalyticsAccess } from '../_lib/analyticsAuth.js';
 
 export const config = { maxDuration: 15 };
 
@@ -76,76 +81,73 @@ function toDateKey(iso: string | null): string | null {
   return parsed.toISOString().slice(0, 10);
 }
 
+function emptyDashboard(fromIso: string, toIso: string, diagId: string, warning?: string) {
+  return {
+    ok: true,
+    diagId,
+    from: fromIso,
+    to: toIso,
+    warning: warning || null,
+    summary: {
+      unique_visitors: 0,
+      uploads: 0,
+      reached_review: 0,
+      added_to_cart: 0,
+      purchases: 0,
+      completion_rate: 0,
+      upload_rate: 0,
+      cart_rate: 0,
+    },
+    daily_visits: [],
+    home_funnel: {},
+    mockup_funnel: { view: 0, options: 0, clicks: 0, purchase: 0 },
+    event_breakdown: [],
+    top_materials: [],
+    top_paths: [],
+    last_events: [],
+  };
+}
+
+function sendJson(
+  req: VercelRequest,
+  res: VercelResponse,
+  status: number,
+  payload: Record<string, unknown>,
+  corsDecision: ReturnType<typeof ensureCors>,
+) {
+  applyCorsHeaders(req, res, corsDecision);
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.status(status).json(payload);
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const headersWithGet = req.headers as VercelRequest['headers'] & {
-    get?: (name: string) => string | null;
-  };
-  const originHeader =
-    headersWithGet.get?.('origin')
-    ?? (Array.isArray(headersWithGet.origin) ? headersWithGet.origin[0] : headersWithGet.origin);
-  const origin = originHeader ?? '*';
-  const baseHeaders: Record<string, string> = {
-    'Access-Control-Allow-Origin': origin,
-    'Access-Control-Allow-Methods': 'GET,OPTIONS',
-    'Access-Control-Allow-Headers': ANALYTICS_CORS_HEADERS,
-    'Access-Control-Expose-Headers': 'X-Diag-Id',
-    Vary: 'Origin',
-  };
-
-  if (req.method === 'OPTIONS') {
-    for (const [key, value] of Object.entries(baseHeaders)) {
-      res.setHeader(key, value);
-    }
-    res.status(204).end();
-    return;
-  }
-
   const diagId = createDiagId();
   res.setHeader('X-Diag-Id', diagId);
 
-  if (req.method !== 'GET') {
-    return sendResponse(res, Response.json(
-      { ok: false, error: 'method_not_allowed', diagId },
-      { status: 405, headers: baseHeaders },
-    ));
-  }
-
-  const allowList = getAllowedOriginsFromEnv();
-  const allowAll = allowList.length === 0;
-  const decision = allowAll
-    ? null
-    : resolveCorsDecision(typeof originHeader === 'string' ? originHeader : undefined, allowList);
-  const isAllowed = allowAll || Boolean(decision?.allowed);
-
-  if (!isAllowed) {
-    return sendResponse(res, Response.json(
-      { ok: false, error: 'forbidden_origin', diagId },
-      { status: 403, headers: baseHeaders },
-    ));
-  }
-
-  for (const [key, value] of Object.entries(baseHeaders)) {
-    res.setHeader(key, value);
-  }
+  let corsDecision: ReturnType<typeof ensureCors> | null = null;
 
   try {
-    const auth = verifyAnalyticsAccess(req);
-    if (!auth.ok) {
-      return sendResponse(res, Response.json(
-        { ok: false, error: auth.error || 'unauthorized', diagId },
-        { status: 401, headers: baseHeaders },
-      ));
+    corsDecision = ensureCors(req, res);
+
+    if (!corsDecision.allowed || !corsDecision.allowedOrigin) {
+      respondCorsDenied(req, res, corsDecision, diagId);
+      return;
     }
 
-    let supabase: SupabaseClient;
-    try {
-      supabase = getSupabaseAdmin();
-    } catch (error) {
-      logApiError('analytics-dashboard', { diagId, step: 'init_supabase', error });
-      return sendResponse(res, Response.json(
-        { ok: false, error: 'missing_env', diagId },
-        { status: 200, headers: baseHeaders },
-      ));
+    if (req.method === 'OPTIONS') {
+      handlePreflight(req, res, corsDecision);
+      return;
+    }
+
+    if (req.method !== 'GET') {
+      sendJson(req, res, 405, { ok: false, error: 'method_not_allowed', diagId }, corsDecision);
+      return;
+    }
+
+    const auth = verifyAnalyticsAccess(req);
+    if (!auth.ok) {
+      sendJson(req, res, 401, { ok: false, error: auth.error || 'unauthorized', diagId }, corsDecision);
+      return;
     }
 
     const now = new Date();
@@ -159,6 +161,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const fromIso = fromDate.toISOString();
     const toIso = toDate.toISOString();
 
+    let supabase: SupabaseClient;
+    try {
+      supabase = getSupabaseAdmin();
+    } catch (error) {
+      logApiError('analytics-dashboard', { diagId, step: 'init_supabase', error });
+      sendJson(req, res, 200, emptyDashboard(fromIso, toIso, diagId, 'missing_env'), corsDecision);
+      return;
+    }
+
     const { data, error } = await supabase
       .from('track_events')
       .select('rid, event_name, cta_type, design_slug, extra, created_at')
@@ -168,7 +179,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .limit(10000);
 
     if (error) {
-      throw Object.assign(error instanceof Error ? error : new Error(JSON.stringify(error)), { step: 'query' });
+      logApiError('analytics-dashboard', { diagId, step: 'query', error });
+      sendJson(
+        req,
+        res,
+        200,
+        emptyDashboard(fromIso, toIso, diagId, 'track_events_unavailable'),
+        corsDecision,
+      );
+      return;
     }
 
     const rows = Array.isArray(data) ? (data as TrackEventRow[]) : [];
@@ -332,7 +351,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       design_slug: row.design_slug,
     }));
 
-    return sendResponse(res, Response.json({
+    sendJson(req, res, 200, {
       ok: true,
       diagId,
       from: fromIso,
@@ -359,32 +378,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       top_materials: topMaterials,
       top_paths: topPaths,
       last_events: lastEvents,
-    }, { status: 200, headers: baseHeaders }));
+    }, corsDecision);
   } catch (error) {
-    const step = typeof error === 'object' && error && 'step' in error
-      ? String((error as { step: string }).step)
-      : 'unhandled';
-    logApiError('analytics-dashboard', { diagId, step, error });
-    return sendResponse(res, Response.json(
-      { ok: false, error: String(error), diagId },
-      { status: 500, headers: baseHeaders },
-    ));
-  }
-}
-
-async function sendResponse(res: VercelResponse, response: Response) {
-  res.status(response.status);
-  response.headers.forEach((value, key) => {
-    res.setHeader(key, value);
-  });
-  if (response.status === 204) {
-    res.end();
-    return;
-  }
-  const body = await response.text();
-  if (body.length > 0) {
-    res.send(body);
-  } else {
-    res.end();
+    logApiError('analytics-dashboard', { diagId, step: 'unhandled', error });
+    if (corsDecision) {
+      sendJson(req, res, 500, { ok: false, error: 'handler_error', diagId }, corsDecision);
+      return;
+    }
+    try {
+      const fallbackCors = ensureCors(req, res);
+      sendJson(req, res, 500, { ok: false, error: 'handler_error', diagId }, fallbackCors);
+    } catch {
+      res.status(500).json({ ok: false, error: 'handler_error', diagId });
+    }
   }
 }
