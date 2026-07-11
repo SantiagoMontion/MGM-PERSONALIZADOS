@@ -1,4 +1,6 @@
 import { getDeviceCategory } from './device';
+
+const RAW_API_BASE = typeof import.meta.env.VITE_API_BASE === 'string'
   ? import.meta.env.VITE_API_BASE
   : typeof import.meta.env.VITE_API_URL === 'string'
     ? import.meta.env.VITE_API_URL

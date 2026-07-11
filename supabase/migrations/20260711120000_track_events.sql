@@ -27,3 +27,13 @@ create index if not exists track_events_rid_event_name_idx
 create unique index if not exists track_events_rid_event_name_unique
   on public.track_events (rid, event_name)
   where rid is not null and event_name is not null;
+
+-- La API (PostgREST / supabase-js) necesita grants explícitos en proyectos Supabase 2026+.
+grant usage on schema public to anon, authenticated, service_role;
+
+grant select, insert, update, delete on table public.track_events to anon, authenticated, service_role;
+
+alter table public.track_events disable row level security;
+
+notify pgrst, 'reload schema';
+select pg_notification_queue_usage();

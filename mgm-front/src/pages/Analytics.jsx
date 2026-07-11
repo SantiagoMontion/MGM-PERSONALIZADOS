@@ -263,11 +263,28 @@ export default function AnalyticsPage() {
             <>
               {data.warning === 'track_events_unavailable' ? (
                 <p className={styles.warningBox}>
-                  La tabla de eventos aún no está en Supabase. Corré la migración
-                  {' '}
-                  <code>20260711120000_track_events.sql</code>
-                  {' '}
-                  para empezar a guardar datos.
+                  {typeof data.warning_detail === 'string' && data.warning_detail ? (
+                    <>
+                      La API no puede leer <code>track_events</code>
+                      {' '}
+                      en Supabase:
+                      {' '}
+                      <code>{data.warning_detail}</code>
+                      . Corré en SQL Editor los permisos de la migración
+                      {' '}
+                      <code>20260711120000_track_events.sql</code>
+                      {' '}
+                      (GRANT + NOTIFY) y recargá.
+                    </>
+                  ) : (
+                    <>
+                      La tabla de eventos aún no está accesible desde la API. Corré la migración
+                      {' '}
+                      <code>20260711120000_track_events.sql</code>
+                      {' '}
+                      para empezar a guardar datos.
+                    </>
+                  )}
                 </p>
               ) : null}
 
