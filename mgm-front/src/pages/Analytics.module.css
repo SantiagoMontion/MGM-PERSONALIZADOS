@@ -427,6 +427,13 @@
   gap: var(--space-3);
 }
 
+.deviceMetricsGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-3);
+}
+
+.deviceMetricCard,
 .devicePurchaseCard {
   padding: var(--space-4);
   border-radius: var(--radius-xl);
@@ -498,6 +505,79 @@
   font-size: var(--fs-xs);
   color: var(--foreground-muted);
   text-align: center;
+}
+
+.deviceBarTitle {
+  margin: 0;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--foreground-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.purchaseSyncRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.purchaseSyncHint {
+  margin: 0;
+  flex: 1 1 16rem;
+  font-size: var(--fs-sm);
+  color: var(--foreground-muted);
+  line-height: 1.45;
+}
+
+.syncPurchasesBtn {
+  flex: 0 0 auto;
+  border: 1px solid color-mix(in srgb, var(--brand-primary) 45%, transparent);
+  background: color-mix(in srgb, var(--brand-primary) 12%, transparent);
+  color: var(--foreground);
+  border-radius: var(--radius-lg);
+  padding: 0.55rem 0.9rem;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.syncPurchasesBtn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.syncMessage {
+  margin: var(--space-2) 0 0;
+  font-size: var(--fs-sm);
+  color: var(--foreground-secondary);
+}
+
+.purchaseEmptyNote {
+  margin: var(--space-2) 0 0;
+  font-size: var(--fs-sm);
+  color: var(--foreground-muted);
+}
+
+.purchasesDetailList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.purchaseChip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.6rem;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--success) 35%, transparent);
+  font-size: var(--fs-xs);
+  color: var(--foreground);
 }
 
 .deviceTableWrap {
@@ -908,7 +988,8 @@
 }
 
 @media (min-width: 640px) {
-  .devicePurchaseHero {
+  .devicePurchaseHero,
+  .deviceMetricsGrid {
     grid-template-columns: 1fr 1fr;
   }
 }

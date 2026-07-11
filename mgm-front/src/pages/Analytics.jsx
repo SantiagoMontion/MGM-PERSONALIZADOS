@@ -28,6 +28,11 @@ const dashboardEndpoints = [
   '/api/analytics/dashboard',
 ];
 
+const syncPurchasesEndpoints = [
+  'https://mgm-api.vercel.app/api/analytics/sync-purchases',
+  '/api/analytics/sync-purchases',
+];
+
 const EVENT_LABELS = {
   page_view: 'Vista de página',
   site_visit: 'Visita al sitio',
@@ -186,6 +191,25 @@ function DeviceIcon({ type }) {
   );
 }
 
+function DeviceMetricCard({
+  type,
+  label,
+  value,
+  meta,
+  cardClass,
+}) {
+  return (
+    <article className={`${styles.deviceMetricCard} ${cardClass}`.trim()}>
+      <div className={styles.devicePurchaseCardHead}>
+        <DeviceIcon type={type} />
+        <span>{label}</span>
+      </div>
+      <p className={styles.devicePurchaseValue}>{formatNumber(value)}</p>
+      {meta ? <p className={styles.devicePurchaseMeta}>{meta}</p> : null}
+    </article>
+  );
+}
+
 function DeviceSplit({ devices }) {
   if (!devices?.total) {
     return (
@@ -210,37 +234,65 @@ function DeviceSplit({ devices }) {
   ];
 
   const completionSplit = devices.completion_split ?? {};
+  const cartSplit = devices.cart_split ?? {};
   const purchaseTotal = devices.purchases_total ?? 0;
+  const cartTotal = devices.cart_total ?? 0;
 
   return (
     <div className={styles.deviceAnalytics}>
-      <div className={styles.devicePurchaseHero}>
-        <article className={`${styles.devicePurchaseCard} ${styles.devicePurchaseCardMobile}`.trim()}>
-          <div className={styles.devicePurchaseCardHead}>
-            <DeviceIcon type="mobile" />
-            <span>Compras desde celular</span>
-          </div>
-          <p className={styles.devicePurchaseValue}>{formatNumber(devices.mobile?.purchases)}</p>
-          <p className={styles.devicePurchaseMeta}>
-            {formatPercentage(devices.mobile?.purchase_share)} del total
-            {purchaseTotal > 0 ? ` · ${formatPercentage(devices.mobile?.completion_rate)} conv.` : ''}
-          </p>
-        </article>
-        <article className={`${styles.devicePurchaseCard} ${styles.devicePurchaseCardDesktop}`.trim()}>
-          <div className={styles.devicePurchaseCardHead}>
-            <DeviceIcon type="desktop" />
-            <span>Compras desde PC</span>
-          </div>
-          <p className={styles.devicePurchaseValue}>{formatNumber(devices.desktop?.purchases)}</p>
-          <p className={styles.devicePurchaseMeta}>
-            {formatPercentage(devices.desktop?.purchase_share)} del total
-            {purchaseTotal > 0 ? ` · ${formatPercentage(devices.desktop?.completion_rate)} conv.` : ''}
-          </p>
-        </article>
+      <div className={styles.deviceMetricsGrid}>
+        <DeviceMetricCard
+          type="mobile"
+          label="Agregados al carrito (celular)"
+          value={devices.mobile?.added_to_cart}
+          meta={`${formatPercentage(devices.mobile?.cart_share)} del total · ${formatPercentage(devices.mobile?.cart_from_visit_rate)} desde visita`}
+          cardClass={styles.devicePurchaseCardMobile}
+        />
+        <DeviceMetricCard
+          type="desktop"
+          label="Agregados al carrito (PC)"
+          value={devices.desktop?.added_to_cart}
+          meta={`${formatPercentage(devices.desktop?.cart_share)} del total · ${formatPercentage(devices.desktop?.cart_from_visit_rate)} desde visita`}
+          cardClass={styles.devicePurchaseCardDesktop}
+        />
+        <DeviceMetricCard
+          type="mobile"
+          label="Compras completadas (celular)"
+          value={devices.mobile?.purchases}
+          meta={`${formatPercentage(devices.mobile?.purchase_share)} del total${purchaseTotal > 0 ? ` · ${formatPercentage(devices.mobile?.completion_rate)} conv.` : ''}`}
+          cardClass={styles.devicePurchaseCardMobile}
+        />
+        <DeviceMetricCard
+          type="desktop"
+          label="Compras completadas (PC)"
+          value={devices.desktop?.purchases}
+          meta={`${formatPercentage(devices.desktop?.purchase_share)} del total${purchaseTotal > 0 ? ` · ${formatPercentage(devices.desktop?.completion_rate)} conv.` : ''}`}
+          cardClass={styles.devicePurchaseCardDesktop}
+        />
       </div>
+
+      {cartTotal > 0 ? (
+        <div className={styles.deviceCompletionBarWrap}>
+          <p className={styles.deviceBarTitle}>Reparto de carritos</p>
+          <div className={styles.deviceCompletionBarTrack} aria-hidden="true">
+            <div
+              className={`${styles.deviceCompletionBarFill} ${styles.deviceBarMobile}`.trim()}
+              style={{ width: `${Math.max(cartSplit.mobile_percent || 0, 2)}%` }}
+            />
+            <div
+              className={`${styles.deviceCompletionBarFill} ${styles.deviceBarDesktop}`.trim()}
+              style={{ width: `${Math.max(cartSplit.desktop_percent || 0, 2)}%` }}
+            />
+          </div>
+          <p className={styles.deviceCompletionLegend}>
+            {formatNumber(cartSplit.mobile)} celular · {formatNumber(cartSplit.desktop)} PC
+          </p>
+        </div>
+      ) : null}
 
       {purchaseTotal > 0 ? (
         <div className={styles.deviceCompletionBarWrap}>
+          <p className={styles.deviceBarTitle}>Reparto de compras</p>
           <div className={styles.deviceCompletionBarTrack} aria-hidden="true">
             <div
               className={`${styles.deviceCompletionBarFill} ${styles.deviceBarMobile}`.trim()}
@@ -368,6 +420,8 @@ export default function AnalyticsPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [rangeDays, setRangeDays] = useState(DEFAULT_RANGE_DAYS);
+  const [syncMessage, setSyncMessage] = useState('');
+  const [isSyncing, setIsSyncing] = useState(false);
 
   useEffect(() => {
     const stored = readStoredGate();
@@ -455,6 +509,49 @@ export default function AnalyticsPage() {
     await fetchDashboard(windowRange);
   }, [buildWindowRange, fetchDashboard, gateToken, hasAccess]);
 
+  const syncPurchases = useCallback(async () => {
+    if (!gateToken) return;
+    setIsSyncing(true);
+    setSyncMessage('');
+
+    let lastError = 'No se pudo sincronizar compras.';
+    try {
+      for (const endpoint of syncPurchasesEndpoints) {
+        try {
+          const response = await fetch(`${endpoint}?days=${rangeDays}`, {
+            method: 'POST',
+            headers: {
+              Accept: 'application/json',
+              'X-Prints-Gate': gateToken,
+            },
+          });
+          const json = await response.json().catch(() => null);
+          if (response.ok && json?.ok) {
+            const recorded = json.recorded ?? 0;
+            const scanned = json.scanned ?? 0;
+            setSyncMessage(
+              recorded > 0
+                ? `Sincronizado: ${recorded} compra(s) nueva(s) de ${scanned} pedido(s) pagado(s) en Shopify.`
+                : `Revisados ${scanned} pedido(s) pagado(s). Ninguno nuevo para registrar (o ya estaban).`,
+            );
+            await loadAll();
+            return;
+          }
+          lastError = typeof json?.detail === 'string'
+            ? json.detail
+            : typeof json?.error === 'string'
+              ? json.error
+              : lastError;
+        } catch (err) {
+          lastError = err instanceof Error ? err.message : lastError;
+        }
+      }
+      setSyncMessage(lastError);
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [gateToken, rangeDays, loadAll]);
+
   useEffect(() => {
     if (!hasAccess || !gateToken) return undefined;
 
@@ -505,6 +602,7 @@ export default function AnalyticsPage() {
   const topSizes = Array.isArray(data?.top_sizes) ? data.top_sizes : [];
   const topMaterialSizes = Array.isArray(data?.top_material_sizes) ? data.top_material_sizes : [];
   const devices = data?.devices ?? null;
+  const purchasesDetail = Array.isArray(data?.purchases_detail) ? data.purchases_detail : [];
   const lastEvents = Array.isArray(data?.last_events) ? data.last_events : [];
 
   return (
@@ -613,6 +711,37 @@ export default function AnalyticsPage() {
                     metaTone="positive"
                   />
                 </div>
+                <div className={styles.purchaseSyncRow}>
+                  <p className={styles.purchaseSyncHint}>
+                    Las compras se registran desde Shopify al marcarlas pagadas.
+                    Si no ves una compra real (ej. pedido #15704), sincronizá manualmente.
+                  </p>
+                  <button
+                    type="button"
+                    className={styles.syncPurchasesBtn}
+                    onClick={syncPurchases}
+                    disabled={isSyncing}
+                  >
+                    {isSyncing ? 'Sincronizando…' : 'Sincronizar compras Shopify'}
+                  </button>
+                </div>
+                {syncMessage ? (
+                  <p className={styles.syncMessage} role="status">{syncMessage}</p>
+                ) : null}
+                {purchasesDetail.length ? (
+                  <div className={styles.purchasesDetailList}>
+                    {purchasesDetail.map((row, index) => (
+                      <span key={`${row.order_id || row.rid}-${index}`} className={styles.purchaseChip}>
+                        {row.order_name || row.order_id || 'Compra'}
+                        {row.total_price ? ` · $${row.total_price}` : ''}
+                      </span>
+                    ))}
+                  </div>
+                ) : summary.purchases === 0 ? (
+                  <p className={styles.purchaseEmptyNote}>
+                    Todavía no hay compras registradas en analytics para este período.
+                  </p>
+                ) : null}
               </section>
 
               <div className={styles.mainGrid}>
@@ -679,7 +808,7 @@ export default function AnalyticsPage() {
                   <section className={styles.panel} aria-labelledby="devices-title">
                     <div className={styles.panelHeader}>
                       <h2 id="devices-title" className={styles.panelTitle}>Celular vs PC</h2>
-                      <p className={styles.panelHint}>Embudo y compras completadas por dispositivo</p>
+                      <p className={styles.panelHint}>Carrito, compras y embudo por dispositivo</p>
                     </div>
                     <div className={styles.panelBody}>
                       <DeviceSplit devices={devices} />
