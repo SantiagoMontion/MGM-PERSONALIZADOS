@@ -23,15 +23,10 @@ const rawApiBase = typeof import.meta.env.VITE_API_BASE === 'string'
     : '';
 const sanitizedApiBase = rawApiBase.trim().replace(/\/+$/, '');
 
-const dashboardEndpoints = Array.from(
-  new Set(
-    [
-      '/api/analytics/dashboard',
-      sanitizedApiBase ? `${sanitizedApiBase}/analytics/dashboard` : null,
-      'https://mgm-api.vercel.app/api/analytics/dashboard',
-    ].filter(Boolean),
-  ),
-);
+const dashboardEndpoints = [
+  'https://mgm-api.vercel.app/api/analytics/dashboard',
+  '/api/analytics/dashboard',
+];
 
 function formatNumber(value) {
   if (typeof value !== 'number' || Number.isNaN(value)) return '0';
