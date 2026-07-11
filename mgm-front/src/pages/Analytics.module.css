@@ -415,6 +415,126 @@
 }
 
 /* —— Dispositivos —— */
+.deviceAnalytics {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.devicePurchaseHero {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-3);
+}
+
+.devicePurchaseCard {
+  padding: var(--space-4);
+  border-radius: var(--radius-xl);
+  border: 1px solid color-mix(in srgb, var(--foreground) 10%, transparent);
+  background: color-mix(in srgb, var(--foreground) 4%, transparent);
+}
+
+.devicePurchaseCardMobile {
+  border-color: color-mix(in srgb, #ff6b9d 35%, transparent);
+  background: color-mix(in srgb, #ff6b9d 8%, transparent);
+}
+
+.devicePurchaseCardDesktop {
+  border-color: color-mix(in srgb, #5b9cff 35%, transparent);
+  background: color-mix(in srgb, #5b9cff 8%, transparent);
+}
+
+.devicePurchaseCardHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--foreground-secondary);
+}
+
+.devicePurchaseCardHead svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.devicePurchaseValue {
+  margin: var(--space-2) 0 0;
+  font-size: clamp(1.75rem, 4vw, 2.25rem);
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--foreground);
+}
+
+.devicePurchaseMeta {
+  margin: var(--space-2) 0 0;
+  font-size: var(--fs-xs);
+  color: var(--foreground-muted);
+}
+
+.deviceCompletionBarWrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.deviceCompletionBarTrack {
+  display: flex;
+  flex-direction: row;
+  height: 10px;
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+}
+
+.deviceCompletionBarFill {
+  height: 100%;
+  min-width: 0;
+}
+
+.deviceCompletionLegend {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--foreground-muted);
+  text-align: center;
+}
+
+.deviceTableWrap {
+  overflow-x: auto;
+}
+
+.deviceTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+
+.deviceTable th,
+.deviceTable td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid color-mix(in srgb, var(--foreground) 8%, transparent);
+  text-align: left;
+}
+
+.deviceTable th {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--foreground-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.deviceTableHighlight td {
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+.deviceTableRates td {
+  font-size: var(--fs-xs);
+  color: var(--foreground-secondary);
+}
+
 .deviceRow {
   display: grid;
   grid-template-columns: 1fr;
@@ -785,4 +905,10 @@
   border-radius: var(--radius-full);
   background: var(--success);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 25%, transparent);
+}
+
+@media (min-width: 640px) {
+  .devicePurchaseHero {
+    grid-template-columns: 1fr 1fr;
+  }
 }

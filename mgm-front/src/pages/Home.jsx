@@ -4564,10 +4564,22 @@ export default function Home() {
       try {
         const rid = ensureTrackingRid();
         if (rid) {
+          const flowSnap = typeof flow?.get === 'function' ? flow.get() : flow;
+          const jobId =
+            flowSnap?.job_id
+            || flowSnap?.jobId
+            || flowSnap?.editorState?.job_id
+            || flowSnap?.editorState?.jobId
+            || null;
           trackEvent('home_add_to_cart', {
             rid,
             cta_type: 'cart',
-            extra: { material, width_cm: activeSizeCm?.w, height_cm: activeSizeCm?.h },
+            extra: {
+              material,
+              width_cm: activeSizeCm?.w,
+              height_cm: activeSizeCm?.h,
+              ...(jobId ? { job_id: String(jobId) } : {}),
+            },
           });
         }
       } catch {}
@@ -4622,10 +4634,22 @@ export default function Home() {
       try {
         const rid = ensureTrackingRid();
         if (rid) {
+          const flowSnap = typeof flow?.get === 'function' ? flow.get() : flow;
+          const jobId =
+            flowSnap?.job_id
+            || flowSnap?.jobId
+            || flowSnap?.editorState?.job_id
+            || flowSnap?.editorState?.jobId
+            || null;
           trackEvent('home_add_private_cart', {
             rid,
             cta_type: 'private',
-            extra: { material, width_cm: activeSizeCm?.w, height_cm: activeSizeCm?.h },
+            extra: {
+              material,
+              width_cm: activeSizeCm?.w,
+              height_cm: activeSizeCm?.h,
+              ...(jobId ? { job_id: String(jobId) } : {}),
+            },
           });
         }
       } catch {}

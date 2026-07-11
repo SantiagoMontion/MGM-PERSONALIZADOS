@@ -2,6 +2,7 @@ import { apiFetch, getResolvedApiUrl } from './api';
 import { renderMockup1080 } from './mockup.js';
 import { FlowState } from '@/state/flow';
 import { diag, info, warn, error } from '@/lib/log';
+import { ensureTrackingRid } from '@/lib/tracking';
 import {
   normalizePreviewUrl,
   resolvePreviewUrlFromPdfKey,
@@ -41,13 +42,26 @@ function resolvePublicStoreBase(): string {
 async function requestStorefrontCartLink(options: {
   variantId: string;
   quantity?: number;
+  jobId?: string;
+  attributes?: { name: string; value: string }[];
+  note?: string;
 }): Promise<{ ok: boolean; cartUrl?: string; checkoutUrl?: string; strategy?: string }> {
   const variantId = typeof options.variantId === 'string' ? options.variantId.trim() : '';
   if (!variantId) return { ok: false };
-  const payload = {
+  const payload: Record<string, unknown> = {
     variantId,
     quantity: clampQuantity(options.quantity ?? 1),
   };
+  if (options.jobId) {
+    payload.jobId = options.jobId;
+    payload.job_id = options.jobId;
+  }
+  if (Array.isArray(options.attributes) && options.attributes.length) {
+    payload.attributes = options.attributes;
+  }
+  if (typeof options.note === 'string' && options.note.trim()) {
+    payload.note = options.note.trim();
+  }
   const resp = await apiFetch(CART_LINK_PATH, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -658,6 +672,34 @@ type PrivateDraftOrderMetadata = {
   attributes: { name: string; value: string }[];
 };
 
+function buildCartTrackingAttributes(options: {
+  flow: FlowState;
+  jobId?: string;
+  materialLabel?: string;
+  measurementLabel?: string;
+}): { name: string; value: string }[] {
+  const { flow, jobId, materialLabel, measurementLabel } = options;
+  const attributes: { name: string; value: string }[] = [];
+  const pushAttribute = (name: string, value: unknown) => {
+    if (typeof value !== 'string') return;
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    attributes.push({ name, value: trimmed.slice(0, 255) });
+  };
+
+  const rid = ensureTrackingRid();
+  if (rid) pushAttribute('rid', rid);
+
+  const resolvedJobId = jobId || readJobId(flow);
+  if (resolvedJobId) pushAttribute('job_id', resolvedJobId);
+
+  if (materialLabel) pushAttribute('material', materialLabel);
+  if (measurementLabel) pushAttribute('measurement_cm', `${measurementLabel} cm`);
+
+  pushAttribute('_app_source', 'custom');
+  return attributes;
+}
+
 function buildPrivateDraftOrderMetadata(options: {
   flow: FlowState;
   measurement?: string;
@@ -680,6 +722,9 @@ function buildPrivateDraftOrderMetadata(options: {
     lines.push(`Job ID: ${jobId}`);
     pushAttribute('job_id', jobId);
   }
+
+  const rid = ensureTrackingRid();
+  if (rid) pushAttribute('rid', rid);
 
   const designName = typeof flow.designName === 'string' ? flow.designName.trim() : '';
   if (designName) {
@@ -1697,8 +1742,19 @@ export async function createJobAndProduct(
   }
 
   if (mode === 'cart' && variantId) {
+    const cartTrackingAttributes = buildCartTrackingAttributes({
+      flow,
+      jobId: jobIdForPdf,
+      materialLabel: displayMaterialLabel,
+      measurementLabel,
+    });
     try {
-      const cartLinkResult = await requestStorefrontCartLink({ variantId, quantity: 1 });
+      const cartLinkResult = await requestStorefrontCartLink({
+        variantId,
+        quantity: 1,
+        jobId: jobIdForPdf || undefined,
+        attributes: cartTrackingAttributes,
+      });
       if (cartLinkResult.ok && cartLinkResult.cartUrl) {
         result.cartUrl = cartLinkResult.cartUrl;
         if (cartLinkResult.checkoutUrl) {
@@ -2049,7 +2105,12 @@ export function buildCartPermalink(
 export function buildCartAddUrl(
   variantId: string | number | undefined,
   quantity = 1,
-  options?: { baseUrl?: string; discountCode?: string; returnTo?: string | null },
+  options?: {
+    baseUrl?: string;
+    discountCode?: string;
+    returnTo?: string | null;
+    properties?: Record<string, string | number | undefined | null>;
+  },
 ) {
   const numericId = normalizeVariantNumericId(variantId);
   if (!numericId) return '';
@@ -2066,6 +2127,15 @@ export function buildCartAddUrl(
   }
   cartUrl.searchParams.set('id', numericId);
   cartUrl.searchParams.set('quantity', String(qty));
+  if (options?.properties && typeof options.properties === 'object') {
+    for (const [key, value] of Object.entries(options.properties)) {
+      const trimmedKey = typeof key === 'string' ? key.trim() : '';
+      if (!trimmedKey) continue;
+      const normalizedValue = value == null ? '' : String(value).trim();
+      if (!normalizedValue) continue;
+      cartUrl.searchParams.set(`properties[${trimmedKey}]`, normalizedValue.slice(0, 255));
+    }
+  }
   const rawReturn = options?.returnTo;
   if (rawReturn !== null) {
     const normalizedReturn = typeof rawReturn === 'string' && rawReturn.trim()

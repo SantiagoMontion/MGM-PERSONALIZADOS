@@ -201,28 +201,122 @@ function DeviceSplit({ devices }) {
     { key: 'desktop', label: 'PC', data: devices.desktop, barClass: styles.deviceBarDesktop },
   ];
 
+  const funnelRows = [
+    { key: 'visitors', label: 'Visitas' },
+    { key: 'uploads', label: 'Subieron imagen' },
+    { key: 'reached_review', label: 'Llegaron a revisión' },
+    { key: 'added_to_cart', label: 'Agregaron al carrito' },
+    { key: 'purchases', label: 'Completaron compra', highlight: true },
+  ];
+
+  const completionSplit = devices.completion_split ?? {};
+  const purchaseTotal = devices.purchases_total ?? 0;
+
   return (
-    <div className={styles.deviceRow}>
-      {items.map((item) => (
-        <div key={item.key} className={styles.deviceItem}>
-          <div className={styles.deviceIcon}>
-            <DeviceIcon type={item.key} />
+    <div className={styles.deviceAnalytics}>
+      <div className={styles.devicePurchaseHero}>
+        <article className={`${styles.devicePurchaseCard} ${styles.devicePurchaseCardMobile}`.trim()}>
+          <div className={styles.devicePurchaseCardHead}>
+            <DeviceIcon type="mobile" />
+            <span>Compras desde celular</span>
           </div>
-          <div className={styles.deviceInfo}>
-            <span className={styles.deviceName}>{item.label}</span>
-            <div className={styles.deviceBarTrack}>
-              <div
-                className={`${styles.deviceBarFill} ${item.barClass}`.trim()}
-                style={{ width: `${Math.max(item.data?.percent || 0, 2)}%` }}
-              />
+          <p className={styles.devicePurchaseValue}>{formatNumber(devices.mobile?.purchases)}</p>
+          <p className={styles.devicePurchaseMeta}>
+            {formatPercentage(devices.mobile?.purchase_share)} del total
+            {purchaseTotal > 0 ? ` · ${formatPercentage(devices.mobile?.completion_rate)} conv.` : ''}
+          </p>
+        </article>
+        <article className={`${styles.devicePurchaseCard} ${styles.devicePurchaseCardDesktop}`.trim()}>
+          <div className={styles.devicePurchaseCardHead}>
+            <DeviceIcon type="desktop" />
+            <span>Compras desde PC</span>
+          </div>
+          <p className={styles.devicePurchaseValue}>{formatNumber(devices.desktop?.purchases)}</p>
+          <p className={styles.devicePurchaseMeta}>
+            {formatPercentage(devices.desktop?.purchase_share)} del total
+            {purchaseTotal > 0 ? ` · ${formatPercentage(devices.desktop?.completion_rate)} conv.` : ''}
+          </p>
+        </article>
+      </div>
+
+      {purchaseTotal > 0 ? (
+        <div className={styles.deviceCompletionBarWrap}>
+          <div className={styles.deviceCompletionBarTrack} aria-hidden="true">
+            <div
+              className={`${styles.deviceCompletionBarFill} ${styles.deviceBarMobile}`.trim()}
+              style={{ width: `${Math.max(completionSplit.mobile_percent || 0, 2)}%` }}
+            />
+            <div
+              className={`${styles.deviceCompletionBarFill} ${styles.deviceBarDesktop}`.trim()}
+              style={{ width: `${Math.max(completionSplit.desktop_percent || 0, 2)}%` }}
+            />
+          </div>
+          <p className={styles.deviceCompletionLegend}>
+            {formatNumber(completionSplit.mobile)} celular · {formatNumber(completionSplit.desktop)} PC
+          </p>
+        </div>
+      ) : null}
+
+      <div className={styles.deviceRow}>
+        {items.map((item) => (
+          <div key={item.key} className={styles.deviceItem}>
+            <div className={styles.deviceIcon}>
+              <DeviceIcon type={item.key} />
+            </div>
+            <div className={styles.deviceInfo}>
+              <span className={styles.deviceName}>{item.label}</span>
+              <div className={styles.deviceBarTrack}>
+                <div
+                  className={`${styles.deviceBarFill} ${item.barClass}`.trim()}
+                  style={{ width: `${Math.max(item.data?.visit_share || item.data?.percent || 0, 2)}%` }}
+                />
+              </div>
+            </div>
+            <div className={styles.deviceStat}>
+              <span className={styles.devicePercent}>
+                {formatPercentage(item.data?.visit_share || item.data?.percent)}
+              </span>
+              <span className={styles.deviceCount}>{formatNumber(item.data?.visitors)} visitas</span>
             </div>
           </div>
-          <div className={styles.deviceStat}>
-            <span className={styles.devicePercent}>{formatPercentage(item.data?.percent)}</span>
-            <span className={styles.deviceCount}>{formatNumber(item.data?.visitors)} visitas</span>
-          </div>
-        </div>
-      ))}
+        ))}
+      </div>
+
+      <div className={styles.deviceTableWrap}>
+        <table className={styles.deviceTable}>
+          <thead>
+            <tr>
+              <th>Etapa</th>
+              <th className={styles.tableNum}>Celular</th>
+              <th className={styles.tableNum}>PC</th>
+            </tr>
+          </thead>
+          <tbody>
+            {funnelRows.map((row) => (
+              <tr key={row.key} className={row.highlight ? styles.deviceTableHighlight : ''}>
+                <td>{row.label}</td>
+                <td className={styles.tableNum}>{formatNumber(devices.mobile?.[row.key])}</td>
+                <td className={styles.tableNum}>{formatNumber(devices.desktop?.[row.key])}</td>
+              </tr>
+            ))}
+            <tr className={styles.deviceTableRates}>
+              <td>Conversión visita → compra</td>
+              <td className={styles.tableNum}>{formatPercentage(devices.mobile?.completion_rate)}</td>
+              <td className={styles.tableNum}>{formatPercentage(devices.desktop?.completion_rate)}</td>
+            </tr>
+            <tr className={styles.deviceTableRates}>
+              <td>Tasa subida de imagen</td>
+              <td className={styles.tableNum}>{formatPercentage(devices.mobile?.upload_rate)}</td>
+              <td className={styles.tableNum}>{formatPercentage(devices.desktop?.upload_rate)}</td>
+            </tr>
+            <tr className={styles.deviceTableRates}>
+              <td>Tasa carrito (desde revisión)</td>
+              <td className={styles.tableNum}>{formatPercentage(devices.mobile?.cart_rate)}</td>
+              <td className={styles.tableNum}>{formatPercentage(devices.desktop?.cart_rate)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -584,8 +678,8 @@ export default function AnalyticsPage() {
                 <div className={styles.stack}>
                   <section className={styles.panel} aria-labelledby="devices-title">
                     <div className={styles.panelHeader}>
-                      <h2 id="devices-title" className={styles.panelTitle}>Dispositivos</h2>
-                      <p className={styles.panelHint}>Celular vs PC</p>
+                      <h2 id="devices-title" className={styles.panelTitle}>Celular vs PC</h2>
+                      <p className={styles.panelHint}>Embudo y compras completadas por dispositivo</p>
                     </div>
                     <div className={styles.panelBody}>
                       <DeviceSplit devices={devices} />
