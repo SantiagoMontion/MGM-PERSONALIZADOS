@@ -1,4 +1,10 @@
 {
+  "crons": [
+    {
+      "path": "/api/analytics/sync-purchases-cron",
+      "schedule": "*/15 * * * *"
+    }
+  ],
   "functions": {
     "api/publish-product.js": {
       "memory": 512,

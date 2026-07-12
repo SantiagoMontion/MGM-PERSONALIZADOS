@@ -26,6 +26,7 @@ import printsDownload from '../api-routes/prints/download.js';
 import printsUpload from '../api-routes/prints/upload.js';
 import analyticsDashboard from '../api-routes/analytics/dashboard.js';
 import analyticsSyncPurchases from '../api-routes/analytics/sync-purchases.js';
+import analyticsSyncPurchasesCron from '../api-routes/analytics/sync-purchases-cron.js';
 import trackRoute from '../api-routes/track.js';
 import privateCheckout from '../api-routes/private/checkout/index.js';
 import seoCheckout from '../api-routes/seo/checkout.js';
@@ -68,6 +69,8 @@ const ROUTES = new Map([
   ['POST /api/prints/upload', printsUpload],
   ['GET /api/analytics/dashboard', analyticsDashboard],
   ['POST /api/analytics/sync-purchases', analyticsSyncPurchases],
+  ['GET /api/analytics/sync-purchases-cron', analyticsSyncPurchasesCron],
+  ['POST /api/analytics/sync-purchases-cron', analyticsSyncPurchasesCron],
   ['POST /api/track', trackRoute],
   ['POST /api/private/checkout', privateCheckout],
   ['GET /api/seo/checkout', seoCheckout],

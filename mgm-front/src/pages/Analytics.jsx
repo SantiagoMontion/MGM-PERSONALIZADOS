@@ -603,6 +603,7 @@ export default function AnalyticsPage() {
   const topMaterialSizes = Array.isArray(data?.top_material_sizes) ? data.top_material_sizes : [];
   const devices = data?.devices ?? null;
   const purchasesDetail = Array.isArray(data?.purchases_detail) ? data.purchases_detail : [];
+  const purchaseSync = data?.purchase_sync ?? null;
   const lastEvents = Array.isArray(data?.last_events) ? data.last_events : [];
 
   return (
@@ -713,8 +714,8 @@ export default function AnalyticsPage() {
                 </div>
                 <div className={styles.purchaseSyncRow}>
                   <p className={styles.purchaseSyncHint}>
-                    Las compras se registran desde Shopify al marcarlas pagadas.
-                    Si no ves una compra real (ej. pedido #15704), sincronizá manualmente.
+                    Las compras se sincronizan solas desde Shopify (cada ~10 min al abrir analytics
+                    y cada 15 min en segundo plano). El botón fuerza una sync inmediata.
                   </p>
                   <button
                     type="button"
@@ -722,11 +723,15 @@ export default function AnalyticsPage() {
                     onClick={syncPurchases}
                     disabled={isSyncing}
                   >
-                    {isSyncing ? 'Sincronizando…' : 'Sincronizar compras Shopify'}
+                    {isSyncing ? 'Sincronizando…' : 'Sincronizar ahora'}
                   </button>
                 </div>
                 {syncMessage ? (
                   <p className={styles.syncMessage} role="status">{syncMessage}</p>
+                ) : purchaseSync?.recorded > 0 ? (
+                  <p className={styles.syncMessage} role="status">
+                    Sync automática: {formatNumber(purchaseSync.recorded)} compra(s) nueva(s) registrada(s).
+                  </p>
                 ) : null}
                 {purchasesDetail.length ? (
                   <div className={styles.purchasesDetailList}>
