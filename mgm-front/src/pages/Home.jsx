@@ -348,10 +348,14 @@ const STEP_TWO_EMBED_BOUNDS_FILL = {
   fillAtMin: 0.88,
   fillAtMax: 0.96,
 };
-/** Tope de alto del stage vs viewport: xl un poco bajo el max para que 140×100 no tape el caption. */
+/** Tope de alto del stage vs viewport. */
 const STEP_TWO_STAGE_HEIGHT_VIEWPORT_RATIO = { default: 0.62, tall: 0.70, xl: 0.74 };
 const STEP_TWO_TALL_STAGE_HEIGHT_CM = 80;
 const STEP_TWO_XL_STAGE_HEIGHT_CM = 95;
+/** 140×100 (y similares): achique solo del Konva display; no toca caption/footer. */
+const STEP_TWO_MAX_PAD_VISUAL_SCALE = { standalone: 0.76, embed: 0.70 };
+/** 100×60: leve boost visual. */
+const STEP_TWO_WIDE_MEDIUM_VISUAL_SCALE = 1.07;
 /** Misma imagen de fondo por posición que las categorías anteriores; ahora enlaces a sitios de wallpapers. */
 const STEP_ONE_RECOMMENDED_CATEGORIES = [
   {
