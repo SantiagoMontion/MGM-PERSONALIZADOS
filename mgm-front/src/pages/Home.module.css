@@ -4589,7 +4589,12 @@ body.light .stepTwoContainColorLabel {
 
   .pageStepEdit {
     height: auto;
+    min-block-size: auto;
     padding-inline: 0;
+    overflow-x: hidden;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
   }
 
   .sectionOneStepUpload {
@@ -4994,7 +4999,8 @@ body.light .stepTwoContainColorLabel {
     min-height: auto;
     min-block-size: auto;
     gap: 8px;
-    padding-block-end: calc(120px + var(--safe-area-bottom));
+    /* Footer fijo alto: dejar aire para scrollear hasta la barra de herramientas */
+    padding-block-end: calc(240px + var(--safe-area-bottom));
     box-sizing: border-box;
     touch-action: pan-y;
   }
@@ -5087,7 +5093,11 @@ body.light .stepTwoContainColorLabel {
     box-shadow: var(--nm-shadow-footer-secondary);
     overflow: hidden;
     box-sizing: border-box;
-    margin-block-start: 30px;
+    margin-block-start: 16px;
+    margin-block-end: 12px;
+    position: relative;
+    z-index: 1;
+    scroll-margin-block-end: calc(220px + var(--safe-area-bottom));
   }
 
   .stepTwoActionsRailWithStraightEdges {
@@ -5167,8 +5177,8 @@ body.light .stepTwoContainColorLabel {
   .stepTwoFooter {
     flex-direction: column;
     align-items: stretch;
-    gap: 15px;
-    padding: 16px;
+    gap: 10px;
+    padding: 12px 14px;
   }
 
   .stepTwoFooterTopRow {

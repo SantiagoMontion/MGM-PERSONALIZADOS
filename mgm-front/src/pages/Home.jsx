@@ -5904,7 +5904,7 @@ export default function Home() {
                         transferPrice={editorDisplayTransferPrice}
                         variant="large"
                         lightTheme={!isDarkMode}
-                        showFreeShippingCaption
+                        showFreeShippingCaption={!isStepOneMobileViewport}
                       />
                       <span className={styles.stepTwoFooterPriceCaption}>
                         {DEFAULT_PRICE_CAPTION}
