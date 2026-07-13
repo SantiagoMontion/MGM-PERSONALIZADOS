@@ -9,6 +9,9 @@
     "api/publish-product.js": {
       "memory": 512,
       "maxDuration": 300
+    },
+    "api/analytics/dashboard.js": {
+      "maxDuration": 60
     }
   },
   "headers": [

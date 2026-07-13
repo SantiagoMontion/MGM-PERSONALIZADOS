@@ -5,7 +5,8 @@
 import analyticsDashboard from '../../api-routes/analytics/dashboard.js';
 
 export const config = {
-  maxDuration: 15,
+  // Antes 15s: el sync Shopify + query 30 días explotaba en 504 sin CORS.
+  maxDuration: 60,
 };
 
 export default analyticsDashboard;

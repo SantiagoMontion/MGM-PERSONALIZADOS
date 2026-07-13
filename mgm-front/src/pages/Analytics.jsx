@@ -452,7 +452,8 @@ export default function AnalyticsPage() {
     try {
       for (const endpoint of dashboardEndpoints) {
         try {
-          const url = `${endpoint}?from=${encodeURIComponent(fromIso)}&to=${encodeURIComponent(toIso)}`;
+          // skip_sync=1: el dashboard no debe esperar Shopify (evita 504/CORS fantasma).
+          const url = `${endpoint}?from=${encodeURIComponent(fromIso)}&to=${encodeURIComponent(toIso)}&skip_sync=1`;
           const response = await fetch(url, {
             headers: {
               Accept: 'application/json',
