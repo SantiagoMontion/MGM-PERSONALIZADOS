@@ -341,6 +341,13 @@ const STEP_TWO_SMALL_STAGE_VISUAL_SCALE = 0.8;
 const STEP_TWO_MOBILE_STAGE_VISUAL_SCALE = 1.08;
 const STEP_TWO_DESKTOP_TOOLBAR_EXTRA_WIDTH_PX = 20;
 const STEP_TWO_TOOLBAR_EXTRA_GAP_PX = 20;
+/** Embed Shopify: escala visual del stage (solo display). Lado corto → más padding; lado largo → más achique. */
+const STEP_TWO_EMBED_STAGE_SCALE = {
+  minSideCm: 25,
+  maxSideCm: 140,
+  scaleAtMin: 0.70,
+  scaleAtMax: 0.40,
+};
 /** Misma imagen de fondo por posición que las categorías anteriores; ahora enlaces a sitios de wallpapers. */
 const STEP_ONE_RECOMMENDED_CATEGORIES = [
   {
@@ -554,6 +561,31 @@ function fitStageWithinBounds(widthCm, heightCm, maxWidthPx, maxHeightPx) {
     width: Math.max(1, Math.round(safeWidth * scale)),
     height: Math.max(1, Math.round(safeHeight * scale)),
   };
+}
+
+/**
+ * Solo Shopify embed: achica el Konva a medida que crece el pad (display).
+ * No afecta DPI ni export.
+ */
+function getShopifyEmbedStageVisualScale(widthCm, heightCm) {
+  const safeW = Number.isFinite(Number(widthCm)) && Number(widthCm) > 0 ? Number(widthCm) : 1;
+  const safeH = Number.isFinite(Number(heightCm)) && Number(heightCm) > 0 ? Number(heightCm) : 1;
+  const maxSide = Math.max(safeW, safeH);
+  const diagonal = Math.hypot(safeW, safeH);
+  const {
+    minSideCm,
+    maxSideCm,
+    scaleAtMin,
+    scaleAtMax,
+  } = STEP_TWO_EMBED_STAGE_SCALE;
+  const sideT = Math.min(1, Math.max(0, (maxSide - minSideCm) / Math.max(1, maxSideCm - minSideCm)));
+  // Diagonal refuerza pads anchos tipo 90×40 / 100×60
+  const diagMin = Math.hypot(minSideCm, minSideCm);
+  const diagMax = Math.hypot(maxSideCm, 100);
+  const diagT = Math.min(1, Math.max(0, (diagonal - diagMin) / Math.max(1, diagMax - diagMin)));
+  const t = Math.max(sideT, diagT);
+  const eased = t ** 1.2;
+  return scaleAtMin + (scaleAtMax - scaleAtMin) * eased;
 }
 
 /** Solo móvil + proporción cuadrada / casi cuadrada (no aplica a 82×32, 140×100, etc.). */
@@ -3790,19 +3822,21 @@ export default function Home() {
         ? STEP_TWO_STAGE_VERTICAL_RESERVE_PX.compact
         : STEP_TWO_STAGE_VERTICAL_RESERVE_PX.desktop;
     const verticalReservePx = shopifyEmbed
-      ? Math.max(40, baseVerticalReservePx - 28)
+      ? Math.max(52, baseVerticalReservePx - 12)
       : baseVerticalReservePx;
     const isTallStageLayout = safeHeight >= STEP_TWO_TALL_STAGE_HEIGHT_CM;
-    const heightViewportRatio = isTallStageLayout
-      ? STEP_TWO_STAGE_HEIGHT_VIEWPORT_RATIO.tall
-      : STEP_TWO_STAGE_HEIGHT_VIEWPORT_RATIO.default;
-    const absoluteStageHeightCapPx = Math.round((viewportHeight || 0) * (isMobileViewport ? 0.48 : heightViewportRatio));
+    const heightViewportRatio = shopifyEmbed
+      ? (isTallStageLayout ? 0.46 : 0.52)
+      : (isTallStageLayout
+        ? STEP_TWO_STAGE_HEIGHT_VIEWPORT_RATIO.tall
+        : STEP_TWO_STAGE_HEIGHT_VIEWPORT_RATIO.default);
+    const absoluteStageHeightCapPx = Math.round((viewportHeight || 0) * (isMobileViewport ? (shopifyEmbed ? 0.42 : 0.48) : heightViewportRatio));
     const availableLayoutHeightPx = Math.max(
       0,
       footerTopPx - workspaceTopPx - verticalReservePx,
     );
     const maxStageHeightPx = Math.max(
-      isMobileViewport ? 132 : 180,
+      shopifyEmbed ? (isMobileViewport ? 120 : 150) : (isMobileViewport ? 132 : 180),
       Math.min(
         absoluteStageHeightCapPx || Number.POSITIVE_INFINITY,
         availableLayoutHeightPx || Number.POSITIVE_INFINITY,
@@ -3814,13 +3848,21 @@ export default function Home() {
       maxStageWidthPx,
       maxStageHeightPx,
     );
-    if (Math.max(safeWidth, safeHeight) <= STEP_TWO_SMALL_STAGE_MAX_SIDE_CM) {
+    const embedStageScale = shopifyEmbed
+      ? getShopifyEmbedStageVisualScale(safeWidth, safeHeight)
+      : 1;
+    if (shopifyEmbed) {
+      fittedStage = {
+        width: Math.max(1, Math.round(fittedStage.width * embedStageScale)),
+        height: Math.max(1, Math.round(fittedStage.height * embedStageScale)),
+      };
+    } else if (Math.max(safeWidth, safeHeight) <= STEP_TWO_SMALL_STAGE_MAX_SIDE_CM) {
       fittedStage = {
         width: Math.max(1, Math.round(fittedStage.width * STEP_TWO_SMALL_STAGE_VISUAL_SCALE)),
         height: Math.max(1, Math.round(fittedStage.height * STEP_TWO_SMALL_STAGE_VISUAL_SCALE)),
       };
     }
-    if (isMobileViewport) {
+    if (isMobileViewport && !shopifyEmbed) {
       const mobileScale = Math.min(
         STEP_TWO_MOBILE_STAGE_VISUAL_SCALE,
         maxStageWidthPx / Math.max(1, fittedStage.width),
@@ -3833,6 +3875,9 @@ export default function Home() {
         };
       }
     }
+    const embedReserveTailPx = shopifyEmbed
+      ? Math.round(28 + (1 - embedStageScale) * 18)
+      : null;
     const shellWidthPx = Math.max(
       320,
       Math.min(
@@ -3876,7 +3921,9 @@ export default function Home() {
       '--step-two-measure-track-size': `${measureTrackPx}px`,
       '--step-two-measure-space': `${measureSpacePx}px`,
       '--step-two-measure-line-thickness': `${isMobileViewport ? 0.75 : 1}px`,
-      '--step-two-title-gap': shopifyEmbed ? '6px' : (is100cmHeightDesktop ? '4px' : '15px'),
+      '--step-two-title-gap': shopifyEmbed
+        ? (embedStageScale > 0.62 ? '10px' : '6px')
+        : (is100cmHeightDesktop ? '4px' : '15px'),
       '--step-two-shell-width': `${shellWidthPx}px`,
       '--step-two-footer-action-min-width': `${footerActionMinWidthPx}px`,
       '--step-two-footer-bottom-space': (
@@ -3888,12 +3935,12 @@ export default function Home() {
       '--step-two-preview-frame-margin-top': `${previewFrameMarginTopPx}px`,
       ...(shopifyEmbed
         ? {
-          '--step-two-layout-padding-top': '6px',
+          '--step-two-layout-padding-top': embedStageScale > 0.62 ? '10px' : '6px',
           '--step-two-layout-gap': '10px',
-          '--step-two-workspace-gap': '8px',
+          '--step-two-workspace-gap': embedStageScale > 0.62 ? '12px' : '8px',
           '--step-two-workspace-min-block': '0',
           '--step-two-layout-min-block': '0',
-          '--step-two-stage-reserve-tail': '24px',
+          '--step-two-stage-reserve-tail': `${embedReserveTailPx ?? 28}px`,
         }
         : {}),
       ...(is100cmHeightDesktop && !shopifyEmbed
