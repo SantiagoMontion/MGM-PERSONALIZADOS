@@ -348,8 +348,8 @@ const STEP_TWO_EMBED_BOUNDS_FILL = {
   fillAtMin: 0.88,
   fillAtMax: 0.96,
 };
-/** Tope de alto del stage vs viewport: xl (≈100cm+) más generoso para que 140×100 no quede diminuto. */
-const STEP_TWO_STAGE_HEIGHT_VIEWPORT_RATIO = { default: 0.62, tall: 0.82, xl: 0.90 };
+/** Tope de alto del stage vs viewport: xl un poco bajo el max para que 140×100 no tape el caption. */
+const STEP_TWO_STAGE_HEIGHT_VIEWPORT_RATIO = { default: 0.62, tall: 0.70, xl: 0.74 };
 const STEP_TWO_TALL_STAGE_HEIGHT_CM = 80;
 const STEP_TWO_XL_STAGE_HEIGHT_CM = 95;
 /** Misma imagen de fondo por posición que las categorías anteriores; ahora enlaces a sitios de wallpapers. */
@@ -3835,13 +3835,13 @@ export default function Home() {
     const verticalReservePx = shopifyEmbed
       ? Math.round(baseVerticalReservePx - 8 + (1 - embedBoundsFill) * 10)
       : (isXlStageLayout
-        ? Math.max(48, baseVerticalReservePx - 36)
+        ? Math.max(56, baseVerticalReservePx - 20)
         : baseVerticalReservePx);
     const isTallStageLayout = safeHeight >= STEP_TWO_TALL_STAGE_HEIGHT_CM;
     const heightViewportRatio = (() => {
       if (shopifyEmbed) {
-        if (isXlStageLayout) return 0.78;
-        if (isTallStageLayout) return 0.66;
+        if (isXlStageLayout) return 0.68;
+        if (isTallStageLayout) return 0.62;
         return 0.56;
       }
       if (isXlStageLayout) return STEP_TWO_STAGE_HEIGHT_VIEWPORT_RATIO.xl;
@@ -3858,7 +3858,7 @@ export default function Home() {
       footerTopPx - workspaceTopPx - verticalReservePx,
     );
     const maxStageHeightPx = Math.max(
-      isMobileViewport ? 132 : (isXlStageLayout ? 220 : 180),
+      isMobileViewport ? 132 : 180,
       Math.min(
         absoluteStageHeightCapPx || Number.POSITIVE_INFINITY,
         Math.round((availableLayoutHeightPx || Number.POSITIVE_INFINITY) * (shopifyEmbed ? embedBoundsFill : 1)),
@@ -3931,14 +3931,14 @@ export default function Home() {
       '--step-two-stage-height': `${fittedStage.height}px`,
       '--step-two-toolbar-width': `${toolbarWidthPx}px`,
       '--step-two-toolbar-offset': `${toolbarExtraGapPx}px`,
-      '--step-two-shell-gap': `${shellGapPx}px`,
+      '--step-two-shell-gap': `${isXlStageLayout ? Math.min(shellGapPx, 10) : shellGapPx}px`,
       '--step-two-measure-offset': `${measureOffsetPx}px`,
       '--step-two-measure-track-size': `${measureTrackPx}px`,
       '--step-two-measure-space': `${measureSpacePx}px`,
       '--step-two-measure-line-thickness': `${isMobileViewport ? 0.75 : 1}px`,
       '--step-two-title-gap': shopifyEmbed
         ? (embedBoundsFill > 0.86 ? '10px' : '6px')
-        : (is100cmHeightDesktop ? '4px' : '15px'),
+        : (is100cmHeightDesktop || isXlStageLayout ? '4px' : '15px'),
       '--step-two-shell-width': `${shellWidthPx}px`,
       '--step-two-footer-action-min-width': `${footerActionMinWidthPx}px`,
       '--step-two-footer-bottom-space': (
@@ -3948,6 +3948,9 @@ export default function Home() {
       ),
       '--step-two-preview-bundle-margin-top': `${previewFrameLiftPx}px`,
       '--step-two-preview-frame-margin-top': `${previewFrameMarginTopPx}px`,
+      /* Acerca "ÁREA DE IMPRESIÓN EXACTA" al lienzo (default CSS era 25px + reserve 44px). */
+      '--step-two-caption-bottom-bonus': isXlStageLayout || is100cmHeightDesktop ? '2px' : '8px',
+      '--step-two-stage-reserve-tail': isXlStageLayout || is100cmHeightDesktop ? '12px' : '22px',
       ...(shopifyEmbed
         ? {
           '--step-two-layout-padding-top': embedBoundsFill > 0.86 ? '10px' : '6px',
@@ -3955,19 +3958,20 @@ export default function Home() {
           '--step-two-workspace-gap': embedBoundsFill > 0.86 ? '12px' : '8px',
           '--step-two-workspace-min-block': '0',
           '--step-two-layout-min-block': '0',
-          '--step-two-stage-reserve-tail': `${embedReserveTailPx ?? 24}px`,
+          '--step-two-stage-reserve-tail': `${Math.min(embedReserveTailPx ?? 20, 20)}px`,
+          '--step-two-caption-bottom-bonus': '4px',
         }
         : {}),
       ...(is100cmHeightDesktop && !shopifyEmbed
         ? {
-          '--step-two-back-rail-margin-block-start': '12px',
+          '--step-two-back-rail-margin-block-start': '8px',
           '--step-two-back-rail-margin-block-end': '0px',
-          '--step-two-caption-bottom-bonus': '4px',
-          '--step-two-footer-stack-margin-start': 'auto',
-          '--step-two-preview-frame-padding-block-start': '4px',
+          '--step-two-caption-bottom-bonus': '0px',
+          '--step-two-footer-stack-margin-start': '8px',
+          '--step-two-preview-frame-padding-block-start': '0',
           '--step-two-layout-padding-top': '0',
-          '--step-two-layout-gap': '10px',
-          '--step-two-layout-min-block': 'calc(100dvh - 220px)',
+          '--step-two-layout-gap': '6px',
+          '--step-two-layout-min-block': '0',
           '--step-two-workspace-justify': 'flex-start',
           '--step-two-workspace-flex': '0 1 auto',
           '--step-two-workspace-min-block': '0',
@@ -3975,9 +3979,8 @@ export default function Home() {
           '--step-two-preview-frame-flex': '0 1 auto',
           '--step-two-preview-frame-min-block': '0',
           '--step-two-preview-bundle-min-block': '0',
-          '--step-two-stage-reserve-tail': '16px',
-          /* Menos lift: el translateY engañaba la métrica y achicaba el Konva */
-          '--step-two-footer-stack-lift-px': '24px',
+          '--step-two-stage-reserve-tail': '10px',
+          '--step-two-footer-stack-lift-px': '32px',
         }
         : {}),
     };
