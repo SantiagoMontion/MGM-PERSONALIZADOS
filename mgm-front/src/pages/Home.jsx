@@ -352,8 +352,8 @@ const STEP_TWO_EMBED_BOUNDS_FILL = {
 const STEP_TWO_STAGE_HEIGHT_VIEWPORT_RATIO = { default: 0.62, tall: 0.70, xl: 0.74 };
 const STEP_TWO_TALL_STAGE_HEIGHT_CM = 80;
 const STEP_TWO_XL_STAGE_HEIGHT_CM = 95;
-/** 140×100 (y similares): achique solo del Konva display; no toca caption/footer. */
-const STEP_TWO_MAX_PAD_VISUAL_SCALE = { standalone: 0.76, embed: 0.70 };
+/** 140×100: un solo tope de alto (sin multi-escala que lo deja diminuto). */
+const STEP_TWO_MAX_PAD_HEIGHT_FILL = { standalone: 0.84, embed: 0.78 };
 /** 100×60: leve boost visual. */
 const STEP_TWO_WIDE_MEDIUM_VISUAL_SCALE = 1.07;
 /** Misma imagen de fondo por posición que las categorías anteriores; ahora enlaces a sitios de wallpapers. */
@@ -3846,13 +3846,13 @@ export default function Home() {
     const isTallStageLayout = safeHeight >= STEP_TWO_TALL_STAGE_HEIGHT_CM;
     const heightViewportRatio = (() => {
       if (shopifyEmbed) {
-        if (isMaxPadLayout) return 0.52;
+        if (isMaxPadLayout) return 0.62;
         if (isXlStageLayout) return 0.62;
         if (isTallStageLayout) return 0.60;
         if (isWideMediumPad) return 0.58;
         return 0.56;
       }
-      if (isMaxPadLayout) return 0.58;
+      if (isMaxPadLayout) return 0.68;
       if (isXlStageLayout) return STEP_TWO_STAGE_HEIGHT_VIEWPORT_RATIO.xl;
       if (isTallStageLayout) return STEP_TWO_STAGE_HEIGHT_VIEWPORT_RATIO.tall;
       if (isWideMediumPad) return 0.68;
@@ -3867,7 +3867,9 @@ export default function Home() {
       0,
       footerTopPx - workspaceTopPx - verticalReservePx,
     );
-    const availableHeightFill = isMaxPadLayout ? (shopifyEmbed ? 0.68 : 0.72) : 1;
+    const availableHeightFill = isMaxPadLayout
+      ? (shopifyEmbed ? STEP_TWO_MAX_PAD_HEIGHT_FILL.embed : STEP_TWO_MAX_PAD_HEIGHT_FILL.standalone)
+      : 1;
     const maxStageHeightPx = Math.max(
       isMobileViewport ? 132 : 180,
       Math.min(
@@ -3892,15 +3894,8 @@ export default function Home() {
         height: Math.max(1, Math.round(fittedStage.height * STEP_TWO_SMALL_STAGE_VISUAL_SCALE)),
       };
     }
-    if (isMaxPadLayout) {
-      const shrink = shopifyEmbed
-        ? STEP_TWO_MAX_PAD_VISUAL_SCALE.embed
-        : STEP_TWO_MAX_PAD_VISUAL_SCALE.standalone;
-      fittedStage = {
-        width: Math.max(1, Math.round(fittedStage.width * shrink)),
-        height: Math.max(1, Math.round(fittedStage.height * shrink)),
-      };
-    } else if (isWideMediumPad) {
+    // 100×60: boost leve. 140×100 ya se limita solo con availableHeightFill (sin segunda escala).
+    if (isWideMediumPad) {
       const boost = STEP_TWO_WIDE_MEDIUM_VISUAL_SCALE;
       fittedStage = {
         width: Math.max(1, Math.round(Math.min(fittedStage.width * boost, maxStageWidthPx))),
