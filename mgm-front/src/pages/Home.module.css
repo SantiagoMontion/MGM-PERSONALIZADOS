@@ -3599,20 +3599,32 @@ body.light .stepTwoContainColorLabel {
   border-radius: 0;
   margin: 0;
   align-self: stretch;
-  min-block-size: 100%;
-  max-block-size: none;
+  position: fixed;
+  inset-block-start: 0;
+  inset-block-end: 0;
+  inset-inline-end: 0;
+  inset-inline-start: auto;
+  min-block-size: 0;
+  block-size: 100dvh;
+  max-block-size: 100dvh;
+  overflow: hidden;
 }
 
 .stepTwoConfigDrawer {
   border-radius: 0;
   margin: 0;
   align-self: stretch;
+  position: fixed;
+  inset-block-start: 0;
+  inset-block-end: 0;
+  inset-inline-end: 0;
+  inset-inline-start: auto;
   /* Limitar al viewport: si crece con el contenido, Total/Confirmar quedan fuera de pantalla */
   min-block-size: 0;
-  block-size: 100%;
-  max-block-size: 100%;
+  block-size: 100dvh;
   max-block-size: 100dvh;
   overflow: hidden;
+  overscroll-behavior: contain;
   border-inline-start: calc(var(--space-1) / 4) solid var(--border-default);
   border-inline-end: none;
   border-block-start: none;
@@ -3691,15 +3703,25 @@ body.light .stepTwoContainColorLabel {
 .stepTwoConfigDrawer .stepTwoAccordion {
   flex: 1 1 auto;
   min-block-size: 0;
+  overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
+  overscroll-behavior-y: contain;
+  touch-action: pan-y;
 }
 
 .stepTwoToolsDrawerScroll {
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
   min-block-size: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  overscroll-behavior-y: contain;
+  touch-action: pan-y;
 }
 
 .stepTwoConfigDrawer::before,

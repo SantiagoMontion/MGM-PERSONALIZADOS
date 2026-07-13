@@ -3549,6 +3549,28 @@ export default function Home() {
   }, [configOpen]);
 
   useEffect(() => {
+    if (typeof document === 'undefined') return undefined;
+    if (!configOpen && !toolsDrawerOpen) return undefined;
+
+    const html = document.documentElement;
+    const body = document.body;
+    const pageEl = pageRef.current;
+    const prevHtmlOverflow = html.style.overflow;
+    const prevBodyOverflow = body.style.overflow;
+    const prevPageOverflow = pageEl?.style?.overflow || '';
+
+    html.style.overflow = 'hidden';
+    body.style.overflow = 'hidden';
+    if (pageEl) pageEl.style.overflow = 'hidden';
+
+    return () => {
+      html.style.overflow = prevHtmlOverflow;
+      body.style.overflow = prevBodyOverflow;
+      if (pageEl) pageEl.style.overflow = prevPageOverflow;
+    };
+  }, [configOpen, toolsDrawerOpen]);
+
+  useEffect(() => {
     if (configOpen) {
       wasConfigOpenRef.current = true;
       return;
@@ -4433,6 +4455,26 @@ export default function Home() {
       const rid = ensureTrackingRid();
       if (rid) trackEvent('home_config_open', { rid });
     } catch {}
+  }, []);
+
+  const handleDrawerBackdropWheel = useCallback((event) => {
+    const scrollRoot = event.target?.closest?.('[data-drawer-scroll="1"]');
+    if (!scrollRoot) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    const delta = event.deltaY;
+    if (!delta) return;
+    const atTop = scrollRoot.scrollTop <= 0 && delta < 0;
+    const atBottom = (
+      scrollRoot.scrollTop + scrollRoot.clientHeight >= scrollRoot.scrollHeight - 1
+      && delta > 0
+    );
+    if (atTop || atBottom) {
+      event.preventDefault();
+    }
+    event.stopPropagation();
   }, []);
 
   const handleStepTwoCloseConfig = useCallback(() => {
@@ -5943,6 +5985,7 @@ export default function Home() {
                 <div
                   className={`${styles.stepTwoDrawerBackdrop} ${styles.stepTwoConfigDrawerBackdrop}`.trim()}
                   onClick={handleStepTwoConfigBackdropClick}
+                  onWheel={handleDrawerBackdropWheel}
                   role="presentation"
                 >
                   <div
@@ -5953,6 +5996,7 @@ export default function Home() {
                     aria-modal="true"
                     aria-labelledby="configuracion-editor-titulo"
                     onClick={(event) => event.stopPropagation()}
+                    onWheel={handleDrawerBackdropWheel}
                   >
                     <div className={styles.stepTwoDrawerHeader}>
                       <div className={styles.stepTwoDrawerHeading}>
@@ -5976,7 +6020,11 @@ export default function Home() {
                     </div>
 
                     <form className={styles.stepTwoConfigForm} onSubmit={handleConfigDrawerSubmit}>
-                      <div className={styles.stepTwoAccordion} ref={configPanelRef}>
+                      <div
+                        className={styles.stepTwoAccordion}
+                        ref={configPanelRef}
+                        data-drawer-scroll="1"
+                      >
                         <section className={styles.stepTwoAccordionSection}>
                           <button
                             type="button"
@@ -6326,6 +6374,7 @@ export default function Home() {
                 <div
                   className={`${styles.stepTwoDrawerBackdrop} ${styles.stepTwoToolsDrawerBackdrop}`.trim()}
                   onClick={handleStepTwoCloseTools}
+                  onWheel={handleDrawerBackdropWheel}
                   role="presentation"
                 >
                   <div
@@ -6336,6 +6385,7 @@ export default function Home() {
                     aria-modal="true"
                     aria-labelledby="editor-tools-title"
                     onClick={(event) => event.stopPropagation()}
+                    onWheel={handleDrawerBackdropWheel}
                   >
                     <div className={styles.stepTwoDrawerHeader}>
                       <div className={styles.stepTwoToolsDrawerHeading}>
@@ -6360,7 +6410,7 @@ export default function Home() {
                       </button>
                     </div>
 
-                    <div className={styles.stepTwoToolsDrawerScroll}>
+                    <div className={styles.stepTwoToolsDrawerScroll} data-drawer-scroll="1">
                     <div className={styles.stepTwoDrawerSection}>
                       <p className={styles.stepTwoDrawerSectionTitle}>ALINEACIÓN</p>
                       <button type="button" className={styles.stepTwoDrawerAction} onClick={() => handleStepTwoToolAction('centerHorizontal')}>
