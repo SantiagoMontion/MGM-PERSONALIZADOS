@@ -352,8 +352,8 @@ const STEP_TWO_EMBED_BOUNDS_FILL = {
 const STEP_TWO_STAGE_HEIGHT_VIEWPORT_RATIO = { default: 0.62, tall: 0.70, xl: 0.74 };
 const STEP_TWO_TALL_STAGE_HEIGHT_CM = 80;
 const STEP_TWO_XL_STAGE_HEIGHT_CM = 95;
-/** 140×100: un solo tope de alto (sin multi-escala que lo deja diminuto). */
-const STEP_TWO_MAX_PAD_HEIGHT_FILL = { standalone: 0.84, embed: 0.78 };
+/** 140×100: tope único en ancho+alto del Konva (display). */
+const STEP_TWO_MAX_PAD_BOUNDS_FILL = { standalone: 0.68, embed: 0.62 };
 /** 100×60: leve boost visual. */
 const STEP_TWO_WIDE_MEDIUM_VISUAL_SCALE = 1.07;
 /** Misma imagen de fondo por posición que las categorías anteriores; ahora enlaces a sitios de wallpapers. */
