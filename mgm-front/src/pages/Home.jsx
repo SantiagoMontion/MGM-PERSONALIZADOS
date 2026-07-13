@@ -331,7 +331,11 @@ const STEP_ONE_DESKTOP_SPACING_PX = { min: 40, max: 90 };
 const STEP_TWO_FOOTER_BOTTOM_SPACING_PX = { tight: 40, min: 100, max: 120 };
 const STEP_TWO_100CM_HEIGHT_LAYOUT_CM = 100;
 const STEP_TWO_PREVIEW_FRAME_LIFT_100CM_HEIGHT_DESKTOP_PX = 0;
-const STEP_TWO_100CM_DESKTOP_STAGE_TIGHTEN_PX = 96;
+/** Reserva vertical fija (título + medidas + gaps), no depende del tamaño del stage. */
+const STEP_TWO_STAGE_VERTICAL_RESERVE_PX = { mobile: 72, compact: 84, desktop: 92 };
+/** Tope de alto del stage vs viewport: más holgado en pads altos para usar el alto máximo. */
+const STEP_TWO_STAGE_HEIGHT_VIEWPORT_RATIO = { default: 0.62, tall: 0.78 };
+const STEP_TWO_TALL_STAGE_HEIGHT_CM = 80;
 const STEP_TWO_SMALL_STAGE_MAX_SIDE_CM = 35;
 const STEP_TWO_SMALL_STAGE_VISUAL_SCALE = 0.8;
 const STEP_TWO_MOBILE_STAGE_VISUAL_SCALE = 1.08;
@@ -1334,8 +1338,9 @@ export default function Home() {
         viewportWidth: 0,
         viewportHeight: 0,
         frameWidth: 0,
-        frameTop: 0,
+        workspaceTop: 0,
         footerHeight: 0,
+        footerTop: 0,
       };
     }
 
@@ -1343,8 +1348,9 @@ export default function Home() {
       viewportWidth: window.innerWidth || 0,
       viewportHeight: window.innerHeight || 0,
       frameWidth: 0,
-      frameTop: 0,
+      workspaceTop: 0,
       footerHeight: 0,
+      footerTop: 0,
     };
   });
   const [isStepOneCustomSizePanelOpen, setStepOneCustomSizePanelOpen] = useState(false);
@@ -1404,33 +1410,36 @@ export default function Home() {
 
     const pageEl = pageRef.current;
     const workspaceEl = stepTwoWorkspaceRef.current;
-    const frameEl = lienzoCardRef.current;
     const footerEl = stepTwoFooterRef.current;
     const pageStyles = pageEl ? window.getComputedStyle(pageEl) : null;
     const pagePaddingInline = parsePx(pageStyles?.paddingLeft) + parsePx(pageStyles?.paddingRight);
     const viewportWidth = window.innerWidth || 0;
     const viewportHeight = window.innerHeight || 0;
     const workspaceRect = workspaceEl?.getBoundingClientRect?.();
-    const frameRect = frameEl?.getBoundingClientRect?.();
     const footerRect = footerEl?.getBoundingClientRect?.();
     const frameWidth = workspaceRect?.width || Math.max(0, viewportWidth - pagePaddingInline);
-    const frameTop = frameRect?.top || 0;
+    // Usar el top del workspace (estable), no el del lienzo: si el stage está centrado
+    // con aire arriba, frameTop crece y el stage se achica en bucle (peor en 140×100).
+    const workspaceTop = workspaceRect?.top || 0;
     const footerHeight = footerRect?.height || 0;
+    const footerTop = footerRect?.top || Math.max(0, viewportHeight - footerHeight);
 
     setStepTwoViewportMetrics((prev) => {
       const next = {
         viewportWidth,
         viewportHeight,
         frameWidth,
-        frameTop,
+        workspaceTop,
         footerHeight,
+        footerTop,
       };
 
       return prev.viewportWidth === next.viewportWidth
         && prev.viewportHeight === next.viewportHeight
         && prev.frameWidth === next.frameWidth
-        && prev.frameTop === next.frameTop
+        && prev.workspaceTop === next.workspaceTop
         && prev.footerHeight === next.footerHeight
+        && prev.footerTop === next.footerTop
         ? prev
         : next;
     });
@@ -1457,7 +1466,6 @@ export default function Home() {
         pageRef.current,
         headingRef.current,
         stepTwoWorkspaceRef.current,
-        lienzoCardRef.current,
         stepTwoFooterRef.current,
       ]
         .filter(Boolean)
@@ -3762,25 +3770,33 @@ export default function Home() {
       minStageWidthPx,
       Math.min(absoluteStageWidthCapPx, availableShellWidthPx - horizontalChromePx),
     );
-    const frameTopPx = stepTwoViewportMetrics.frameTop || (isMobileViewport ? 132 : 176);
+    const frameTopFallback = isMobileViewport ? 132 : 176;
+    const workspaceTopPx = stepTwoViewportMetrics.workspaceTop > 0
+      ? stepTwoViewportMetrics.workspaceTop
+      : frameTopFallback;
     const footerHeightPx = stepTwoViewportMetrics.footerHeight || (isMobileViewport ? 156 : 108);
-    const verticalChromePx = isMobileViewport ? 102 : isCompactViewport ? 112 : 124;
-    const viewportBottomReservePx = isMobileViewport ? 26 : 36;
-    const is100cmHeightLayout = safeHeight >= STEP_TWO_100CM_HEIGHT_LAYOUT_CM;
-    const hundredCmDesktopStageTightenPx = (
-      !isMobileViewport && is100cmHeightLayout ? STEP_TWO_100CM_DESKTOP_STAGE_TIGHTEN_PX : 0
+    const footerTopPx = stepTwoViewportMetrics.footerTop > 0
+      ? stepTwoViewportMetrics.footerTop
+      : Math.max(0, (viewportHeight || 0) - footerHeightPx);
+    const verticalReservePx = isMobileViewport
+      ? STEP_TWO_STAGE_VERTICAL_RESERVE_PX.mobile
+      : isCompactViewport
+        ? STEP_TWO_STAGE_VERTICAL_RESERVE_PX.compact
+        : STEP_TWO_STAGE_VERTICAL_RESERVE_PX.desktop;
+    const isTallStageLayout = safeHeight >= STEP_TWO_TALL_STAGE_HEIGHT_CM;
+    const heightViewportRatio = isTallStageLayout
+      ? STEP_TWO_STAGE_HEIGHT_VIEWPORT_RATIO.tall
+      : STEP_TWO_STAGE_HEIGHT_VIEWPORT_RATIO.default;
+    const absoluteStageHeightCapPx = Math.round((viewportHeight || 0) * (isMobileViewport ? 0.48 : heightViewportRatio));
+    const availableLayoutHeightPx = Math.max(
+      0,
+      footerTopPx - workspaceTopPx - verticalReservePx,
     );
-    const absoluteStageHeightCapPx = Math.round((viewportHeight || 0) * (isMobileViewport ? 0.42 : 0.58));
     const maxStageHeightPx = Math.max(
       isMobileViewport ? 132 : 180,
       Math.min(
         absoluteStageHeightCapPx || Number.POSITIVE_INFINITY,
-        (viewportHeight || 0)
-          - frameTopPx
-          - footerHeightPx
-          - viewportBottomReservePx
-          - verticalChromePx
-          - hundredCmDesktopStageTightenPx,
+        availableLayoutHeightPx || Number.POSITIVE_INFINITY,
       ),
     );
     let fittedStage = fitStageWithinBounds(
@@ -3887,10 +3903,11 @@ export default function Home() {
     activeSizeCm?.w,
     shopifyEmbed,
     stepTwoViewportMetrics.footerHeight,
-    stepTwoViewportMetrics.frameTop,
+    stepTwoViewportMetrics.footerTop,
     stepTwoViewportMetrics.frameWidth,
     stepTwoViewportMetrics.viewportHeight,
     stepTwoViewportMetrics.viewportWidth,
+    stepTwoViewportMetrics.workspaceTop,
   ]);
   const stepTwoPreviewShellStyle = useMemo(
     () => ({
