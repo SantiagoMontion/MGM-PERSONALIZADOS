@@ -341,12 +341,16 @@ const STEP_TWO_SMALL_STAGE_VISUAL_SCALE = 0.8;
 const STEP_TWO_MOBILE_STAGE_VISUAL_SCALE = 1.08;
 const STEP_TWO_DESKTOP_TOOLBAR_EXTRA_WIDTH_PX = 20;
 const STEP_TWO_TOOLBAR_EXTRA_GAP_PX = 20;
-/** Embed Shopify: escala visual del stage (solo display). Lado corto → más padding; lado largo → más achique. */
-const STEP_TWO_EMBED_STAGE_SCALE = {
+/**
+ * Embed Shopify: fracción del espacio disponible que usa el Konva (display).
+ * Suave: 25cm ~0.90 (padding), 100–140cm ~0.82–0.78 (un poco menos para no romper).
+ * Nunca multiplicar de nuevo el stage ya fitted.
+ */
+const STEP_TWO_EMBED_BOUNDS_FILL = {
   minSideCm: 25,
   maxSideCm: 140,
-  scaleAtMin: 0.70,
-  scaleAtMax: 0.40,
+  fillAtMin: 0.90,
+  fillAtMax: 0.78,
 };
 /** Misma imagen de fondo por posición que las categorías anteriores; ahora enlaces a sitios de wallpapers. */
 const STEP_ONE_RECOMMENDED_CATEGORIES = [
@@ -564,28 +568,16 @@ function fitStageWithinBounds(widthCm, heightCm, maxWidthPx, maxHeightPx) {
 }
 
 /**
- * Solo Shopify embed: achica el Konva a medida que crece el pad (display).
- * No afecta DPI ni export.
+ * Solo Shopify embed: qué % del alto/ancho disponible usa el Konva.
+ * No afecta DPI ni export. No se aplica encima de un stage ya fitted.
  */
-function getShopifyEmbedStageVisualScale(widthCm, heightCm) {
+function getShopifyEmbedBoundsFill(widthCm, heightCm) {
   const safeW = Number.isFinite(Number(widthCm)) && Number(widthCm) > 0 ? Number(widthCm) : 1;
   const safeH = Number.isFinite(Number(heightCm)) && Number(heightCm) > 0 ? Number(heightCm) : 1;
   const maxSide = Math.max(safeW, safeH);
-  const diagonal = Math.hypot(safeW, safeH);
-  const {
-    minSideCm,
-    maxSideCm,
-    scaleAtMin,
-    scaleAtMax,
-  } = STEP_TWO_EMBED_STAGE_SCALE;
-  const sideT = Math.min(1, Math.max(0, (maxSide - minSideCm) / Math.max(1, maxSideCm - minSideCm)));
-  // Diagonal refuerza pads anchos tipo 90×40 / 100×60
-  const diagMin = Math.hypot(minSideCm, minSideCm);
-  const diagMax = Math.hypot(maxSideCm, 100);
-  const diagT = Math.min(1, Math.max(0, (diagonal - diagMin) / Math.max(1, diagMax - diagMin)));
-  const t = Math.max(sideT, diagT);
-  const eased = t ** 1.2;
-  return scaleAtMin + (scaleAtMax - scaleAtMin) * eased;
+  const { minSideCm, maxSideCm, fillAtMin, fillAtMax } = STEP_TWO_EMBED_BOUNDS_FILL;
+  const t = Math.min(1, Math.max(0, (maxSide - minSideCm) / Math.max(1, maxSideCm - minSideCm)));
+  return fillAtMin + (fillAtMax - fillAtMin) * t;
 }
 
 /** Solo móvil + proporción cuadrada / casi cuadrada (no aplica a 82×32, 140×100, etc.). */
@@ -3802,9 +3794,14 @@ export default function Home() {
     const absoluteStageWidthCapPx = isMobileViewport
       ? Math.max(420, viewportWidth - 40)
       : isCompactViewport ? 640 : 1120;
+    const embedBoundsFill = shopifyEmbed
+      ? getShopifyEmbedBoundsFill(safeWidth, safeHeight)
+      : 1;
     const maxStageWidthPx = Math.max(
       minStageWidthPx,
-      Math.min(absoluteStageWidthCapPx, availableShellWidthPx - horizontalChromePx),
+      Math.round(
+        Math.min(absoluteStageWidthCapPx, availableShellWidthPx - horizontalChromePx) * embedBoundsFill,
+      ),
     );
     const frameTopFallback = shopifyEmbed
       ? (isMobileViewport ? 96 : 120)
@@ -3821,25 +3818,30 @@ export default function Home() {
       : isCompactViewport
         ? STEP_TWO_STAGE_VERTICAL_RESERVE_PX.compact
         : STEP_TWO_STAGE_VERTICAL_RESERVE_PX.desktop;
+    // Embed: un poco más de reserva en pads chicos (padding); en grandes casi igual al compact.
     const verticalReservePx = shopifyEmbed
-      ? Math.max(52, baseVerticalReservePx - 12)
+      ? Math.round(baseVerticalReservePx - 8 + (1 - embedBoundsFill) * 24)
       : baseVerticalReservePx;
     const isTallStageLayout = safeHeight >= STEP_TWO_TALL_STAGE_HEIGHT_CM;
     const heightViewportRatio = shopifyEmbed
-      ? (isTallStageLayout ? 0.46 : 0.52)
+      ? (isTallStageLayout ? 0.60 : 0.56)
       : (isTallStageLayout
         ? STEP_TWO_STAGE_HEIGHT_VIEWPORT_RATIO.tall
         : STEP_TWO_STAGE_HEIGHT_VIEWPORT_RATIO.default);
-    const absoluteStageHeightCapPx = Math.round((viewportHeight || 0) * (isMobileViewport ? (shopifyEmbed ? 0.42 : 0.48) : heightViewportRatio));
+    const absoluteStageHeightCapPx = Math.round(
+      (viewportHeight || 0)
+      * (isMobileViewport ? (shopifyEmbed ? 0.46 : 0.48) : heightViewportRatio)
+      * embedBoundsFill,
+    );
     const availableLayoutHeightPx = Math.max(
       0,
       footerTopPx - workspaceTopPx - verticalReservePx,
     );
     const maxStageHeightPx = Math.max(
-      shopifyEmbed ? (isMobileViewport ? 120 : 150) : (isMobileViewport ? 132 : 180),
+      shopifyEmbed ? (isMobileViewport ? 132 : 180) : (isMobileViewport ? 132 : 180),
       Math.min(
         absoluteStageHeightCapPx || Number.POSITIVE_INFINITY,
-        availableLayoutHeightPx || Number.POSITIVE_INFINITY,
+        Math.round((availableLayoutHeightPx || Number.POSITIVE_INFINITY) * (shopifyEmbed ? embedBoundsFill : 1)),
       ),
     );
     let fittedStage = fitStageWithinBounds(
@@ -3848,15 +3850,8 @@ export default function Home() {
       maxStageWidthPx,
       maxStageHeightPx,
     );
-    const embedStageScale = shopifyEmbed
-      ? getShopifyEmbedStageVisualScale(safeWidth, safeHeight)
-      : 1;
-    if (shopifyEmbed) {
-      fittedStage = {
-        width: Math.max(1, Math.round(fittedStage.width * embedStageScale)),
-        height: Math.max(1, Math.round(fittedStage.height * embedStageScale)),
-      };
-    } else if (Math.max(safeWidth, safeHeight) <= STEP_TWO_SMALL_STAGE_MAX_SIDE_CM) {
+    // Solo standalone: boost/ajuste de pads chicos. Embed ya dejó padding vía bounds fill.
+    if (!shopifyEmbed && Math.max(safeWidth, safeHeight) <= STEP_TWO_SMALL_STAGE_MAX_SIDE_CM) {
       fittedStage = {
         width: Math.max(1, Math.round(fittedStage.width * STEP_TWO_SMALL_STAGE_VISUAL_SCALE)),
         height: Math.max(1, Math.round(fittedStage.height * STEP_TWO_SMALL_STAGE_VISUAL_SCALE)),
@@ -3876,7 +3871,7 @@ export default function Home() {
       }
     }
     const embedReserveTailPx = shopifyEmbed
-      ? Math.round(28 + (1 - embedStageScale) * 18)
+      ? Math.round(22 + (1 - embedBoundsFill) * 10)
       : null;
     const shellWidthPx = Math.max(
       320,
@@ -3922,7 +3917,7 @@ export default function Home() {
       '--step-two-measure-space': `${measureSpacePx}px`,
       '--step-two-measure-line-thickness': `${isMobileViewport ? 0.75 : 1}px`,
       '--step-two-title-gap': shopifyEmbed
-        ? (embedStageScale > 0.62 ? '10px' : '6px')
+        ? (embedBoundsFill > 0.86 ? '10px' : '6px')
         : (is100cmHeightDesktop ? '4px' : '15px'),
       '--step-two-shell-width': `${shellWidthPx}px`,
       '--step-two-footer-action-min-width': `${footerActionMinWidthPx}px`,
@@ -3935,12 +3930,12 @@ export default function Home() {
       '--step-two-preview-frame-margin-top': `${previewFrameMarginTopPx}px`,
       ...(shopifyEmbed
         ? {
-          '--step-two-layout-padding-top': embedStageScale > 0.62 ? '10px' : '6px',
+          '--step-two-layout-padding-top': embedBoundsFill > 0.86 ? '10px' : '6px',
           '--step-two-layout-gap': '10px',
-          '--step-two-workspace-gap': embedStageScale > 0.62 ? '12px' : '8px',
+          '--step-two-workspace-gap': embedBoundsFill > 0.86 ? '12px' : '8px',
           '--step-two-workspace-min-block': '0',
           '--step-two-layout-min-block': '0',
-          '--step-two-stage-reserve-tail': `${embedReserveTailPx ?? 28}px`,
+          '--step-two-stage-reserve-tail': `${embedReserveTailPx ?? 24}px`,
         }
         : {}),
       ...(is100cmHeightDesktop && !shopifyEmbed
