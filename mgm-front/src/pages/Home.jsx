@@ -352,10 +352,14 @@ const STEP_TWO_EMBED_BOUNDS_FILL = {
 const STEP_TWO_STAGE_HEIGHT_VIEWPORT_RATIO = { default: 0.62, tall: 0.70, xl: 0.74 };
 const STEP_TWO_TALL_STAGE_HEIGHT_CM = 80;
 const STEP_TWO_XL_STAGE_HEIGHT_CM = 95;
-/** 140×100: tope único en ancho+alto del Konva (display). */
-const STEP_TWO_MAX_PAD_BOUNDS_FILL = { standalone: 0.68, embed: 0.62 };
-/** 100×60: leve boost visual. */
-const STEP_TWO_WIDE_MEDIUM_VISUAL_SCALE = 1.07;
+/**
+ * Pads con alto físico 60–100 cm: misma altura visual de Konva (p. ej. 100×100 y 140×100).
+ * El ancho sigue la proporción; no se toca la resolución de export.
+ * IMPORTANTE: no volver a poner fill especial por w≥130 (achicaba solo el 140×100).
+ */
+const STEP_TWO_SHARED_TALL_BAND_CM = { minH: 60, maxH: 100 };
+/** Misma ratio que XL (0.74): 100×100 y 140×100 comparten altura visual. */
+const STEP_TWO_SHARED_TALL_BAND_VIEWPORT_RATIO = { standalone: 0.74, embed: 0.62 };
 /** Misma imagen de fondo por posición que las categorías anteriores; ahora enlaces a sitios de wallpapers. */
 const STEP_ONE_RECOMMENDED_CATEGORIES = [
   {
@@ -3828,24 +3832,23 @@ export default function Home() {
         + (shellGapPx * 2)
         + toolbarExtraGapPx
       );
-    const absoluteStageWidthCapPx = isMobileViewport
-      ? Math.max(420, viewportWidth - 40)
-      : isCompactViewport ? 640 : 1120;
     const embedBoundsFill = shopifyEmbed
       ? getShopifyEmbedBoundsFill(safeWidth, safeHeight)
       : 1;
-    // Detectar 140×100 antes de armar caps: necesita achicar ancho Y alto.
-    const isMaxPadLayout = safeWidth >= 130 && safeHeight >= 95;
-    const isWideMediumPad = safeWidth >= 95 && safeWidth <= 110 && safeHeight >= 55 && safeHeight <= 70;
-    const maxPadBoundsFill = isMaxPadLayout
-      ? (shopifyEmbed ? STEP_TWO_MAX_PAD_BOUNDS_FILL.embed : STEP_TWO_MAX_PAD_BOUNDS_FILL.standalone)
-      : 1;
+    const isSharedTallBand = (
+      safeHeight >= STEP_TWO_SHARED_TALL_BAND_CM.minH
+      && safeHeight <= STEP_TWO_SHARED_TALL_BAND_CM.maxH
+    );
+    // Sin tope artificial 1120: el 140×100 necesita ~1.4× el ancho del 100×100 a igual altura.
+    const absoluteStageWidthCapPx = isMobileViewport
+      ? Math.max(420, viewportWidth - 40)
+      : isCompactViewport
+        ? 640
+        : Math.max(1120, availableShellWidthPx - horizontalChromePx);
     const maxStageWidthPx = Math.max(
       minStageWidthPx,
       Math.round(
-        Math.min(absoluteStageWidthCapPx, availableShellWidthPx - horizontalChromePx)
-        * embedBoundsFill
-        * maxPadBoundsFill,
+        Math.min(absoluteStageWidthCapPx, availableShellWidthPx - horizontalChromePx) * embedBoundsFill,
       ),
     );
     const frameTopFallback = shopifyEmbed
@@ -3863,7 +3866,6 @@ export default function Home() {
       : isCompactViewport
         ? STEP_TWO_STAGE_VERTICAL_RESERVE_PX.compact
         : STEP_TWO_STAGE_VERTICAL_RESERVE_PX.desktop;
-    // Embed: un poco más de reserva en pads chicos (padding); en grandes casi igual al compact.
     const isXlStageLayout = safeHeight >= STEP_TWO_XL_STAGE_HEIGHT_CM;
     const verticalReservePx = shopifyEmbed
       ? Math.round(baseVerticalReservePx - 8 + (1 - embedBoundsFill) * 10)
@@ -3872,22 +3874,24 @@ export default function Home() {
         : baseVerticalReservePx);
     const isTallStageLayout = safeHeight >= STEP_TWO_TALL_STAGE_HEIGHT_CM;
     const heightViewportRatio = (() => {
+      if (isSharedTallBand) {
+        return shopifyEmbed
+          ? STEP_TWO_SHARED_TALL_BAND_VIEWPORT_RATIO.embed
+          : STEP_TWO_SHARED_TALL_BAND_VIEWPORT_RATIO.standalone;
+      }
       if (shopifyEmbed) {
         if (isXlStageLayout) return 0.62;
         if (isTallStageLayout) return 0.60;
-        if (isWideMediumPad) return 0.58;
         return 0.56;
       }
       if (isXlStageLayout) return STEP_TWO_STAGE_HEIGHT_VIEWPORT_RATIO.xl;
       if (isTallStageLayout) return STEP_TWO_STAGE_HEIGHT_VIEWPORT_RATIO.tall;
-      if (isWideMediumPad) return 0.68;
       return STEP_TWO_STAGE_HEIGHT_VIEWPORT_RATIO.default;
     })();
     const absoluteStageHeightCapPx = Math.round(
       (viewportHeight || 0)
       * (isMobileViewport ? (shopifyEmbed ? 0.46 : 0.48) : heightViewportRatio)
-      * (shopifyEmbed ? embedBoundsFill : 1)
-      * maxPadBoundsFill,
+      * (shopifyEmbed ? embedBoundsFill : 1),
     );
     const availableLayoutHeightPx = Math.max(
       0,
@@ -3897,11 +3901,7 @@ export default function Home() {
       isMobileViewport ? 132 : 180,
       Math.min(
         absoluteStageHeightCapPx || Number.POSITIVE_INFINITY,
-        Math.round(
-          (availableLayoutHeightPx || Number.POSITIVE_INFINITY)
-          * (shopifyEmbed ? embedBoundsFill : 1)
-          * maxPadBoundsFill,
-        ),
+        Math.round((availableLayoutHeightPx || Number.POSITIVE_INFINITY) * (shopifyEmbed ? embedBoundsFill : 1)),
       ),
     );
     let fittedStage = fitStageWithinBounds(
@@ -3910,19 +3910,26 @@ export default function Home() {
       maxStageWidthPx,
       maxStageHeightPx,
     );
-    // Solo standalone: boost/ajuste de pads chicos. Embed ya dejó padding vía bounds fill.
+    // Solo standalone: boost/ajuste de pads chicos.
     if (!shopifyEmbed && Math.max(safeWidth, safeHeight) <= STEP_TWO_SMALL_STAGE_MAX_SIDE_CM) {
       fittedStage = {
         width: Math.max(1, Math.round(fittedStage.width * STEP_TWO_SMALL_STAGE_VISUAL_SCALE)),
         height: Math.max(1, Math.round(fittedStage.height * STEP_TWO_SMALL_STAGE_VISUAL_SCALE)),
       };
     }
-    // 100×60: boost leve. 140×100 ya limitado por maxPadBoundsFill en ambos ejes.
-    if (isWideMediumPad) {
-      const boost = STEP_TWO_WIDE_MEDIUM_VISUAL_SCALE;
+    // Banda 60–100 cm: misma altura que un cuadrado (100×100) en estos bounds; el ancho sigue la proporción.
+    if (isSharedTallBand && !isMobileViewport) {
+      const aspect = safeWidth / Math.max(1, safeHeight);
+      const sharedHeightPx = Math.min(maxStageHeightPx, maxStageWidthPx);
+      let nextHeight = sharedHeightPx;
+      let nextWidth = Math.round(nextHeight * aspect);
+      if (nextWidth > maxStageWidthPx) {
+        nextWidth = maxStageWidthPx;
+        nextHeight = Math.max(1, Math.round(nextWidth / aspect));
+      }
       fittedStage = {
-        width: Math.max(1, Math.round(Math.min(fittedStage.width * boost, maxStageWidthPx))),
-        height: Math.max(1, Math.round(Math.min(fittedStage.height * boost, maxStageHeightPx))),
+        width: Math.max(1, nextWidth),
+        height: Math.max(1, nextHeight),
       };
     }
     if (isMobileViewport && !shopifyEmbed) {
@@ -5824,7 +5831,7 @@ export default function Home() {
                             className={`${styles.stepTwoActionIconImage} step-two-action-rail-icon`.trim()}
                           />
                         </span>
-                        <span>Herramientas</span>
+                        <span>{isStepOneMobileViewport ? 'Setup' : 'Herramientas'}</span>
                       </button>
                       {isStraightEdgesAvailable && (
                         <button
@@ -5849,7 +5856,11 @@ export default function Home() {
                               />
                             </svg>
                           </span>
-                          <span>{isStraightEdges ? 'Recto' : 'Redondeado'}</span>
+                          <span>
+                            {isStepOneMobileViewport
+                              ? (isStraightEdges ? 'Recto' : 'Bordes')
+                              : (isStraightEdges ? 'Recto' : 'Redondeado')}
+                          </span>
                         </button>
                       )}
                     </aside>

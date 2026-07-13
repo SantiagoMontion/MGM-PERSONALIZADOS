@@ -5080,13 +5080,14 @@ body.light .stepTwoContainColorLabel {
     justify-self: stretch;
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    column-gap: 4px;
-    row-gap: 6px;
+    align-items: stretch;
+    column-gap: 2px;
+    row-gap: 4px;
     inline-size: 100%;
     max-inline-size: 100%;
     margin-inline-start: 0;
     margin-inline-end: 0;
-    padding: 6px 8px;
+    padding: 6px 4px;
     border: 1px solid color-mix(in srgb, var(--nm-accent-blue) 12%, var(--nm-on-dark-20));
     border-radius: 12px;
     background: var(--nm-step-two-action-rail-bg-mobile);
@@ -5118,11 +5119,13 @@ body.light .stepTwoContainColorLabel {
     justify-content: center;
     inline-size: 100%;
     min-inline-size: 0;
-    min-block-size: 48px;
-    padding: 4px 2px;
+    min-block-size: 44px;
+    block-size: 100%;
+    padding: 4px 1px;
     gap: 2px;
-    font-size: 10px;
-    line-height: 1.1;
+    font-size: 8px;
+    line-height: 1;
+    letter-spacing: -0.01em;
     text-align: center;
     border: none;
     border-radius: 8px;
@@ -5133,8 +5136,13 @@ body.light .stepTwoContainColorLabel {
 
   .stepTwoActionButton > span:last-child {
     inline-size: 100%;
-    line-height: 1.1;
-    overflow-wrap: anywhere;
+    max-inline-size: 100%;
+    line-height: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: clip;
+    overflow-wrap: normal;
+    word-break: normal;
   }
 
   .stepTwoActionIcon {
