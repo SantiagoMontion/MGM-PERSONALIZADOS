@@ -2334,6 +2334,8 @@ export default function Home() {
           return false;
         }
       }
+      // Respirar el hilo antes del export síncrono (misma calidad 4000).
+      await nextPaint(1);
       const designBlob = await canvasRef.current.exportPadAsBlob?.({
         maxDimension: 4000,
       });
@@ -2341,27 +2343,28 @@ export default function Home() {
         setErr('No se pudo generar la imagen');
         return false;
       }
-
-      try {
-        const editorPreviewDataUrl = await blobToDataUrl(designBlob);
-        if (editorPreviewDataUrl) {
-          setReviewPreviewUrl(editorPreviewDataUrl);
-        }
-      } catch (previewErr) {
-        warn('[handleContinue] review preview dataURL failed', previewErr);
-      }
+      await nextPaint(1);
 
       const pdfSourceBlob = designBlob;
       const pdfSourceMime = pdfSourceBlob?.type || 'image/png';
-
-      const mockupDataUrl = await blobToDataUrl(designBlob);
 
       const designShaPromise = (async () => {
         const workerHash = await sha256Offthread(pdfSourceBlob);
         if (workerHash) return workerHash;
         return sha256Hex(pdfSourceBlob);
       })();
-      const masterDataUrl = await blobToDataUrl(pdfSourceBlob);
+
+      // Un solo FileReader del PNG grande (antes se hacía 3 veces).
+      const designDataUrl = await blobToDataUrl(designBlob);
+      try {
+        if (designDataUrl) {
+          setReviewPreviewUrl(designDataUrl);
+        }
+      } catch (previewErr) {
+        warn('[handleContinue] review preview dataURL failed', previewErr);
+      }
+      const mockupDataUrl = designDataUrl;
+      const masterDataUrl = designDataUrl;
       await nextPaint(1);
 
       // client-side gate: filename keywords
@@ -2391,6 +2394,7 @@ export default function Home() {
       } catch (scanErr) {
         warn('[continue] nudity scan failed; allowing flow', scanErr?.message || scanErr);
       }
+      await nextPaint(1);
 
       const masterImagePromise = (async () => {
         const img = new Image();
