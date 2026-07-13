@@ -5081,13 +5081,13 @@ body.light .stepTwoContainColorLabel {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     align-items: stretch;
-    column-gap: 2px;
-    row-gap: 4px;
+    column-gap: 0;
+    row-gap: 2px;
     inline-size: 100%;
     max-inline-size: 100%;
     margin-inline-start: 0;
     margin-inline-end: 0;
-    padding: 6px 4px;
+    padding: 5px 2px;
     border: 1px solid color-mix(in srgb, var(--nm-accent-blue) 12%, var(--nm-on-dark-20));
     border-radius: 12px;
     background: var(--nm-step-two-action-rail-bg-mobile);
@@ -5119,11 +5119,11 @@ body.light .stepTwoContainColorLabel {
     justify-content: center;
     inline-size: 100%;
     min-inline-size: 0;
-    min-block-size: 44px;
+    min-block-size: 48px;
     block-size: 100%;
-    padding: 4px 1px;
-    gap: 2px;
-    font-size: 8px;
+    padding: 5px 0;
+    gap: 3px;
+    font-size: 12px;
     line-height: 1;
     letter-spacing: -0.01em;
     text-align: center;
@@ -5146,8 +5146,13 @@ body.light .stepTwoContainColorLabel {
   }
 
   .stepTwoActionIcon {
-    inline-size: 16px;
-    block-size: 16px;
+    inline-size: 20px;
+    block-size: 20px;
+  }
+
+  .stepTwoActionIconRecto {
+    inline-size: 22px;
+    block-size: 22px;
   }
 
   .stepTwoActionsDivider {

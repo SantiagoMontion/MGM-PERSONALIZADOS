@@ -5786,7 +5786,7 @@ export default function Home() {
                             className={`${styles.stepTwoActionIconImage} step-two-action-rail-icon`.trim()}
                           />
                         </span>
-                        <span>Reemplazar</span>
+                        <span>{isStepOneMobileViewport ? 'Cambiar' : 'Reemplazar'}</span>
                       </button>
                       <button
                         type="button"
