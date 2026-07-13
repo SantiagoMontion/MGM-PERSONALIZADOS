@@ -4,7 +4,8 @@ import getSupabaseAdmin from '../../lib/_lib/supabaseAdmin.js';
 import logger from '../../lib/_lib/logger.js';
 import { slugifyName } from '../../lib/_lib/slug.js';
 
-export const config = { api: { bodyParser: { sizeLimit: '3mb' } } };
+/** Hasta el tope de Vercel (~4.5mb). Payloads más grandes deben comprimirse en el cliente. */
+export const config = { api: { bodyParser: { sizeLimit: '4.5mb' } } };
 
 function parseDataUrl(dataUrl = '') {
   const match = /^data:([^;]+);base64,(.+)$/.exec(dataUrl);
@@ -12,6 +13,13 @@ function parseDataUrl(dataUrl = '') {
   const contentType = match[1] || 'image/png';
   const buffer = Buffer.from(match[2], 'base64');
   return { contentType, buffer };
+}
+
+function extensionForContentType(contentType = '') {
+  const value = String(contentType || '').toLowerCase();
+  if (value.includes('jpeg') || value.includes('jpg')) return 'jpg';
+  if (value.includes('webp')) return 'webp';
+  return 'png';
 }
 
 function sanitizeMaterial(material) {
@@ -28,7 +36,7 @@ function safeNumberSegment(value) {
   return 'NA';
 }
 
-export function stableMockupKey(meta = {}, pngBytes = Buffer.alloc(0)) {
+export function stableMockupKey(meta = {}, pngBytes = Buffer.alloc(0), contentType = 'image/png') {
   const now = new Date();
   const yyyy = now.getFullYear();
   const mm = String(now.getMonth() + 1).padStart(2, '0');
@@ -37,8 +45,9 @@ export function stableMockupKey(meta = {}, pngBytes = Buffer.alloc(0)) {
   const heightSegment = safeNumberSegment(meta?.heightCm);
   const materialSegment = slugifyName(sanitizeMaterial(meta?.material)) || sanitizeMaterial(meta?.material);
   const hash8 = createHash('sha1').update(pngBytes).digest('hex').slice(0, 8);
+  const ext = extensionForContentType(contentType);
   return {
-    key: `mockups-${yyyy}-${mm}/${slug}-${widthSegment}x${heightSegment}-${materialSegment}-${hash8}.png`,
+    key: `mockups-${yyyy}-${mm}/${slug}-${widthSegment}x${heightSegment}-${materialSegment}-${hash8}.${ext}`,
     hash8,
   };
 }
@@ -56,8 +65,6 @@ export default async function handler(req, res) {
     return;
   }
 
-  res.setHeader?.('Access-Control-Allow-Methods', 'POST,OPTIONS');
-  res.setHeader?.('Access-Control-Allow-Headers', 'content-type,authorization,x-upsert');
   if (req.method === 'OPTIONS') {
     res.status(204).end();
     return;
@@ -84,13 +91,14 @@ export default async function handler(req, res) {
 
     const supabase = getSupabaseAdmin();
     const bucket = 'preview';
-    const { key, hash8 } = stableMockupKey({ title, widthCm, heightCm, material }, buffer);
+    const uploadContentType = contentType || 'image/png';
+    const { key, hash8 } = stableMockupKey({ title, widthCm, heightCm, material }, buffer, uploadContentType);
 
     const { error: uploadError } = await supabase.storage
       .from(bucket)
       .upload(key, buffer, {
         upsert: true,
-        contentType: 'image/png',
+        contentType: uploadContentType,
         cacheControl: '31536000',
       });
 
@@ -101,7 +109,7 @@ export default async function handler(req, res) {
         key,
         error: uploadError.message,
       });
-      res.status(500).json({ ok: false, code: 'upload_failed', detail: uploadError.message });
+      sendJson(res, 500, { ok: false, code: 'upload_failed', detail: uploadError.message, diagId });
       return;
     }
 
@@ -111,14 +119,14 @@ export default async function handler(req, res) {
 
     if (publicError) {
       logger.warn('[preview:upload:public_url_failed]', { diagId, bucket, key, error: publicError.message });
-      res.status(500).json({ ok: false, code: 'upload_failed', detail: publicError.message });
+      sendJson(res, 500, { ok: false, code: 'upload_failed', detail: publicError.message, diagId });
       return;
     }
 
     const publicUrl = publicData?.publicUrl || null;
     if (!publicUrl) {
       logger.warn('[preview:upload:public_url_missing]', { diagId, bucket, key });
-      res.status(500).json({ ok: false, code: 'upload_failed', detail: 'public_url_missing' });
+      sendJson(res, 500, { ok: false, code: 'upload_failed', detail: 'public_url_missing', diagId });
       return;
     }
 
@@ -132,13 +140,13 @@ export default async function handler(req, res) {
         key,
         error: headErr?.message || headErr,
       });
-      res.status(502).json({ ok: false, code: 'mockup_not_ready' });
+      sendJson(res, 502, { ok: false, code: 'mockup_not_ready', diagId });
       return;
     }
     const size = Number(head.headers.get('content-length') || '0');
     if (!head.ok || !Number.isFinite(size) || size < 1024) {
       logger.warn('[preview:upload:mockup_not_ready]', { diagId, bucket, key, status: head.status, size });
-      res.status(502).json({ ok: false, code: 'mockup_not_ready' });
+      sendJson(res, 502, { ok: false, code: 'mockup_not_ready', diagId });
       return;
     }
 
@@ -147,14 +155,15 @@ export default async function handler(req, res) {
       bucket,
       key,
       size: buffer.length,
+      contentType: uploadContentType,
     });
 
-    res.json({ ok: true, publicUrl, hash8 });
+    sendJson(res, 200, { ok: true, publicUrl, hash8, objectKey: key, diagId });
   } catch (err) {
     logger.error('[preview:upload:exception]', {
       diagId,
       err: err?.message || err,
     });
-    res.status(500).json({ ok: false, code: 'upload_failed', detail: err?.message || 'internal_error' });
+    sendJson(res, 500, { ok: false, code: 'upload_failed', detail: err?.message || 'internal_error', diagId });
   }
 }

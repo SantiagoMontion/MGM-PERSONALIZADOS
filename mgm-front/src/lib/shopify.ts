@@ -1,5 +1,6 @@
 import { apiFetch, getResolvedApiUrl } from './api';
 import { renderMockup1080 } from './mockup.js';
+import { preparePreviewUploadBlob } from './preparePreviewUploadBlob.js';
 import { FlowState } from '@/state/flow';
 import { diag, info, warn, error } from '@/lib/log';
 import { ensureTrackingRid } from '@/lib/tracking';
@@ -586,8 +587,9 @@ export async function ensureMockupUrl(flow: FlowState): Promise<EnsureMockupUrlR
   const title = typeof flowAny?.title === 'string' && flowAny.title.trim()
     ? sanitizeMockupFilenameBase(flowAny.title)
     : filenameBase || sanitizeMockupFilenameBase(safeName(flowAny?.designName));
-  const contentType = mockupBlob.type || 'image/png';
-  const dataUrl = await blobToDataUrl(mockupBlob);
+  const uploadBlob = (await preparePreviewUploadBlob(mockupBlob)) || mockupBlob;
+  const contentType = uploadBlob.type || 'image/jpeg';
+  const dataUrl = await blobToDataUrl(uploadBlob);
 
   let uploadErrorCode: string | null = null;
 

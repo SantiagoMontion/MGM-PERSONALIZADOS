@@ -480,11 +480,13 @@ async function blobToDataUrl(blob) {
 
 async function uploadPreviewViaApi(metadata, blob) {
   if (!blob) throw new Error('preview_upload_missing_data');
-  const dataUrl = await blobToDataUrl(blob);
+  const { preparePreviewUploadBlob } = await import('@/lib/preparePreviewUploadBlob.js');
+  const uploadBlob = (await preparePreviewUploadBlob(blob)) || blob;
+  const dataUrl = await blobToDataUrl(uploadBlob);
   const payload = {
     ...(metadata || {}),
     dataUrl,
-    contentType: blob.type || 'image/png',
+    contentType: uploadBlob.type || 'image/jpeg',
   };
   const response = await fetch(getResolvedApiUrl('/api/preview/upload'), {
     method: 'POST',
