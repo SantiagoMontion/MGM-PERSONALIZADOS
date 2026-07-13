@@ -3834,8 +3834,10 @@ export default function Home() {
         ? STEP_TWO_STAGE_VERTICAL_RESERVE_PX.compact
         : STEP_TWO_STAGE_VERTICAL_RESERVE_PX.desktop;
     // Embed: un poco más de reserva en pads chicos (padding); en grandes casi igual al compact.
-    const isXlStageLayout = safeHeight >= STEP_TWO_XL_STAGE_HEIGHT_CM
-      || Math.max(safeWidth, safeHeight) >= 120;
+    // xl = alto ~100cm+ (no usar maxSide>=120: 140×100 debe achicarse aparte).
+    const isXlStageLayout = safeHeight >= STEP_TWO_XL_STAGE_HEIGHT_CM;
+    const isMaxPadLayout = safeWidth >= 130 && safeHeight >= 95;
+    const isWideMediumPad = safeWidth >= 95 && safeWidth <= 110 && safeHeight >= 55 && safeHeight <= 70;
     const verticalReservePx = shopifyEmbed
       ? Math.round(baseVerticalReservePx - 8 + (1 - embedBoundsFill) * 10)
       : (isXlStageLayout
@@ -3844,12 +3846,16 @@ export default function Home() {
     const isTallStageLayout = safeHeight >= STEP_TWO_TALL_STAGE_HEIGHT_CM;
     const heightViewportRatio = (() => {
       if (shopifyEmbed) {
-        if (isXlStageLayout) return 0.68;
-        if (isTallStageLayout) return 0.62;
+        if (isMaxPadLayout) return 0.52;
+        if (isXlStageLayout) return 0.62;
+        if (isTallStageLayout) return 0.60;
+        if (isWideMediumPad) return 0.58;
         return 0.56;
       }
+      if (isMaxPadLayout) return 0.58;
       if (isXlStageLayout) return STEP_TWO_STAGE_HEIGHT_VIEWPORT_RATIO.xl;
       if (isTallStageLayout) return STEP_TWO_STAGE_HEIGHT_VIEWPORT_RATIO.tall;
+      if (isWideMediumPad) return 0.68;
       return STEP_TWO_STAGE_HEIGHT_VIEWPORT_RATIO.default;
     })();
     const absoluteStageHeightCapPx = Math.round(
@@ -3861,11 +3867,16 @@ export default function Home() {
       0,
       footerTopPx - workspaceTopPx - verticalReservePx,
     );
+    const availableHeightFill = isMaxPadLayout ? (shopifyEmbed ? 0.68 : 0.72) : 1;
     const maxStageHeightPx = Math.max(
       isMobileViewport ? 132 : 180,
       Math.min(
         absoluteStageHeightCapPx || Number.POSITIVE_INFINITY,
-        Math.round((availableLayoutHeightPx || Number.POSITIVE_INFINITY) * (shopifyEmbed ? embedBoundsFill : 1)),
+        Math.round(
+          (availableLayoutHeightPx || Number.POSITIVE_INFINITY)
+          * (shopifyEmbed ? embedBoundsFill : 1)
+          * availableHeightFill,
+        ),
       ),
     );
     let fittedStage = fitStageWithinBounds(
@@ -3879,6 +3890,21 @@ export default function Home() {
       fittedStage = {
         width: Math.max(1, Math.round(fittedStage.width * STEP_TWO_SMALL_STAGE_VISUAL_SCALE)),
         height: Math.max(1, Math.round(fittedStage.height * STEP_TWO_SMALL_STAGE_VISUAL_SCALE)),
+      };
+    }
+    if (isMaxPadLayout) {
+      const shrink = shopifyEmbed
+        ? STEP_TWO_MAX_PAD_VISUAL_SCALE.embed
+        : STEP_TWO_MAX_PAD_VISUAL_SCALE.standalone;
+      fittedStage = {
+        width: Math.max(1, Math.round(fittedStage.width * shrink)),
+        height: Math.max(1, Math.round(fittedStage.height * shrink)),
+      };
+    } else if (isWideMediumPad) {
+      const boost = STEP_TWO_WIDE_MEDIUM_VISUAL_SCALE;
+      fittedStage = {
+        width: Math.max(1, Math.round(Math.min(fittedStage.width * boost, maxStageWidthPx))),
+        height: Math.max(1, Math.round(Math.min(fittedStage.height * boost, maxStageHeightPx))),
       };
     }
     if (isMobileViewport && !shopifyEmbed) {
