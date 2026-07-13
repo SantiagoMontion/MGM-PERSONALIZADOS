@@ -3812,10 +3812,18 @@ export default function Home() {
     const embedBoundsFill = shopifyEmbed
       ? getShopifyEmbedBoundsFill(safeWidth, safeHeight)
       : 1;
+    // Detectar 140×100 antes de armar caps: necesita achicar ancho Y alto.
+    const isMaxPadLayout = safeWidth >= 130 && safeHeight >= 95;
+    const isWideMediumPad = safeWidth >= 95 && safeWidth <= 110 && safeHeight >= 55 && safeHeight <= 70;
+    const maxPadBoundsFill = isMaxPadLayout
+      ? (shopifyEmbed ? STEP_TWO_MAX_PAD_BOUNDS_FILL.embed : STEP_TWO_MAX_PAD_BOUNDS_FILL.standalone)
+      : 1;
     const maxStageWidthPx = Math.max(
       minStageWidthPx,
       Math.round(
-        Math.min(absoluteStageWidthCapPx, availableShellWidthPx - horizontalChromePx) * embedBoundsFill,
+        Math.min(absoluteStageWidthCapPx, availableShellWidthPx - horizontalChromePx)
+        * embedBoundsFill
+        * maxPadBoundsFill,
       ),
     );
     const frameTopFallback = shopifyEmbed
@@ -3834,10 +3842,7 @@ export default function Home() {
         ? STEP_TWO_STAGE_VERTICAL_RESERVE_PX.compact
         : STEP_TWO_STAGE_VERTICAL_RESERVE_PX.desktop;
     // Embed: un poco más de reserva en pads chicos (padding); en grandes casi igual al compact.
-    // xl = alto ~100cm+ (no usar maxSide>=120: 140×100 debe achicarse aparte).
     const isXlStageLayout = safeHeight >= STEP_TWO_XL_STAGE_HEIGHT_CM;
-    const isMaxPadLayout = safeWidth >= 130 && safeHeight >= 95;
-    const isWideMediumPad = safeWidth >= 95 && safeWidth <= 110 && safeHeight >= 55 && safeHeight <= 70;
     const verticalReservePx = shopifyEmbed
       ? Math.round(baseVerticalReservePx - 8 + (1 - embedBoundsFill) * 10)
       : (isXlStageLayout
@@ -3846,13 +3851,11 @@ export default function Home() {
     const isTallStageLayout = safeHeight >= STEP_TWO_TALL_STAGE_HEIGHT_CM;
     const heightViewportRatio = (() => {
       if (shopifyEmbed) {
-        if (isMaxPadLayout) return 0.62;
         if (isXlStageLayout) return 0.62;
         if (isTallStageLayout) return 0.60;
         if (isWideMediumPad) return 0.58;
         return 0.56;
       }
-      if (isMaxPadLayout) return 0.68;
       if (isXlStageLayout) return STEP_TWO_STAGE_HEIGHT_VIEWPORT_RATIO.xl;
       if (isTallStageLayout) return STEP_TWO_STAGE_HEIGHT_VIEWPORT_RATIO.tall;
       if (isWideMediumPad) return 0.68;
@@ -3861,15 +3864,13 @@ export default function Home() {
     const absoluteStageHeightCapPx = Math.round(
       (viewportHeight || 0)
       * (isMobileViewport ? (shopifyEmbed ? 0.46 : 0.48) : heightViewportRatio)
-      * (shopifyEmbed ? embedBoundsFill : 1),
+      * (shopifyEmbed ? embedBoundsFill : 1)
+      * maxPadBoundsFill,
     );
     const availableLayoutHeightPx = Math.max(
       0,
       footerTopPx - workspaceTopPx - verticalReservePx,
     );
-    const availableHeightFill = isMaxPadLayout
-      ? (shopifyEmbed ? STEP_TWO_MAX_PAD_HEIGHT_FILL.embed : STEP_TWO_MAX_PAD_HEIGHT_FILL.standalone)
-      : 1;
     const maxStageHeightPx = Math.max(
       isMobileViewport ? 132 : 180,
       Math.min(
@@ -3877,7 +3878,7 @@ export default function Home() {
         Math.round(
           (availableLayoutHeightPx || Number.POSITIVE_INFINITY)
           * (shopifyEmbed ? embedBoundsFill : 1)
-          * availableHeightFill,
+          * maxPadBoundsFill,
         ),
       ),
     );
@@ -3894,7 +3895,7 @@ export default function Home() {
         height: Math.max(1, Math.round(fittedStage.height * STEP_TWO_SMALL_STAGE_VISUAL_SCALE)),
       };
     }
-    // 100×60: boost leve. 140×100 ya se limita solo con availableHeightFill (sin segunda escala).
+    // 100×60: boost leve. 140×100 ya limitado por maxPadBoundsFill en ambos ejes.
     if (isWideMediumPad) {
       const boost = STEP_TWO_WIDE_MEDIUM_VISUAL_SCALE;
       fittedStage = {
