@@ -77,12 +77,6 @@ function estimatePayloadBytes(body) {
   return null;
 }
 
-function applyCustomCorsHeaders(res) {
-  res.setHeader?.('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader?.('Access-Control-Allow-Headers', 'content-type, authorization, x-diag');
-  res.setHeader?.('Access-Control-Max-Age', '86400');
-}
-
 function respondWithCorsJson(req, res, status, payload) {
   const decision = ensureCors(req, res);
   if (!decision?.allowed || !decision?.allowedOrigin) {
@@ -90,8 +84,6 @@ function respondWithCorsJson(req, res, status, payload) {
     respondCorsDenied(req, res, decision, diagId);
     return;
   }
-
-  applyCustomCorsHeaders(res);
 
   if (typeof res.status === 'function' && typeof res.json === 'function') {
     res.status(status);
@@ -124,8 +116,6 @@ function handleOptions(req, res) {
     respondCorsDenied(req, res, decision, diagId);
     return;
   }
-
-  applyCustomCorsHeaders(res);
 
   if (typeof res.status === 'function') {
     res.status(204);

@@ -1,6 +1,11 @@
 import { resolveEnvRequirements, collectMissingEnv } from './_lib/envChecks.js';
 import { createDiagId, logApiError } from './_lib/diag.js';
-import { getAllowedOriginsFromEnv, resolveCorsDecision } from '../lib/cors.js';
+import {
+  ensureCors,
+  respondCorsDenied,
+  buildAllowHeaders,
+} from '../lib/cors.js';
+import { randomUUID } from 'node:crypto';
 
 const SHOPIFY_ENABLED = process.env.SHOPIFY_ENABLED === '1';
 const FRONT_ORIGIN = (process.env.FRONT_ORIGIN || 'https://mgm-app.vercel.app').replace(/\/$/, '');
@@ -26,7 +31,6 @@ function sanitizeShopifyImageUrl(rawUrl) {
 }
 
 const MAX_REQUEST_BODY_BYTES = 32 * 1024 * 1024;
-const CORS_ALLOW_HEADERS = 'content-type, authorization, x-diag';
 const CORS_ALLOW_METHODS = 'POST, OPTIONS';
 const CORS_MAX_AGE = '86400';
 const DEDUPE_TTL_MS = 5 * 60 * 1000;
@@ -88,34 +92,24 @@ function createRid() {
   return `${base}${random}`;
 }
 
-function resolveRequestedOrigin(req) {
-  const header = req?.headers?.origin;
-  if (Array.isArray(header)) {
-    return header.find((value) => typeof value === 'string' && value.trim().length > 0);
-  }
-  return typeof header === 'string' ? header : undefined;
-}
-
 function applyCors(req, res) {
-  const requestedOrigin = resolveRequestedOrigin(req);
-  const allowList = getAllowedOriginsFromEnv();
-  const decision = resolveCorsDecision(requestedOrigin, allowList);
-  const resolvedOrigin = decision.allowed
-    ? decision.allowedOrigin ?? decision.requestedOrigin ?? FRONT_ORIGIN
-    : decision.allowedOrigin ?? FRONT_ORIGIN;
-
+  const decision = ensureCors(req, res);
+  // Reforzar métodos/edad para este endpoint (ensureCors ya setea Origin + headers completos).
   if (typeof res.setHeader === 'function') {
-    res.setHeader('Access-Control-Allow-Origin', resolvedOrigin || FRONT_ORIGIN);
     res.setHeader('Access-Control-Allow-Methods', CORS_ALLOW_METHODS);
-    res.setHeader('Access-Control-Allow-Headers', CORS_ALLOW_HEADERS);
     res.setHeader('Access-Control-Max-Age', CORS_MAX_AGE);
-    res.setHeader('Vary', 'Origin');
+    // No pisar Allow-Headers con una lista corta: eso rompe preflight en algunos browsers.
+    res.setHeader('Access-Control-Allow-Headers', buildAllowHeaders(req));
   }
-  return { decision, origin: resolvedOrigin };
+  return { decision, origin: decision?.allowedOrigin || null };
 }
 
 function sendJsonWithCors(req, res, status, payload) {
-  applyCors(req, res);
+  const { decision } = applyCors(req, res);
+  if (!decision?.allowed || !decision?.allowedOrigin) {
+    respondCorsDenied(req, res, decision, randomUUID());
+    return;
+  }
   if (typeof res.setHeader === 'function' && !res.getHeader?.('Content-Type')) {
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
   }
@@ -485,7 +479,11 @@ export default async function handler(req, res) {
   const method = String(req.method || '').toUpperCase();
 
   if (method === 'OPTIONS') {
-    applyCors(req, res);
+    const { decision } = applyCors(req, res);
+    if (!decision?.allowed || !decision?.allowedOrigin) {
+      respondCorsDenied(req, res, decision, diagId);
+      return;
+    }
     if (typeof res.setHeader === 'function') {
       res.setHeader('Allow', CORS_ALLOW_METHODS);
     }
