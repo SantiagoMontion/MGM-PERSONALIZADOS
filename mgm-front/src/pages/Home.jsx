@@ -333,9 +333,6 @@ const STEP_TWO_100CM_HEIGHT_LAYOUT_CM = 100;
 const STEP_TWO_PREVIEW_FRAME_LIFT_100CM_HEIGHT_DESKTOP_PX = 0;
 /** Reserva vertical fija (título + medidas + gaps), no depende del tamaño del stage. */
 const STEP_TWO_STAGE_VERTICAL_RESERVE_PX = { mobile: 72, compact: 84, desktop: 92 };
-/** Tope de alto del stage vs viewport: más holgado en pads altos para usar el alto máximo. */
-const STEP_TWO_STAGE_HEIGHT_VIEWPORT_RATIO = { default: 0.62, tall: 0.78 };
-const STEP_TWO_TALL_STAGE_HEIGHT_CM = 80;
 const STEP_TWO_SMALL_STAGE_MAX_SIDE_CM = 35;
 const STEP_TWO_SMALL_STAGE_VISUAL_SCALE = 0.8;
 const STEP_TWO_MOBILE_STAGE_VISUAL_SCALE = 1.08;
@@ -343,15 +340,18 @@ const STEP_TWO_DESKTOP_TOOLBAR_EXTRA_WIDTH_PX = 20;
 const STEP_TWO_TOOLBAR_EXTRA_GAP_PX = 20;
 /**
  * Embed Shopify: fracción del espacio disponible que usa el Konva (display).
- * Suave: 25cm ~0.90 (padding), 100–140cm ~0.82–0.78 (un poco menos para no romper).
- * Nunca multiplicar de nuevo el stage ya fitted.
+ * Pads chicos: un poco menos (padding). Pads grandes: casi todo el espacio (si no, 140×100 se ve diminuto).
  */
 const STEP_TWO_EMBED_BOUNDS_FILL = {
   minSideCm: 25,
   maxSideCm: 140,
-  fillAtMin: 0.90,
-  fillAtMax: 0.78,
+  fillAtMin: 0.88,
+  fillAtMax: 0.96,
 };
+/** Tope de alto del stage vs viewport: xl (≈100cm+) más generoso para que 140×100 no quede diminuto. */
+const STEP_TWO_STAGE_HEIGHT_VIEWPORT_RATIO = { default: 0.62, tall: 0.82, xl: 0.90 };
+const STEP_TWO_TALL_STAGE_HEIGHT_CM = 80;
+const STEP_TWO_XL_STAGE_HEIGHT_CM = 95;
 /** Misma imagen de fondo por posición que las categorías anteriores; ahora enlaces a sitios de wallpapers. */
 const STEP_ONE_RECOMMENDED_CATEGORIES = [
   {
@@ -1446,7 +1446,18 @@ export default function Home() {
     // con aire arriba, frameTop crece y el stage se achica en bucle (peor en 140×100).
     const workspaceTop = workspaceRect?.top || 0;
     const footerHeight = footerRect?.height || 0;
-    const footerTop = footerRect?.top || Math.max(0, viewportHeight - footerHeight);
+    // translateY del footer mueve el rect visual y achica mal el stage (pads 100cm+).
+    let footerTop = footerRect?.top || Math.max(0, viewportHeight - footerHeight);
+    if (footerEl && typeof window.getComputedStyle === 'function') {
+      const transform = window.getComputedStyle(footerEl).transform;
+      if (transform && transform !== 'none') {
+        const match = /matrix\([^,]+,[^,]+,[^,]+,[^,]+,[^,]+,\s*([^)]+)\)/.exec(transform);
+        const translateY = match ? Number.parseFloat(match[1]) : 0;
+        if (Number.isFinite(translateY) && translateY < 0) {
+          footerTop -= translateY;
+        }
+      }
+    }
 
     setStepTwoViewportMetrics((prev) => {
       const next = {
@@ -3819,26 +3830,35 @@ export default function Home() {
         ? STEP_TWO_STAGE_VERTICAL_RESERVE_PX.compact
         : STEP_TWO_STAGE_VERTICAL_RESERVE_PX.desktop;
     // Embed: un poco más de reserva en pads chicos (padding); en grandes casi igual al compact.
+    const isXlStageLayout = safeHeight >= STEP_TWO_XL_STAGE_HEIGHT_CM
+      || Math.max(safeWidth, safeHeight) >= 120;
     const verticalReservePx = shopifyEmbed
-      ? Math.round(baseVerticalReservePx - 8 + (1 - embedBoundsFill) * 24)
-      : baseVerticalReservePx;
+      ? Math.round(baseVerticalReservePx - 8 + (1 - embedBoundsFill) * 10)
+      : (isXlStageLayout
+        ? Math.max(48, baseVerticalReservePx - 36)
+        : baseVerticalReservePx);
     const isTallStageLayout = safeHeight >= STEP_TWO_TALL_STAGE_HEIGHT_CM;
-    const heightViewportRatio = shopifyEmbed
-      ? (isTallStageLayout ? 0.60 : 0.56)
-      : (isTallStageLayout
-        ? STEP_TWO_STAGE_HEIGHT_VIEWPORT_RATIO.tall
-        : STEP_TWO_STAGE_HEIGHT_VIEWPORT_RATIO.default);
+    const heightViewportRatio = (() => {
+      if (shopifyEmbed) {
+        if (isXlStageLayout) return 0.78;
+        if (isTallStageLayout) return 0.66;
+        return 0.56;
+      }
+      if (isXlStageLayout) return STEP_TWO_STAGE_HEIGHT_VIEWPORT_RATIO.xl;
+      if (isTallStageLayout) return STEP_TWO_STAGE_HEIGHT_VIEWPORT_RATIO.tall;
+      return STEP_TWO_STAGE_HEIGHT_VIEWPORT_RATIO.default;
+    })();
     const absoluteStageHeightCapPx = Math.round(
       (viewportHeight || 0)
       * (isMobileViewport ? (shopifyEmbed ? 0.46 : 0.48) : heightViewportRatio)
-      * embedBoundsFill,
+      * (shopifyEmbed ? embedBoundsFill : 1),
     );
     const availableLayoutHeightPx = Math.max(
       0,
       footerTopPx - workspaceTopPx - verticalReservePx,
     );
     const maxStageHeightPx = Math.max(
-      shopifyEmbed ? (isMobileViewport ? 132 : 180) : (isMobileViewport ? 132 : 180),
+      isMobileViewport ? 132 : (isXlStageLayout ? 220 : 180),
       Math.min(
         absoluteStageHeightCapPx || Number.POSITIVE_INFINITY,
         Math.round((availableLayoutHeightPx || Number.POSITIVE_INFINITY) * (shopifyEmbed ? embedBoundsFill : 1)),
@@ -3940,24 +3960,24 @@ export default function Home() {
         : {}),
       ...(is100cmHeightDesktop && !shopifyEmbed
         ? {
-          '--step-two-back-rail-margin-block-start': '20px',
+          '--step-two-back-rail-margin-block-start': '12px',
           '--step-two-back-rail-margin-block-end': '0px',
           '--step-two-caption-bottom-bonus': '4px',
           '--step-two-footer-stack-margin-start': 'auto',
-          '--step-two-preview-frame-padding-block-start': '8px',
+          '--step-two-preview-frame-padding-block-start': '4px',
           '--step-two-layout-padding-top': '0',
-          '--step-two-layout-gap': '14px',
-          '--step-two-layout-min-block': 'calc(100dvh - 260px)',
+          '--step-two-layout-gap': '10px',
+          '--step-two-layout-min-block': 'calc(100dvh - 220px)',
           '--step-two-workspace-justify': 'flex-start',
           '--step-two-workspace-flex': '0 1 auto',
           '--step-two-workspace-min-block': '0',
-          '--step-two-workspace-gap': '6px',
+          '--step-two-workspace-gap': '4px',
           '--step-two-preview-frame-flex': '0 1 auto',
           '--step-two-preview-frame-min-block': '0',
           '--step-two-preview-bundle-min-block': '0',
-          '--step-two-stage-reserve-tail': '28px',
-          /* Solo la barra de precio/CTA: translateY hacia arriba para evitar corte en el borde */
-          '--step-two-footer-stack-lift-px': '60px',
+          '--step-two-stage-reserve-tail': '16px',
+          /* Menos lift: el translateY engañaba la métrica y achicaba el Konva */
+          '--step-two-footer-stack-lift-px': '24px',
         }
         : {}),
     };
