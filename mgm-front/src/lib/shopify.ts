@@ -62,32 +62,39 @@ async function requestStorefrontCartLink(options: {
   if (typeof options.note === 'string' && options.note.trim()) {
     payload.note = options.note.trim();
   }
-  const resp = await apiFetch(CART_LINK_PATH, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  const data = await resp.json().catch(() => null);
-  if (!resp.ok || !data || data.ok !== true) {
+  try {
+    const resp = await apiFetch(CART_LINK_PATH, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await resp.json().catch(() => null);
+    if (!resp.ok || !data || data.ok !== true) {
+      return { ok: false };
+    }
+    const cartUrl =
+      typeof data.url === 'string' && data.url.trim()
+        ? data.url.trim()
+        : typeof data.webUrl === 'string' && data.webUrl.trim()
+          ? data.webUrl.trim()
+          : '';
+    const checkoutUrl =
+      typeof data.checkoutUrl === 'string' && data.checkoutUrl.trim()
+        ? data.checkoutUrl.trim()
+        : undefined;
+    if (!cartUrl) return { ok: false };
+    return {
+      ok: true,
+      cartUrl,
+      checkoutUrl,
+      strategy: typeof data.strategy === 'string' ? data.strategy : undefined,
+    };
+  } catch (err) {
+    try {
+      warn('[requestStorefrontCartLink] failed', err);
+    } catch {}
     return { ok: false };
   }
-  const cartUrl =
-    typeof data.url === 'string' && data.url.trim()
-      ? data.url.trim()
-      : typeof data.webUrl === 'string' && data.webUrl.trim()
-        ? data.webUrl.trim()
-        : '';
-  const checkoutUrl =
-    typeof data.checkoutUrl === 'string' && data.checkoutUrl.trim()
-      ? data.checkoutUrl.trim()
-      : undefined;
-  if (!cartUrl) return { ok: false };
-  return {
-    ok: true,
-    cartUrl,
-    checkoutUrl,
-    strategy: typeof data.strategy === 'string' ? data.strategy : undefined,
-  };
 }
 
 /** Solo persiste si el caller pasó el contexto de useFlow (tiene .set), no un snapshot plano. */

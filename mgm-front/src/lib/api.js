@@ -1,5 +1,6 @@
 ﻿import { warn } from '@/lib/log';
 
+const PROD_API_ORIGIN = 'https://mgm-api.vercel.app';
 const RAW_API_URL = typeof import.meta.env.VITE_API_BASE === 'string'
   ? import.meta.env.VITE_API_BASE
   : typeof import.meta.env.VITE_API_URL === 'string'
@@ -7,6 +8,7 @@ const RAW_API_URL = typeof import.meta.env.VITE_API_BASE === 'string'
     : '';
 const USE_PROXY = (import.meta.env.VITE_USE_PROXY || '').trim() === '1';
 const IS_DEV = Boolean(import.meta.env && import.meta.env.DEV);
+const IS_PROD = Boolean(import.meta.env && import.meta.env.PROD);
 
 function sanitize(value) {
   if (!value) return '';
@@ -42,6 +44,17 @@ function resolveRequestUrl(path) {
     return normalizedPath;
   }
   if (!CONFIGURED_ORIGIN) {
+    if (IS_PROD) {
+      if (!hasWarnedAboutFallback) {
+        hasWarnedAboutFallback = true;
+        try {
+          warn('[api] using_default_base', {
+            message: 'VITE_API_BASE not set; defaulting to mgm-api production.',
+          });
+        } catch {}
+      }
+      return `${PROD_API_ORIGIN}${normalizedPath}`;
+    }
     if (!hasWarnedAboutFallback) {
       hasWarnedAboutFallback = true;
       try {
@@ -141,7 +154,7 @@ export function getApiBaseUrl() {
     return '/api';
   }
   if (!CONFIGURED_ORIGIN) {
-    return '/api';
+    return IS_PROD ? `${PROD_API_ORIGIN}/api` : '/api';
   }
   return `${CONFIGURED_ORIGIN}/api`;
 }
