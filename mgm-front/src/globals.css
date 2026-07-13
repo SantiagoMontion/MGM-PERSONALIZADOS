@@ -150,7 +150,8 @@ html.mgm-shopify-embed [class*="stepThreeLayout"] {
 }
 
 html.mgm-shopify-embed [class*="pageHeadingStepUpload"] {
-  padding-block-start: var(--space-4) !important;
+  padding-block-start: var(--space-3) !important;
+  padding-block-end: var(--space-2) !important;
 }
 
 html.mgm-shopify-embed [class*="stepOneFooterBar"],

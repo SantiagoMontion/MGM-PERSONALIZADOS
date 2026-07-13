@@ -50,6 +50,7 @@ export default function ProgressHeader({
   showStepper = true,
   showBrandLogo = true,
   showTiendaLink = false,
+  compact = false,
 }) {
   const resolvedStep = clampStep(currentStep);
   const currentStepTitle = FLOW_STEPS[resolvedStep - 1]?.title || FLOW_STEPS[0].title;
@@ -57,7 +58,8 @@ export default function ProgressHeader({
   const headerClasses = [
     styles.header,
     isDarkMode ? styles.headerDark : styles.headerLight,
-  ].join(' ');
+    compact ? styles.headerCompact : '',
+  ].filter(Boolean).join(' ');
 
   return (
     <header className={headerClasses}>

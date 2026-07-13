@@ -171,6 +171,7 @@ export default function App() {
           showStepper={showStepper}
           showBrandLogo={!shopifyEmbed}
           showTiendaLink={shopifyEmbed ? false : showTiendaLink}
+          compact={shopifyEmbed}
         />
         <main className={styles.main}>
           <Outlet

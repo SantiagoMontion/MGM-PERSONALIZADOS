@@ -427,3 +427,61 @@
     block-size: 30px;
   }
 }
+
+/* Shopify iframe: navbar propia más baja para no sumar tanta altura a la del tema. */
+.headerCompact {
+  --navbar-height: 44px;
+  position: relative;
+}
+
+.headerCompact .mobileBar {
+  padding-inline: var(--space-3);
+}
+
+.headerCompact .themeButton {
+  inline-size: var(--space-7);
+  block-size: var(--space-7);
+}
+
+@media (min-width: 768px) {
+  .headerCompact {
+    --navbar-height: 48px;
+    --navbar-font-size: 10px;
+    --navbar-line-height: 14px;
+  }
+
+  .headerCompact .desktopBar {
+    padding-inline: var(--space-6);
+  }
+
+  .headerCompact .desktopInner {
+    gap: var(--space-3);
+  }
+
+  .headerCompact .desktopBar .stepList {
+    gap: var(--space-1);
+  }
+
+  .headerCompact .desktopBar .stepItem {
+    gap: var(--space-2);
+  }
+
+  .headerCompact .desktopBar .stepConnector {
+    inline-size: var(--space-6);
+  }
+
+  .headerCompact .stepBadge {
+    min-block-size: var(--space-5);
+    padding-inline: var(--space-2);
+  }
+
+  .headerCompact .stepMarkerCompleteIcon {
+    inline-size: 16px;
+    block-size: 16px;
+    min-inline-size: 16px;
+  }
+
+  .headerCompact .brandMark {
+    block-size: 22px;
+  }
+}

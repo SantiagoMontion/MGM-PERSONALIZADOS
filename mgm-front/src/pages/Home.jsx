@@ -3774,7 +3774,9 @@ export default function Home() {
       minStageWidthPx,
       Math.min(absoluteStageWidthCapPx, availableShellWidthPx - horizontalChromePx),
     );
-    const frameTopFallback = isMobileViewport ? 132 : 176;
+    const frameTopFallback = shopifyEmbed
+      ? (isMobileViewport ? 96 : 120)
+      : (isMobileViewport ? 132 : 176);
     const workspaceTopPx = stepTwoViewportMetrics.workspaceTop > 0
       ? stepTwoViewportMetrics.workspaceTop
       : frameTopFallback;
@@ -3782,11 +3784,14 @@ export default function Home() {
     const footerTopPx = stepTwoViewportMetrics.footerTop > 0
       ? stepTwoViewportMetrics.footerTop
       : Math.max(0, (viewportHeight || 0) - footerHeightPx);
-    const verticalReservePx = isMobileViewport
+    const baseVerticalReservePx = isMobileViewport
       ? STEP_TWO_STAGE_VERTICAL_RESERVE_PX.mobile
       : isCompactViewport
         ? STEP_TWO_STAGE_VERTICAL_RESERVE_PX.compact
         : STEP_TWO_STAGE_VERTICAL_RESERVE_PX.desktop;
+    const verticalReservePx = shopifyEmbed
+      ? Math.max(40, baseVerticalReservePx - 28)
+      : baseVerticalReservePx;
     const isTallStageLayout = safeHeight >= STEP_TWO_TALL_STAGE_HEIGHT_CM;
     const heightViewportRatio = isTallStageLayout
       ? STEP_TWO_STAGE_HEIGHT_VIEWPORT_RATIO.tall
@@ -3848,13 +3853,15 @@ export default function Home() {
       !isMobileViewport && safeHeight >= STEP_TWO_100CM_HEIGHT_LAYOUT_CM
     );
     const rawFooterBottomSpacePx = getStepTwoFooterBottomSpacingPx(safeWidth, safeHeight);
-    const footerBottomSpacePx = is100cmHeightDesktop
-      ? null
-      : rawFooterBottomSpacePx;
+    const footerBottomSpacePx = shopifyEmbed
+      ? Math.min(is100cmHeightDesktop ? 40 : rawFooterBottomSpacePx, 32)
+      : is100cmHeightDesktop
+        ? null
+        : rawFooterBottomSpacePx;
     /* 100cm desktop: quitamos el margen superior extra del bundle (antes 80px) para subir el preview ~80px */
     const previewFrameLiftPx = 0;
     const previewFrameMarginTopPx = (
-      is100cmHeightDesktop ? STEP_TWO_PREVIEW_FRAME_LIFT_100CM_HEIGHT_DESKTOP_PX : 0
+      is100cmHeightDesktop && !shopifyEmbed ? STEP_TWO_PREVIEW_FRAME_LIFT_100CM_HEIGHT_DESKTOP_PX : 0
     );
 
     return {
@@ -3869,7 +3876,7 @@ export default function Home() {
       '--step-two-measure-track-size': `${measureTrackPx}px`,
       '--step-two-measure-space': `${measureSpacePx}px`,
       '--step-two-measure-line-thickness': `${isMobileViewport ? 0.75 : 1}px`,
-      '--step-two-title-gap': is100cmHeightDesktop ? '4px' : '15px',
+      '--step-two-title-gap': shopifyEmbed ? '6px' : (is100cmHeightDesktop ? '4px' : '15px'),
       '--step-two-shell-width': `${shellWidthPx}px`,
       '--step-two-footer-action-min-width': `${footerActionMinWidthPx}px`,
       '--step-two-footer-bottom-space': (
@@ -3879,6 +3886,16 @@ export default function Home() {
       ),
       '--step-two-preview-bundle-margin-top': `${previewFrameLiftPx}px`,
       '--step-two-preview-frame-margin-top': `${previewFrameMarginTopPx}px`,
+      ...(shopifyEmbed
+        ? {
+          '--step-two-layout-padding-top': '6px',
+          '--step-two-layout-gap': '10px',
+          '--step-two-workspace-gap': '8px',
+          '--step-two-workspace-min-block': '0',
+          '--step-two-layout-min-block': '0',
+          '--step-two-stage-reserve-tail': '24px',
+        }
+        : {}),
       ...(is100cmHeightDesktop && !shopifyEmbed
         ? {
           '--step-two-back-rail-margin-block-start': '20px',
