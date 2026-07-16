@@ -486,7 +486,7 @@ async function uploadPreviewViaApi(metadata, blob) {
   const payload = {
     ...(metadata || {}),
     dataUrl,
-    contentType: uploadBlob.type || 'image/jpeg',
+    contentType: uploadBlob.type || 'image/png',
   };
   const response = await fetch(getResolvedApiUrl('/api/preview/upload'), {
     method: 'POST',
