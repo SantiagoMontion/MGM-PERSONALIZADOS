@@ -15,8 +15,12 @@ export function applyVisualPercentDiscount(listPrice, percent = SITE_WIDE_VISUAL
   return Math.floor((list * (100 - off)) / 100);
 }
 
+function isUltraMaterial(material) {
+  return String(material ?? '').trim().toLowerCase().includes('ultra');
+}
+
 /**
- * Promo 20% OFF para todos los materiales excepto Alfombra (que mantiene 2x1).
+ * Promo 20% OFF para materiales excepto Alfombra (2x1) y Ultra (sin promo).
  * En UI: compareAt = lista (tachado), displayPrice = lista×0.8.
  * En Shopify: price = displayPrice, compareAtPrice = compareAt.
  * @param {string} material
@@ -25,6 +29,7 @@ export function applyVisualPercentDiscount(listPrice, percent = SITE_WIDE_VISUAL
 export function buildSiteWidePromoDisplay(material, listPrice) {
   if (!SITE_WIDE_VISUAL_PROMO_ENABLED) return null;
   if (isAlfombraMaterial(material)) return null;
+  if (isUltraMaterial(material)) return null;
 
   const resolvedList = Math.round(Number(listPrice) || 0);
   const displayPrice = applyVisualPercentDiscount(resolvedList, SITE_WIDE_VISUAL_DISCOUNT_PERCENT);
