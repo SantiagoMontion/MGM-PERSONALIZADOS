@@ -3,28 +3,36 @@ const PREVIEW_UPLOAD_MAX_BYTES = Math.floor(3.2 * 1024 * 1024);
 
 /**
  * Prepares a mockup blob for POST /api/preview/upload.
- * Re-encodes as JPEG so 2048² PNGs no disparen 413 (el browser lo reporta como CORS).
+ * Mantiene PNG con fondo transparente (alpha). Solo re-encoda/escala si supera el tope
+ * de Vercel (antes se forzaba JPEG + blanco y se perdía la transparencia).
  * No toca el master/print de alta resolución.
  */
-export async function preparePreviewUploadBlob(blob, { quality = 0.82 } = {}) {
+export async function preparePreviewUploadBlob(blob) {
   if (!blob) return null;
 
-  const encodeJpeg = async (source, q) => {
+  const type = String(blob.type || '').toLowerCase();
+  const isPng = type.includes('png') || (!type && blob.size > 0);
+  if (isPng && blob.size > 0 && blob.size <= PREVIEW_UPLOAD_MAX_BYTES) {
+    return blob;
+  }
+
+  const encodePngAtScale = async (source, scale) => {
     let bitmap = null;
     try {
       bitmap = await createImageBitmap(source);
-      const width = Math.max(1, bitmap.width || 0);
-      const height = Math.max(1, bitmap.height || 0);
+      const srcW = Math.max(1, bitmap.width || 0);
+      const srcH = Math.max(1, bitmap.height || 0);
+      const width = Math.max(1, Math.round(srcW * scale));
+      const height = Math.max(1, Math.round(srcH * scale));
       const canvas = document.createElement('canvas');
       canvas.width = width;
       canvas.height = height;
-      const ctx = canvas.getContext('2d');
+      const ctx = canvas.getContext('2d', { alpha: true });
       if (!ctx) return null;
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, width, height);
-      ctx.drawImage(bitmap, 0, 0);
+      ctx.clearRect(0, 0, width, height);
+      ctx.drawImage(bitmap, 0, 0, width, height);
       return await new Promise((resolve) => {
-        canvas.toBlob((b) => resolve(b), 'image/jpeg', q);
+        canvas.toBlob((b) => resolve(b), 'image/png');
       });
     } catch {
       return null;
@@ -37,20 +45,21 @@ export async function preparePreviewUploadBlob(blob, { quality = 0.82 } = {}) {
     }
   };
 
-  const type = String(blob.type || '').toLowerCase();
-  const alreadyCompact = (type.includes('jpeg') || type.includes('jpg') || type.includes('webp'))
-    && blob.size <= PREVIEW_UPLOAD_MAX_BYTES;
-  if (alreadyCompact) return blob;
+  const scales = [1, 0.85, 0.7, 0.55, 0.45];
+  let best = null;
+  for (const scale of scales) {
+    const png = await encodePngAtScale(blob, scale);
+    if (!png || !(png.size > 0)) continue;
+    if (png.size <= PREVIEW_UPLOAD_MAX_BYTES) {
+      return png;
+    }
+    if (!best || png.size < best.size) {
+      best = png;
+    }
+  }
 
-  let jpeg = await encodeJpeg(blob, quality);
-  if (jpeg && jpeg.size > PREVIEW_UPLOAD_MAX_BYTES) {
-    jpeg = await encodeJpeg(blob, 0.65);
-  }
-  if (jpeg && jpeg.size > 0 && jpeg.size <= PREVIEW_UPLOAD_MAX_BYTES) {
-    return jpeg;
-  }
-  if (jpeg && jpeg.size > 0 && jpeg.size < blob.size) {
-    return jpeg;
+  if (best && best.size > 0 && best.size < blob.size) {
+    return best;
   }
   return blob;
 }

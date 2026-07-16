@@ -588,7 +588,7 @@ export async function ensureMockupUrl(flow: FlowState): Promise<EnsureMockupUrlR
     ? sanitizeMockupFilenameBase(flowAny.title)
     : filenameBase || sanitizeMockupFilenameBase(safeName(flowAny?.designName));
   const uploadBlob = (await preparePreviewUploadBlob(mockupBlob)) || mockupBlob;
-  const contentType = uploadBlob.type || 'image/jpeg';
+  const contentType = uploadBlob.type || 'image/png';
   const dataUrl = await blobToDataUrl(uploadBlob);
 
   let uploadErrorCode: string | null = null;
