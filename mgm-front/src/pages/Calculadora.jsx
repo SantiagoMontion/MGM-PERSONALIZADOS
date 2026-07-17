@@ -12,8 +12,8 @@ const CalculadoraPage = () => {
 
   const materialOptions = useMemo(
     () => [
-      { label: 'Glasspad', value: 'Glasspad', disabled: true },
-      { label: 'Ultra', value: 'Ultra' },
+      { label: 'Glasspad — Sin stock', value: 'Glasspad', disabled: true },
+      { label: 'Ultra — Sin stock', value: 'Ultra', disabled: true },
       { label: 'Pro', value: 'Pro' },
       { label: 'Classic', value: 'Classic' },
       { label: 'Alfombra', value: 'Alfombra' },

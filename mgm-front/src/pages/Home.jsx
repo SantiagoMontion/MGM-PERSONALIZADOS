@@ -240,14 +240,20 @@ const STEP_TWO_MATERIAL_OPTIONS = [
     label: 'Glasspad',
     description: 'Movimientos rápidos y flicks.',
     disabled: true,
+    disabledReason: 'Sin stock',
   },
   {
     value: 'Ultra',
     label: 'Ultra',
     description: 'FPS ultra preciso y tracking.',
+    disabled: true,
+    disabledReason: 'Sin stock',
   },
 ];
 const isMaterialDropdownLocked = (o) => Boolean(o?.comingSoon || o?.disabled);
+const isMaterialValueLocked = (value) => STEP_TWO_MATERIAL_OPTIONS.some(
+  (option) => option.value === value && isMaterialDropdownLocked(option),
+);
 /** Resumen paso 3 — fila "Material". */
 const STEP_THREE_MATERIAL_SUMMARY = {
   Classic: 'Híbrido (Base goma)',
@@ -1218,7 +1224,9 @@ export default function Home() {
   // No se ejecutan filtros rapidos al subir imagen
 
   // medidas y material (source of truth)
-  const [material, setMaterial] = useState(initialEditorSelection.material);
+  const [material, setMaterial] = useState(
+    isMaterialValueLocked(initialEditorSelection.material) ? 'Classic' : initialEditorSelection.material,
+  );
   const [mode, setMode] = useState(initialEditorSelection.mode);
   const [size, setSize] = useState(() => ({ ...initialEditorSelection.size }));
   const [isCircular, setIsCircular] = useState(Boolean(initialEditorSelection.isCircular));
@@ -1926,18 +1934,22 @@ export default function Home() {
     );
     if (!nextSelection.hasPreset) return;
     didHydrateEditorSelectionRef.current = true;
-    setMaterial(nextSelection.material);
+    const nextMaterial = isMaterialValueLocked(nextSelection.material)
+      ? 'Classic'
+      : nextSelection.material;
+    setMaterial(nextMaterial);
     setMode(nextSelection.mode);
     setSize({ ...nextSelection.size });
     setIsCircular(Boolean(nextSelection.isCircular));
     setIsStraightEdges(Boolean(nextSelection.isStraightEdges));
     setStepOneCustomSizePanelOpen(
-      nextSelection.mode === 'custom' && !isFixedPad49x42Material(nextSelection.material),
+      nextSelection.mode === 'custom' && !isFixedPad49x42Material(nextMaterial),
     );
   }, [flow, flow?.heightCm, flow?.material, flow?.options?.material, flow?.options?.shape, flow?.shape, flow?.widthCm]);
 
   const handleSizeChange = useCallback((next) => {
     didHydrateEditorSelectionRef.current = true;
+    if (next.material && isMaterialValueLocked(next.material)) return;
     if (next.material && next.material !== material) {
       const nextMaterial = next.material;
       if (!isFixedPad49x42Material(material)) {
@@ -5211,6 +5223,9 @@ export default function Home() {
                                       {option.comingSoon ? (
                                         <span className={styles.stepOneDropdownBadgeSoon}>Próximamente</span>
                                       ) : null}
+                                      {option.disabledReason ? (
+                                        <span className={styles.stepOneDropdownBadgeSoon}>{option.disabledReason}</span>
+                                      ) : null}
                                     </span>
                                   </span>
                                   <span className={styles.stepOneSizeOptionTail}>
@@ -6217,6 +6232,9 @@ export default function Home() {
                                         )}
                                         {option.comingSoon && (
                                           <span className={styles.stepTwoOptionBadgeSoon}>Próximamente</span>
+                                        )}
+                                        {option.disabledReason && (
+                                          <span className={styles.stepTwoOptionBadgeSoon}>{option.disabledReason}</span>
                                         )}
                                       </span>
                                       <span className={styles.stepTwoOptionDescription}>{option.description}</span>

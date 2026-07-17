@@ -58,6 +58,8 @@ const MATERIAL_OPTIONS = [
     value: 'Ultra',
     main: 'ULTRA',
     variant: 'control',
+    disabled: true,
+    disabledReason: 'Sin stock',
   },
   { value: 'PRO', main: 'PRO', variant: 'control' },
   { value: 'Classic', main: 'CLASSIC', variant: 'híbrido' },
@@ -622,6 +624,9 @@ export default function SizeControls({
                             </span>
                             {option.comingSoon ? (
                               <span className={styles.selectOptionBadgeSoon}>Próximamente</span>
+                            ) : null}
+                            {option.disabledReason ? (
+                              <span className={styles.selectOptionBadgeSoon}>{option.disabledReason}</span>
                             ) : null}
                           </span>
                         </div>
