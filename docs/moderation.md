@@ -60,4 +60,6 @@ node scripts/test-moderation-synthetic.mjs
 node scripts/test-wide-nazi-flag.mjs
 ```
 
-Espera BLOCK en esvástica sintética, filename `hitler.png` y banderas 90×40; ALLOW en un lienzo blanco inocente.
+Espera BLOCK en esvástica sintética, filename `hitler.png` y banderas 90×40 (incl. fotos/JPEG con blanco crema); ALLOW en un lienzo blanco inocente.
+
+La paleta usa resolución mayor, blanco/crema laxo, “agujero rojo” en el centro y varios centros (por reposicionado).

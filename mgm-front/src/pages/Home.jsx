@@ -53,6 +53,7 @@ import { buildPdfFromMaster } from '../lib/buildPdf.js';
 import { ensureMockupUrlInFlow } from './Mockup.jsx';
 import { quickHateSymbolCheck } from '@/lib/moderation.ts';
 import { scanNudityClient } from '@/lib/moderation/nsfw.client.js';
+import { scanNaziFlagFromDataUrl } from '@/lib/moderation/naziFlag.client.js';
 import { useFlow } from '@/state/flow.js';
 import { isTouchDevice } from '@/lib/device.ts';
 import { getMaxImageMb, bytesToMB, formatHeavyImageToastMessage } from '@/lib/imageLimits.js';
@@ -2427,6 +2428,17 @@ export default function Home() {
       if (quickHateSymbolCheck(metaForCheck)) {
         setErr('Contenido no permitido (odio nazi detectado)');
         return false;
+      }
+
+      // client-side gate: bandera nazi obvia (rojo + disco + negro) antes del API
+      try {
+        const naziClient = await scanNaziFlagFromDataUrl(masterDataUrl);
+        if (naziClient?.blocked) {
+          setErr(MODERATION_REASON_MESSAGES.extremism_nazi);
+          return false;
+        }
+      } catch (naziClientErr) {
+        warn('[continue] nazi flag client scan failed; continuing to server', naziClientErr?.message || naziClientErr);
       }
 
       // client-side gate: NSFW scan in browser (no server TFJS)
