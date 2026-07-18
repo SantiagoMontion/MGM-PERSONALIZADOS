@@ -45,9 +45,13 @@ El servidor clasifica cada imagen en **BLOCK**, **REVIEW** o **ALLOW** y devuelv
 MOD_PREVIEW_LIMIT_BYTES=2000000
 MOD_BODY_LIMIT_BYTES=8388608
 MODERATION_SKIP_OCR=1
+MODERATION_ENABLE_OCR=1
+MODERATION_OCR_TIMEOUT_MS=8000
 ```
 
-`MODERATION_SKIP_OCR=1` solo para pruebas locales/CI (evita descargar datos de Tesseract).
+- `MODERATION_SKIP_OCR=1`: fuerza sin OCR (local/CI).
+- En **Vercel**, el OCR está **apagado por defecto** (Tesseract cuelga cold starts). Filename + nombre del diseño siguen filtrando “Hitler”. Activar solo con `MODERATION_ENABLE_OCR=1`.
+- El detector visual nazi hace **early exit** (no espera OCR/skin) cuando ya hay BLOCK claro.
 
 ## Prueba local rápida
 
