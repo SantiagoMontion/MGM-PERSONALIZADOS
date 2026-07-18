@@ -55,6 +55,10 @@ const HATE_TERMS = [
   'white pride worldwide',
   'wpww',
   'aryan brotherhood',
+  'hakenkreuz',
+  'hakencruz',
+  'ss runes',
+  'totenkopf',
 ];
 
 function normalizeHateCheck(input: string | null | undefined) {

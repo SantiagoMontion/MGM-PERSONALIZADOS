@@ -12,6 +12,10 @@
     },
     "api/analytics/dashboard.js": {
       "maxDuration": 60
+    },
+    "api/moderate-image.ts": {
+      "memory": 1024,
+      "maxDuration": 60
     }
   },
   "headers": [

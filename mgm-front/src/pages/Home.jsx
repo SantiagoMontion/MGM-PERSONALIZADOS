@@ -2619,6 +2619,12 @@ export default function Home() {
         }
       } catch (moderationErr) {
         error('moderate-image failed', moderationErr);
+        const status = Number(moderationErr?.status) || 0;
+        const blockedReason = asStr(moderationErr?.json?.reason).trim();
+        if ((status === 400 || status === 422) && blockedReason) {
+          setErr(moderationReasonMessage(blockedReason));
+          return false;
+        }
         const baseModerationError = 'No se pudo validar la imagen. Intent\u00E1 nuevamente.';
         const detailCandidates = [
           moderationErr?.json?.error,
