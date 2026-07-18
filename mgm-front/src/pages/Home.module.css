@@ -4428,6 +4428,7 @@ body.light .stepTwoContainColorLabel {
   display: flex;
   flex-direction: row;
   flex-wrap: nowrap;
+  align-items: flex-start;
   gap: var(--space-3);
   inline-size: 100%;
   margin-block-end: var(--space-2);
@@ -4440,7 +4441,7 @@ body.light .stepTwoContainColorLabel {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: var(--space-1);
+  gap: 6px;
 }
 
 .stepThreePrivateCartColumn .stepThreePrimaryButton {
@@ -4462,7 +4463,8 @@ body.light .stepTwoContainColorLabel {
 .stepThreePrimaryButton {
   flex: 1 1 0;
   min-inline-size: 0;
-  min-block-size: var(--space-10);
+  min-block-size: 48px;
+  padding-block: 12px;
   padding-inline: var(--space-4);
   border-radius: var(--radius-button);
   color: var(--foreground);
@@ -4475,6 +4477,9 @@ body.light .stepTwoContainColorLabel {
   text-align: center;
   cursor: pointer;
   box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .stepThreeSecondaryButton {
