@@ -27,9 +27,11 @@ El servidor clasifica cada imagen en **BLOCK**, **REVIEW** o **ALLOW** y devuelv
 
 ## Servidor – nazismo
 
-- **pHash** contra templates SVG de esvástica (varios strokes, invertidos, bandera).
+- **pHash** con `fit: cover` (centro) contra templates SVG de esvástica (varios strokes, invertidos, bandera). Evita aplastar pads 90×40.
 - **Shape fuerte solo** (match muy cercano) → BLOCK sin exigir otras señales.
-- Señales medias: hace falta **2 de 3** (shape / palette de bandera / texto) para bajar falsos positivos (manji).
+- **Paleta de bandera solo** (rojo dominante + disco blanco + negro en centro) → BLOCK (cubre banderas estiradas a full-bleed).
+- Señales medias: hace falta **2 de 3** (shape / palette / texto) para bajar falsos positivos (manji).
+- No se padean pads anchos con bandas blancas (diluían la paleta).
 - Texto: lista en `lib/moderation/hate.js` sobre filename, designName y OCR.
 
 ## Servidor – desnudos
@@ -51,6 +53,7 @@ MODERATION_SKIP_OCR=1
 
 ```bash
 node scripts/test-moderation-synthetic.mjs
+node scripts/test-wide-nazi-flag.mjs
 ```
 
-Espera BLOCK en esvástica sintética y en filename `hitler.png`; ALLOW en un lienzo blanco inocente.
+Espera BLOCK en esvástica sintética, filename `hitler.png` y banderas 90×40; ALLOW en un lienzo blanco inocente.

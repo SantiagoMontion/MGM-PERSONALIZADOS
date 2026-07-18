@@ -301,7 +301,7 @@ const MOD_PREVIEW_FALLBACK_FORMATS = ['image/jpeg'];
 const MOD_PREVIEW_RETRY_QUALITIES = [0.8, 0.7, 0.6];
 const MOD_PREVIEW_RETRY_DIMENSIONS = [1024, 896, 768, 640];
 
-const STEP_TWO_UPLOAD_MESSAGE = 'Guardando tu diseño en alta resolución...';
+const STEP_TWO_UPLOAD_MESSAGE = 'Validando y guardando tu diseño...';
 const STEP_TWO_UPLOAD_SUBTITLE = 'No cierres nada, esto puede demorar varios segundos.';
 const STEP_THREE_COMMERCE_PENDING_LABEL = 'Enviando...';
 const STEP_THREE_ADD_TO_CART_LABEL = 'Agregar al carrito';
