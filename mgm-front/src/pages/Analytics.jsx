@@ -10,6 +10,7 @@ import {
 } from '@/lib/printsGate.js';
 import busquedaStyles from './Busqueda.module.css';
 import styles from './Analytics.module.css';
+import { downloadAnalyticsReport } from '@/lib/analyticsExport.js';
 
 const REFRESH_INTERVAL_MS = 60_000;
 const DEFAULT_RANGE_DAYS = 30;
@@ -101,6 +102,23 @@ function RefreshIcon({ spinning }) {
     >
       <path d="M21 12a9 9 0 1 1-2.64-6.36" strokeLinecap="round" />
       <path d="M21 3v6h-6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ExportIcon() {
+  return (
+    <svg
+      className={styles.refreshIcon}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      aria-hidden="true"
+    >
+      <path d="M12 3v12" strokeLinecap="round" />
+      <path d="m7 10 5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M5 21h14" strokeLinecap="round" />
     </svg>
   );
 }
@@ -422,6 +440,7 @@ export default function AnalyticsPage() {
   const [rangeDays, setRangeDays] = useState(DEFAULT_RANGE_DAYS);
   const [syncMessage, setSyncMessage] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
+  const [exportMessage, setExportMessage] = useState('');
 
   useEffect(() => {
     const stored = readStoredGate();
@@ -594,6 +613,20 @@ export default function AnalyticsPage() {
     setRangeDays(days);
     setData(null);
     setError('');
+    setExportMessage('');
+  };
+
+  const handleExportReport = () => {
+    if (!data?.ok) {
+      setExportMessage('Esperá a que carguen los datos antes de exportar.');
+      return;
+    }
+    try {
+      const filename = downloadAnalyticsReport(data, { rangeDays, exportedAt: lastUpdated || new Date() });
+      setExportMessage(`Reporte descargado: ${filename}`);
+    } catch (err) {
+      setExportMessage(err instanceof Error ? err.message : 'No se pudo exportar el reporte.');
+    }
   };
 
   const summary = data?.summary ?? {};
@@ -640,6 +673,16 @@ export default function AnalyticsPage() {
             </div>
             <button
               type="button"
+              className={styles.exportBtn}
+              onClick={handleExportReport}
+              disabled={!data?.ok || isLoading}
+              title={`Descargar reporte Markdown (${rangeDays} días) para analizar con IA`}
+            >
+              <ExportIcon />
+              <span>Exportar reporte</span>
+            </button>
+            <button
+              type="button"
               className={styles.refreshBtn}
               onClick={loadAll}
               disabled={isLoading}
@@ -651,6 +694,10 @@ export default function AnalyticsPage() {
           </div>
         ) : null}
       </div>
+
+      {hasAccess && exportMessage ? (
+        <p className={styles.exportMessage} role="status">{exportMessage}</p>
+      ) : null}
 
       {hasAccess ? (
         <>

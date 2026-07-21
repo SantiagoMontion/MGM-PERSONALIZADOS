@@ -165,6 +165,43 @@
   cursor: wait;
 }
 
+.exportBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 2.5rem;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-full);
+  border: 1px solid color-mix(in srgb, var(--accent, #eab308) 45%, var(--border-strong));
+  background: color-mix(in srgb, var(--accent, #eab308) 12%, var(--secondary));
+  color: var(--foreground);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.exportBtn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent, #eab308) 20%, var(--secondary));
+  border-color: color-mix(in srgb, var(--accent, #eab308) 60%, var(--border-strong));
+}
+
+.exportBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.exportMessage {
+  margin: calc(var(--space-2) * -1) 0 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--secondary);
+  border: 1px solid var(--border-default);
+  font-size: var(--fs-sm);
+  color: var(--foreground-secondary);
+}
+
 .refreshIcon {
   width: 1rem;
   height: 1rem;
