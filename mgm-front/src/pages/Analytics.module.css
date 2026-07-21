@@ -240,6 +240,12 @@
   color: var(--foreground);
 }
 
+.alertInfo {
+  border: 1px solid color-mix(in srgb, #3b82f6 35%, transparent);
+  background: color-mix(in srgb, #3b82f6 10%, var(--secondary));
+  color: var(--foreground-secondary);
+}
+
 .alert code {
   font-size: 0.9em;
   padding: 0.1em 0.35em;

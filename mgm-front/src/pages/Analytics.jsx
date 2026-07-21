@@ -639,6 +639,7 @@ export default function AnalyticsPage() {
   const purchasesDetail = Array.isArray(data?.purchases_detail) ? data.purchases_detail : [];
   const purchaseSync = data?.purchase_sync ?? null;
   const lastEvents = Array.isArray(data?.last_events) ? data.last_events : [];
+  const mockupFunnel = data?.mockup_funnel ?? null;
 
   return (
     <div className={styles.page}>
@@ -729,6 +730,13 @@ export default function AnalyticsPage() {
                       <code>20260711120000_track_events.sql</code>
                     </>
                   )}
+                </div>
+              ) : null}
+
+              {summary.purchases > 0 && (mockupFunnel?.view ?? 0) === 0 ? (
+                <div className={`${styles.alert} ${styles.alertInfo}`.trim()} role="status">
+                  Las {formatNumber(summary.purchases)} compras vienen del personalizador embebido (Home),
+                  no de la página <code>/mockup</code>. Por eso el embudo mockup puede estar en 0 sin ser un error.
                 </div>
               ) : null}
 

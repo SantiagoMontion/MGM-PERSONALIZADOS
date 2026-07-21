@@ -91,7 +91,60 @@ function buildFunnelSection(homeFunnel) {
   return mdTable(['Etapa', 'Sesiones únicas', 'Tasas', 'Abandonos'], rows);
 }
 
-function buildDeviceSection(devices) {
+function eventStats(eventBreakdown, eventName) {
+  const row = eventBreakdown.find((entry) => entry.event_name === eventName);
+  return {
+    count: row?.count ?? 0,
+    unique_rids: row?.unique_rids ?? 0,
+  };
+}
+
+function buildInterpretationSection(data) {
+  const summary = data.summary ?? {};
+  const mockupFunnel = data.mockup_funnel ?? {};
+  const checkoutFunnel = data.checkout_funnel ?? {};
+  const eventBreakdown = Array.isArray(data.event_breakdown) ? data.event_breakdown : [];
+  const homeReview = eventStats(eventBreakdown, 'home_step_review');
+  const homeCart = eventStats(eventBreakdown, 'home_add_to_cart');
+  const homePrivateCart = eventStats(eventBreakdown, 'home_add_private_cart');
+  const mockupView = eventStats(eventBreakdown, 'mockup_view');
+
+  const lines = [
+    'Hay **dos flujos de analytics independientes**. No confundirlos:',
+    '',
+    '1. **Personalizador embebido (Home, `/`)** — flujo principal en `personalizados.notmid.ar`.',
+    '   Eventos: `home_image_uploaded`, `home_step_review`, `home_add_to_cart`, etc.',
+    '   Las compras se confirman vía sync Shopify → `purchase_completed`.',
+    '',
+    '2. **Página Mockup standalone (`/mockup`)** — flujo legacy/publicación.',
+    '   Eventos: `mockup_view`, `view_purchase_options`, `cta_click_*`.',
+    '',
+    '### Equivalencias',
+    '',
+    '| Etapa | Home (activo) | Mockup (legacy) |',
+    '| --- | --- | --- |',
+    '| Ver opciones de compra | `home_step_review` | `view_purchase_options` |',
+    '| Click carrito | `home_add_to_cart` / `home_add_private_cart` | `cta_click_cart` / `cta_click_private` |',
+    '| Compra registrada | `purchase_completed` (sync) | `purchase_completed` (solo si la sesión pasó por mockup) |',
+    '',
+  ];
+
+  if ((summary.purchases ?? 0) > 0 && (mockupFunnel.view ?? 0) === 0) {
+    lines.push(
+      '### Interpretación de este período',
+      '',
+      `- **${fmtNum(summary.purchases)} compras** registradas en el KPI general.`,
+      `- **mockup_funnel en 0** (vistas/clics): **esperado** si nadie usó la ruta `/mockup`.`,
+      `- El checkout real está en **checkout_funnel / home_funnel**: revisión ${fmtNum(checkoutFunnel.review ?? summary.reached_review)}, carrito ${fmtNum(checkoutFunnel.cart ?? summary.added_to_cart)}.`,
+      `- Eventos Home en el período: revisión ${fmtNum(homeReview.count)} (${fmtNum(homeReview.unique_rids)} sesiones), carrito público ${fmtNum(homeCart.count)}, carrito privado ${fmtNum(homePrivateCart.count)}, mockup_view ${fmtNum(mockupView.count)}.`,
+      '',
+      '**Conclusión:** no indica un bug de tracking en mockup; indica que las compras vienen del personalizador embebido, no de `/mockup`.',
+      '',
+    );
+  }
+
+  return lines.join('\n');
+}
   if (!devices?.total) return '_Sin datos de dispositivos._\n';
 
   const funnelRows = [
@@ -137,13 +190,14 @@ export function buildAnalyticsReportMarkdown(data, { rangeDays, exportedAt = new
   const lastEvents = Array.isArray(data.last_events) ? data.last_events : [];
   const mockupFunnel = data.mockup_funnel ?? {};
   const homeFunnel = data.home_funnel ?? {};
+  const checkoutFunnel = data.checkout_funnel ?? {};
   const devices = data.devices ?? null;
   const exportedIso = exportedAt.toISOString();
 
   const lines = [];
 
   lines.push('# Reporte Analytics · NOTMID Personalizador\n');
-  lines.push('> **Para IA:** Este documento resume métricas del configurador de mousepads personalizados (notmid.ar / personalizados.notmid.ar). Analizá embudo, conversión, dispositivos, materiales y eventos. Los porcentajes son tasas de conversión entre etapas. Las sesiones se identifican por `rid`.\n');
+  lines.push('> **Para IA:** Métricas del configurador de mousepads (notmid.ar / personalizados.notmid.ar). **Leé primero «Contexto e interpretación»**: hay dos embudos (Home vs /mockup). Las compras del KPI principal suelen venir del Home embebido, no de mockup_funnel. No diagnosticar bug si mockup_funnel=0 y hay compras.\n');
 
   lines.push('## Metadatos del reporte\n');
   lines.push(`- **Período seleccionado:** últimos **${rangeDays} días**`);
@@ -155,6 +209,8 @@ export function buildAnalyticsReportMarkdown(data, { rangeDays, exportedAt = new
   }
   lines.push('');
 
+  lines.push(section('Contexto e interpretación (leer primero)', buildInterpretationSection(data)));
+
   lines.push(section('Resumen ejecutivo (KPIs)', [
     `- **Visitantes únicos:** ${fmtNum(summary.unique_visitors)}`,
     `- **Subieron imagen:** ${fmtNum(summary.uploads)} (tasa ${fmtPct(summary.upload_rate)} desde visita)`,
@@ -163,13 +219,21 @@ export function buildAnalyticsReportMarkdown(data, { rangeDays, exportedAt = new
     `- **Compras completadas:** ${fmtNum(summary.purchases)} (conversión global ${fmtPct(summary.completion_rate)} visita → compra)`,
   ].join('\n')));
 
-  lines.push(section('Embudo Home (personalizador)', buildFunnelSection(homeFunnel)));
+  lines.push(section('Embudo Home (personalizador embebido, ruta /)', buildFunnelSection(homeFunnel)));
 
-  lines.push(section('Embudo Mockup / checkout', [
-    `- **Vistas mockup:** ${fmtNum(mockupFunnel.view)}`,
-    `- **Vieron opciones de compra:** ${fmtNum(mockupFunnel.options)}`,
-    `- **Clicks CTA (público/privado/carrito):** ${fmtNum(mockupFunnel.clicks)}`,
-    `- **Compras:** ${fmtNum(mockupFunnel.purchase)}`,
+  lines.push(section('Checkout embebido (resumen)', [
+    `- **Paso revisión (home_step_review):** ${fmtNum(checkoutFunnel.review ?? summary.reached_review)} sesiones`,
+    `- **Agregaron al carrito:** ${fmtNum(checkoutFunnel.cart ?? summary.added_to_cart)} (tasa desde revisión ${fmtPct(checkoutFunnel.rate_review_to_cart ?? summary.cart_rate)})`,
+    `- **Compras completadas:** ${fmtNum(checkoutFunnel.purchases ?? summary.purchases)} (conversión visita→compra ${fmtPct(checkoutFunnel.rate_visit_to_purchase ?? summary.completion_rate)})`,
+  ].join('\n')));
+
+  lines.push(section('Embudo Mockup (solo ruta /mockup, legacy)', [
+    `- **Vistas mockup (\`mockup_view\`):** ${fmtNum(mockupFunnel.view)}`,
+    `- **Opciones de compra (\`view_purchase_options\`):** ${fmtNum(mockupFunnel.options)}`,
+    `- **Clicks CTA:** ${fmtNum(mockupFunnel.clicks)}`,
+    `- **Compras atribuidas a sesión mockup:** ${fmtNum(mockupFunnel.purchase)}`,
+    '',
+    '_Si todo está en 0 pero hay compras en el KPI general, es normal: las compras vienen del Home embebido._',
   ].join('\n')));
 
   lines.push(section(
