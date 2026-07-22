@@ -2,6 +2,10 @@ import { error } from '@/lib/log';
 // src/components/UploadStep.jsx
 import { useRef, useState } from 'react';
 import { getMaxImageMb, bytesToMB, formatHeavyImageToastMessage } from '@/lib/imageLimits.js';
+import {
+  normalizeUploadImageFile,
+  UPLOAD_ACCEPT_ATTR,
+} from '@/lib/normalizeUploadImageFile.js';
 import styles from './UploadStep.module.css';
 import LoadingOverlay from './LoadingOverlay';
 
@@ -31,8 +35,9 @@ export default function UploadStep({ onUploaded, className = '', renderTrigger }
     setBusy(true);
     setErr('');
     try {
-      const localUrl = URL.createObjectURL(file);
-      const uploaded = { file, localUrl };
+      const { file: normalized } = await normalizeUploadImageFile(file);
+      const localUrl = URL.createObjectURL(normalized);
+      const uploaded = { file: normalized, localUrl };
       onUploaded(uploaded);
     } catch (e) {
       error(e);
@@ -58,7 +63,7 @@ export default function UploadStep({ onUploaded, className = '', renderTrigger }
       <input
         ref={inputRef}
         type="file"
-        accept="image/png, image/jpeg"
+        accept={UPLOAD_ACCEPT_ATTR}
         className={styles.hiddenInput}
         onChange={handlePicked}
       />

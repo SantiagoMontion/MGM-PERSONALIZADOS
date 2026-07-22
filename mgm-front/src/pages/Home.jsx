@@ -69,6 +69,11 @@ import {
   PROJECT_NAME_FORBIDDEN_WORDS_MESSAGE,
 } from '../../../lib/_lib/projectNameForbiddenWords.js';
 import { assignLeavingHostedApp, navigateCommerceForCart } from '@/lib/navigateHosted.js';
+import {
+  isLikelyImageUpload,
+  normalizeUploadImageFile,
+  UPLOAD_ACCEPT_ATTR,
+} from '@/lib/normalizeUploadImageFile.js';
 
 const MAX_IMAGE_MB = MAX_IMAGE_MB_BASE; // proviene de VITE_MAX_IMAGE_MB (default 30MB)
 const MAX_IMAGE_BYTES = MAX_IMAGE_MB * 1024 * 1024;
@@ -318,7 +323,7 @@ const HOME_STEP = {
   edit: 2,
   review: 3,
 };
-const STEP_ONE_ACCEPTED_MIME_TYPES = ['image/png', 'image/jpeg'];
+const STEP_ONE_UPLOAD_ACCEPT = UPLOAD_ACCEPT_ATTR;
 const STEP_ONE_MOBILE_QUERY = '(max-width: 768px)';
 const STEP_ONE_PREVIEW_REFERENCE_CM = { w: 140, h: 100 };
 const CUSTOM_SIZE_BASE_LIMITS_CM = { minW: 25, minH: 25, maxW: 140, maxH: 100 };
@@ -1054,9 +1059,15 @@ const resolveProductPageTargetUrl = (result) => {
 /**
  * Agrega la variante al carrito de Shopify y vuelve a la ficha del producto.
  * Usa /cart/add (NO /cart/VARIANT:1, que en muchos temas manda a checkout).
+ * Preferí cartUrl del backend si ya trae /cart/add con properties; si no, construye uno.
  */
 const resolveAddToCartThenProductUrl = (result) => {
   if (!result || typeof result !== 'object') return null;
+
+  const existingCartUrl = safeStr(result?.cartUrl) || safeStr(result?.raw?.cartUrl);
+  if (existingCartUrl && /\/cart\/add\b/i.test(existingCartUrl)) {
+    return existingCartUrl;
+  }
 
   const productUrl = resolveProductPageTargetUrl(result);
   const variantId =
@@ -1067,7 +1078,7 @@ const resolveAddToCartThenProductUrl = (result) => {
     || result?.meta?.variantId
     || null;
 
-  if (!variantId) return productUrl;
+  if (!variantId) return existingCartUrl || productUrl;
 
   let baseUrl;
   let returnTo = '/';
@@ -1110,12 +1121,25 @@ const resolveAddToCartThenProductUrl = (result) => {
     }
   }
 
+  const rid = ensureTrackingRid();
+  const jobId =
+    safeStr(result?.jobId)
+    || safeStr(result?.job_id)
+    || safeStr(result?.raw?.jobId)
+    || safeStr(result?.raw?.job_id);
+  const properties = {
+    ...(rid ? { rid } : {}),
+    ...(jobId ? { job_id: jobId } : {}),
+    _app_source: 'custom',
+  };
+
   // /cart/add respeta return_to y NO fuerza checkout (a diferencia de /cart/id:qty).
   const cartThenProduct = buildCartAddUrl(variantId, 1, {
     ...(baseUrl ? { baseUrl } : {}),
     returnTo,
+    properties,
   });
-  return cartThenProduct || productUrl;
+  return cartThenProduct || existingCartUrl || productUrl;
 };
 
 /** Abre destino de tienda/checkout en la pestaña real (sale del iframe del tema si hace falta). */
@@ -4117,26 +4141,30 @@ export default function Home() {
     setStepOneMaterialMenuOpen(false);
   }, [handleSizeChange]);
 
-  const handleStepOnePickedFile = useCallback((file, options = {}) => {
+  const handleStepOnePickedFile = useCallback(async (file, options = {}) => {
     if (!file) return;
-    const normalizedName = String(file.name || '').toLowerCase();
-    const isAcceptedType =
-      STEP_ONE_ACCEPTED_MIME_TYPES.includes(file.type)
-      || /\.(png|jpe?g)$/.test(normalizedName);
-    if (!isAcceptedType) {
+    if (!isLikelyImageUpload(file)) {
       if (options?.isReplacing) {
         setIsReplacing(false);
       }
-      setErr('Solo se permiten imágenes PNG o JPG.');
+      setErr('Solo se permiten imágenes (PNG, JPG, WebP o HEIC).');
       return;
     }
-    const localUrl = URL.createObjectURL(file);
-    handleUploaded({
-      file,
-      localUrl,
-      openConfig: Boolean(options?.openConfig),
-      isReplacing: Boolean(options?.isReplacing),
-    });
+    try {
+      const { file: normalized } = await normalizeUploadImageFile(file);
+      const localUrl = URL.createObjectURL(normalized);
+      handleUploaded({
+        file: normalized,
+        localUrl,
+        openConfig: Boolean(options?.openConfig),
+        isReplacing: Boolean(options?.isReplacing),
+      });
+    } catch (pickErr) {
+      if (options?.isReplacing) {
+        setIsReplacing(false);
+      }
+      setErr(String(pickErr?.message || pickErr || 'No pudimos leer esta imagen.'));
+    }
   }, [handleUploaded]);
 
   const handleStepOneOpenPicker = useCallback(() => {
@@ -4759,6 +4787,7 @@ export default function Home() {
       syncFlowEditorSelection();
       const result = await createJobAndProduct('cart', flow, {
         payloadOverrides: buildCommercePayloadOverrides(),
+        skipCartLink: true,
       });
       let targetUrl = resolveAddToCartThenProductUrl(result);
       if (!targetUrl) {
@@ -4829,6 +4858,7 @@ export default function Home() {
       syncFlowEditorSelection();
       const result = await createJobAndProduct('cart', flow, {
         payloadOverrides: buildPrivateCommercePayloadOverrides(),
+        skipCartLink: true,
       });
       let targetUrl = resolveAddToCartThenProductUrl(result);
       if (!targetUrl) {
@@ -5347,7 +5377,7 @@ export default function Home() {
                     <input
                       ref={stepOneFileInputRef}
                       type="file"
-                      accept="image/png, image/jpeg"
+                      accept={STEP_ONE_UPLOAD_ACCEPT}
                       className={styles.stepOneHiddenInput}
                       onChange={handleStepOneInputChange}
                     />
@@ -5803,7 +5833,7 @@ export default function Home() {
                       <input
                         ref={stepTwoFileInputRef}
                         type="file"
-                        accept="image/png, image/jpeg"
+                        accept={STEP_ONE_UPLOAD_ACCEPT}
                         className={styles.stepOneHiddenInput}
                         onChange={handleStepTwoReplaceChange}
                       />

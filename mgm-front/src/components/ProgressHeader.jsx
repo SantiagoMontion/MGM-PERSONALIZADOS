@@ -1,4 +1,4 @@
-﻿import { Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import moonIconSrc from '@/assets/icons/luna.svg';
 import completedStepIconSrc from '@/icons/pasos.svg';
 import brandLogoSrc from '@/icons/Logo.svg';

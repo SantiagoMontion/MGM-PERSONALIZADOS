@@ -34,6 +34,7 @@ import {
 } from "../lib/dpi";
 import { resolveIconAsset } from "@/lib/iconRegistry.js";
 import { isTouchDevice } from "@/lib/device.ts";
+import { assignLeavingHostedApp } from "@/lib/navigateHosted.js";
 
 const CM_PER_INCH = 2.54;
 const mmToCm = (mm) => mm / 10;
@@ -854,7 +855,7 @@ const EditorCanvas = forwardRef(function EditorCanvas(
   const [keepRatio, setKeepRatio] = useState(true);
   const keepRatioRef = useRef(true);
   const [mode, setMode] = useState("cover"); // 'cover' | 'contain' | 'stretch'
-  const canTransformImage = !isTouch && mode === "contain";
+  const canTransformImage = mode === "contain";
   const transformerAnchors = canTransformImage
     ? [
         "top-left",
@@ -1457,8 +1458,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
 
   // fin de resize por esquinas
   const onTransformStart = useCallback(() => {
-    if (isTouch) return;
-
     isTransformingRef.current = true;
     const anchorName = trRef.current?.getActiveAnchor();
     const shouldKeep =
@@ -1526,11 +1525,9 @@ const EditorCanvas = forwardRef(function EditorCanvas(
           : fallbackScale;
     }
     setKeepRatioImmediate(shouldKeep);
-  }, [imgBaseCm, isTouch, setKeepRatioImmediate]);
+  }, [imgBaseCm, setKeepRatioImmediate]);
 
   const onTransformEnd = () => {
-    if (isTouch) return;
-
     isTransformingRef.current = false;
     cornerScaleRef.current = { prev: null };
     if (!imgRef.current || !imgBaseCm) {
@@ -2607,7 +2604,9 @@ const EditorCanvas = forwardRef(function EditorCanvas(
       units: "cm",
     });
     const arUrl = `https://size.link/?${params.toString()}`;
-    window.open(arUrl, "_blank", "noopener,noreferrer");
+    if (!assignLeavingHostedApp(arUrl)) {
+      window.open(arUrl, "_blank", "noopener,noreferrer");
+    }
   }, [hCm, sizeCm?.h, sizeCm?.w, wCm]);
 
   const iconButtonClass = (isActive) =>
@@ -3171,16 +3170,6 @@ const EditorCanvas = forwardRef(function EditorCanvas(
           )}
           {!showReplacingOverlay && resolvedImageUrl && imgStatus !== "loaded" && (
             <div className={`spinner ${styles.spinnerOverlay}`} />
-          )}
-          {false && isTouch && (
-            <div className={styles.mobileCanvasControls}>
-              <button type="button" onClick={handleZoomOut} aria-label="Alejar">
-                âˆ’
-              </button>
-              <button type="button" onClick={handleZoomIn} aria-label="Acercar">
-                +
-              </button>
-            </div>
           )}
         </div>
 

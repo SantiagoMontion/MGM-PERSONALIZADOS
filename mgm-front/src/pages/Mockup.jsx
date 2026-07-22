@@ -8,6 +8,7 @@ import styles from './Mockup.module.css';
 import { buildExportBaseName } from '@/lib/filename.ts';
 import { apiFetch, getResolvedApiUrl } from '@/lib/api.js';
 import {
+  buildCartAddUrl,
   createJobAndProduct,
   ONLINE_STORE_DISABLED_MESSAGE,
   ONLINE_STORE_MISSING_MESSAGE,
@@ -2047,7 +2048,7 @@ export default function Mockup() {
       }
     };
 
-    if (!isTouchDevice()) {
+    if (isTouchDevice()) {
       const wrap = canvasWrapRef.current;
       if (!wrap) {
         return undefined;
@@ -3327,11 +3328,12 @@ export default function Mockup() {
         }
         return true;
       }
-      const opened = window.open(urlInstance.toString(), '_blank');
-      if (opened) {
+      // Prefer same-tab / top frame (iOS Safari blocks many window.open popups).
+      if (assignLeavingHostedApp(urlInstance.toString())) {
         return true;
       }
-      return assignLeavingHostedApp(urlInstance.toString());
+      const opened = window.open(urlInstance.toString(), '_blank');
+      return Boolean(opened);
     } catch (navErr) {
       warn('[mockup] commerce_navigation_failed', navErr);
       try {
@@ -3517,7 +3519,7 @@ export default function Mockup() {
       let directTarget = '';
       for (const candidate of jsonCandidates) {
         if (!candidate || typeof candidate !== 'object') continue;
-        for (const key of ['productUrl', 'url', 'checkoutUrl', 'cartUrl']) {
+        for (const key of ['cartUrl', 'checkoutUrl', 'productUrl', 'url']) {
           const value = typeof candidate?.[key] === 'string' ? candidate[key].trim() : '';
           if (value) {
             directTarget = value;
@@ -3582,11 +3584,11 @@ export default function Mockup() {
           : '';
 
       const targetUrl =
-        productUrlFromResult
+        cartUrlFromResult
+        || checkoutUrlFromResult
+        || productUrlFromResult
         || fallbackFromHandle
-        || genericUrlFromResult
-        || cartUrlFromResult
-        || checkoutUrlFromResult;
+        || genericUrlFromResult;
 
       if (!targetUrl) {
         const missingTargetError = new Error('Missing target url');
@@ -4423,25 +4425,64 @@ export default function Mockup() {
   function pickOpenUrl(out) {
     if (out?.url) return out.url;
     if (out?.checkoutUrl) return out.checkoutUrl;
-    if (out?.productUrl) return out.productUrl;
     if (out?.cartUrl) return out.cartUrl;
+    if (out?.productUrl) return out.productUrl;
     if (out?.privateCheckoutUrl) return out.privateCheckoutUrl;
     return null;
   }
 
   function resolveOpenUrl(mode, out) {
     if (mode === 'cart') {
-      const productUrlFromMeta =
-        typeof out?.meta?.productUrl === 'string' && out.meta.productUrl.trim()
-          ? out.meta.productUrl.trim()
+      const cartUrlDirect =
+        typeof out?.cartUrl === 'string' && out.cartUrl.trim()
+          ? out.cartUrl.trim()
           : '';
-      if (productUrlFromMeta) return productUrlFromMeta;
+      if (cartUrlDirect) return cartUrlDirect;
 
-      const productUrlDirect =
-        typeof out?.productUrl === 'string' && out.productUrl.trim()
-          ? out.productUrl.trim()
+      const cartUrlFromMeta =
+        typeof out?.meta?.cartUrl === 'string' && out.meta.cartUrl.trim()
+          ? out.meta.cartUrl.trim()
           : '';
-      if (productUrlDirect) return productUrlDirect;
+      if (cartUrlFromMeta) return cartUrlFromMeta;
+
+      const variantId =
+        out?.variantIdNumeric
+        || out?.variantId
+        || out?.meta?.variantId
+        || out?.raw?.variantIdNumeric
+        || out?.raw?.variantId
+        || null;
+      if (variantId) {
+        try {
+          const productUrl =
+            (typeof out?.productUrl === 'string' && out.productUrl.trim())
+            || (typeof out?.meta?.productUrl === 'string' && out.meta.productUrl.trim())
+            || '';
+          let returnTo = '/cart';
+          let baseUrl;
+          if (productUrl) {
+            try {
+              const parsed = new URL(productUrl);
+              baseUrl = parsed.origin;
+              returnTo = `${parsed.pathname}${parsed.search || ''}` || '/cart';
+            } catch {
+              if (productUrl.startsWith('/')) returnTo = productUrl;
+            }
+          }
+          const rid = ensureTrackingRid();
+          const addUrl = buildCartAddUrl(variantId, 1, {
+            ...(baseUrl ? { baseUrl } : {}),
+            returnTo,
+            properties: {
+              ...(rid ? { rid } : {}),
+              _app_source: 'custom',
+            },
+          });
+          if (addUrl) return addUrl;
+        } catch (_) {
+          // fall through
+        }
+      }
     }
     return pickOpenUrl(out);
   }

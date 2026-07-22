@@ -921,6 +921,8 @@ export interface CreateJobOptions {
   onPrivateStageChange?: (stage: 'creating_product' | 'creating_checkout') => void;
   discountCode?: string;
   skipPrivateCheckout?: boolean;
+  /** When true, skip /api/cart/link poll (Home builds /cart/add itself). */
+  skipCartLink?: boolean;
   payloadOverrides?: Record<string, unknown>;
 }
 
@@ -934,6 +936,7 @@ export async function createJobAndProduct(
     skipPublication = false,
     onPrivateStageChange,
     skipPrivateCheckout = false,
+    skipCartLink = false,
     payloadOverrides,
   } = options;
   const lastProduct = flow.lastProduct;
@@ -1750,7 +1753,7 @@ export async function createJobAndProduct(
     result.raw = publish ?? null;
   }
 
-  if (mode === 'cart' && variantId) {
+  if (mode === 'cart' && variantId && !skipCartLink) {
     const cartTrackingAttributes = buildCartTrackingAttributes({
       flow,
       jobId: jobIdForPdf,
@@ -1796,6 +1799,35 @@ export async function createJobAndProduct(
       if (fallbackCartUrl) {
         result.cartUrl = fallbackCartUrl;
       }
+    }
+  } else if (mode === 'cart' && variantId && skipCartLink) {
+    // Fast path for Home: /cart/add with line-item properties (no storefront poll).
+    const cartTrackingAttributes = buildCartTrackingAttributes({
+      flow,
+      jobId: jobIdForPdf,
+      materialLabel: displayMaterialLabel,
+      measurementLabel,
+    });
+    const properties: Record<string, string> = {};
+    for (const attr of cartTrackingAttributes) {
+      if (attr?.name && attr?.value) properties[attr.name] = attr.value;
+    }
+    let returnTo = '/cart';
+    if (typeof productUrl === 'string' && productUrl.trim()) {
+      try {
+        const parsed = new URL(productUrl);
+        returnTo = `${parsed.pathname}${parsed.search || ''}` || '/cart';
+      } catch {
+        if (productUrl.startsWith('/')) returnTo = productUrl;
+      }
+    }
+    const addUrl = buildCartAddUrl(variantId, 1, {
+      baseUrl: resolvePublicStoreBase(),
+      returnTo,
+      properties,
+    });
+    if (addUrl) {
+      result.cartUrl = addUrl;
     }
   }
 
