@@ -45,10 +45,18 @@ export function scanNaziFlagClient(imageData) {
   const brightRatio = inCircle ? bright / inCircle : 0;
   const blackRatio = inCircle ? black / inCircle : 0;
   const centerRed = inCircle ? redInCircle / inCircle : 0;
-  const redHole = redRatio >= 0.35 && centerRed < Math.min(0.4, redRatio * 0.55);
+  const redHole = (
+    redRatio >= 0.35
+    && centerRed < Math.min(0.35, redRatio * 0.5)
+    && brightRatio >= 0.18
+  );
+  // Alineado al servidor: negro denso (esvástica), no trazos finos de ilustración.
   const blocked = (
-    (redRatio >= 0.38 && brightRatio >= 0.18 && blackRatio >= 0.02)
-    || (redHole && blackRatio >= 0.04 && brightRatio >= 0.1)
+    redRatio >= 0.38
+    && redHole
+    && brightRatio >= 0.18
+    && blackRatio >= 0.12
+    && centerRed < 0.35
   );
 
   return {
