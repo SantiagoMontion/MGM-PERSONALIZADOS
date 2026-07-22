@@ -145,6 +145,8 @@ function buildInterpretationSection(data) {
 
   return lines.join('\n');
 }
+
+function buildDeviceSection(devices) {
   if (!devices?.total) return '_Sin datos de dispositivos._\n';
 
   const funnelRows = [
