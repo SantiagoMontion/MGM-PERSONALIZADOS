@@ -3736,8 +3736,8 @@ export default function Home() {
   const stepOneDisplayTransferPrice = useMemo(() => {
     if (!stepOneTransferPricing.valid) return 0;
     const base = Number(stepOneTransferPricing.transfer) || 0;
-    return applyFrontendDisplayPriceMarkup(base);
-  }, [stepOneTransferPricing.transfer, stepOneTransferPricing.valid]);
+    return applyFrontendDisplayPriceMarkup(base, material);
+  }, [material, stepOneTransferPricing.transfer, stepOneTransferPricing.valid]);
   const formatStepOneDimension = useCallback((value) => {
     const numeric = Number(value);
     if (!Number.isFinite(numeric) || numeric <= 0) {
@@ -4322,7 +4322,7 @@ export default function Home() {
         material,
       });
       const transfer = pricing.valid ? Number(pricing.transfer) || 0 : 0;
-      const listPrice = applyFrontendDisplayPriceMarkup(transfer);
+      const listPrice = applyFrontendDisplayPriceMarkup(transfer, material);
       const priceLabel = formatFrontendDisplayPriceLabel(listPrice, material, { alreadyResolved: true });
       return {
         ...option,
@@ -4341,7 +4341,7 @@ export default function Home() {
         material: option.value,
       });
       const transfer = pricing.valid ? Number(pricing.transfer) || 0 : 0;
-      const listPrice = applyFrontendDisplayPriceMarkup(transfer);
+      const listPrice = applyFrontendDisplayPriceMarkup(transfer, option.value);
       const priceLabel = formatFrontendDisplayPriceLabel(listPrice, option.value, { alreadyResolved: true });
       return {
         ...option,

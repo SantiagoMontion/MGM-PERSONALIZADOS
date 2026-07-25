@@ -1,7 +1,7 @@
 import { isAlfombraMaterial } from './alfombraPromoDisplay.js';
 
-/** Promo visual 20% OFF alineada con Shopify (precio venta = lista×0.8). */
-export const SITE_WIDE_VISUAL_PROMO_ENABLED = true;
+/** Promo visual 20% OFF. Desactivada: el precio de lista ya incluye el ex-rebaja. */
+export const SITE_WIDE_VISUAL_PROMO_ENABLED = false;
 export const SITE_WIDE_VISUAL_DISCOUNT_PERCENT = 20;
 
 /**

@@ -19,8 +19,8 @@ export const FRONTEND_DISPLAY_SHIPPING_CAPTION = 'Envío GRATIS a Domicilio';
 export const FRONTEND_FREE_SHIPPING_MINIMUM = 35000;
 
 /** Precio de lista final (Shopify + pantalla) a partir del base de calculadora. */
-export function applyFrontendDisplayPriceMarkup(basePrice) {
-  return applyShopifyListPriceMarkup(basePrice);
+export function applyFrontendDisplayPriceMarkup(basePrice, material) {
+  return applyShopifyListPriceMarkup(basePrice, material);
 }
 
 /** Alias explícito para payloads / checkout. */
@@ -52,10 +52,9 @@ export function resolveProSeriesDisplayPricing(basePrice) {
 
 /** Precio que ve el cliente y se publica en Shopify. */
 export function resolveEffectiveCustomerDisplayPrice(material, basePrice) {
-  void material;
   const base = Math.round(Number(basePrice) || 0);
   if (base <= 0) return 0;
-  return applyShopifyListPriceMarkup(base);
+  return applyShopifyListPriceMarkup(base, material);
 }
 
 /** Formatea lista final; acepta base de calculadora o precio ya resuelto si `alreadyResolved`. */

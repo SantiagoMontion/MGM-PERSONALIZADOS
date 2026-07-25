@@ -17,8 +17,8 @@ const Calculadora = ({ width, height, material, setPrice, className, render }) =
   );
 
   const shopifyListPrice = useMemo(
-    () => (computed.valid ? applyFrontendDisplayPriceMarkup(computed.transfer) : 0),
-    [computed.transfer, computed.valid],
+    () => (computed.valid ? applyFrontendDisplayPriceMarkup(computed.transfer, material) : 0),
+    [computed.transfer, computed.valid, material],
   );
 
   useEffect(() => {
