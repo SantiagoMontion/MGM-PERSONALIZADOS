@@ -11,6 +11,7 @@ import {
   projectNameContainsForbiddenWord,
   PROJECT_NAME_FORBIDDEN_WORDS_MESSAGE,
 } from '../_lib/projectNameForbiddenWords.js';
+import { resolveThemeTemplateSuffix } from '../shopify/themeTemplateSuffix.js';
 
 type DataUrlPayload = {
   mimeType: string;
@@ -133,23 +134,6 @@ function buildGlasspadTitle(designName?: string, measurement?: string): string {
 function buildUltraTitle(designName?: string): string {
   const name = (designName || '').trim() || 'Personalizado';
   return `Mousepad Serie Ultra ${name} | Custom`;
-}
-
-function normalizeProductTypeForTemplateSuffix(value: unknown): string {
-  if (typeof value !== 'string') return '';
-  return value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .trim();
-}
-
-function resolveTemplateSuffixByProductType(productTypeRaw: unknown): string {
-  const normalized = normalizeProductTypeForTemplateSuffix(productTypeRaw);
-  if (normalized.includes('glass')) return 'glasspads';
-  if (normalized.includes('alfombr')) return 'alfombras';
-  if (normalized.includes('pro') || normalized.includes('classic')) return 'mousepads';
-  return 'mousepads';
 }
 
 type LegacyStorageArgs = {
@@ -398,14 +382,6 @@ export default async function handler(req: any, res: any) {
     }
     const base64 = mockupPayload.buffer.toString('base64');
     const measurementLabel = formatMeasurement(width, height);
-    const productTypeRaw = typeof req.body?.productType === 'string'
-      ? req.body.productType
-      : typeof req.body?.options?.productType === 'string'
-        ? req.body.options.productType
-        : 'mousepad';
-    const templateSuffix = mode === 'Ultra'
-      ? 'mousepads-poron'
-      : resolveTemplateSuffixByProductType(productTypeRaw);
     const designNameRaw = typeof req.body?.design_name === 'string'
       ? req.body.design_name
       : typeof req.body?.designName === 'string'
@@ -438,11 +414,15 @@ export default async function handler(req: any, res: any) {
       : mode === 'Ultra'
         ? buildUltraTitle(designNameRaw)
         : `Mousepad ${coreMousepad}`;
+    const templateSuffix = resolveThemeTemplateSuffix({
+      title,
+      material: mode === 'Glasspad' ? 'Glasspad' : String(mode || ''),
+    });
     const designNameForPath = designNameRaw || title;
     const payload = {
       product: {
         title,
-        template_suffix: templateSuffix,
+        ...(templateSuffix ? { template_suffix: templateSuffix } : { template_suffix: null }),
         body_html: `<p>Personalizado ${width}x${height} cm</p>`,
         images: [{ attachment: base64 }],
         variants: [{
