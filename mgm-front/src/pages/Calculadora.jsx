@@ -176,7 +176,6 @@ const CalculadoraPage = () => {
                 transferPrice={transferPrice}
                 variant="large"
                 lightTheme
-                showFreeShippingCaption
               />
             ) : (
               'Ingresá medidas válidas'

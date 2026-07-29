@@ -4782,7 +4782,7 @@ export default function Mockup() {
               onClick={withCartBtnSpin(onCartClick)}
             />
             <p className={styles.ctaHint}>
-              Arma un carrito con todo lo que te guste <br></br> y obtené envío gratis ❤️
+              Arma un carrito con todo lo que te guste ❤️
             </p>
             
              

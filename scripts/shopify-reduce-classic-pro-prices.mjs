@@ -13,6 +13,7 @@ import { randomUUID } from 'node:crypto';
 import { shopifyAdminGraphQL } from '../lib/shopify.js';
 import {
   applyClassicProPriceReduction,
+  CLASSIC_PRO_PRICE_REDUCTION_PERCENT,
   detectClassicProMaterialForVariant,
 } from '../lib/pricing/classicProMaterial.js';
 
@@ -25,6 +26,21 @@ try {
 const APPLY = process.argv.includes('--apply');
 const PAGE_SIZE = 50;
 const VARIANTS_PAGE = 100;
+const APPLY_DELAY_MS = 250;
+const APPLY_RETRIES = 5;
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Evita doble rebaja al reanudar tras un corte de red. */
+function isAlreadyAtReducedPrice(currentPrice) {
+  const factor = (100 - CLASSIC_PRO_PRICE_REDUCTION_PERCENT) / 100;
+  const candidateOriginal = Math.round(currentPrice / factor);
+  if (candidateOriginal <= currentPrice) return false;
+  if (candidateOriginal % 100 !== 0) return false;
+  return applyClassicProPriceReduction(candidateOriginal) === currentPrice;
+}
 
 const PRODUCTS_QUERY = `query ClassicProProducts($cursor: String) {
   products(first: ${PAGE_SIZE}, after: $cursor) {
@@ -118,6 +134,19 @@ function planUpdates(products) {
       }
 
       const currentPrice = parsePrice(variant.price);
+      if (currentPrice > 0 && isAlreadyAtReducedPrice(currentPrice)) {
+        ambiguous.push({
+          productId: product.id,
+          productTitle,
+          variantId: variant.id,
+          variantTitle: variant.title,
+          material,
+          currentPrice,
+          reason: 'already_reduced',
+        });
+        continue;
+      }
+
       if (currentPrice <= 0) {
         ambiguous.push({
           productId: product.id,
@@ -177,12 +206,26 @@ async function applyUpdates(updates) {
       compareAtPrice: null,
     }));
 
-    const resp = await shopifyAdminGraphQL(
-      BULK_UPDATE_MUTATION,
-      { productId, variants },
-      randomUUID(),
-    );
-    const json = await resp.json();
+    let resp;
+    let json;
+    for (let attempt = 1; attempt <= APPLY_RETRIES; attempt += 1) {
+      try {
+        resp = await shopifyAdminGraphQL(
+          BULK_UPDATE_MUTATION,
+          { productId, variants },
+          randomUUID(),
+        );
+        json = await resp.json();
+        break;
+      } catch (err) {
+        if (attempt >= APPLY_RETRIES) throw err;
+        const waitMs = APPLY_DELAY_MS * attempt * 2;
+        console.warn(`Reintento ${attempt}/${APPLY_RETRIES} en ${productId}: ${err?.message ?? err}`);
+        await sleep(waitMs);
+      }
+    }
+
+    if (APPLY_DELAY_MS > 0) await sleep(APPLY_DELAY_MS);
     const userErrors = json?.data?.productVariantsBulkUpdate?.userErrors ?? [];
     if (userErrors.length || !resp.ok) {
       errors += rows.length;

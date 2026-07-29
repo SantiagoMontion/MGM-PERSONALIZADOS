@@ -5388,7 +5388,6 @@ export default function Home() {
                           transferPrice={stepOneDisplayTransferPrice}
                           variant="large"
                           lightTheme={!isDarkMode}
-                          showFreeShippingCaption
                         />
                         <span className={`${styles.stepOneFooterPriceCaption} ${!isDarkMode ? styles.stepOneFooterPriceCaptionLight : ''}`.trim()}>
                           {DEFAULT_PRICE_CAPTION}
@@ -5561,7 +5560,6 @@ export default function Home() {
                       material={material}
                       transferPrice={editorDisplayTransferPrice}
                       variant="stepThree"
-                      showFreeShippingCaption
                     />
                   </span>
                 </div>
@@ -5978,7 +5976,6 @@ export default function Home() {
                         transferPrice={editorDisplayTransferPrice}
                         variant="large"
                         lightTheme={!isDarkMode}
-                        showFreeShippingCaption={!isStepOneMobileViewport}
                       />
                       <span className={styles.stepTwoFooterPriceCaption}>
                         {DEFAULT_PRICE_CAPTION}
@@ -6428,7 +6425,6 @@ export default function Home() {
                             material={material}
                             transferPrice={editorDisplayTransferPrice}
                             variant="medium"
-                            showFreeShippingCaption
                           />
                         </div>
 

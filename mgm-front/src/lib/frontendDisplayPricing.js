@@ -13,11 +13,6 @@ export { FRONTEND_DISPLAY_PRICE_ROUND_UNIT };
 /** Descuento de carrito PRO (solo visual; Shopify lo aplica al agregar). */
 export const PRO_SERIES_CART_DISCOUNT_PERCENT = 30;
 
-export const FRONTEND_DISPLAY_SHIPPING_CAPTION = 'Envío GRATIS a Domicilio';
-
-/** Monto mínimo del producto para mostrar envío gratis (precio que ve el cliente). */
-export const FRONTEND_FREE_SHIPPING_MINIMUM = 35000;
-
 /** Precio de lista final (Shopify + pantalla) a partir del base de calculadora. */
 export function applyFrontendDisplayPriceMarkup(basePrice, material) {
   return applyShopifyListPriceMarkup(basePrice, material);
@@ -65,54 +60,4 @@ export function formatFrontendDisplayPriceLabel(price, material = null, { alread
       ? resolveEffectiveCustomerDisplayPrice(material, price)
       : applyShopifyListPriceMarkup(price));
   return resolved > 0 ? `$${formatARS(resolved)}` : '—';
-}
-
-/**
- * Monto contra el que se evalúa envío gratis.
- * Si hay promo PRO visible, usa el precio de carrito (no la lista tachada).
- */
-export function resolveFrontendShippingBasisPrice(material, basePrice, promoCartPrice = null) {
-  const promoPrice = Math.round(Number(promoCartPrice) || 0);
-  if (promoPrice > 0) {
-    return promoPrice;
-  }
-  return resolveEffectiveCustomerDisplayPrice(material, basePrice);
-}
-
-/**
- * Leyenda de envío según el precio que paga el cliente (carrito PRO o lista +15%).
- * > $35.000 → envío gratis; si no, cuánto falta para llegar.
- */
-export function resolveFrontendShippingCaptionForProduct(
-  material,
-  basePrice,
-  promoCartPrice = null,
-) {
-  const basisPrice = resolveFrontendShippingBasisPrice(
-    material,
-    basePrice,
-    promoCartPrice,
-  );
-  return resolveFrontendShippingCaption(basisPrice);
-}
-
-export function resolveFrontendShippingCaption(customerPrice) {
-  const price = Math.round(Number(customerPrice) || 0);
-  if (price <= 0) return null;
-
-  if (price > FRONTEND_FREE_SHIPPING_MINIMUM) {
-    return {
-      qualifies: true,
-      lines: [FRONTEND_DISPLAY_SHIPPING_CAPTION],
-    };
-  }
-
-  const remaining = FRONTEND_FREE_SHIPPING_MINIMUM - price;
-  return {
-    qualifies: false,
-    lines: [
-      `Te falta $${formatARS(remaining)} para envío gratis,`,
-      'podés sumar más productos en la tienda',
-    ],
-  };
 }

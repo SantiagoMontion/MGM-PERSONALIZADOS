@@ -1,8 +1,5 @@
 import { useMemo } from 'react';
 import { formatARS } from '../lib/pricing.js';
-import {
-  resolveFrontendShippingCaption,
-} from '../lib/frontendDisplayPricing.js';
 import { buildAlfombraPromoDisplay } from '../lib/alfombraPromoDisplay.js';
 import { buildSiteWidePromoDisplay } from '../lib/siteWidePromoDisplay.js';
 import styles from './ProSeriesPromoPrice.module.css';
@@ -21,7 +18,6 @@ export default function ProSeriesPromoPrice({
   inline = false,
   className = '',
   showBadge = true,
-  showFreeShippingCaption = false,
 }) {
   const listPrice = Math.round(Number(transferPrice) || 0);
   const formattedListPrice = listPrice > 0 ? formatARS(listPrice) : '0';
@@ -47,13 +43,6 @@ export default function ProSeriesPromoPrice({
   }, [listPrice, promo]);
 
   const formattedCompare = promo ? formatARS(promo.compareAt) : '';
-
-  const displayedCustomerPrice = promo?.displayPrice > 0 ? promo.displayPrice : listPrice;
-
-  const shippingCaption = useMemo(() => {
-    if (!showFreeShippingCaption) return null;
-    return resolveFrontendShippingCaption(displayedCustomerPrice);
-  }, [displayedCustomerPrice, showFreeShippingCaption]);
 
   const variantClassName = styles[`variant${variant.charAt(0).toUpperCase()}${variant.slice(1)}`];
   const rootClassName = [
@@ -97,38 +86,33 @@ export default function ProSeriesPromoPrice({
     .filter(Boolean)
     .join(' ');
 
-  const freeShippingClassName = [
-    styles.freeShippingCaption,
-    lightTheme ? styles.freeShippingCaptionLight : '',
-    variant === 'stepThree' ? styles.freeShippingCaptionStepThree : '',
-  ]
-    .filter(Boolean)
-    .join(' ');
+  if (alfombraPromo) {
+    return (
+      <div className={rootClassName}>
+        <span className={transferClassName}>
+          $
+          {' '}
+          {formattedListPrice}
+        </span>
+        <span className={alfombraHeadlineClassName}>{alfombraPromo.headline}</span>
+      </div>
+    );
+  }
 
-  const priceStackClassName = [
-    styles.priceStack,
-    variant === 'stepThree' ? styles.priceStackStepThree : '',
-  ]
-    .filter(Boolean)
-    .join(' ');
+  if (!promo) {
+    return (
+      <div className={rootClassName}>
+        <span className={transferClassName}>
+          $
+          {' '}
+          {formattedListPrice}
+        </span>
+      </div>
+    );
+  }
 
-  const priceBody = alfombraPromo ? (
-    <>
-      <span className={transferClassName}>
-        $
-        {' '}
-        {formattedListPrice}
-      </span>
-      <span className={alfombraHeadlineClassName}>{alfombraPromo.headline}</span>
-    </>
-  ) : !promo ? (
-    <span className={transferClassName}>
-      $
-      {' '}
-      {formattedListPrice}
-    </span>
-  ) : (
-    <>
+  return (
+    <div className={rootClassName}>
       {showBadge ? (
         <span className={badgeClassName}>{promo.discountLabel}</span>
       ) : null}
@@ -144,23 +128,6 @@ export default function ProSeriesPromoPrice({
           {formattedPromoPrice}
         </span>
       </div>
-    </>
-  );
-
-  return (
-    <div className={priceStackClassName}>
-      <div className={rootClassName}>
-        {priceBody}
-      </div>
-      {shippingCaption ? (
-        <span className={freeShippingClassName}>
-          {shippingCaption.lines.map((line) => (
-            <span key={line} className={styles.freeShippingCaptionLine}>
-              {line}
-            </span>
-          ))}
-        </span>
-      ) : null}
     </div>
   );
 }
