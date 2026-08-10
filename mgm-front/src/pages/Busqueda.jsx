@@ -61,7 +61,7 @@ function formatMeasurement(width, height) {
   return `${normalize(w)}x${normalize(h)} cm`;
 }
 
-function computePrintRowFields(row, gateToken = '') {
+function computePrintRowFields(row) {
   const key = row.id || row.path || row.fileName;
   const measurement = formatMeasurement(row.widthCm, row.heightCm);
   const filename = row.fileName || row.name || 'archivo.pdf';
@@ -79,11 +79,8 @@ function computePrintRowFields(row, gateToken = '') {
       }
     }
   }
-  if (!downloadHref && row.id) {
-    const params = new URLSearchParams({ id: String(row.id) });
-    if (gateToken) params.set('gate', gateToken);
-    downloadHref = `/api/prints/download?${params.toString()}`;
-  }
+  // No fallback relativo a /api/prints/download: en personalizados.notmid.ar
+  // eso sirve index.html y el navegador "descarga" HTML en vez del PDF.
   const previewSrc = isUsableImageSrc(row?.previewUrl) ? row.previewUrl : null;
   return { key, measurement, filename, downloadHref, previewSrc };
 }
@@ -565,7 +562,7 @@ export default function Busqueda() {
             <tbody>
               {hasResults ? (
                 normalizedResults.map((row) => {
-                  const { key, measurement, filename, downloadHref, previewSrc } = computePrintRowFields(row, gateToken);
+                  const { key, measurement, filename, downloadHref, previewSrc } = computePrintRowFields(row);
                   if (import.meta.env?.DEV) {
                     diag('[prints] preview', {
                       name: row.fileName || row.name,
@@ -600,7 +597,9 @@ export default function Busqueda() {
                             Descargar
                           </a>
                         ) : (
-                          <span className={styles.downloadMuted}>—</span>
+                          <span className={styles.downloadMuted} title="El PDF no está en el almacenamiento">
+                            No disponible
+                          </span>
                         )}
                       </td>
                     </tr>
@@ -620,7 +619,7 @@ export default function Busqueda() {
         <ul className={styles.cardList} role="list" aria-label="Lista de PDFs">
           {hasResults ? (
             normalizedResults.map((row) => {
-              const { key, measurement, filename, downloadHref, previewSrc } = computePrintRowFields(row, gateToken);
+              const { key, measurement, filename, downloadHref, previewSrc } = computePrintRowFields(row);
               const material = row.material || '-';
               const sizeStr = formatBytes(row.sizeBytes ?? row.size);
               return (
@@ -647,7 +646,9 @@ export default function Busqueda() {
                           Descargar PDF
                         </a>
                       ) : (
-                        <span className={styles.downloadMuted}>Sin enlace de descarga</span>
+                        <span className={styles.downloadMuted} title="El PDF no está en el almacenamiento">
+                          PDF no disponible
+                        </span>
                       )}
                     </div>
                   </div>

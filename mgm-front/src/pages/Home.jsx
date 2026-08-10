@@ -4705,33 +4705,42 @@ export default function Home() {
       setReviewExitBusy(true);
       try {
         const flowState = (typeof flow?.get === 'function' ? flow.get() : flow) || {};
-        const targets = new Map();
+        // Si ya se publicó/agregó al carrito, el PDF vive en `prints` y Shopify.
+        // Borrarlo acá crea filas huérfanas: /busqueda muestra el diseño pero descarga HTML.
+        const assetsCommitted = Boolean(flowState?.lastProduct?.productId);
+        if (!assetsCommitted) {
+          const targets = new Map();
 
-        const addTarget = (bucketRaw, pathRaw) => {
-          const bucket = typeof bucketRaw === 'string' ? bucketRaw.trim() : '';
-          const path = typeof pathRaw === 'string' ? pathRaw.trim() : '';
-          if (!bucket || !path || !STEP_TWO_REMOTE_STORAGE_BUCKETS.has(bucket)) return;
-          targets.set(`${bucket}::${path}`, { bucket, path });
-        };
+          const addTarget = (bucketRaw, pathRaw) => {
+            const bucket = typeof bucketRaw === 'string' ? bucketRaw.trim() : '';
+            const path = typeof pathRaw === 'string' ? pathRaw.trim() : '';
+            if (!bucket || !path || !STEP_TWO_REMOTE_STORAGE_BUCKETS.has(bucket)) return;
+            targets.set(`${bucket}::${path}`, { bucket, path });
+          };
 
-        addTarget(flowState.uploadBucket, flowState.uploadObjectKey);
-        addTarget(uploaded?.bucket, uploaded?.object_key);
+          addTarget(flowState.uploadBucket, flowState.uploadObjectKey);
+          addTarget(uploaded?.bucket, uploaded?.object_key);
 
-        const addFromUrl = (url) => {
-          const parsed = parseSupabasePublicStorageUrl(url);
-          if (parsed) addTarget(parsed.bucket, parsed.path);
-        };
-        addFromUrl(flowState.mockupPublicUrl);
-        addFromUrl(flowState.masterPublicUrl);
-        addFromUrl(flowState.pdfPublicUrl);
+          const addFromUrl = (url) => {
+            const parsed = parseSupabasePublicStorageUrl(url);
+            if (parsed) addTarget(parsed.bucket, parsed.path);
+          };
+          addFromUrl(flowState.mockupPublicUrl);
+          addFromUrl(flowState.masterPublicUrl);
+          addFromUrl(flowState.pdfPublicUrl);
 
-        const deleteEndpoint = getResolvedApiUrl('/api/storage/delete');
-        for (const { bucket, path } of targets.values()) {
-          try {
-            await postJSON(deleteEndpoint, { bucket, path }, 20000);
-          } catch (delErr) {
-            warn('[home:return-to-editor] storage delete failed', { bucket, path, delErr });
+          const deleteEndpoint = getResolvedApiUrl('/api/storage/delete');
+          for (const { bucket, path } of targets.values()) {
+            try {
+              await postJSON(deleteEndpoint, { bucket, path }, 20000);
+            } catch (delErr) {
+              warn('[home:return-to-editor] storage delete failed', { bucket, path, delErr });
+            }
           }
+        } else {
+          diag('[home:return-to-editor] skipping storage delete; assets already committed', {
+            productId: flowState?.lastProduct?.productId || null,
+          });
         }
 
         flow?.set?.({
