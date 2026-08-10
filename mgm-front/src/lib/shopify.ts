@@ -948,7 +948,18 @@ export async function createJobAndProduct(
   let canReuse = false;
 
   const customerEmail = typeof flow.customerEmail === 'string' ? flow.customerEmail.trim() : '';
-  const jobIdForPdf = readJobId(flow);
+  let jobIdForPdf = readJobId(flow);
+  if (!jobIdForPdf) {
+    jobIdForPdf =
+      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID().replace(/-/g, '').slice(0, 16)
+        : `j${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+    try {
+      patchFlowState(flow, { jobId: jobIdForPdf, job_id: jobIdForPdf });
+    } catch {
+      // ignore
+    }
+  }
   const fileOriginal = typeof (flow as any)?.fileOriginalUrl === 'string'
     ? (flow as any).fileOriginalUrl.trim()
     : '';
@@ -1310,7 +1321,7 @@ export async function createJobAndProduct(
       visibility: requestedVisibility,
       isPrivate,
       mode,
-      jobId: jobIdForPdf || undefined,
+      jobId: jobIdForPdf,
       printSourceUrl: printSourceUrl || undefined,
       printBackgroundColor: printBackgroundHex,
       printDpi: (approxDpi ?? undefined),
@@ -1691,6 +1702,8 @@ export async function createJobAndProduct(
     variantIdGid?: string;
     productUrl?: string;
     productHandle?: string;
+    jobId?: string;
+    job_id?: string;
     visibility: 'public' | 'private';
     draftOrderId?: string;
     draftOrderName?: string;
@@ -1703,6 +1716,8 @@ export async function createJobAndProduct(
     variantId,
     productUrl,
     productHandle,
+    jobId: jobIdForPdf,
+    job_id: jobIdForPdf,
     visibility: visibilityResult,
     ...(variantIdNumeric ? { variantIdNumeric } : {}),
     ...(variantIdGid ? { variantIdGid } : {}),
@@ -1728,6 +1743,12 @@ export async function createJobAndProduct(
       const value = publishJsonForResult[key];
       return typeof value === 'string' ? value.trim() : '';
     };
+    const publishedJobId = readString('jobId') || readString('job_id');
+    if (publishedJobId) {
+      jobIdForPdf = publishedJobId;
+      result.jobId = publishedJobId;
+      result.job_id = publishedJobId;
+    }
     const productUrlFromJson = readString('productUrl');
     const checkoutUrlFromJson = readString('checkoutUrl');
     const genericUrlFromJson = readString('url');
@@ -2079,6 +2100,8 @@ export async function createJobAndProduct(
           checkoutUrl: result.checkoutUrl,
           productUrl,
           productHandle,
+          jobId: jobIdForPdf || result.jobId,
+          job_id: jobIdForPdf || result.job_id,
           visibility: result.visibility,
           draftOrderId: result.draftOrderId,
           draftOrderName: result.draftOrderName,
@@ -2091,6 +2114,7 @@ export async function createJobAndProduct(
           createdAtMs: nowMs,
           timestamp: nowMs,
         },
+        ...(jobIdForPdf ? { jobId: jobIdForPdf, job_id: jobIdForPdf } : {}),
       });
     }
   }
