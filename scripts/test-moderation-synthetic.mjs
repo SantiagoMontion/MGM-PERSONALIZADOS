@@ -73,6 +73,52 @@ assertLabel('hitler_filename', hitlerName, 'BLOCK');
 const clean = await evaluateImage(await blankPng(), 'sunset-waves.png', 'Vacaciones');
 assertLabel('innocent_blank', clean, 'ALLOW');
 
+// Pelaje sintético (perro): tonos “piel” + textura alta + fondo variado → no bloquear
+async function furryPetPhoto() {
+  const w = 640;
+  const h = 900;
+  const buf = Buffer.alloc(w * h * 3);
+  const clampCh = (v) => Math.max(0, Math.min(255, v | 0));
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 3;
+      const cx = w / 2;
+      const cy = h * 0.52;
+      const dx = (x - cx) / (w * 0.38);
+      const dy = (y - cy) / (h * 0.42);
+      if (dx * dx + dy * dy > 1) {
+        buf[i] = clampCh(55 + ((x * 3 + y) % 90));
+        buf[i + 1] = clampCh(95 + ((x + y * 2) % 80));
+        buf[i + 2] = clampCh(35 + ((x * 5) % 55));
+        continue;
+      }
+      const n = ((Math.sin(x * 0.35) + Math.cos(y * 0.45)) * 28) | 0;
+      const n2 = ((Math.sin(x * 0.55 + y * 0.2) + Math.cos(x * 0.15 - y * 0.3)) * 22) | 0;
+      const belly = dy > 0.05 && dy < 0.55 && Math.abs(dx) < 0.55;
+      if (belly) {
+        buf[i] = clampCh(235 + n);
+        buf[i + 1] = clampCh(225 + n2);
+        buf[i + 2] = clampCh(205 + n);
+      } else {
+        buf[i] = clampCh(200 + n);
+        buf[i + 1] = clampCh(155 + n2);
+        buf[i + 2] = clampCh(115 + (n / 2));
+      }
+    }
+  }
+  return sharp(buf, { raw: { width: w, height: h, channels: 3 } }).jpeg({ quality: 92 }).toBuffer();
+}
+
+const pet = await evaluateImage(await furryPetPhoto(), 'perrito.jpg', 'Perrito');
+assertLabel('furry_pet_photo', pet, 'ALLOW');
+const petFur = Number(pet?.details?.scores?.fur_likelihood || 0);
+if (petFur < 0.45) {
+  console.log(`FAIL furry_pet_photo fur_likelihood=${petFur} (expected >= 0.45)`);
+  process.exitCode = 1;
+} else {
+  console.log(`PASS furry_pet_photo fur_likelihood=${petFur.toFixed(2)}`);
+}
+
 if (process.exitCode) {
   console.error('Some moderation synthetic checks failed.');
   process.exit(process.exitCode);

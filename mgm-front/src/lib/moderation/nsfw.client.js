@@ -47,11 +47,13 @@ export async function scanNudityClient(dataUrl) {
     const predictions = await model.classify(img);
     const scores = extractScores(predictions);
 
-    const PORN_THRESHOLD = 0.72;
+    const PORN_THRESHOLD = 0.82;
     const HENTAI_ALLOW_THRESHOLD = 0.6;
     const DRAWING_ALLOW_THRESHOLD = 0.55;
-    const SEXY_ESCALATION_THRESHOLD = 0.9;
-    const REAL_OVERRIDE_THRESHOLD = 0.55;
+    const SEXY_ESCALATION_THRESHOLD = 0.93;
+    const REAL_OVERRIDE_THRESHOLD = 0.62;
+    // Zona gris: no bloquear en cliente (mascotas / piel falsa suelen caer acá); el server decide.
+    const PORN_HARD_BLOCK = 0.9;
 
     const isAnimeDominant =
       scores.hentai >= HENTAI_ALLOW_THRESHOLD ||
@@ -61,12 +63,29 @@ export async function scanNudityClient(dataUrl) {
       return { blocked: false, reason: 'client_hentai_allowed', scores };
     }
 
-    const realPornLike = scores.porn >= PORN_THRESHOLD && scores.hentai < 0.55 && scores.drawing < 0.6;
+    const realPornLike =
+      scores.porn >= PORN_HARD_BLOCK &&
+      scores.hentai < 0.45 &&
+      scores.drawing < 0.5 &&
+      scores.neutral < 0.25;
     if (realPornLike) {
       return { blocked: true, reason: 'client_real_nudity', scores };
     }
 
-    const explicitSexy = scores.sexy >= SEXY_ESCALATION_THRESHOLD && scores.porn >= REAL_OVERRIDE_THRESHOLD && scores.hentai < 0.4;
+    // Señal media: dejar pasar al servidor (evita falsos positivos de perros/gatos/piel).
+    if (
+      scores.porn >= PORN_THRESHOLD &&
+      scores.hentai < 0.55 &&
+      scores.drawing < 0.6
+    ) {
+      return { blocked: false, reason: 'client_borderline_defer_server', scores };
+    }
+
+    const explicitSexy =
+      scores.sexy >= SEXY_ESCALATION_THRESHOLD &&
+      scores.porn >= 0.7 &&
+      scores.hentai < 0.35 &&
+      scores.drawing < 0.4;
     if (explicitSexy) {
       return { blocked: true, reason: 'client_real_sexual', scores };
     }

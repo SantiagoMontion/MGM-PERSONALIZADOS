@@ -26,3 +26,4 @@ tests/fixtures/
 *.pem
 *.key
 *.p12
+.env*

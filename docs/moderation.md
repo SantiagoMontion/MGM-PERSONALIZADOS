@@ -38,6 +38,7 @@ El servidor clasifica cada imagen en **BLOCK**, **REVIEW** o **ALLOW** y devuelv
 
 - Solo aplica reglas de nudez si la imagen parece **persona real** (`isRealPerson`).
 - Ilustración / hentai / anime → ALLOW por ese gate.
+- **Pelaje / mascotas:** tonos “piel” con textura alta (`furLikelihood`) no se tratan como desnudez humana (evita falsos positivos de perros/gatos).
 
 ## Variables opcionales
 
