@@ -16,7 +16,7 @@ const CalculadoraPage = () => {
       { label: 'Ultra — Sin stock', value: 'Ultra', disabled: true },
       { label: 'Pro', value: 'Pro' },
       { label: 'Classic', value: 'Classic' },
-      { label: 'Alfombra', value: 'Alfombra' },
+      { label: 'Alfombra — Sin stock', value: 'Alfombra', disabled: true },
     ],
     [],
   );
@@ -147,8 +147,12 @@ const CalculadoraPage = () => {
             Tipo de material
             <select
               className={styles.input}
-              value={material}
-              onChange={(event) => setMaterial(event.target.value)}
+              value={materialOptions.some((o) => o.value === material && o.disabled) ? 'Classic' : material}
+              onChange={(event) => {
+                const next = event.target.value;
+                if (materialOptions.some((o) => o.value === next && o.disabled)) return;
+                setMaterial(next);
+              }}
             >
               {materialOptions.map((option) => (
                 <option key={option.value} value={option.value} disabled={option.disabled}>

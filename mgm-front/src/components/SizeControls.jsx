@@ -63,7 +63,13 @@ const MATERIAL_OPTIONS = [
   },
   { value: 'PRO', main: 'PRO', variant: 'control' },
   { value: 'Classic', main: 'CLASSIC', variant: 'híbrido' },
-  { value: 'Alfombra', main: 'ALFOMBRA', variant: 'para piso' },
+  {
+    value: 'Alfombra',
+    main: 'ALFOMBRA',
+    variant: 'para piso',
+    disabled: true,
+    disabledReason: 'Sin stock',
+  },
 ];
 
 const MOBILE_QUERY = '(max-width: 768px)';

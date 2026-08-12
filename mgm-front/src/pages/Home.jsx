@@ -240,6 +240,8 @@ const STEP_TWO_MATERIAL_OPTIONS = [
     value: 'Alfombra',
     label: 'Alfombra para piso',
     description: 'Decoración del setup.',
+    disabled: true,
+    disabledReason: 'Sin stock',
   },
   {
     value: 'Glasspad',
@@ -1252,6 +1254,10 @@ export default function Home() {
   const [material, setMaterial] = useState(
     isMaterialValueLocked(initialEditorSelection.material) ? 'Classic' : initialEditorSelection.material,
   );
+  useEffect(() => {
+    if (!isMaterialValueLocked(material)) return;
+    setMaterial('Classic');
+  }, [material]);
   const [mode, setMode] = useState(initialEditorSelection.mode);
   const [size, setSize] = useState(() => ({ ...initialEditorSelection.size }));
   const [isCircular, setIsCircular] = useState(Boolean(initialEditorSelection.isCircular));

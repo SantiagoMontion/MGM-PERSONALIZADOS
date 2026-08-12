@@ -166,12 +166,19 @@ export default function OptionsStep({ uploaded, onSubmitted }) {
 
       <div className={styles.twoColGrid}>
         <label>Material
-          <select value={material} onChange={e=>setMaterial(e.target.value)}>
-            <option>Classic</option>
-            <option>PRO</option>
+          <select
+            value={['Glasspad', 'Ultra', 'Alfombra'].includes(material) ? 'Classic' : material}
+            onChange={(e) => {
+              const next = e.target.value;
+              if (['Glasspad', 'Ultra', 'Alfombra'].includes(next)) return;
+              setMaterial(next);
+            }}
+          >
+            <option value="Classic">Classic</option>
+            <option value="PRO">PRO</option>
             <option value="Glasspad" disabled>Glasspad — Sin stock</option>
             <option value="Ultra" disabled>Ultra — Sin stock</option>
-            <option disabled>Alfombra</option>
+            <option value="Alfombra" disabled>Alfombra — Sin stock</option>
           </select>
         </label>
 
@@ -192,7 +199,7 @@ export default function OptionsStep({ uploaded, onSubmitted }) {
             onBlur={handleWBlur}
             inputMode="decimal"
             pattern="[0-9]*"
-            disabled={material === 'Glasspad' || material === 'Ultra'}
+            disabled={material === 'Glasspad' || material === 'Ultra' || material === 'Alfombra'}
           />
         </label>
         <label>Alto (cm)
@@ -202,7 +209,7 @@ export default function OptionsStep({ uploaded, onSubmitted }) {
             onBlur={handleHBlur}
             inputMode="decimal"
             pattern="[0-9]*"
-            disabled={material === 'Glasspad' || material === 'Ultra'}
+            disabled={material === 'Glasspad' || material === 'Ultra' || material === 'Alfombra'}
           />
         </label>
         <small>Máximo {limits.maxW}×{limits.maxH} para {material}</small>
