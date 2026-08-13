@@ -9,6 +9,11 @@ import { bindShopifyEmbedResize, scheduleShopifyEmbedResize } from './lib/shopif
 import { trackEvent, ensureTrackingRid } from '@/lib/tracking';
 
 const SHOPIFY_EMBED_STORAGE_KEY = 'mgm_shopify_embed';
+const UI_TEST_PATH = '/test';
+
+function isConfiguratorPath(pathname) {
+  return pathname === '/' || pathname === UI_TEST_PATH;
+}
 
 function useShopifyEmbedFlag(search, pathname) {
   return useMemo(() => {
@@ -31,7 +36,7 @@ function useShopifyEmbedFlag(search, pathname) {
 const APP_THEME_STORAGE_KEY = 'mgm-app-theme';
 
 function resolveCurrentStep(pathname) {
-  if (pathname === '/') return 1;
+  if (isConfiguratorPath(pathname)) return 1;
   if (pathname.startsWith('/mockup')) return 3;
   if (
     pathname.startsWith('/confirm')
@@ -45,6 +50,9 @@ function resolveCurrentStep(pathname) {
 }
 
 function resolveDocumentTitle(pathname) {
+  if (pathname === UI_TEST_PATH) {
+    return '[TEST UI] Mousepad Personalizado | NOTMID';
+  }
   if (pathname === '/') return 'Mousepad Personalizado a Medida | Calidad Gamer y Profesional | NOTMID';
   if (pathname.startsWith('/mockup')) return 'Vista previa del mousepad | NOTMID';
   if (pathname.startsWith('/votaciones')) return 'Sorteo Express 24hs | NOTMID';
@@ -72,7 +80,7 @@ export default function App() {
   const showStepper = currentStep !== null;
 
   useEffect(() => {
-    if (location.pathname !== '/' && headerStepOverride !== null) {
+    if (!isConfiguratorPath(location.pathname) && headerStepOverride !== null) {
       setHeaderStepOverride(null);
     }
   }, [headerStepOverride, location.pathname]);
@@ -83,7 +91,7 @@ export default function App() {
       if (params.get('mgm_embed') === '1' || params.get('embed') === '1') {
         window.sessionStorage.setItem(SHOPIFY_EMBED_STORAGE_KEY, '1');
       } else if (
-        location.pathname === '/'
+        isConfiguratorPath(location.pathname)
         && params.get('mgm_embed') !== '1'
         && params.get('embed') !== '1'
       ) {
@@ -94,12 +102,16 @@ export default function App() {
     }
   }, [location.search, location.pathname]);
 
+  const isUiTest = location.pathname === UI_TEST_PATH;
+
   useLayoutEffect(() => {
     if (typeof window === 'undefined') return;
     const root = window.document.documentElement;
     const body = window.document.body;
     root.classList.toggle('mgm-shopify-embed', shopifyEmbed);
     body.classList.toggle('mgm-shopify-embed', shopifyEmbed);
+    root.classList.toggle('mgm-ui-test', isUiTest);
+    body.classList.toggle('mgm-ui-test', isUiTest);
     const nextTheme = isDarkMode ? 'dark' : 'light';
 
     root.classList.remove('dark', 'light');
@@ -108,7 +120,7 @@ export default function App() {
     body.classList.add(nextTheme);
     root.style.colorScheme = nextTheme;
     window.localStorage.setItem(APP_THEME_STORAGE_KEY, nextTheme);
-  }, [isDarkMode, shopifyEmbed]);
+  }, [isDarkMode, isUiTest, shopifyEmbed]);
 
   useEffect(() => {
     if (!shopifyEmbed) return undefined;
@@ -163,6 +175,11 @@ export default function App() {
         id={shopifyEmbed ? 'mgm-embed-measure-root' : undefined}
       >
         <SeoJsonLd />
+        {isUiTest ? (
+          <div className="mgm-ui-test-banner" role="status">
+            Vista TEST UI — la producción (/) no cambia
+          </div>
+        ) : null}
         {!shopifyEmbed && <MobileAdvisoryBanner />}
         <ProgressHeader
           currentStep={currentStep}
@@ -180,6 +197,7 @@ export default function App() {
               isDarkMode,
               toggleTheme: handleToggleTheme,
               shopifyEmbed,
+              isUiTest,
             }}
           />
         </main>

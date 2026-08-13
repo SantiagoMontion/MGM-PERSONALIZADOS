@@ -26,6 +26,7 @@ import NotFound, { NotFoundBoundary } from './pages/NotFound.jsx';
 import { OrderFlowProvider } from './store/orderFlow';
 import { FlowProvider } from './state/flow.js';
 import './globals.css';
+import './themes/apple-test.css';
 import { HelmetProvider } from 'react-helmet-async';
 
 if (typeof globalThis !== 'undefined' && typeof globalThis.Buffer === 'undefined') {
@@ -47,6 +48,7 @@ const routes = [
     errorElement: <NotFoundBoundary />,
     children: [
       { path: '/', element: <Home /> },
+      { path: '/test', element: <Home /> },
       { path: '/mousepads-personalizados', element: <MousepadsPersonalizados /> },
       { path: '/como-funciona', element: <ComoFunciona /> },
       { path: '/preguntas-frecuentes', element: <PreguntasFrecuentes /> },
