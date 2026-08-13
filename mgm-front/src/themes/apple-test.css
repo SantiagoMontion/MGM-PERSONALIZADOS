@@ -1,116 +1,108 @@
 /**
- * /test only — Apple HIG–inspired face-lift.
- * Production `/` is untouched (requires html.mgm-ui-test).
+ * /test ONLY — radical Apple HIG redesign.
+ * Production `/` untouched.
  *
- * Ship later: move overrides into theme.css / drop the scope.
+ * Palette: iOS grouped light (gray canvas + white elevated surfaces).
+ * Overrides hardcoded #1c1c1c / near-black components from Home.module.css.
  */
 
-/* ─── Foundation ─────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════
+   TOKENS — light Apple system (forced look)
+   ═══════════════════════════════════════════════════════════ */
 html.mgm-ui-test,
-html.mgm-ui-test body {
-  --font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display',
-    'Helvetica Neue', 'Inter', sans-serif;
-  --font-size: 16px;
-
-  --space-2: 0.5rem;
-  --space-3: 0.75rem;
-  --space-4: 1rem;
-  --space-5: 1.25rem;
-  --space-6: 1.5rem;
-  --space-8: 2rem;
-  --space-10: 2.5rem;
-  --space-12: 3rem;
-
-  --radius-xs: 6px;
-  --radius-sm: 8px;
-  --radius-md: 10px;
-  --radius-lg: 12px;
-  --radius-xl: 14px;
-  --radius-2xl: 18px;
-  --radius-3xl: 22px;
-  --radius-button: 12px;
-  --radius-card: 18px;
-  --radius-input: 12px;
-  --radius-dialog: 20px;
-  --radius-dropdown: 14px;
-
-  --fs-xs: 0.75rem;
-  --fs-sm: 0.8125rem;
-  --fs-base: 0.9375rem;
-  --fs-lg: 1.0625rem;
-  --fs-xl: 1.25rem;
-  --fs-2xl: 1.5rem;
-  --fs-3xl: 1.75rem;
-
-  --brand-primary: #ffd60a;
-  --brand-primary-hover: #ffd60a;
-  --accent: #ffd60a;
-  --nm-brand-yellow: #ffd60a;
-  --nm-accent-blue: #ffd60a;
-  --nm-accent-cyan: #64d2ff;
-
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
-}
-
+html.mgm-ui-test body,
 html.mgm-ui-test.dark,
-html.mgm-ui-test.dark body {
-  --background: #000000;
-  --surface: #1c1c1e;
-  --surface-secondary: #2c2c2e;
-  --surface-tertiary: #3a3a3c;
-  --foreground: #f5f5f7;
-  --foreground-secondary: rgba(235, 235, 245, 0.6);
-  --foreground-tertiary: rgba(235, 235, 245, 0.4);
-  --foreground-muted: rgba(235, 235, 245, 0.3);
-  --border-default: rgba(84, 84, 88, 0.36);
-  --border-strong: rgba(84, 84, 88, 0.55);
-  --border-hover: rgba(142, 142, 147, 0.45);
-  --border-focus: rgba(10, 132, 255, 0.55);
-  --interactive-hover: rgba(255, 255, 255, 0.04);
-  --interactive-active: rgba(255, 255, 255, 0.08);
-  --nm-accent-blue: #ffd60a;
-  --nm-header-text: #f5f5f7;
-  --nm-step-two-footer-bg: rgba(28, 28, 30, 0.82);
-  --nm-step-two-footer-primary-bg: #f5f5f7;
-}
-
+html.mgm-ui-test.dark body,
 html.mgm-ui-test.light,
 html.mgm-ui-test.light body {
-  --background: #f2f2f7;
-  --surface: #ffffff;
-  --surface-secondary: #f2f2f7;
-  --surface-tertiary: #e5e5ea;
-  --foreground: #1c1c1e;
-  --foreground-secondary: rgba(60, 60, 67, 0.6);
-  --foreground-tertiary: rgba(60, 60, 67, 0.45);
-  --foreground-muted: rgba(60, 60, 67, 0.3);
-  --border-default: rgba(60, 60, 67, 0.12);
-  --border-strong: rgba(60, 60, 67, 0.22);
-  --border-hover: rgba(60, 60, 67, 0.3);
-  --border-focus: rgba(0, 122, 255, 0.45);
-  --nm-accent-blue: #1c1c1e;
-  --nm-header-text: #1c1c1e;
-  --nm-step-two-footer-bg: rgba(255, 255, 255, 0.86);
-  --nm-step-two-footer-primary-bg: #1c1c1e;
+  --font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display',
+    'Helvetica Neue', sans-serif !important;
+
+  /* iOS light system colors */
+  --ios-bg: #f2f2f7;
+  --ios-card: #ffffff;
+  --ios-fill: #e5e5ea;
+  --ios-fill-2: #d1d1d6;
+  --ios-label: #1c1c1e;
+  --ios-secondary: rgba(60, 60, 67, 0.6);
+  --ios-tertiary: rgba(60, 60, 67, 0.3);
+  --ios-separator: rgba(60, 60, 67, 0.18);
+  --ios-blue: #007aff;
+  --ios-green: #34c759;
+  --ios-yellow: #ffcc00;
+
+  --background: var(--ios-bg) !important;
+  --surface: var(--ios-card) !important;
+  --surface-secondary: var(--ios-bg) !important;
+  --surface-tertiary: var(--ios-fill) !important;
+  --foreground: var(--ios-label) !important;
+  --foreground-secondary: var(--ios-secondary) !important;
+  --foreground-tertiary: var(--ios-tertiary) !important;
+  --foreground-muted: var(--ios-tertiary) !important;
+  --border-default: var(--ios-separator) !important;
+  --border-strong: rgba(60, 60, 67, 0.29) !important;
+  --border-hover: rgba(60, 60, 67, 0.36) !important;
+  --border-focus: rgba(0, 122, 255, 0.45) !important;
+  --interactive-hover: rgba(0, 0, 0, 0.04) !important;
+  --interactive-active: rgba(0, 0, 0, 0.08) !important;
+
+  --brand-primary: var(--ios-yellow) !important;
+  --brand-primary-hover: var(--ios-yellow) !important;
+  --accent: var(--ios-yellow) !important;
+  --nm-brand-yellow: var(--ios-yellow) !important;
+  --nm-accent-blue: var(--ios-label) !important;
+  --nm-accent-cyan: var(--ios-blue) !important;
+  --nm-header-text: var(--ios-label) !important;
+  --nm-header-badge-text: #1c1c1e !important;
+  --nm-step-two-footer-bg: rgba(255, 255, 255, 0.86) !important;
+  --nm-step-two-footer-primary-bg: var(--ios-label) !important;
+  --nm-step-two-action-rail-bg: var(--ios-card) !important;
+  --nm-step-two-action-text: var(--ios-label) !important;
+  --nm-step-two-caption: var(--ios-secondary) !important;
+  --nm-step-two-measure-label: var(--ios-secondary) !important;
+  --nm-step-two-measure-line: var(--ios-separator) !important;
+
+  /* Canvas: light grid, not black void */
+  --nm-canvas-bg-dark: #e8e8ed !important;
+  --nm-canvas-bg-light: #e8e8ed !important;
+  --nm-canvas-grid-dark: linear-gradient(to right, rgba(60, 60, 67, 0.08) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(60, 60, 67, 0.08) 1px, transparent 1px) !important;
+  --nm-canvas-grid-light: linear-gradient(to right, rgba(60, 60, 67, 0.08) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(60, 60, 67, 0.08) 1px, transparent 1px) !important;
+  --nm-canvas-measure-line-dark: rgba(60, 60, 67, 0.28) !important;
+  --nm-canvas-measure-label-dark: rgba(60, 60, 67, 0.55) !important;
+  --nm-canvas-measure-line-light: rgba(60, 60, 67, 0.28) !important;
+  --nm-canvas-measure-label-light: rgba(60, 60, 67, 0.55) !important;
+  --step-one-canvas-background-color: #e8e8ed !important;
+
+  --radius-button: 12px;
+  --radius-card: 16px;
+  --radius-input: 12px;
+  --radius-md: 12px;
+  --radius-lg: 14px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
+
+  color-scheme: light !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-html.mgm-ui-test #root,
-html.mgm-ui-test body {
-  background: var(--background) !important;
-  color: var(--foreground);
-  font-family: var(--font-family);
+html.mgm-ui-test,
+html.mgm-ui-test body,
+html.mgm-ui-test #root {
+  background: var(--ios-bg) !important;
+  color: var(--ios-label) !important;
+  font-family: var(--font-family) !important;
 }
 
 html.mgm-ui-test button,
 html.mgm-ui-test input,
-html.mgm-ui-test select,
-html.mgm-ui-test textarea {
-  font-family: inherit;
+html.mgm-ui-test select {
+  font-family: inherit !important;
 }
 
-/* ─── QA banner (discreto) ───────────────────────────────── */
+/* ─── Banner ─────────────────────────────────────────────── */
 html.mgm-ui-test .mgm-ui-test-banner {
   position: sticky;
   top: 0;
@@ -118,349 +110,463 @@ html.mgm-ui-test .mgm-ui-test-banner {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 5px 12px;
-  background: rgba(10, 132, 255, 0.12);
-  color: #0a84ff;
-  font-size: 11px;
+  padding: 6px 12px;
+  background: #007aff;
+  color: #fff;
+  font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.01em;
-  border-bottom: 1px solid rgba(10, 132, 255, 0.2);
+  letter-spacing: -0.01em;
+  border: none;
 }
 
-/* ─── App shell / header ─────────────────────────────────── */
+/* ─── Header ─────────────────────────────────────────────── */
 html.mgm-ui-test [class*='headerDark'],
-html.mgm-ui-test [class*='headerLight'] {
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
-  background: color-mix(in srgb, var(--background) 72%, transparent) !important;
-  border-block-end-color: var(--border-default) !important;
+html.mgm-ui-test [class*='headerLight'],
+html.mgm-ui-test header,
+html.mgm-ui-test [class*='ProgressHeader'] {
+  background: rgba(242, 242, 247, 0.82) !important;
+  color: var(--ios-label) !important;
+  border-block-end: 1px solid var(--ios-separator) !important;
+  backdrop-filter: saturate(180%) blur(20px) !important;
+  -webkit-backdrop-filter: saturate(180%) blur(20px) !important;
 }
 
 html.mgm-ui-test [class*='stepBadge'] {
+  background: var(--ios-yellow) !important;
+  color: #1c1c1e !important;
   border-radius: 999px !important;
-  min-block-size: 26px !important;
+  min-block-size: 28px !important;
   padding-inline: 12px !important;
-  font-size: 10px !important;
-  font-weight: 600 !important;
-  letter-spacing: 0.01em !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
   text-transform: none !important;
+  letter-spacing: -0.01em !important;
 }
 
 html.mgm-ui-test [class*='stepTitle'] {
-  font-size: 11px !important;
+  color: var(--ios-secondary) !important;
+  font-size: 12px !important;
   font-weight: 500 !important;
-  letter-spacing: -0.01em !important;
   text-transform: none !important;
-  opacity: 0.55;
+  letter-spacing: -0.01em !important;
+  opacity: 1 !important;
 }
 
-html.mgm-ui-test [class*='stepList'] {
-  gap: 10px !important;
+html.mgm-ui-test [class*='themeButton'],
+html.mgm-ui-test [class*='themeIcon'] {
+  color: var(--ios-secondary) !important;
+  opacity: 1 !important;
 }
 
-html.mgm-ui-test [class*='App_container'],
-html.mgm-ui-test [class*='container'] {
-  background: var(--background);
+/* Hide theme toggle on test — palette is fixed light Apple */
+html.mgm-ui-test [class*='themeButton'] {
+  display: none !important;
 }
 
-/* ─── Step 1 page title ──────────────────────────────────── */
+/* ─── Hero title ─────────────────────────────────────────── */
 html.mgm-ui-test [class*='stepHeroTitle'] {
-  font-family: var(--font-family) !important;
-  font-size: clamp(1.75rem, 4vw, 2.25rem) !important;
+  color: var(--ios-label) !important;
+  font-size: clamp(2rem, 5vw, 2.75rem) !important;
   font-weight: 700 !important;
-  letter-spacing: -0.04em !important;
-  line-height: 1.1 !important;
-  margin-block-end: 4px !important;
-}
-
-html.mgm-ui-test [class*='stepOneCanvasTitle'],
-html.mgm-ui-test [class*='stepOneGalleryTitle'] {
-  font-weight: 600 !important;
-  letter-spacing: -0.025em !important;
+  letter-spacing: -0.045em !important;
+  line-height: 1.05 !important;
+  text-align: center;
 }
 
 html.mgm-ui-test [class*='stepOneLayout'] {
-  gap: 28px !important;
-  width: min(100%, 42rem) !important;
+  gap: 32px !important;
+  width: min(100%, 40rem) !important;
+  padding-inline: 16px;
 }
 
-html.mgm-ui-test [class*='stepOneSelectorsRow'] {
-  gap: 12px !important;
-}
-
-html.mgm-ui-test [class*='stepOneSizeLabel'],
+/* ─── Labels ─────────────────────────────────────────────── */
 html.mgm-ui-test [class*='stepOneSizeLabel'] {
-  font-size: 12px !important;
+  color: var(--ios-secondary) !important;
+  font-size: 13px !important;
   font-weight: 600 !important;
   letter-spacing: -0.01em !important;
   text-transform: none !important;
-  color: var(--foreground-secondary) !important;
-  padding-inline-start: 2px;
+  padding-inline-start: 4px;
 }
 
-/* ─── Selects: iOS grouped control ───────────────────────── */
-html.mgm-ui-test [class*='stepOneSizeTrigger'] {
-  min-block-size: 48px !important;
-  padding: 10px 14px !important;
-  border-radius: 12px !important;
-  border: 1px solid var(--border-default) !important;
-  background: var(--surface) !important;
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset !important;
-  font-size: 15px !important;
+/* ─── Selects — WHITE cards on gray bg (clear contrast) ──── */
+html.mgm-ui-test [class*='stepOneSizeTrigger'],
+html.mgm-ui-test [class*='stepOneSizeTriggerDark'],
+html.mgm-ui-test [class*='stepOneSizeTriggerLight'] {
+  background: var(--ios-card) !important;
+  color: var(--ios-label) !important;
+  border: 1px solid transparent !important;
+  border-radius: 14px !important;
+  min-block-size: 52px !important;
+  padding: 12px 16px !important;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 4px 16px rgba(0, 0, 0, 0.04) !important;
+  font-size: 16px !important;
   font-weight: 510 !important;
-  letter-spacing: -0.015em !important;
-  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  letter-spacing: -0.02em !important;
 }
 
 html.mgm-ui-test [class*='stepOneSizeTrigger']:hover {
-  background: var(--surface-secondary) !important;
-  border-color: var(--border-hover) !important;
+  background: #fff !important;
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.06),
+    0 8px 24px rgba(0, 0, 0, 0.06) !important;
 }
 
 html.mgm-ui-test [class*='stepOneSizeTriggerOpen'] {
-  border-color: color-mix(in srgb, #0a84ff 55%, transparent) !important;
-  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.18) !important;
+  box-shadow:
+    0 0 0 3px rgba(0, 122, 255, 0.2),
+    0 8px 24px rgba(0, 0, 0, 0.08) !important;
 }
 
-html.mgm-ui-test [class*='stepOneSizeMenu'] {
-  margin-top: 8px !important;
+html.mgm-ui-test [class*='stepOneSizeMenu'],
+html.mgm-ui-test [class*='stepOneSizeMenuDark'] {
+  background: var(--ios-card) !important;
+  color: var(--ios-label) !important;
+  border: none !important;
   border-radius: 14px !important;
-  border: 1px solid var(--border-default) !important;
-  background: var(--surface) !important;
+  margin-top: 8px !important;
   box-shadow:
-    0 12px 40px rgba(0, 0, 0, 0.35),
-    0 2px 8px rgba(0, 0, 0, 0.2) !important;
+    0 12px 40px rgba(0, 0, 0, 0.16),
+    0 2px 8px rgba(0, 0, 0, 0.06) !important;
   overflow: hidden;
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
 }
 
 html.mgm-ui-test [class*='stepOneSizeOption'] {
-  padding: 12px 14px !important;
-  font-size: 15px !important;
-  letter-spacing: -0.015em;
+  color: var(--ios-label) !important;
+  padding: 14px 16px !important;
+  font-size: 16px !important;
+  background: transparent !important;
 }
 
 html.mgm-ui-test [class*='stepOneSizeOption']:hover {
-  background: var(--interactive-hover) !important;
+  background: rgba(0, 0, 0, 0.04) !important;
 }
 
 html.mgm-ui-test [class*='stepOneSizeOptionSelected'] {
-  background: color-mix(in srgb, #0a84ff 14%, transparent) !important;
+  background: rgba(0, 122, 255, 0.1) !important;
 }
 
-/* Recommended badge → quieter pill */
-html.mgm-ui-test [class*='Recommended'],
-html.mgm-ui-test [class*='recommended'],
-html.mgm-ui-test [class*='BadgeRecommended'],
-html.mgm-ui-test [class*='materialRecommended'] {
+html.mgm-ui-test [class*='stepOneSizeOptionCheck'] {
+  color: var(--ios-blue) !important;
+}
+
+html.mgm-ui-test [class*='stepOneDropdownValue'],
+html.mgm-ui-test [class*='stepOneSizeArrow'] {
+  color: var(--ios-label) !important;
+}
+
+/* Recommended badge */
+html.mgm-ui-test [class*='ecommended'],
+html.mgm-ui-test [class*='recommended'] {
+  background: var(--ios-yellow) !important;
+  color: #1c1c1e !important;
+  border: none !important;
   border-radius: 999px !important;
   font-size: 10px !important;
   font-weight: 700 !important;
-  letter-spacing: 0.02em !important;
-  padding: 3px 8px !important;
+  padding: 4px 8px !important;
 }
 
-/* ─── Canvas / print area ────────────────────────────────── */
-html.mgm-ui-test [class*='stepOnePreview'],
+/* ─── Canvas ─────────────────────────────────────────────── */
+html.mgm-ui-test [class*='stepOnePreviewStack'],
+html.mgm-ui-test [class*='stepOneCanvasShell'],
 html.mgm-ui-test [class*='stepOneCanvas'],
 html.mgm-ui-test [class*='uploadArea'],
-html.mgm-ui-test [class*='UploadArea'],
-html.mgm-ui-test [class*='printArea'],
-html.mgm-ui-test [class*='PrintArea'] {
+html.mgm-ui-test [class*='UploadDrop'] {
+  color: var(--ios-secondary) !important;
+}
+
+html.mgm-ui-test [class*='stepOneCanvasShell'],
+html.mgm-ui-test [class*='stepOneCanvasShellDark'],
+html.mgm-ui-test [class*='stepOneCanvasShellLight'],
+html.mgm-ui-test [class*='stepOneCanvasShellActive'] {
+  background: var(--ios-card) !important;
+  background-color: var(--ios-card) !important;
+  border: none !important;
+  border-radius: 20px !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06) !important;
+  color: var(--ios-label) !important;
+}
+
+html.mgm-ui-test [class*='stepOneCanvasGrid'],
+html.mgm-ui-test [class*='stepOneCanvasShell'] [class*='Grid'] {
+  background-color: #e8e8ed !important;
+  border-radius: 14px !important;
+}
+
+html.mgm-ui-test [class*='stepOneCanvasTitle'],
+html.mgm-ui-test [class*='stepOneCanvasText'],
+html.mgm-ui-test [class*='stepOneCanvasIcon'] {
+  color: var(--ios-secondary) !important;
+  border-color: var(--ios-separator) !important;
+}
+
+html.mgm-ui-test [class*='stepOneCustomSizeFieldsDark'] {
+  background: var(--ios-card) !important;
+  border-color: var(--ios-separator) !important;
+  color: var(--ios-label) !important;
+}
+
+html.mgm-ui-test [class*='stepOneCanvasTitle'],
+html.mgm-ui-test [class*='ÁREA'],
+html.mgm-ui-test [class*='printLabel'],
+html.mgm-ui-test [class*='measureLabel'] {
+  color: var(--ios-secondary) !important;
+  letter-spacing: 0.04em;
+}
+
+/* Force canvas interior away from pure black */
+html.mgm-ui-test [class*='stepOneCanvas'] canvas,
+html.mgm-ui-test [class*='stepOneCanvas'] [class*='stage'],
+html.mgm-ui-test [class*='stepOnePreview'] {
   border-radius: 16px !important;
 }
 
-html.mgm-ui-test [class*='stepOnePreviewStack'] {
-  gap: 18px !important;
+html.mgm-ui-test [class*='stepOneCanvasShell'] [style*='background'],
+html.mgm-ui-test [class*='nm-canvas'] {
+  /* fallback for inline dark canvas */
 }
 
-/* Soften dropzone copy */
-html.mgm-ui-test [class*='upload'] p,
-html.mgm-ui-test [class*='Upload'] p,
-html.mgm-ui-test [class*='dropzone'],
-html.mgm-ui-test [class*='Dropzone'] {
-  letter-spacing: -0.01em;
-  color: var(--foreground-secondary);
+/* Dropzone copy */
+html.mgm-ui-test [class*='stepOne'] p,
+html.mgm-ui-test [class*='uploadHint'],
+html.mgm-ui-test [class*='dropHint'] {
+  color: var(--ios-secondary) !important;
 }
 
-/* ─── Footer bar: glass + compact CTA ─────────────────────── */
-html.mgm-ui-test [class*='stepOneFooterBar'] {
-  border-radius: 18px !important;
-  border: 1px solid var(--border-default) !important;
-  background: color-mix(in srgb, var(--surface) 78%, transparent) !important;
-  backdrop-filter: saturate(180%) blur(24px) !important;
-  -webkit-backdrop-filter: saturate(180%) blur(24px) !important;
+/* ─── Footer bar — white elevated sheet ──────────────────── */
+html.mgm-ui-test [class*='stepOneFooterBar'],
+html.mgm-ui-test [class*='stepOneFooterBarDark'],
+html.mgm-ui-test [class*='stepOneFooterBarLight'] {
+  background: var(--ios-card) !important;
+  border: none !important;
+  border-radius: 20px !important;
   box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.28),
-    0 1px 0 rgba(255, 255, 255, 0.06) inset !important;
-  padding: 14px 16px !important;
+    0 4px 6px rgba(0, 0, 0, 0.02),
+    0 16px 40px rgba(0, 0, 0, 0.1) !important;
+  padding: 16px 18px !important;
   gap: 16px !important;
 }
 
-html.mgm-ui-test.light [class*='stepOneFooterBar'] {
-  background: rgba(255, 255, 255, 0.82) !important;
-  box-shadow:
-    0 8px 28px rgba(0, 0, 0, 0.08),
-    0 1px 0 rgba(255, 255, 255, 0.8) inset !important;
-}
-
 html.mgm-ui-test [class*='stepOneFooterPriceCaption'],
+html.mgm-ui-test [class*='stepOneFooterPriceCaptionLight'],
 html.mgm-ui-test [class*='stepTwoFooterPriceCaption'] {
-  color: var(--foreground-secondary) !important;
+  color: var(--ios-secondary) !important;
   font-size: 12px !important;
-  letter-spacing: -0.01em;
 }
 
-/* Primary CTA — NOT a fat white sausage */
+html.mgm-ui-test [class*='transferPrice'],
+html.mgm-ui-test [class*='transferPriceLight'],
+html.mgm-ui-test [class*='stepOneFooterPrice'],
+html.mgm-ui-test [class*='stepOneFooterPriceLight'] {
+  color: var(--ios-label) !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.045em !important;
+  font-size: 28px !important;
+}
+
+html.mgm-ui-test [class*='comparePrice'],
+html.mgm-ui-test [class*='comparePriceLight'] {
+  color: var(--ios-tertiary) !important;
+  text-decoration-color: var(--ios-tertiary) !important;
+}
+
+html.mgm-ui-test [class*='badge'],
+html.mgm-ui-test [class*='SizePromoBadge'],
+html.mgm-ui-test [class*='stepOneSizePromoBadge'],
+html.mgm-ui-test [class*='stepTwoSizePromoBadge'],
+html.mgm-ui-test [class*='ProSeriesPromoPrice'] [class*='badge'] {
+  background: rgba(52, 199, 89, 0.14) !important;
+  color: #248a3d !important;
+  border: 1px solid rgba(52, 199, 89, 0.28) !important;
+  border-radius: 6px !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+}
+
+/* CTA — solid black iOS style, compact */
 html.mgm-ui-test [class*='stepPrimaryAction'],
 html.mgm-ui-test [class*='stepOneFooterAction'] {
-  min-block-size: 44px !important;
-  max-block-size: 44px !important;
-  min-inline-size: 168px !important;
-  padding-inline: 18px !important;
-  padding-block: 0 !important;
-  border-radius: 12px !important;
+  background: var(--ios-label) !important;
+  color: #fff !important;
   border: none !important;
-  background: #f5f5f7 !important;
-  color: #000 !important;
-  font-size: 15px !important;
+  border-radius: 14px !important;
+  min-block-size: 48px !important;
+  max-block-size: 48px !important;
+  min-inline-size: 180px !important;
+  padding-inline: 20px !important;
+  padding-block: 0 !important;
+  font-size: 16px !important;
   font-weight: 600 !important;
   letter-spacing: -0.02em !important;
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.2) inset !important;
-  transition: transform 0.12s ease, opacity 0.12s ease, background 0.12s ease;
-}
-
-html.mgm-ui-test.light [class*='stepPrimaryAction'],
-html.mgm-ui-test.light [class*='stepOneFooterAction'] {
-  background: #1c1c1e !important;
-  color: #f5f5f7 !important;
+  box-shadow: none !important;
 }
 
 html.mgm-ui-test [class*='stepPrimaryAction']:hover:not(:disabled),
 html.mgm-ui-test [class*='stepOneFooterAction']:hover:not(:disabled) {
-  opacity: 0.92;
-  transform: translateY(-0.5px);
-}
-
-html.mgm-ui-test [class*='stepPrimaryAction']:active:not(:disabled) {
-  transform: scale(0.98);
+  background: #000 !important;
   opacity: 0.88;
+  transform: none;
 }
 
-html.mgm-ui-test [class*='stepTwoPrimaryButton'],
-html.mgm-ui-test [class*='stepTwoConfigSubmitButton'] {
-  min-block-size: 44px !important;
-  border-radius: 12px !important;
-  font-weight: 600 !important;
-  letter-spacing: -0.02em !important;
+html.mgm-ui-test [class*='stepPrimaryActionIcon'],
+html.mgm-ui-test [class*='stepPrimaryAction'] svg {
+  color: #fff !important;
+  stroke: #fff !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  min-block-size: unset !important;
+  max-block-size: unset !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
 }
 
-/* ─── Prices ─────────────────────────────────────────────── */
-html.mgm-ui-test [class*='transferPrice'],
-html.mgm-ui-test [class*='ProSeriesPromoPrice'] [class*='transferPrice'] {
-  font-weight: 600 !important;
-  letter-spacing: -0.04em !important;
-  color: var(--nm-accent-blue) !important;
+/* Secondary link — system blue */
+html.mgm-ui-test [class*='stepOneSecondaryAction'],
+html.mgm-ui-test [class*='stepOneSecondaryAction'] svg {
+  color: var(--ios-blue) !important;
+  stroke: var(--ios-blue) !important;
+  font-weight: 510 !important;
 }
 
-html.mgm-ui-test [class*='comparePrice'] {
-  font-size: 13px !important;
-  letter-spacing: -0.01em;
-  opacity: 0.55;
-}
-
-html.mgm-ui-test [class*='ProSeriesPromoPrice'] [class*='badge'],
-html.mgm-ui-test [class*='stepOneSizePromoBadge'],
-html.mgm-ui-test [class*='stepTwoSizePromoBadge'] {
-  border-radius: 6px !important;
-  font-size: 9px !important;
+/* Gallery section */
+html.mgm-ui-test [class*='stepOneGalleryTitle'] {
+  color: var(--ios-label) !important;
   font-weight: 700 !important;
-  letter-spacing: 0.04em !important;
-  background: rgba(48, 209, 88, 0.14) !important;
-  color: #30d158 !important;
-  border: 1px solid rgba(48, 209, 88, 0.28) !important;
+  letter-spacing: -0.03em !important;
 }
 
-/* ─── Step 2 footer / drawers ────────────────────────────── */
-html.mgm-ui-test [class*='stepTwoFooter'] {
-  border-radius: 18px 18px 0 0 !important;
-  border: 1px solid var(--border-default) !important;
-  background: color-mix(in srgb, var(--surface) 80%, transparent) !important;
+html.mgm-ui-test [class*='stepOneGallerySubtitle'] {
+  color: var(--ios-secondary) !important;
+}
+
+html.mgm-ui-test [class*='stepOneGalleryCard'] {
+  border-radius: 16px !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06) !important;
+}
+
+/* ─── Step 2 ─────────────────────────────────────────────── */
+html.mgm-ui-test [class*='stepTwoFooter'],
+html.mgm-ui-test [class*='stepTwoFooterStack'] [class*='stepTwoFooter'] {
+  background: rgba(255, 255, 255, 0.9) !important;
+  border: 1px solid var(--ios-separator) !important;
+  border-radius: 20px 20px 0 0 !important;
   backdrop-filter: saturate(180%) blur(24px) !important;
   -webkit-backdrop-filter: saturate(180%) blur(24px) !important;
+  color: var(--ios-label) !important;
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.08) !important;
 }
 
 html.mgm-ui-test [class*='stepTwoDrawer'],
 html.mgm-ui-test [class*='stepTwoConfigDrawer'],
-html.mgm-ui-test [class*='ToolsDrawer'] {
+html.mgm-ui-test [class*='stepTwoToolsDrawer'] {
+  background: var(--ios-bg) !important;
+  color: var(--ios-label) !important;
   border-radius: 20px 20px 0 0 !important;
-  border: 1px solid var(--border-default) !important;
-  background: var(--surface) !important;
-  box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.35) !important;
+  border: none !important;
+  box-shadow: 0 -12px 48px rgba(0, 0, 0, 0.18) !important;
+}
+
+html.mgm-ui-test [class*='stepTwoDrawerTitle'],
+html.mgm-ui-test [class*='stepTwoAccordionTitle'],
+html.mgm-ui-test [class*='stepTwoOptionTitle'],
+html.mgm-ui-test [class*='stepTwoPreviewTitle'] {
+  color: var(--ios-label) !important;
+  text-transform: none !important;
+  letter-spacing: -0.02em !important;
+}
+
+html.mgm-ui-test [class*='stepTwoOptionDescription'],
+html.mgm-ui-test [class*='stepTwoAccordionSummary'],
+html.mgm-ui-test [class*='stepTwoDrawerSectionTitle'] {
+  color: var(--ios-secondary) !important;
+  text-transform: none !important;
 }
 
 html.mgm-ui-test [class*='stepTwoOptionCard'] {
+  background: var(--ios-card) !important;
+  border: 1px solid transparent !important;
   border-radius: 14px !important;
-  border: 1px solid var(--border-default) !important;
-  background: var(--surface-secondary) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
 }
 
 html.mgm-ui-test [class*='stepTwoOptionCardSelected'] {
-  border-color: color-mix(in srgb, #0a84ff 50%, transparent) !important;
-  background: color-mix(in srgb, #0a84ff 10%, var(--surface)) !important;
+  box-shadow: 0 0 0 2px var(--ios-blue) !important;
+  background: #fff !important;
 }
 
-html.mgm-ui-test [class*='stepTwoAccordionTrigger'] {
+html.mgm-ui-test [class*='stepTwoPrimaryButton'],
+html.mgm-ui-test [class*='stepTwoConfigSubmitButton'] {
+  background: var(--ios-label) !important;
+  color: #fff !important;
+  border-radius: 14px !important;
+  min-block-size: 48px !important;
+  font-weight: 600 !important;
+  border: none !important;
+}
+
+html.mgm-ui-test [class*='stepTwoActionButton'] {
+  background: var(--ios-card) !important;
+  color: var(--ios-label) !important;
+  border: 1px solid var(--ios-separator) !important;
   border-radius: 12px !important;
-  letter-spacing: -0.015em;
 }
 
-/* ─── Step 3 summary ─────────────────────────────────────── */
+html.mgm-ui-test [class*='stepTwoActionRail'],
+html.mgm-ui-test [class*='stepTwoHint'] {
+  background: var(--ios-card) !important;
+  border-color: var(--ios-separator) !important;
+  color: var(--ios-label) !important;
+}
+
+/* ─── Step 3 ─────────────────────────────────────────────── */
+html.mgm-ui-test [class*='stepThreeLayout'] {
+  background: transparent !important;
+}
+
 html.mgm-ui-test [class*='stepThreeDetailsCard'],
 html.mgm-ui-test [class*='stepThreePreviewCard'] {
-  border-radius: 18px !important;
-  border: 1px solid var(--border-default) !important;
-  background: var(--surface) !important;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+  background: var(--ios-card) !important;
+  color: var(--ios-label) !important;
+  border: none !important;
+  border-radius: 20px !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08) !important;
 }
 
 html.mgm-ui-test [class*='stepThreeDetailLabel'] {
-  color: var(--foreground-secondary) !important;
-  font-size: 13px !important;
-  font-weight: 500 !important;
-  letter-spacing: -0.01em;
+  color: var(--ios-secondary) !important;
 }
 
 html.mgm-ui-test [class*='stepThreeDetailValue'],
 html.mgm-ui-test [class*='stepThreeDetailValueTotal'] {
+  color: var(--ios-label) !important;
   font-weight: 600 !important;
-  letter-spacing: -0.02em;
 }
 
-/* ─── Secondary links ────────────────────────────────────── */
-html.mgm-ui-test [class*='stepOneSecondaryAction'] {
-  color: #0a84ff !important;
-  font-weight: 510 !important;
-  letter-spacing: -0.01em;
+/* ─── Nuke leftover near-black hardcodes inside /test ────── */
+html.mgm-ui-test [class*='Dark']:not(html):not(body):not([class*='header']) {
+  /* many *Dark utility classes force #1c1c1c — lift them to white cards */
 }
 
-html.mgm-ui-test.light [class*='stepOneSecondaryAction'] {
-  color: #007aff !important;
+html.mgm-ui-test [style*='background: #1c1c1c'],
+html.mgm-ui-test [style*='background:#1c1c1c'],
+html.mgm-ui-test [style*='background: #0a0a0a'],
+html.mgm-ui-test [style*='background:#0a0a0a'],
+html.mgm-ui-test [style*='background: rgb(28, 28, 28)'] {
+  background: var(--ios-card) !important;
 }
 
-/* ─── Kill the previous “fat pill” mistakes ──────────────── */
-html.mgm-ui-test button[type='submit'] {
+/* Canvas grid area often uses dark fill via CSS vars */
+html.mgm-ui-test [class*='stepOneCanvasShell'] [class*='frame'],
+html.mgm-ui-test [class*='stepOneCanvasShell'] [class*='stage'],
+html.mgm-ui-test [class*='stepOneCanvasShell'] [class*='workspace'] {
+  background: #eaeaef !important;
   border-radius: 12px !important;
 }
 
-/* Don’t force every *Primary* match into a mega pill */
-html.mgm-ui-test [class*='PrimaryActionIcon'],
-html.mgm-ui-test [class*='primaryActionIcon'] {
-  min-block-size: unset !important;
-  max-block-size: unset !important;
-  border-radius: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
-  padding: 0 !important;
+html.mgm-ui-test [class*='nm-on-dark'],
+html.mgm-ui-test [class*='onDark'] {
+  color: var(--ios-secondary) !important;
 }

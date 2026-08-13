@@ -104,6 +104,13 @@ export default function App() {
 
   const isUiTest = location.pathname === UI_TEST_PATH;
 
+  // /test uses a fixed Apple light palette — don't inherit prod dark preference.
+  useEffect(() => {
+    if (isUiTest) {
+      setIsDarkMode(false);
+    }
+  }, [isUiTest]);
+
   useLayoutEffect(() => {
     if (typeof window === 'undefined') return;
     const root = window.document.documentElement;
@@ -112,14 +119,16 @@ export default function App() {
     body.classList.toggle('mgm-shopify-embed', shopifyEmbed);
     root.classList.toggle('mgm-ui-test', isUiTest);
     body.classList.toggle('mgm-ui-test', isUiTest);
-    const nextTheme = isDarkMode ? 'dark' : 'light';
+    const nextTheme = isUiTest ? 'light' : (isDarkMode ? 'dark' : 'light');
 
     root.classList.remove('dark', 'light');
     body.classList.remove('dark', 'light');
     root.classList.add(nextTheme);
     body.classList.add(nextTheme);
     root.style.colorScheme = nextTheme;
-    window.localStorage.setItem(APP_THEME_STORAGE_KEY, nextTheme);
+    if (!isUiTest) {
+      window.localStorage.setItem(APP_THEME_STORAGE_KEY, nextTheme);
+    }
   }, [isDarkMode, isUiTest, shopifyEmbed]);
 
   useEffect(() => {
