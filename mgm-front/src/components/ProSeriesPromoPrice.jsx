@@ -2,7 +2,33 @@ import { useMemo } from 'react';
 import { formatARS } from '../lib/pricing.js';
 import { buildAlfombraPromoDisplay } from '../lib/alfombraPromoDisplay.js';
 import { buildSiteWidePromoDisplay } from '../lib/siteWidePromoDisplay.js';
+import {
+  SIZE_LIMITED_PROMO_PERCENT,
+  isSizeLimitedPromoSize,
+} from '../../../lib/pricing/siteWideShopifyDiscount.js';
 import styles from './ProSeriesPromoPrice.module.css';
+
+export function SizePromoBadge({
+  widthCm,
+  heightCm,
+  lightTheme = false,
+  className = '',
+}) {
+  if (!isSizeLimitedPromoSize(widthCm, heightCm)) return null;
+  const badgeClassName = [
+    styles.badge,
+    lightTheme ? styles.badgeLight : '',
+    className,
+  ]
+    .filter(Boolean)
+    .join(' ');
+  return (
+    <span className={badgeClassName}>
+      {SIZE_LIMITED_PROMO_PERCENT}
+      % OFF
+    </span>
+  );
+}
 
 /**
  * Precio de lista con promos visuales:

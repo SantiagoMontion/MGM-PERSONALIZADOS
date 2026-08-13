@@ -17,7 +17,7 @@ import SeoJsonLd from '../components/SeoJsonLd';
 import UploadStep from '../components/UploadStep';
 import Calculadora from '../components/Calculadora.jsx';
 import CustomSizeFields from '../components/CustomSizeFields.jsx';
-import ProSeriesPromoPrice from '../components/ProSeriesPromoPrice.jsx';
+import ProSeriesPromoPrice, { SizePromoBadge } from '../components/ProSeriesPromoPrice.jsx';
 import { DEFAULT_PRICE_CAPTION } from '../lib/alfombraPromoDisplay.js';
 import EditorCanvas from '../components/EditorCanvas';
 import ColorPopover from '../components/ColorPopover';
@@ -5102,8 +5102,16 @@ export default function Home() {
                           <span
                             className={`${styles.stepOneSizeTriggerBody} ${isFixedPad49x42Material(material) ? styles.stepOneSizeTriggerBodyGlasspad : ''}`.trim()}
                           >
-                            <span className={styles.stepOneDropdownValue} id="step-one-size-trigger-title">
-                              {stepOneSelectedSizeTriggerLabel}
+                            <span className={styles.stepOneDropdownValueRow}>
+                              <span className={styles.stepOneDropdownValue} id="step-one-size-trigger-title">
+                                {stepOneSelectedSizeTriggerLabel}
+                              </span>
+                              <SizePromoBadge
+                                widthCm={activeSizeCm?.w}
+                                heightCm={activeSizeCm?.h}
+                                lightTheme={!isDarkMode}
+                                className={styles.stepOneSizePromoBadge}
+                              />
                             </span>
                           </span>
                           <span className={styles.stepOneSizeArrow} aria-hidden="true">
@@ -5140,8 +5148,18 @@ export default function Home() {
                                   onClick={() => handleStepOneSizeOptionSelect(option)}
                                 >
                                   <span className={styles.stepOneSizeOptionLead}>
-                                    <span className={styles.stepOneDropdownValue}>
-                                      {option.isCustom ? option.menuLabel || option.label : option.menuLabel}
+                                    <span className={styles.stepOneDropdownValueRow}>
+                                      <span className={styles.stepOneDropdownValue}>
+                                        {option.isCustom ? option.menuLabel || option.label : option.menuLabel}
+                                      </span>
+                                      {!option.isCustom ? (
+                                        <SizePromoBadge
+                                          widthCm={option.w}
+                                          heightCm={option.h}
+                                          lightTheme={!isDarkMode}
+                                          className={styles.stepOneSizePromoBadge}
+                                        />
+                                      ) : null}
                                     </span>
                                   </span>
                                   <span className={styles.stepOneSizeOptionTail}>
@@ -5560,7 +5578,16 @@ export default function Home() {
               <div className={styles.stepThreeDetailsCard}>
                 <div className={styles.stepThreeDetailRow}>
                   <span className={styles.stepThreeDetailLabel}>Tamaño</span>
-                  <span className={styles.stepThreeDetailValue}>{stepThreeSizeDetail}</span>
+                  <span className={styles.stepThreeDetailValue}>
+                    <span className={styles.stepThreeSizeValueRow}>
+                      {stepThreeSizeDetail}
+                      <SizePromoBadge
+                        widthCm={activeSizeCm?.w}
+                        heightCm={activeSizeCm?.h}
+                        className={styles.stepThreeSizePromoBadge}
+                      />
+                    </span>
+                  </span>
                 </div>
                 <div className={styles.stepThreeDetailRow}>
                   <span className={styles.stepThreeDetailLabel}>Material</span>
@@ -6002,7 +6029,13 @@ export default function Home() {
                         {DEFAULT_PRICE_CAPTION}
                       </span>
                       <span className={styles.stepTwoFooterSizeMaterialLine}>
-                        {stepTwoFooterMobileSizeMaterialLine}
+                        <span>{stepTwoFooterMobileSizeMaterialLine}</span>
+                        <SizePromoBadge
+                          widthCm={activeSizeCm?.w}
+                          heightCm={activeSizeCm?.h}
+                          lightTheme={!isDarkMode}
+                          className={styles.stepTwoSizePromoBadge}
+                        />
                       </span>
                     </div>
 
@@ -6127,7 +6160,17 @@ export default function Home() {
                             <span className={styles.stepTwoAccordionHeaderContent}>
                               <span className={styles.stepTwoAccordionTitle}>Tamaño</span>
                               {openConfigSection !== STEP_TWO_DRAWER_SECTIONS.size && (
-                                <span className={styles.stepTwoAccordionSummary}>{stepTwoSizeSummary}</span>
+                                <span className={styles.stepTwoAccordionSummary}>
+                                  <span className={styles.stepTwoAccordionSummaryRow}>
+                                    <span>{stepTwoSizeSummary}</span>
+                                    <SizePromoBadge
+                                      widthCm={activeSizeCm?.w}
+                                      heightCm={activeSizeCm?.h}
+                                      lightTheme
+                                      className={styles.stepTwoSizePromoBadge}
+                                    />
+                                  </span>
+                                </span>
                               )}
                             </span>
                             <span
@@ -6167,7 +6210,15 @@ export default function Home() {
                                     />
                                     <span className={styles.stepTwoOptionControl} aria-hidden="true" />
                                     <span className={styles.stepTwoOptionBody}>
-                                      <span className={styles.stepTwoOptionTitle}>{option.label}</span>
+                                      <span className={styles.stepTwoOptionTitleRow}>
+                                        <span className={styles.stepTwoOptionTitle}>{option.label}</span>
+                                        <SizePromoBadge
+                                          widthCm={option.w}
+                                          heightCm={option.h}
+                                          lightTheme
+                                          className={styles.stepTwoSizePromoBadge}
+                                        />
+                                      </span>
                                       <span className={styles.stepTwoOptionDescription}>{option.measurementLabel}</span>
                                     </span>
                                     <span className={styles.stepTwoOptionPrice}>

@@ -1459,6 +1459,44 @@
   min-inline-size: 0;
 }
 
+.stepOneSizePromoBadge {
+  flex: 0 0 auto;
+  font-size: 9px;
+  padding: 2px 6px;
+  white-space: nowrap;
+}
+
+.stepTwoSizePromoBadge {
+  flex: 0 0 auto;
+  font-size: 9px;
+  padding: 2px 6px;
+  white-space: nowrap;
+}
+
+.stepTwoAccordionSummaryRow {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-inline-size: 0;
+}
+
+.stepThreeSizeValueRow {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  min-inline-size: 0;
+}
+
+.stepThreeSizePromoBadge {
+  flex: 0 0 auto;
+  font-size: 9px;
+  padding: 2px 6px;
+  white-space: nowrap;
+}
+
 .stepOneSizeOptionIcon {
   inline-size: var(--space-4);
   block-size: var(--space-4);
@@ -5171,7 +5209,10 @@ body.light .stepTwoContainColorLabel {
   }
 
   .stepTwoFooterSizeMaterialLine {
-    display: block;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
     margin: 0;
     color: rgba(255, 255, 255, 0.6);
     font-family: Inter, var(--font-family), sans-serif;
