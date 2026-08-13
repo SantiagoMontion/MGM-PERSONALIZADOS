@@ -1,22 +1,57 @@
 /**
- * Visual sandbox for /test only.
- * Scoped under html.mgm-ui-test — production `/` is untouched.
- * When ready to ship: lift these overrides into theme.css (or drop the scope).
+ * /test only — Apple HIG–inspired face-lift.
+ * Production `/` is untouched (requires html.mgm-ui-test).
+ *
+ * Ship later: move overrides into theme.css / drop the scope.
  */
 
+/* ─── Foundation ─────────────────────────────────────────── */
 html.mgm-ui-test,
 html.mgm-ui-test body {
   --font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display',
-    'Inter', 'Segoe UI', sans-serif;
-  --radius-button: 980px;
-  --radius-card: 16px;
+    'Helvetica Neue', 'Inter', sans-serif;
+  --font-size: 16px;
+
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 14px;
+  --radius-2xl: 18px;
+  --radius-3xl: 22px;
+  --radius-button: 12px;
+  --radius-card: 18px;
   --radius-input: 12px;
   --radius-dialog: 20px;
   --radius-dropdown: 14px;
-  --spacing-button-padding-x: 1.25rem;
-  --spacing-button-padding-y: 0.75rem;
+
+  --fs-xs: 0.75rem;
+  --fs-sm: 0.8125rem;
+  --fs-base: 0.9375rem;
+  --fs-lg: 1.0625rem;
+  --fs-xl: 1.25rem;
+  --fs-2xl: 1.5rem;
+  --fs-3xl: 1.75rem;
+
+  --brand-primary: #ffd60a;
+  --brand-primary-hover: #ffd60a;
+  --accent: #ffd60a;
+  --nm-brand-yellow: #ffd60a;
+  --nm-accent-blue: #ffd60a;
+  --nm-accent-cyan: #64d2ff;
+
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 html.mgm-ui-test.dark,
@@ -28,9 +63,17 @@ html.mgm-ui-test.dark body {
   --foreground: #f5f5f7;
   --foreground-secondary: rgba(235, 235, 245, 0.6);
   --foreground-tertiary: rgba(235, 235, 245, 0.4);
-  --border-default: rgba(84, 84, 88, 0.65);
-  --border-strong: rgba(84, 84, 88, 0.85);
-  --border-hover: rgba(142, 142, 147, 0.5);
+  --foreground-muted: rgba(235, 235, 245, 0.3);
+  --border-default: rgba(84, 84, 88, 0.36);
+  --border-strong: rgba(84, 84, 88, 0.55);
+  --border-hover: rgba(142, 142, 147, 0.45);
+  --border-focus: rgba(10, 132, 255, 0.55);
+  --interactive-hover: rgba(255, 255, 255, 0.04);
+  --interactive-active: rgba(255, 255, 255, 0.08);
+  --nm-accent-blue: #ffd60a;
+  --nm-header-text: #f5f5f7;
+  --nm-step-two-footer-bg: rgba(28, 28, 30, 0.82);
+  --nm-step-two-footer-primary-bg: #f5f5f7;
 }
 
 html.mgm-ui-test.light,
@@ -41,95 +84,33 @@ html.mgm-ui-test.light body {
   --surface-tertiary: #e5e5ea;
   --foreground: #1c1c1e;
   --foreground-secondary: rgba(60, 60, 67, 0.6);
-  --foreground-tertiary: rgba(60, 60, 67, 0.4);
-  --border-default: rgba(60, 60, 67, 0.18);
-  --border-strong: rgba(60, 60, 67, 0.29);
-  --border-hover: rgba(60, 60, 67, 0.36);
+  --foreground-tertiary: rgba(60, 60, 67, 0.45);
+  --foreground-muted: rgba(60, 60, 67, 0.3);
+  --border-default: rgba(60, 60, 67, 0.12);
+  --border-strong: rgba(60, 60, 67, 0.22);
+  --border-hover: rgba(60, 60, 67, 0.3);
+  --border-focus: rgba(0, 122, 255, 0.45);
+  --nm-accent-blue: #1c1c1e;
+  --nm-header-text: #1c1c1e;
+  --nm-step-two-footer-bg: rgba(255, 255, 255, 0.86);
+  --nm-step-two-footer-primary-bg: #1c1c1e;
 }
 
-/* Shell */
 html.mgm-ui-test #root,
 html.mgm-ui-test body {
-  background: var(--background);
+  background: var(--background) !important;
   color: var(--foreground);
+  font-family: var(--font-family);
 }
 
 html.mgm-ui-test button,
-html.mgm-ui-test [role='button'],
-html.mgm-ui-test a.button,
 html.mgm-ui-test input,
-html.mgm-ui-test select {
+html.mgm-ui-test select,
+html.mgm-ui-test textarea {
   font-family: inherit;
 }
 
-/* Primary CTAs: iOS-like tall touch targets */
-html.mgm-ui-test button[type='submit'],
-html.mgm-ui-test [class*='Primary'],
-html.mgm-ui-test [class*='primaryAction'],
-html.mgm-ui-test [class*='PrimaryButton'],
-html.mgm-ui-test [class*='stepPrimary'],
-html.mgm-ui-test [class*='stepTwoPrimary'],
-html.mgm-ui-test [class*='stepOneFooterAction'] {
-  min-block-size: 44px;
-  border-radius: var(--radius-button) !important;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-
-/* Cards / panels softer */
-html.mgm-ui-test [class*='Card'],
-html.mgm-ui-test [class*='Drawer'],
-html.mgm-ui-test [class*='Panel'],
-html.mgm-ui-test [class*='FooterBar'],
-html.mgm-ui-test [class*='footerBar'] {
-  border-radius: var(--radius-card);
-}
-
-/* Selects / triggers */
-html.mgm-ui-test [class*='SizeTrigger'],
-html.mgm-ui-test [class*='sizeTrigger'],
-html.mgm-ui-test [class*='Dropdown'] {
-  border-radius: var(--radius-input) !important;
-  min-block-size: 44px;
-}
-
-/* Sticky footers: frosted glass */
-html.mgm-ui-test [class*='Footer'],
-html.mgm-ui-test [class*='footer'] {
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
-}
-
-html.mgm-ui-test.dark [class*='stepOneFooterBar'],
-html.mgm-ui-test.dark [class*='stepTwoFooter'] {
-  background: rgba(28, 28, 30, 0.72) !important;
-  border-color: rgba(84, 84, 88, 0.45) !important;
-}
-
-html.mgm-ui-test.light [class*='stepOneFooterBar'],
-html.mgm-ui-test.light [class*='stepTwoFooter'] {
-  background: rgba(255, 255, 255, 0.78) !important;
-  border-color: rgba(60, 60, 67, 0.18) !important;
-}
-
-/* Typography: slightly tighter Apple tracking on big prices */
-html.mgm-ui-test [class*='transferPrice'],
-html.mgm-ui-test [class*='TransferPrice'] {
-  letter-spacing: -0.03em;
-  font-weight: 600;
-}
-
-/* Labels uppercase → small caps / secondary */
-html.mgm-ui-test [class*='SizeLabel'],
-html.mgm-ui-test [class*='sizeLabel'] {
-  letter-spacing: 0.02em;
-  font-weight: 600;
-  font-size: 12px;
-  text-transform: none;
-  color: var(--foreground-secondary);
-}
-
-/* Small banner so QA knows it's the sandbox */
+/* ─── QA banner (discreto) ───────────────────────────────── */
 html.mgm-ui-test .mgm-ui-test-banner {
   position: sticky;
   top: 0;
@@ -137,18 +118,349 @@ html.mgm-ui-test .mgm-ui-test-banner {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 6px 12px;
-  background: color-mix(in srgb, #007aff 18%, transparent);
-  color: #007aff;
-  font-size: 12px;
+  padding: 5px 12px;
+  background: rgba(10, 132, 255, 0.12);
+  color: #0a84ff;
+  font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.02em;
-  border-bottom: 1px solid color-mix(in srgb, #007aff 25%, transparent);
+  letter-spacing: 0.01em;
+  border-bottom: 1px solid rgba(10, 132, 255, 0.2);
 }
 
-html.mgm-ui-test.dark .mgm-ui-test-banner {
-  background: color-mix(in srgb, #0a84ff 22%, transparent);
-  color: #0a84ff;
-  border-bottom-color: color-mix(in srgb, #0a84ff 30%, transparent);
+/* ─── App shell / header ─────────────────────────────────── */
+html.mgm-ui-test [class*='headerDark'],
+html.mgm-ui-test [class*='headerLight'] {
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  background: color-mix(in srgb, var(--background) 72%, transparent) !important;
+  border-block-end-color: var(--border-default) !important;
+}
+
+html.mgm-ui-test [class*='stepBadge'] {
+  border-radius: 999px !important;
+  min-block-size: 26px !important;
+  padding-inline: 12px !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.01em !important;
+  text-transform: none !important;
+}
+
+html.mgm-ui-test [class*='stepTitle'] {
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  letter-spacing: -0.01em !important;
+  text-transform: none !important;
+  opacity: 0.55;
+}
+
+html.mgm-ui-test [class*='stepList'] {
+  gap: 10px !important;
+}
+
+html.mgm-ui-test [class*='App_container'],
+html.mgm-ui-test [class*='container'] {
+  background: var(--background);
+}
+
+/* ─── Step 1 page title ──────────────────────────────────── */
+html.mgm-ui-test [class*='stepHeroTitle'] {
+  font-family: var(--font-family) !important;
+  font-size: clamp(1.75rem, 4vw, 2.25rem) !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.04em !important;
+  line-height: 1.1 !important;
+  margin-block-end: 4px !important;
+}
+
+html.mgm-ui-test [class*='stepOneCanvasTitle'],
+html.mgm-ui-test [class*='stepOneGalleryTitle'] {
+  font-weight: 600 !important;
+  letter-spacing: -0.025em !important;
+}
+
+html.mgm-ui-test [class*='stepOneLayout'] {
+  gap: 28px !important;
+  width: min(100%, 42rem) !important;
+}
+
+html.mgm-ui-test [class*='stepOneSelectorsRow'] {
+  gap: 12px !important;
+}
+
+html.mgm-ui-test [class*='stepOneSizeLabel'],
+html.mgm-ui-test [class*='stepOneSizeLabel'] {
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.01em !important;
+  text-transform: none !important;
+  color: var(--foreground-secondary) !important;
+  padding-inline-start: 2px;
+}
+
+/* ─── Selects: iOS grouped control ───────────────────────── */
+html.mgm-ui-test [class*='stepOneSizeTrigger'] {
+  min-block-size: 48px !important;
+  padding: 10px 14px !important;
+  border-radius: 12px !important;
+  border: 1px solid var(--border-default) !important;
+  background: var(--surface) !important;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset !important;
+  font-size: 15px !important;
+  font-weight: 510 !important;
+  letter-spacing: -0.015em !important;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+
+html.mgm-ui-test [class*='stepOneSizeTrigger']:hover {
+  background: var(--surface-secondary) !important;
+  border-color: var(--border-hover) !important;
+}
+
+html.mgm-ui-test [class*='stepOneSizeTriggerOpen'] {
+  border-color: color-mix(in srgb, #0a84ff 55%, transparent) !important;
+  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.18) !important;
+}
+
+html.mgm-ui-test [class*='stepOneSizeMenu'] {
+  margin-top: 8px !important;
+  border-radius: 14px !important;
+  border: 1px solid var(--border-default) !important;
+  background: var(--surface) !important;
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.35),
+    0 2px 8px rgba(0, 0, 0, 0.2) !important;
+  overflow: hidden;
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+html.mgm-ui-test [class*='stepOneSizeOption'] {
+  padding: 12px 14px !important;
+  font-size: 15px !important;
+  letter-spacing: -0.015em;
+}
+
+html.mgm-ui-test [class*='stepOneSizeOption']:hover {
+  background: var(--interactive-hover) !important;
+}
+
+html.mgm-ui-test [class*='stepOneSizeOptionSelected'] {
+  background: color-mix(in srgb, #0a84ff 14%, transparent) !important;
+}
+
+/* Recommended badge → quieter pill */
+html.mgm-ui-test [class*='Recommended'],
+html.mgm-ui-test [class*='recommended'],
+html.mgm-ui-test [class*='BadgeRecommended'],
+html.mgm-ui-test [class*='materialRecommended'] {
+  border-radius: 999px !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.02em !important;
+  padding: 3px 8px !important;
+}
+
+/* ─── Canvas / print area ────────────────────────────────── */
+html.mgm-ui-test [class*='stepOnePreview'],
+html.mgm-ui-test [class*='stepOneCanvas'],
+html.mgm-ui-test [class*='uploadArea'],
+html.mgm-ui-test [class*='UploadArea'],
+html.mgm-ui-test [class*='printArea'],
+html.mgm-ui-test [class*='PrintArea'] {
+  border-radius: 16px !important;
+}
+
+html.mgm-ui-test [class*='stepOnePreviewStack'] {
+  gap: 18px !important;
+}
+
+/* Soften dropzone copy */
+html.mgm-ui-test [class*='upload'] p,
+html.mgm-ui-test [class*='Upload'] p,
+html.mgm-ui-test [class*='dropzone'],
+html.mgm-ui-test [class*='Dropzone'] {
+  letter-spacing: -0.01em;
+  color: var(--foreground-secondary);
+}
+
+/* ─── Footer bar: glass + compact CTA ─────────────────────── */
+html.mgm-ui-test [class*='stepOneFooterBar'] {
+  border-radius: 18px !important;
+  border: 1px solid var(--border-default) !important;
+  background: color-mix(in srgb, var(--surface) 78%, transparent) !important;
+  backdrop-filter: saturate(180%) blur(24px) !important;
+  -webkit-backdrop-filter: saturate(180%) blur(24px) !important;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.28),
+    0 1px 0 rgba(255, 255, 255, 0.06) inset !important;
+  padding: 14px 16px !important;
+  gap: 16px !important;
+}
+
+html.mgm-ui-test.light [class*='stepOneFooterBar'] {
+  background: rgba(255, 255, 255, 0.82) !important;
+  box-shadow:
+    0 8px 28px rgba(0, 0, 0, 0.08),
+    0 1px 0 rgba(255, 255, 255, 0.8) inset !important;
+}
+
+html.mgm-ui-test [class*='stepOneFooterPriceCaption'],
+html.mgm-ui-test [class*='stepTwoFooterPriceCaption'] {
+  color: var(--foreground-secondary) !important;
+  font-size: 12px !important;
+  letter-spacing: -0.01em;
+}
+
+/* Primary CTA — NOT a fat white sausage */
+html.mgm-ui-test [class*='stepPrimaryAction'],
+html.mgm-ui-test [class*='stepOneFooterAction'] {
+  min-block-size: 44px !important;
+  max-block-size: 44px !important;
+  min-inline-size: 168px !important;
+  padding-inline: 18px !important;
+  padding-block: 0 !important;
+  border-radius: 12px !important;
+  border: none !important;
+  background: #f5f5f7 !important;
+  color: #000 !important;
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.02em !important;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.2) inset !important;
+  transition: transform 0.12s ease, opacity 0.12s ease, background 0.12s ease;
+}
+
+html.mgm-ui-test.light [class*='stepPrimaryAction'],
+html.mgm-ui-test.light [class*='stepOneFooterAction'] {
+  background: #1c1c1e !important;
+  color: #f5f5f7 !important;
+}
+
+html.mgm-ui-test [class*='stepPrimaryAction']:hover:not(:disabled),
+html.mgm-ui-test [class*='stepOneFooterAction']:hover:not(:disabled) {
+  opacity: 0.92;
+  transform: translateY(-0.5px);
+}
+
+html.mgm-ui-test [class*='stepPrimaryAction']:active:not(:disabled) {
+  transform: scale(0.98);
+  opacity: 0.88;
+}
+
+html.mgm-ui-test [class*='stepTwoPrimaryButton'],
+html.mgm-ui-test [class*='stepTwoConfigSubmitButton'] {
+  min-block-size: 44px !important;
+  border-radius: 12px !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.02em !important;
+}
+
+/* ─── Prices ─────────────────────────────────────────────── */
+html.mgm-ui-test [class*='transferPrice'],
+html.mgm-ui-test [class*='ProSeriesPromoPrice'] [class*='transferPrice'] {
+  font-weight: 600 !important;
+  letter-spacing: -0.04em !important;
+  color: var(--nm-accent-blue) !important;
+}
+
+html.mgm-ui-test [class*='comparePrice'] {
+  font-size: 13px !important;
+  letter-spacing: -0.01em;
+  opacity: 0.55;
+}
+
+html.mgm-ui-test [class*='ProSeriesPromoPrice'] [class*='badge'],
+html.mgm-ui-test [class*='stepOneSizePromoBadge'],
+html.mgm-ui-test [class*='stepTwoSizePromoBadge'] {
+  border-radius: 6px !important;
+  font-size: 9px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.04em !important;
+  background: rgba(48, 209, 88, 0.14) !important;
+  color: #30d158 !important;
+  border: 1px solid rgba(48, 209, 88, 0.28) !important;
+}
+
+/* ─── Step 2 footer / drawers ────────────────────────────── */
+html.mgm-ui-test [class*='stepTwoFooter'] {
+  border-radius: 18px 18px 0 0 !important;
+  border: 1px solid var(--border-default) !important;
+  background: color-mix(in srgb, var(--surface) 80%, transparent) !important;
+  backdrop-filter: saturate(180%) blur(24px) !important;
+  -webkit-backdrop-filter: saturate(180%) blur(24px) !important;
+}
+
+html.mgm-ui-test [class*='stepTwoDrawer'],
+html.mgm-ui-test [class*='stepTwoConfigDrawer'],
+html.mgm-ui-test [class*='ToolsDrawer'] {
+  border-radius: 20px 20px 0 0 !important;
+  border: 1px solid var(--border-default) !important;
+  background: var(--surface) !important;
+  box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.35) !important;
+}
+
+html.mgm-ui-test [class*='stepTwoOptionCard'] {
+  border-radius: 14px !important;
+  border: 1px solid var(--border-default) !important;
+  background: var(--surface-secondary) !important;
+}
+
+html.mgm-ui-test [class*='stepTwoOptionCardSelected'] {
+  border-color: color-mix(in srgb, #0a84ff 50%, transparent) !important;
+  background: color-mix(in srgb, #0a84ff 10%, var(--surface)) !important;
+}
+
+html.mgm-ui-test [class*='stepTwoAccordionTrigger'] {
+  border-radius: 12px !important;
+  letter-spacing: -0.015em;
+}
+
+/* ─── Step 3 summary ─────────────────────────────────────── */
+html.mgm-ui-test [class*='stepThreeDetailsCard'],
+html.mgm-ui-test [class*='stepThreePreviewCard'] {
+  border-radius: 18px !important;
+  border: 1px solid var(--border-default) !important;
+  background: var(--surface) !important;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+}
+
+html.mgm-ui-test [class*='stepThreeDetailLabel'] {
+  color: var(--foreground-secondary) !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  letter-spacing: -0.01em;
+}
+
+html.mgm-ui-test [class*='stepThreeDetailValue'],
+html.mgm-ui-test [class*='stepThreeDetailValueTotal'] {
+  font-weight: 600 !important;
+  letter-spacing: -0.02em;
+}
+
+/* ─── Secondary links ────────────────────────────────────── */
+html.mgm-ui-test [class*='stepOneSecondaryAction'] {
+  color: #0a84ff !important;
+  font-weight: 510 !important;
+  letter-spacing: -0.01em;
+}
+
+html.mgm-ui-test.light [class*='stepOneSecondaryAction'] {
+  color: #007aff !important;
+}
+
+/* ─── Kill the previous “fat pill” mistakes ──────────────── */
+html.mgm-ui-test button[type='submit'] {
+  border-radius: 12px !important;
+}
+
+/* Don’t force every *Primary* match into a mega pill */
+html.mgm-ui-test [class*='PrimaryActionIcon'],
+html.mgm-ui-test [class*='primaryActionIcon'] {
+  min-block-size: unset !important;
+  max-block-size: unset !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
 }
