@@ -178,6 +178,8 @@ const CalculadoraPage = () => {
               <ProSeriesPromoPrice
                 material={material}
                 transferPrice={transferPrice}
+                widthCm={Number(width) || undefined}
+                heightCm={Number(height) || undefined}
                 variant="large"
                 lightTheme
               />

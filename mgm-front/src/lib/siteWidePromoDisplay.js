@@ -1,35 +1,37 @@
 import { isAlfombraMaterial } from './alfombraPromoDisplay.js';
+import {
+  SIZE_LIMITED_PROMO_PERCENT,
+  applyPercentOffFloor,
+  isSizeLimitedPromoEligible,
+} from '../../../lib/pricing/siteWideShopifyDiscount.js';
 
-/** Promo visual 20% OFF. Desactivada: el precio de lista ya incluye el ex-rebaja. */
-export const SITE_WIDE_VISUAL_PROMO_ENABLED = false;
-export const SITE_WIDE_VISUAL_DISCOUNT_PERCENT = 20;
+/** @deprecated la promo ahora es por medida (90×40 / 50×40) + Classic/PRO */
+export const SITE_WIDE_VISUAL_PROMO_ENABLED = true;
+export const SITE_WIDE_VISUAL_DISCOUNT_PERCENT = SIZE_LIMITED_PROMO_PERCENT;
 
 /**
- * Precio visual con % OFF sobre lista final (+15% redondeada).
- * Coincide con floor(lista × (100 - percent) / 100) y con resolveShopifySalePricing.
+ * Precio visual con % OFF sobre lista final.
  */
 export function applyVisualPercentDiscount(listPrice, percent = SITE_WIDE_VISUAL_DISCOUNT_PERCENT) {
-  const list = Math.round(Number(listPrice) || 0);
-  const off = Math.round(Number(percent) || 0);
-  if (list <= 0 || off <= 0 || off >= 100) return 0;
-  return Math.floor((list * (100 - off)) / 100);
-}
-
-function isUltraMaterial(material) {
-  return String(material ?? '').trim().toLowerCase().includes('ultra');
+  return applyPercentOffFloor(listPrice, percent);
 }
 
 /**
- * Promo 20% OFF para materiales excepto Alfombra (2x1) y Ultra (sin promo).
- * En UI: compareAt = lista (tachado), displayPrice = lista×0.8.
- * En Shopify: price = displayPrice, compareAtPrice = compareAt.
+ * Promo 20% OFF solo Classic/PRO en 90×40 y 50×40.
+ * UI: compareAt = lista (tachado), displayPrice = lista×0.8.
  * @param {string} material
- * @param {number} listPrice Precio de lista final (ya con +15% y redondeo).
+ * @param {number} listPrice
+ * @param {{ widthCm?: number, heightCm?: number }} [size]
  */
-export function buildSiteWidePromoDisplay(material, listPrice) {
-  if (!SITE_WIDE_VISUAL_PROMO_ENABLED) return null;
+export function buildSiteWidePromoDisplay(material, listPrice, size = {}) {
   if (isAlfombraMaterial(material)) return null;
-  if (isUltraMaterial(material)) return null;
+  if (!isSizeLimitedPromoEligible({
+    material,
+    widthCm: size.widthCm,
+    heightCm: size.heightCm,
+  })) {
+    return null;
+  }
 
   const resolvedList = Math.round(Number(listPrice) || 0);
   const displayPrice = applyVisualPercentDiscount(resolvedList, SITE_WIDE_VISUAL_DISCOUNT_PERCENT);

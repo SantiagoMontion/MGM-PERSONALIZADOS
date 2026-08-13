@@ -5401,6 +5401,8 @@ export default function Home() {
                         <ProSeriesPromoPrice
                           material={material}
                           transferPrice={stepOneDisplayTransferPrice}
+                          widthCm={activeSizeCm?.w}
+                          heightCm={activeSizeCm?.h}
                           variant="large"
                           lightTheme={!isDarkMode}
                         />
@@ -5574,6 +5576,8 @@ export default function Home() {
                     <ProSeriesPromoPrice
                       material={material}
                       transferPrice={editorDisplayTransferPrice}
+                      widthCm={activeSizeCm?.w}
+                      heightCm={activeSizeCm?.h}
                       variant="stepThree"
                     />
                   </span>
@@ -5989,6 +5993,8 @@ export default function Home() {
                       <ProSeriesPromoPrice
                         material={material}
                         transferPrice={editorDisplayTransferPrice}
+                        widthCm={activeSizeCm?.w}
+                        heightCm={activeSizeCm?.h}
                         variant="large"
                         lightTheme={!isDarkMode}
                       />
@@ -6169,9 +6175,10 @@ export default function Home() {
                                         <ProSeriesPromoPrice
                                           material={material}
                                           transferPrice={option.price}
+                                          widthCm={option.w}
+                                          heightCm={option.h}
                                           variant="compact"
                                           inline
-                                          showBadge={false}
                                         />
                                       ) : (
                                         '—'
@@ -6304,9 +6311,10 @@ export default function Home() {
                                         <ProSeriesPromoPrice
                                           material={option.value}
                                           transferPrice={option.totalPrice}
+                                          widthCm={activeSizeCm?.w}
+                                          heightCm={activeSizeCm?.h}
                                           variant="compact"
                                           inline
-                                          showBadge={false}
                                         />
                                       ) : (
                                         '—'
@@ -6439,6 +6447,8 @@ export default function Home() {
                           <ProSeriesPromoPrice
                             material={material}
                             transferPrice={editorDisplayTransferPrice}
+                            widthCm={activeSizeCm?.w}
+                            heightCm={activeSizeCm?.h}
                             variant="medium"
                           />
                         </div>

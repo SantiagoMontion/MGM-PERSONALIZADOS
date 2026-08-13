@@ -107,21 +107,23 @@
 .badge {
   display: inline-flex;
   align-items: center;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--nm-accent-blue, #3b82f6) 18%, transparent);
-  color: var(--nm-accent-blue, #3b82f6);
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, #dc2626 12%, transparent);
+  color: #b91c1c;
+  border: 1px solid color-mix(in srgb, #dc2626 22%, transparent);
   font-family: Inter, var(--font-family), sans-serif;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
   line-height: 1.2;
   text-transform: uppercase;
 }
 
 .badgeLight {
-  background: color-mix(in srgb, var(--nm-black, #000) 8%, transparent);
-  color: var(--nm-black, #000);
+  background: color-mix(in srgb, #dc2626 10%, transparent);
+  color: #b91c1c;
+  border-color: color-mix(in srgb, #dc2626 20%, transparent);
 }
 
 .priceRow {
@@ -132,7 +134,14 @@
 }
 
 .rootPromoStack {
-  gap: 6px;
+  gap: 8px;
+}
+
+.promoHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-inline-size: 0;
 }
 
 .priceColumn {
@@ -153,22 +162,23 @@
 }
 
 .comparePrice {
-  color: var(--nm-on-dark-60, rgba(255, 255, 255, 0.6));
+  color: var(--nm-on-dark-60, rgba(255, 255, 255, 0.55));
   font-family: Inter, var(--font-family), sans-serif;
   font-weight: 400;
   line-height: 1.1;
   text-decoration: line-through;
-  text-decoration-thickness: 1.5px;
+  text-decoration-thickness: 1.25px;
+  text-decoration-color: color-mix(in srgb, currentColor 70%, transparent);
 }
 
 .comparePriceLight {
-  color: color-mix(in srgb, var(--nm-black, #000) 52%, transparent);
+  color: color-mix(in srgb, var(--nm-black, #000) 48%, transparent);
 }
 
 .transferPrice {
   color: var(--nm-accent-blue, #3b82f6);
   font-family: Inter, var(--font-family), sans-serif;
-  font-weight: 500;
+  font-weight: 600;
   line-height: 1.1;
   letter-spacing: -0.04em;
 }
@@ -184,7 +194,7 @@
 
 .variantLarge .transferPrice {
   font-size: 28px;
-  font-weight: 400;
+  font-weight: 600;
   letter-spacing: -0.84px;
   line-height: 30.8px;
 }
@@ -212,9 +222,11 @@
 }
 
 .variantStepThree .badge {
-  font-size: 10px;
-  background: color-mix(in srgb, var(--foreground) 10%, transparent);
-  color: var(--foreground);
+  font-size: 9px;
+  padding: 2px 6px;
+  background: color-mix(in srgb, #dc2626 10%, transparent);
+  color: #b91c1c;
+  border-color: color-mix(in srgb, #dc2626 18%, transparent);
 }
 
 .variantCompact .comparePrice {
@@ -225,10 +237,24 @@
 
 .variantCompact .transferPrice {
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .variantCompact .badge {
-  font-size: 10px;
-  padding: 1px 6px;
+  font-size: 9px;
+  padding: 2px 5px;
+}
+
+.rootInline.rootPromoStack {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+
+.rootInline .priceColumn {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
 }

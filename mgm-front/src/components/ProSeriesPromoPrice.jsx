@@ -7,12 +7,14 @@ import styles from './ProSeriesPromoPrice.module.css';
 /**
  * Precio de lista con promos visuales:
  * - Alfombra: 2x1 (sin tachado)
- * - Resto: 20% OFF (lista tachada + precio nuevo más grande debajo)
- * `transferPrice` es el precio final de lista (+15% redondeado) que va a Shopify.
+ * - Classic/PRO 90×40 o 50×40: 20% OFF (lista tachada + precio nuevo + badge)
+ * `transferPrice` es el precio de lista (+15% redondeado) antes del 20% OFF.
  */
 export default function ProSeriesPromoPrice({
   material,
   transferPrice,
+  widthCm,
+  heightCm,
   variant = 'large',
   lightTheme = false,
   inline = false,
@@ -23,8 +25,8 @@ export default function ProSeriesPromoPrice({
   const formattedListPrice = listPrice > 0 ? formatARS(listPrice) : '0';
 
   const promo = useMemo(
-    () => buildSiteWidePromoDisplay(material, listPrice),
-    [listPrice, material],
+    () => buildSiteWidePromoDisplay(material, listPrice, { widthCm, heightCm }),
+    [heightCm, listPrice, material, widthCm],
   );
   const alfombraPromo = useMemo(
     () => buildAlfombraPromoDisplay(material, {
@@ -113,9 +115,11 @@ export default function ProSeriesPromoPrice({
 
   return (
     <div className={rootClassName}>
-      {showBadge ? (
-        <span className={badgeClassName}>{promo.discountLabel}</span>
-      ) : null}
+      <div className={styles.promoHeader}>
+        {showBadge ? (
+          <span className={badgeClassName}>{promo.discountLabel}</span>
+        ) : null}
+      </div>
       <div className={styles.priceColumn}>
         <span className={compareClassName}>
           $
