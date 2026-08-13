@@ -350,33 +350,38 @@ html.mgm-ui-test [class*='stepOneFooterBarLight'] {
   gap: 16px !important;
 }
 
-html.mgm-ui-test [class*='stepOneFooterPriceCaption'],
-html.mgm-ui-test [class*='stepOneFooterPriceCaptionLight'],
-html.mgm-ui-test [class*='stepTwoFooterPriceCaption'] {
+/* Caption under price — must NOT match stepOneFooterPrice* big-number rules */
+html.mgm-ui-test [class*='FooterPriceCaption'] {
   color: var(--ios-secondary) !important;
   font-size: 12px !important;
+  font-weight: 400 !important;
+  line-height: 1.35 !important;
+  letter-spacing: -0.01em !important;
+  display: block !important;
+  white-space: normal !important;
 }
 
-html.mgm-ui-test [class*='transferPrice'],
-html.mgm-ui-test [class*='transferPriceLight'],
-html.mgm-ui-test [class*='stepOneFooterPrice'],
-html.mgm-ui-test [class*='stepOneFooterPriceLight'] {
+/* Big price number only (avoid *PriceCaption* substring collision) */
+html.mgm-ui-test [class*='ProSeriesPromoPrice'] [class*='transferPrice'] {
   color: var(--ios-label) !important;
   font-weight: 700 !important;
-  letter-spacing: -0.045em !important;
+  letter-spacing: -0.04em !important;
   font-size: 28px !important;
+  line-height: 1.15 !important;
 }
 
-html.mgm-ui-test [class*='comparePrice'],
-html.mgm-ui-test [class*='comparePriceLight'] {
+html.mgm-ui-test [class*='ProSeriesPromoPrice'] [class*='comparePrice'] {
   color: var(--ios-tertiary) !important;
   text-decoration-color: var(--ios-tertiary) !important;
+  font-size: 13px !important;
+  line-height: 1.25 !important;
+  letter-spacing: -0.01em !important;
 }
 
-html.mgm-ui-test [class*='badge'],
 html.mgm-ui-test [class*='SizePromoBadge'],
 html.mgm-ui-test [class*='stepOneSizePromoBadge'],
 html.mgm-ui-test [class*='stepTwoSizePromoBadge'],
+html.mgm-ui-test [class*='stepThreeSizePromoBadge'],
 html.mgm-ui-test [class*='ProSeriesPromoPrice'] [class*='badge'] {
   background: rgba(52, 199, 89, 0.14) !important;
   color: #248a3d !important;
@@ -384,6 +389,8 @@ html.mgm-ui-test [class*='ProSeriesPromoPrice'] [class*='badge'] {
   border-radius: 6px !important;
   font-size: 10px !important;
   font-weight: 700 !important;
+  line-height: 1.2 !important;
+  letter-spacing: 0.04em !important;
 }
 
 /* CTA — solid black iOS style, compact */
