@@ -12,6 +12,7 @@ import {
   PROJECT_NAME_FORBIDDEN_WORDS_MESSAGE,
 } from '../_lib/projectNameForbiddenWords.js';
 import { resolveThemeTemplateSuffix } from '../shopify/themeTemplateSuffix.js';
+import { buildPersonalizedProductSeo } from '../seo/productSeo.js';
 
 type DataUrlPayload = {
   mimeType: string;
@@ -418,12 +419,20 @@ export default async function handler(req: any, res: any) {
       title,
       material: mode === 'Glasspad' ? 'Glasspad' : String(mode || ''),
     });
+    const productSeo = buildPersonalizedProductSeo({
+      material: mode === 'Glasspad' ? 'Glasspad' : String(mode || 'Classic'),
+      designName: designNameRaw,
+      measurement: measurementLabel,
+      productTitle: title,
+    });
     const designNameForPath = designNameRaw || title;
     const payload = {
       product: {
         title,
         ...(templateSuffix ? { template_suffix: templateSuffix } : { template_suffix: null }),
         body_html: `<p>Personalizado ${width}x${height} cm</p>`,
+        metafields_global_title_tag: productSeo.title,
+        metafields_global_description_tag: productSeo.description,
         images: [{ attachment: base64 }],
         variants: [{
           price: '0.00',

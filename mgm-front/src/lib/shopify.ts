@@ -877,11 +877,56 @@ function buildMetaDescription(
   measurement?: string,
   material?: string,
 ): string {
-  const parts: string[] = [`${productLabel} gamer personalizado`];
-  if (designName) parts.push(`Diseño ${designName}`);
-  if (measurement) parts.push(`Medida ${measurement} cm`);
-  if (material) parts.push(`Material ${material}`);
-  return `${parts.join('. ')}.`;
+  const mat = (material || productLabel || 'Classic').trim();
+  const noun =
+    mat === 'Glasspad' ? 'Glasspad'
+      : mat === 'Alfombra' ? 'Alfombra'
+        : mat === 'Ultra' ? 'Mousepad Ultra'
+          : mat === 'PRO' ? 'Mousepad PRO'
+            : 'Mousepad Classic';
+  const blurbs: Record<string, string> = {
+    Classic: 'Tela y base de caucho antideslizante, bordes cosidos. Hecho en Argentina. 6 cuotas y envío a todo el país.',
+    PRO: 'Alto rendimiento, base de caucho antideslizante y bordes cosidos. Hecho en Argentina. 6 cuotas y envío a todo el país.',
+    Ultra: 'Serie Ultra con base Poron japonés. Producción en Argentina. 6 cuotas y envío a todo el país.',
+    Glasspad: 'Glasspad premium de precisión. Línea NOTMID. 6 cuotas y envío a todo el país.',
+    Alfombra: 'Alfombra personalizada para tu espacio o setup. Producción en Argentina y envío a todo el país.',
+  };
+  const blurb = blurbs[mat] || blurbs.Classic;
+  const design = (designName || '').trim();
+  const size = (measurement || '').trim();
+  const lead = design
+    ? `${noun} ${design}${size ? ` ${size}` : ''} de NOTMID.`
+    : `${noun} personalizado de NOTMID.`;
+  const text = `${lead} ${blurb}`.replace(/\s+/g, ' ').trim();
+  return text.length <= 155 ? text : `${text.slice(0, 154).replace(/\s+\S*$/, '')}…`;
+}
+
+function buildSeoTitle(
+  productLabel: string,
+  designName: string,
+  measurement?: string,
+  material?: string,
+  productTitle?: string,
+): string {
+  const mat = (material || productLabel || 'Classic').trim();
+  const noun =
+    mat === 'Glasspad' ? 'Glasspad'
+      : mat === 'Alfombra' ? 'Alfombra'
+        : mat === 'Ultra' ? 'Mousepad Ultra'
+          : mat === 'PRO' ? 'Mousepad PRO'
+            : 'Mousepad Classic';
+  const design = (designName || '').trim();
+  const size = (measurement || '').trim();
+  const parts = [design, noun, mat === 'Ultra' ? '' : size].filter(Boolean);
+  let title = `${parts.join(' ')} | NOTMID`.replace(/\s+/g, ' ').trim();
+  if (title.length > 60) {
+    title = `${title.slice(0, 59).replace(/\s+\S*$/, '')}…`;
+  }
+  const product = (productTitle || '').trim();
+  if (product && title.toLowerCase() === product.toLowerCase()) {
+    title = `${parts.join(' ')} | NOTMID Argentina`.replace(/\s+/g, ' ').trim().slice(0, 60);
+  }
+  return title;
 }
 
 export async function blobToBase64(b: Blob): Promise<string> {
@@ -1141,6 +1186,7 @@ export async function createJobAndProduct(
       : buildDefaultTitle(productLabel, designName, measurementLabel, materialLabel, isCircularShape);
   productTitle = appendRectoSuffix(productTitle, isStraightEdges);
   let metaDescription = buildMetaDescription(productLabel, designName, measurementLabel, displayMaterialLabel);
+  let seoTitle = buildSeoTitle(productLabel, designName, measurementLabel, displayMaterialLabel || materialLabel, productTitle);
   const widthFallback = cmFromPx((flow as any)?.masterWidthPx, (flow as any)?.approxDpi || 300);
   const heightFallback = cmFromPx((flow as any)?.masterHeightPx, (flow as any)?.approxDpi || 300);
   const widthForName = resolveMeasurementForFilename(widthCm, widthFallback);
@@ -1317,6 +1363,7 @@ export async function createJobAndProduct(
       filename,
       tags: extraTags,
       description: '',
+      seoTitle,
       seoDescription: metaDescription,
       visibility: requestedVisibility,
       isPrivate,
