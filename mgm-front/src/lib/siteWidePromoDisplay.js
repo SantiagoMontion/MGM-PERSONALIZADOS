@@ -1,7 +1,7 @@
 import { isAlfombraMaterial } from './alfombraPromoDisplay.js';
 import {
   SIZE_LIMITED_PROMO_PERCENT,
-  applyPercentOffFloor,
+  applyPercentOffSalePrice,
   isSizeLimitedPromoEligible,
 } from '../../../lib/pricing/siteWideShopifyDiscount.js';
 
@@ -10,10 +10,10 @@ export const SITE_WIDE_VISUAL_PROMO_ENABLED = true;
 export const SITE_WIDE_VISUAL_DISCOUNT_PERCENT = SIZE_LIMITED_PROMO_PERCENT;
 
 /**
- * Precio visual con % OFF sobre lista final.
+ * Precio visual con % OFF sobre lista final (redondeado a $100).
  */
 export function applyVisualPercentDiscount(listPrice, percent = SITE_WIDE_VISUAL_DISCOUNT_PERCENT) {
-  return applyPercentOffFloor(listPrice, percent);
+  return applyPercentOffSalePrice(listPrice, percent);
 }
 
 /**
