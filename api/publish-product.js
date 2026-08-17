@@ -6,6 +6,10 @@ import {
   buildAllowHeaders,
 } from '../lib/cors.js';
 import { randomUUID } from 'node:crypto';
+import {
+  findOutOfStockMaterial,
+  MATERIAL_OUT_OF_STOCK_REASON,
+} from '../lib/materials/outOfStock.js';
 
 const SHOPIFY_ENABLED = process.env.SHOPIFY_ENABLED === '1';
 const FRONT_ORIGIN = (process.env.FRONT_ORIGIN || 'https://mgm-app.vercel.app').replace(/\/$/, '');
@@ -603,6 +607,17 @@ export default async function handler(req, res) {
     if (inferredType && inferredType !== 'mousepad') {
       productType = inferredType;
     }
+  }
+  const outOfStock = findOutOfStockMaterial({ material: mat, productType });
+  if (outOfStock) {
+    sendJsonWithCors(req, res, 400, {
+      ok: false,
+      reason: MATERIAL_OUT_OF_STOCK_REASON,
+      message: outOfStock.message,
+      material: outOfStock.material,
+      diagId,
+    });
+    return;
   }
   let widthCmSafe = Number(parsedBody?.widthCm ?? NaN);
   let heightCmSafe = Number(parsedBody?.heightCm ?? NaN);

@@ -7,6 +7,7 @@ import {
   DEFAULT_SIZE_CM,
   MIN_DIMENSION_CM_BY_MATERIAL,
 } from '../lib/material.js';
+import { isOutOfStockMaterial, MATERIAL_OUT_OF_STOCK_MESSAGE } from '../lib/outOfStockMaterial.js';
 import { intrinsicImageQualityLevel } from '../lib/dpi';
 import styles from './OptionsStep.module.css';
 import { buildSubmitJobBody, prevalidateSubmitBody } from '../lib/jobPayload';
@@ -102,6 +103,12 @@ export default function OptionsStep({ uploaded, onSubmitted }) {
     setErr('');
     setBusy(true);
     try {
+    if (isOutOfStockMaterial(material)) {
+      setErr(MATERIAL_OUT_OF_STOCK_MESSAGE);
+      setMaterial('Classic');
+      setBusy(false);
+      return;
+    }
     const minW = MIN_DIMENSION_CM_BY_MATERIAL[material]?.w ?? 1;
     const minH = MIN_DIMENSION_CM_BY_MATERIAL[material]?.h ?? 1;
     const wNum = clamp(parseFloat(wText || '0'), minW, limits.maxW);

@@ -41,6 +41,7 @@ import {
   isSizeWithinMaterialLimits,
   normalizeMaterialLabel,
 } from '../lib/material.js';
+import { isOutOfStockMaterial, MATERIAL_OUT_OF_STOCK_MESSAGE } from '../lib/outOfStockMaterial.js';
 import { calculateTransferPricing, formatARS } from '../lib/pricing.js';
 import { applyFrontendDisplayPriceMarkup, formatFrontendDisplayPriceLabel } from '../lib/frontendDisplayPricing.js';
 
@@ -3074,6 +3075,12 @@ export default function Home() {
       const heightToStore = chosenHeightCm
         ?? (Number.isFinite(existingHeight) && existingHeight > 0 ? Math.round(existingHeight) : null);
       const finalMaterial = selectedMaterial || 'Classic';
+      if (isOutOfStockMaterial(finalMaterial)) {
+        setErr(MATERIAL_OUT_OF_STOCK_MESSAGE);
+        setMaterial('Classic');
+        setBusy(false);
+        return;
+      }
       const finalStraightEdges = Boolean(isStraightEdgesMaterial(finalMaterial) && !isCircular && isStraightEdges);
       let finalWidthCm = widthToStore;
       let finalHeightCm = heightToStore;
@@ -4603,6 +4610,18 @@ export default function Home() {
       return false;
     }
 
+    if (
+      isMaterialDropdownLocked(selectedStepTwoMaterialOption)
+      || isOutOfStockMaterial(material)
+      || isOutOfStockMaterial(selectedStepTwoMaterialOption.value)
+    ) {
+      setErr(MATERIAL_OUT_OF_STOCK_MESSAGE);
+      setMaterial('Classic');
+      setConfigOpen(true);
+      setOpenConfigSection(STEP_TWO_DRAWER_SECTIONS.material);
+      return false;
+    }
+
     const projectNameError = validateProjectName(designName);
     if (projectNameError) {
       setDesignNameError(projectNameError);
@@ -4617,7 +4636,7 @@ export default function Home() {
     setErr('');
     setDesignNameError('');
     return true;
-  }, [designName, hasImage, selectedStepTwoMaterialOption, selectedStepTwoSizeOption]);
+  }, [designName, hasImage, material, selectedStepTwoMaterialOption, selectedStepTwoSizeOption]);
 
   const syncFlowEditorSelection = useCallback(() => {
     if (typeof flow?.set !== 'function') return;
