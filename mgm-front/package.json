@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "prebuild": "git lfs install && git lfs fetch --all && git lfs checkout || true",
+    "prebuild": "git lfs install || true; git lfs fetch --all || true; git lfs checkout || true",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"
