@@ -10,6 +10,10 @@ import {
   findOutOfStockMaterial,
   MATERIAL_OUT_OF_STOCK_REASON,
 } from '../lib/materials/outOfStock.js';
+import {
+  projectNameContainsForbiddenWord,
+  PROJECT_NAME_FORBIDDEN_WORDS_MESSAGE,
+} from '../lib/_lib/projectNameForbiddenWords.js';
 
 const SHOPIFY_ENABLED = process.env.SHOPIFY_ENABLED === '1';
 const FRONT_ORIGIN = (process.env.FRONT_ORIGIN || 'https://mgm-app.vercel.app').replace(/\/$/, '');
@@ -649,6 +653,15 @@ export default async function handler(req, res) {
       ?? parsedBody.name
       ?? ''
   );
+  if (projectNameContainsForbiddenWord(String(designNameRaw || ''))) {
+    sendJsonWithCors(req, res, 400, {
+      ok: false,
+      reason: 'design_name_forbidden_words',
+      message: PROJECT_NAME_FORBIDDEN_WORDS_MESSAGE,
+      diagId,
+    });
+    return;
+  }
   const designNameNorm = normalizeDesignNameKeepSpaces(designNameRaw);
   const designName = designNameNorm.length ? designNameNorm : 'Personalizado';
   const normalizedShape = (
