@@ -10,6 +10,12 @@ import {
   headOk,
   buildMockupBaseName,
 } from '@/lib/preview.js';
+import {
+  isOutOfStockMaterial,
+  isOutOfStockProductType,
+  MATERIAL_OUT_OF_STOCK_MESSAGE,
+  MATERIAL_OUT_OF_STOCK_REASON,
+} from './outOfStockMaterial.js';
 
 const DEFAULT_STORE_BASE = 'https://kw0f4u-ji.myshopify.com';
 const RAW_PUBLISH_MAX_PAYLOAD_KB = readEnv(['VITE_PUBLISH_MAX_PAYLOAD_KB']);
@@ -696,14 +702,15 @@ function buildCartTrackingAttributes(options: {
     attributes.push({ name, value: trimmed.slice(0, 255) });
   };
 
+  // Prefijo `_`: Shopify/theme ocultan estas properties al cliente; siguen en el pedido.
   const rid = ensureTrackingRid();
-  if (rid) pushAttribute('rid', rid);
+  if (rid) pushAttribute('_rid', rid);
 
   const resolvedJobId = jobId || readJobId(flow);
-  if (resolvedJobId) pushAttribute('job_id', resolvedJobId);
+  if (resolvedJobId) pushAttribute('_job_id', resolvedJobId);
 
-  if (materialLabel) pushAttribute('material', materialLabel);
-  if (measurementLabel) pushAttribute('measurement_cm', `${measurementLabel} cm`);
+  if (materialLabel) pushAttribute('_material', materialLabel);
+  if (measurementLabel) pushAttribute('_measurement_cm', `${measurementLabel} cm`);
 
   pushAttribute('_app_source', 'custom');
   return attributes;
@@ -729,36 +736,36 @@ function buildPrivateDraftOrderMetadata(options: {
   const jobId = readJobId(flow);
   if (jobId) {
     lines.push(`Job ID: ${jobId}`);
-    pushAttribute('job_id', jobId);
+    pushAttribute('_job_id', jobId);
   }
 
   const rid = ensureTrackingRid();
-  if (rid) pushAttribute('rid', rid);
+  if (rid) pushAttribute('_rid', rid);
 
   const designName = typeof flow.designName === 'string' ? flow.designName.trim() : '';
   if (designName) {
     lines.push(`Diseño: ${designName}`);
-    pushAttribute('design_name', designName);
+    pushAttribute('_design_name', designName);
   }
 
   if (productLabel) {
     lines.push(`Producto: ${productLabel}`);
-    pushAttribute('product_label', productLabel);
+    pushAttribute('_product_label', productLabel);
   }
 
   if (materialLabel) {
     lines.push(`Material: ${materialLabel}`);
-    pushAttribute('material', materialLabel);
+    pushAttribute('_material', materialLabel);
   }
 
   if (measurement) {
     lines.push(`Medida: ${measurement} cm`);
-    pushAttribute('measurement_cm', `${measurement} cm`);
+    pushAttribute('_measurement_cm', `${measurement} cm`);
   }
 
   if (customerEmail) {
     lines.push(`Email cliente: ${customerEmail}`);
-    pushAttribute('customer_email', customerEmail);
+    pushAttribute('_customer_email', customerEmail);
   }
 
   const sourceLine = 'Origen: Editor personalizado';
@@ -1069,6 +1076,12 @@ export async function createJobAndProduct(
     ? materialOverrideRaw.trim()
     : resolveMaterialStringFromFlow(flow);
   let materialLabel = productType === 'glasspad' ? 'Glasspad' : (matLabelOf(materialFromFlowRaw) || 'Classic');
+  if (isOutOfStockMaterial(materialLabel) || isOutOfStockProductType(productType)) {
+    const err: Error & { reason?: string; friendlyMessage?: string } = new Error(MATERIAL_OUT_OF_STOCK_REASON);
+    err.reason = MATERIAL_OUT_OF_STOCK_REASON;
+    err.friendlyMessage = MATERIAL_OUT_OF_STOCK_MESSAGE;
+    throw err;
+  }
   const displayMaterialLabel = formatCustomerMaterialLabel(materialLabel, isCircularShape);
   if (materialLabel === 'Alfombra') {
     productLabel = 'Alfombra';
