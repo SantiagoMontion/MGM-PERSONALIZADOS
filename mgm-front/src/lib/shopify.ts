@@ -18,6 +18,8 @@ import {
 } from './outOfStockMaterial.js';
 
 const DEFAULT_STORE_BASE = 'https://kw0f4u-ji.myshopify.com';
+const VARIANT_NOT_READY_MESSAGE =
+  'Tu diseño se está publicando en la tienda. Esperá unos segundos y tocá «Agregar al carrito» de nuevo.';
 const RAW_PUBLISH_MAX_PAYLOAD_KB = readEnv(['VITE_PUBLISH_MAX_PAYLOAD_KB']);
 const PUBLISH_MAX_PAYLOAD_KB = (() => {
   const parsed = Number(RAW_PUBLISH_MAX_PAYLOAD_KB);
@@ -1667,7 +1669,7 @@ export async function createJobAndProduct(
   productHandle = typeof publish.productHandle === 'string' ? publish.productHandle : productHandle;
   productUrl = typeof publish.productUrl === 'string'
     ? publish.productUrl
-    : productUrl || (productHandle ? `${DEFAULT_STORE_BASE}/products/${productHandle}` : undefined);
+    : productUrl || (productHandle ? `${resolvePublicStoreBase()}/products/${productHandle}` : undefined);
   visibilityResult = publish?.visibility === 'private' ? 'private' : visibilityResult;
 
   if (!variantId) {
@@ -1725,17 +1727,23 @@ export async function createJobAndProduct(
     }
   }
 
+  let variantReadyForCart = false;
+  let cartAddedViaStorefront = false;
+  let storefrontCartUrl = '';
+
   if (mode === 'checkout' || mode === 'cart' || isPrivate) {
     try {
       const expectedHandle =
         typeof productHandle === 'string' && productHandle.trim() ? productHandle.trim() : null;
       const pollResult = await waitForVariantAvailability(variantId, {
         expectedHandle,
+        attemptDelaysMs: canReuse ? undefined : FRESH_PUBLISH_VARIANT_POLL_DELAYS_MS,
         verifyProductPublication: productId && !isPrivate
           ? () => verifyProductPublicationStatus(productId)
           : undefined,
       });
-      if (pollResult?.timedOut) {
+      variantReadyForCart = Boolean(pollResult?.available && pollResult?.variantPresent);
+      if (pollResult?.timedOut && !variantReadyForCart) {
         warn('[createJobAndProduct] storefront_variant_poll_timed_out', {
           variantId: String(variantId).slice(0, 24),
           mode,
@@ -1744,6 +1752,45 @@ export async function createJobAndProduct(
       }
     } catch (pollErr) {
       warn('[createJobAndProduct] storefront_variant_poll_failed', pollErr);
+    }
+
+    if (!variantReadyForCart && mode === 'cart' && variantId) {
+      try {
+        const cartLinkResult = await requestStorefrontCartLink({
+          variantId: String(variantId),
+          quantity: 1,
+          jobId: jobIdForPdf || undefined,
+          attributes: buildCartTrackingAttributes({
+            flow,
+            jobId: jobIdForPdf,
+            materialLabel: displayMaterialLabel,
+            measurementLabel,
+          }),
+        });
+        if (cartLinkResult.ok && cartLinkResult.cartUrl) {
+          variantReadyForCart = true;
+          cartAddedViaStorefront = true;
+          storefrontCartUrl = cartLinkResult.cartUrl;
+          try {
+            diag('[createJobAndProduct] cart_link_ready_after_poll', {
+              strategy: cartLinkResult.strategy || null,
+              variantId: String(variantId).slice(0, 24),
+            });
+          } catch {}
+        }
+      } catch (cartLinkErr) {
+        warn('[createJobAndProduct] cart_link_fallback_failed', cartLinkErr);
+      }
+    }
+
+    if (!variantReadyForCart && (mode === 'cart' || mode === 'checkout')) {
+      const err = new Error('variant_not_ready') as Error & {
+        reason?: string;
+        friendlyMessage?: string;
+      };
+      err.reason = 'variant_not_ready';
+      err.friendlyMessage = VARIANT_NOT_READY_MESSAGE;
+      throw err;
     }
   }
 
@@ -1770,6 +1817,7 @@ export async function createJobAndProduct(
     warnings?: any[];
     warningMessages?: string[];
     privateCheckoutPayload?: Record<string, unknown>;
+    cartAddedViaStorefront?: boolean;
     raw?: unknown;
   } = {
     productId,
@@ -1882,7 +1930,11 @@ export async function createJobAndProduct(
       }
     }
   } else if (mode === 'cart' && variantId && skipCartLink) {
-    // Fast path for Home: /cart/add with line-item properties (no storefront poll).
+    if (cartAddedViaStorefront && storefrontCartUrl) {
+      result.cartUrl = storefrontCartUrl;
+      result.cartAddedViaStorefront = true;
+    }
+    // Fast path for Home: /cart/add with line-item properties once variant is live on Online Store.
     const cartTrackingAttributes = buildCartTrackingAttributes({
       flow,
       jobId: jobIdForPdf,
@@ -1902,13 +1954,15 @@ export async function createJobAndProduct(
         if (productUrl.startsWith('/')) returnTo = productUrl;
       }
     }
-    const addUrl = buildCartAddUrl(variantId, 1, {
-      baseUrl: resolvePublicStoreBase(),
-      returnTo,
-      properties,
-    });
-    if (addUrl) {
-      result.cartUrl = addUrl;
+    if (!cartAddedViaStorefront) {
+      const addUrl = buildCartAddUrl(variantId, 1, {
+        baseUrl: resolvePublicStoreBase(),
+        returnTo,
+        properties,
+      });
+      if (addUrl) {
+        result.cartUrl = addUrl;
+      }
     }
   }
 
@@ -2757,6 +2811,25 @@ const DEFAULT_VARIANT_POLL_DELAYS_MS = [
   1_500,
   1_500,
   1_500,
+];
+
+/** Tras publicar un producto nuevo, Shopify puede tardar ~20–40s en exponer la variante al carrito clásico. */
+const FRESH_PUBLISH_VARIANT_POLL_DELAYS_MS = [
+  800,
+  1_200,
+  1_500,
+  2_000,
+  2_000,
+  2_500,
+  2_500,
+  3_000,
+  3_000,
+  3_500,
+  3_500,
+  4_000,
+  4_000,
+  4_500,
+  5_000,
 ];
 
 const VARIANT_POLL_INITIAL_DELAY_MS = 0;

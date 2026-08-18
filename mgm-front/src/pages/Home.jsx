@@ -1067,12 +1067,18 @@ const resolveProductPageTargetUrl = (result) => {
 const resolveAddToCartThenProductUrl = (result) => {
   if (!result || typeof result !== 'object') return null;
 
+  const productUrl = resolveProductPageTargetUrl(result);
+
+  // Storefront Cart API ya agregó la línea; ir a la ficha del producto (evita /cart/add con variante fría).
+  if (result?.cartAddedViaStorefront) {
+    return productUrl || safeStr(result?.cartUrl) || null;
+  }
+
   const existingCartUrl = safeStr(result?.cartUrl) || safeStr(result?.raw?.cartUrl);
   if (existingCartUrl && /\/cart\/add\b/i.test(existingCartUrl)) {
     return existingCartUrl;
   }
 
-  const productUrl = resolveProductPageTargetUrl(result);
   const variantId =
     result?.variantIdNumeric
     || result?.variantId
@@ -1159,6 +1165,10 @@ function navigateSameTab(url) {
 const resolveCheckoutErrorMessage = (checkoutError) => {
   const friendlyMessage = safeStr(checkoutError?.friendlyMessage);
   if (friendlyMessage) return friendlyMessage;
+  const reason = safeStr(checkoutError?.reason);
+  if (reason === 'variant_not_ready') {
+    return 'Tu diseño se está publicando en la tienda. Esperá unos segundos y tocá «Agregar al carrito» de nuevo.';
+  }
   const rawMessage = safeStr(checkoutError?.message);
   const name = safeStr(checkoutError?.name);
   if (
